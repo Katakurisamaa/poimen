@@ -1,0 +1,258 @@
+"use client";
+
+import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import {
+  LayoutDashboard, Users, UserPlus, CalendarDays, Target,
+  AlertTriangle, FileText, ChevronLeft, LogOut,
+  Menu, X, ShieldCheck, Church, Globe, LayoutGrid, User
+} from "lucide-react";
+
+const NAV = [
+  { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Bergerie", href: "/dashboard/bergerie", icon: Users },
+  { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
+  { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+  { label: "Activités", href: "/dashboard/activities", icon: CalendarDays },
+  { label: "Challenges", href: "/dashboard/challenges", icon: AlertTriangle },
+  { label: "Objectifs", href: "/dashboard/objectives", icon: Target },
+];
+
+const ADMIN_NAV = [
+  { label: "Écosystème", href: "/dashboard/admin?tab=ecosystem", tab: "ecosystem", icon: ShieldCheck },
+  { label: "Églises", href: "/dashboard/admin?tab=churches", tab: "churches", icon: Church },
+  { label: "Approbations", href: "/dashboard/admin?tab=approvals", tab: "approvals", icon: Globe },
+];
+
+const MOBILE_TABS = NAV.slice(0, 5); // 5 tabs max on mobile
+
+export default function Sidebar(props: any) {
+  return (
+    <Suspense fallback={null}>
+      <SidebarContent {...props} />
+    </Suspense>
+  );
+}
+
+function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () => void; mobileOpen?: boolean }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab");
+  
+  const isAdmin = pathname.startsWith("/dashboard/admin");
+  const [churchName, setChurchName] = useState("Poimén");
+  const [hasFamily, setHasFamily] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [userInfo, setUserInfo] = useState<any>(null);
+  
+  const currentNav = (isAdmin || isSuperAdmin) ? ADMIN_NAV : (hasFamily ? NAV : []);
+
+  useEffect(() => {
+    const checkState = () => {
+      const savedChurch = localStorage.getItem("selected_church");
+      if (savedChurch) {
+        setChurchName(JSON.parse(savedChurch).name);
+      }
+      
+      const savedFamily = localStorage.getItem("selected_family");
+      setHasFamily(!!savedFamily);
+
+      const user = localStorage.getItem("poimen_user");
+      if (user) {
+        const profile = JSON.parse(user);
+        setIsSuperAdmin(profile.role === 'super_admin' || profile.email === 'minkojunior400@gmail.com');
+      }
+
+      const info = localStorage.getItem("poimen_user_info");
+      if (info) {
+        setUserInfo(JSON.parse(info));
+      }
+    };
+
+    checkState();
+    window.addEventListener("storage", checkState);
+    return () => window.removeEventListener("storage", checkState);
+  }, []);
+
+  if (!isAdmin && !hasFamily && !isSuperAdmin) return null;
+
+  return (
+    <>
+      {/* Desktop / Tablet Sidebar */}
+      <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
+        {/* Logo */}
+        <div style={{ padding: "22px 20px 18px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 700, color: "var(--gold-light)", letterSpacing: "-0.02em" }}>
+              Poimén
+            </div>
+            <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginTop: 1, textTransform: "uppercase" }}>
+              {isAdmin ? "ADMINISTRATION" : churchName}
+            </div>
+          </div>
+          {/* Close on mobile */}
+          <button onClick={onToggleMobile} className="btn-icon" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "none" }} id="sidebar-close-btn">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: "14px 0", overflowY: "auto" }}>
+          {(() => {
+            const userRole = (userInfo?.role || "").toLowerCase();
+            const isBergerOrSecond = userRole.includes("berger") || userRole.includes("second");
+            const isConseiller = userInfo?.isConseiller === true;
+            const isResponsable = userRole.includes("responsable");
+
+            // Conseiller + Berger/Second → full access
+            // Conseiller + Responsable → Invités (lecture) + Affectations + Profil
+            // Conseiller seul → Invités (lecture) + Profil
+            // Responsable/Brebi/Autre → Affectations + Profil
+
+            let navItems: any[];
+
+            if (isAdmin) {
+              navItems = [...currentNav, { label: "Profil", href: "/dashboard/profil", icon: User }];
+            } else if (isBergerOrSecond) {
+              navItems = [...currentNav, { label: "Profil", href: "/dashboard/profil", icon: User }];
+            } else if (isConseiller && isResponsable) {
+              navItems = [
+                { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
+            } else if (isConseiller) {
+              navItems = [
+                { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
+            } else {
+              // Responsable / Brebi / Autre
+              navItems = [
+                { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
+            }
+
+            return navItems.map((item: any) => {
+              const Icon = item.icon;
+              let active = false;
+
+              if (isAdmin) {
+                if (item.tab === "ecosystem") {
+                  active = !currentTab || currentTab === "ecosystem";
+                } else {
+                  active = currentTab === item.tab;
+                }
+              } else {
+                active = pathname === item.href;
+              }
+
+              return (
+                <Link key={item.href} href={item.href} className={`nav-item ${active ? "active" : ""}`} onClick={onToggleMobile}>
+                  <Icon size={18} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            });
+          })()}
+        </nav>
+
+        {/* User - Only show if Admin or Has Family */}
+        {(isAdmin || hasFamily) && (
+          <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+            {(() => {
+              const avatarUrl = userInfo?.avatarUrl || "";
+              const effect = avatarUrl.startsWith("effect:") ? avatarUrl.replace("effect:", "") : null;
+              const effectClass = effect ? `avatar-effect-${effect}` : "";
+              
+              return (
+                <div className={`avatar avatar-gradient ${effectClass}`} style={{ width: 32, height: 32, fontSize: 11, border: effect ? "2px solid" : "none" }}>
+                  {isAdmin ? "SA" : (userInfo?.firstName?.[0] || "") + (userInfo?.lastName?.[0] || "")}
+                </div>
+              );
+            })()}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cream)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {isAdmin ? "Junior Minko" : (userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : "Utilisateur")}
+              </div>
+              <div style={{ fontSize: 10, color: "var(--gold)", letterSpacing: 0.5, textTransform: "uppercase" }}>
+                {isAdmin ? "SUPER ADMIN" : (userInfo?.role || "MEMBRE")}
+              </div>
+            </div>
+            <button 
+              onClick={() => { 
+                localStorage.removeItem("selected_family");
+                localStorage.removeItem("poimen_user_info");
+                window.dispatchEvent(new Event("storage"));
+                window.location.href = "/dashboard";
+              }}
+              style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", opacity: 0.5 }}
+              title="Quitter la famille"
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
+        )}
+      </aside>
+
+      {/* Mobile Bottom Tab Bar */}
+      {(isAdmin || hasFamily) && (
+        <nav className="bottom-nav">
+          {(() => {
+            const userRole = (userInfo?.role || "").toLowerCase();
+            const isBergerOrSecond = userRole.includes("berger") || userRole.includes("second");
+            const isConseiller = userInfo?.isConseiller === true;
+            const isResponsable = userRole.includes("responsable");
+
+            let mobileItems: any[];
+
+            if (isAdmin) {
+              mobileItems = currentNav.slice(0, 5);
+            } else if (isBergerOrSecond) {
+              mobileItems = currentNav.slice(0, 5);
+            } else if (isConseiller && isResponsable) {
+              mobileItems = [
+                { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
+            } else if (isConseiller) {
+              mobileItems = [
+                { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
+            } else {
+              mobileItems = [
+                { label: "Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
+            }
+
+            return mobileItems.map((item: any) => {
+              const Icon = item.icon;
+              let active = false;
+              if (isAdmin) {
+                if (item.tab === "ecosystem") {
+                  active = !currentTab || currentTab === "ecosystem";
+                } else {
+                  active = currentTab === item.tab;
+                }
+              } else {
+                active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              }
+
+              return (
+                <Link key={item.href} href={item.href} className={`tab ${active ? "active" : ""}`}>
+                  <Icon size={20} />
+                  <span>{item.label.split(" ").pop()}</span>
+                </Link>
+              );
+            });
+          })()}
+        </nav>
+      )}
+    </>
+  );
+}

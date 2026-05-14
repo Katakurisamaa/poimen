@@ -1,0 +1,988 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { 
+  Search, Plus, Grid3X3, List, UserMinus, UserPlus, 
+  ChevronDown, ChevronUp, XCircle, Loader2, Pencil, Eye,
+  Trash2, Trash, RotateCcw, Archive
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
+
+const STATUS_OPTIONS = ["Brebi", "Responsable", "Berger", "Second"];
+
+interface M { 
+  id: string; 
+  civility: string; 
+  lastName: string; 
+  firstName: string; 
+  age: string; 
+  phone: string; 
+  status: string;
+  email: string;
+  responsible?: string;
+  is_conseiller?: boolean;
+  archived?: boolean;
+  attendance: Record<string, Record<string, boolean>>;
+}
+
+interface Activity {
+  id: string;
+  name: string;
+  day: number;
+  startTime: string;
+  endTime: string;
+}
+
+const INITIAL_ACTIVITIES: Activity[] = [
+  { id: "culte", name: "Culte du Dimanche", day: 0, startTime: "10:00", endTime: "12:30" },
+  { id: "cdm", name: "CDM (Cellule Alpha)", day: 4, startTime: "19:00", endTime: "20:30" },
+];
+
+const INITIAL_DATA: M[] = [];
+
+const getEngagementColor = (engagement: number) => {
+  if (engagement >= 75) return "var(--green)";
+  if (engagement >= 45) return "var(--orange)";
+  return "var(--red)";
+};
+
+export default function BergeriePage() {
+  const [data, setData] = useState<M[]>(INITIAL_DATA);
+  const [activities] = useState<Activity[]>(INITIAL_ACTIVITIES);
+  const [mounted, setMounted] = useState(false);
+  
+  const [search, setSearch] = useState("");
+  const [view, setView] = useState<"list"|"grid">("list");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isConseillerModalOpen, setIsConseillerModalOpen] = useState(false);
+  const [conseillerSource, setConseillerSource] = useState<"existing" | "new">("existing");
+  const [selectedConseillerId, setSelectedConseillerId] = useState<string>("");
+  const [periodType, setPeriodType] = useState<"mensuel" | "annuel">("mensuel");
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [familyId, setFamilyId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isConseillerChecked, setIsConseillerChecked] = useState(false);
+  const [showCorbeille, setShowCorbeille] = useState(false);
+  const [conseillerExterne, setConseillerExterne] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window !== "undefined") {
+      const userInfoStr = localStorage.getItem("poimen_user_info");
+      if (userInfoStr) {
+        const parsed = JSON.parse(userInfoStr);
+        setUserRole(parsed.role);
+        setUserName(`${parsed.firstName} ${parsed.lastName}`);
+        setUserEmail(parsed.email?.toLowerCase());
+      }
+      const fam = localStorage.getItem("selected_family");
+      if (fam) {
+        const parsedFam = JSON.parse(fam);
+        setFamilyId(parsedFam.id);
+      }
+    }
+  }, []);
+
+  const userRoleVal = (userRole || "brebi").toLowerCase().trim().replace(/ /g, '_');
+  const isLeader = [
+    "berger", "second", "coordonnateur", "responsable", "super_admin", 
+    "responsable_de_brebi", "second_du_berger", "conseiller"
+  ].includes(userRoleVal);
+
+  const canManageMembers = ["berger", "second", "super_admin", "second_du_berger", "conseiller"].includes(userRoleVal);
+
+  useEffect(() => {
+    if (familyId) {
+      fetchMembers();
+    }
+  }, [familyId]);
+
+  const fetchMembers = async () => {
+    setLoading(true);
+    const { data: dbMembers, error } = await supabase
+      .from("members")
+      .select("*")
+      .eq("bergerie_id", familyId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching members:", error);
+    } else {
+      // Map DB fields to component interface
+      const mapped: M[] = (dbMembers || []).map(m => ({
+        id: m.id,
+        civility: m.civility,
+        firstName: m.first_name,
+        lastName: m.last_name,
+        age: m.age,
+        phone: m.phone,
+        status: m.status,
+        email: m.email || "",
+        responsible: m.responsible,
+        is_conseiller: m.is_conseiller || false,
+        archived: m.archived || false,
+        attendance: m.attendance || {}
+      }));
+      
+      // AUTO-ADD LEADER SAFETY NET
+      console.log("Membres récupérés:", mapped.length);
+      
+      if (isLeader && userEmail && familyId) {
+        const me = mapped.find(m => m.email?.toLowerCase() === userEmail);
+        console.log("Vérification auto-add pour:", userEmail, "Trouvé ?", !!me);
+        
+        if (!me) {
+          console.log("Tentative d'ajout automatique du leader...");
+          const { error: insErr } = await supabase.from("members").insert({
+            bergerie_id: familyId,
+            civility: "M.",
+            first_name: userName?.split(' ')[0] || "Leader",
+            last_name: userName?.split(' ')[1] || "Nom",
+            email: userEmail,
+            status: userRoleVal.includes('second') ? 'Second' : (userRoleVal.includes('berger') ? 'Berger' : 'Responsable')
+          });
+          
+          if (insErr) {
+            console.error("ÉCHEC de l'ajout automatique:", insErr.message);
+          } else {
+            console.log("SUCCÈS de l'ajout automatique !");
+            const { data: retryData } = await supabase.from("members").select("*").eq("bergerie_id", familyId);
+            if (retryData) {
+               setData(retryData.map(m => ({
+                 id: m.id, civility: m.civility, firstName: m.first_name, lastName: m.last_name,
+                 age: m.age, phone: m.phone, status: m.status, email: m.email || "",
+                 responsible: m.responsible, attendance: m.attendance || {},
+                 is_conseiller: m.is_conseiller || false, archived: m.archived || false
+               })));
+               setLoading(false);
+               return;
+            }
+          }
+        }
+      }
+
+      setData(mapped);
+    }
+    setLoading(false);
+  };
+
+  const [newMember, setNewMember] = useState<Partial<M>>({
+    civility: "M.",
+    firstName: "",
+    lastName: "",
+    age: "26-30",
+    phone: "",
+    status: "Brebi",
+    email: "",
+    attendance: {}
+  });
+
+  // Helpers for calculation
+  const getDaysOfPeriod = (year: number, month: number | null, dayOfWeek: number) => {
+    const dates = [];
+    let start = new Date(year, month !== null ? month : 0, 1);
+    let end = new Date(year, month !== null ? month + 1 : 12, 0);
+    
+    let d = new Date(start);
+    while (d <= end) {
+      if (d.getDay() === dayOfWeek) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        dates.push(`${yyyy}-${mm}-${dd}`);
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    return dates;
+  };
+
+  const calculateEngagement = (member: M) => {
+    let totalPossible = 0;
+    let totalPresent = 0;
+    
+    activities.forEach(act => {
+      const dates = getDaysOfPeriod(selectedYear, periodType === "mensuel" ? selectedMonth : null, act.day);
+      totalPossible += dates.length;
+      totalPresent += dates.filter(d => member.attendance[act.id]?.[d]).length;
+    });
+    
+    return totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
+  };
+
+
+  // Separate active members, archived (corbeille), and external conseillers
+  const activeMembers = data.filter(m => !m.archived && m.status !== "Externe");
+  const archivedMembers = data.filter(m => m.archived);
+  const externalConseiller = data.find(m => m.status === "Externe" && m.is_conseiller && !m.archived);
+
+  const filtered = (showCorbeille ? archivedMembers : activeMembers).filter((m) => {
+    // Recherche textuelle d'abord
+    const full = `${m.firstName} ${m.lastName}`.toLowerCase();
+    if (search && !full.includes(search.toLowerCase())) return false;
+
+    if (showCorbeille) return true; // Show all archived
+
+    // 1. Si c'est un simple membre (Brebi), il ne voit QUE lui-même
+    if (!isLeader) {
+      return m.email?.toLowerCase() === userEmail;
+    }
+
+    // 2. Filtrage spécifique pour les responsables de brebis
+    if (userRoleVal === "responsable_de_brebi" || userRoleVal === "responsable") {
+      const userNameStr = userName || "";
+      // On voit soit ses propres brebis, soit soi-même
+      if (m.status === "Brebi") {
+        return m.responsible === userNameStr;
+      } else {
+        // Voir le Berger, le Second et soi-même (pour édition ou visibilité)
+        return m.status === "Berger" || m.status === "Second" || (m.firstName + " " + m.lastName) === userNameStr;
+      }
+    }
+
+    return true;
+  }).sort((a, b) => {
+    const roles = { "Berger": 1, "Second": 2, "Responsable": 3, "Brebi": 4 };
+    return (roles[a.status as keyof typeof roles] || 9) - (roles[b.status as keyof typeof roles] || 9);
+  });
+
+  const updateStatus = async (id: string, newStatus: string) => {
+    if (userRole === "Brebi" || userRole === "brebi") return;
+    
+    setData(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m));
+    
+    await supabase.from("members").update({ status: newStatus }).eq("id", id);
+  };
+
+  const handleSaveMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!familyId) return;
+
+    // Uniqueness checks
+    if (newMember.status === "Berger") {
+      const exists = data.find(m => m.status === "Berger" && m.id !== newMember.id);
+      if (exists) {
+        alert("Attention : Une famille ne peut avoir qu'un seul Berger.");
+        return;
+      }
+    }
+    if (newMember.status === "Second") {
+      const exists = data.find(m => m.status === "Second" && m.id !== newMember.id);
+      if (exists) {
+        alert("Attention : Une famille ne peut avoir qu'un seul Second.");
+        return;
+      }
+    }
+    // Conseiller uniqueness check
+    if (isConseillerChecked) {
+      const existingConseiller = data.find(m => m.is_conseiller && m.id !== newMember.id);
+      if (existingConseiller) {
+        alert(`Attention : ${existingConseiller.firstName} ${existingConseiller.lastName} est déjà le Conseiller de cette bergerie. Retirez-lui ce rôle d'abord.`);
+        return;
+      }
+    }
+
+    const isEditing = !!newMember.id;
+
+    let result;
+    if (isEditing) {
+      result = await supabase
+        .from("members")
+        .update({
+          civility: newMember.civility,
+          first_name: newMember.firstName,
+          last_name: newMember.lastName,
+          age: newMember.age,
+          phone: newMember.phone,
+          status: newMember.status,
+          email: newMember.email,
+          responsible: newMember.responsible,
+          is_conseiller: isConseillerChecked,
+        })
+        .eq("id", newMember.id)
+        .select()
+        .single();
+    } else {
+      result = await supabase
+        .from("members")
+        .insert({
+          bergerie_id: familyId,
+          civility: newMember.civility,
+          first_name: newMember.firstName,
+          last_name: newMember.lastName,
+          age: newMember.age,
+          phone: newMember.phone,
+          status: newMember.status,
+          email: newMember.email,
+          responsible: newMember.responsible,
+          is_conseiller: isConseillerChecked,
+          attendance: {}
+        })
+        .select()
+        .single();
+    }
+
+    const { data: inserted, error } = result;
+
+    if (error) {
+      alert("Erreur : " + error.message);
+    } else if (inserted) {
+      const m: M = {
+        id: inserted.id,
+        civility: inserted.civility,
+        firstName: inserted.first_name,
+        lastName: inserted.last_name,
+        age: inserted.age,
+        phone: inserted.phone,
+        status: inserted.status,
+        email: inserted.email || "",
+        responsible: inserted.responsible,
+        is_conseiller: inserted.is_conseiller || false,
+        archived: inserted.archived || false,
+        attendance: inserted.attendance || {}
+      };
+      
+      if (isEditing) {
+        setData(prev => prev.map(item => item.id === m.id ? m : item));
+      } else {
+        setData([m, ...data]);
+      }
+      
+      setIsAddModalOpen(false);
+      setIsConseillerChecked(false);
+      setNewMember({ civility: "M.", firstName: "", lastName: "", age: "26-30", phone: "", status: "Brebi", email: "", attendance: {} });
+    }
+  };
+
+  const toggleAttendance = async (memberId: string, actId: string, date: string) => {
+    if (userRole === "Brebi" || userRole === "brebi") return;
+    
+    const member = data.find(m => m.id === memberId);
+    if (!member) return;
+
+    const newAttendance = { ...member.attendance };
+    if (!newAttendance[actId]) newAttendance[actId] = {};
+    newAttendance[actId][date] = !newAttendance[actId][date];
+
+    // Update locally
+    setData(prev => prev.map(m => m.id === memberId ? { ...m, attendance: newAttendance } : m));
+
+    // Update in DB
+    const { error } = await supabase
+      .from("members")
+      .update({ attendance: newAttendance })
+      .eq("id", memberId);
+
+    if (error) {
+      console.error("Error updating attendance:", error);
+    }
+  };
+
+  const handleDeleteMember = async (id: string) => {
+    if (!confirm("Voulez-vous déplacer ce membre dans la corbeille ?")) return;
+
+    const { error } = await supabase
+      .from("members")
+      .update({ archived: true })
+      .eq("id", id);
+
+    if (error) {
+      alert("Erreur lors de l'archivage : " + error.message);
+    } else {
+      setData(prev => prev.map(m => m.id === id ? { ...m, archived: true } : m));
+    }
+  };
+
+  const handleRestoreMember = async (id: string) => {
+    const { error } = await supabase
+      .from("members")
+      .update({ archived: false })
+      .eq("id", id);
+
+    if (error) {
+      alert("Erreur lors de la restauration : " + error.message);
+    } else {
+      setData(prev => prev.map(m => m.id === id ? { ...m, archived: false } : m));
+    }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    if (!confirm("⚠️ Suppression DÉFINITIVE. Cette action est irréversible. Continuer ?")) return;
+
+    const { error } = await supabase
+      .from("members")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      alert("Erreur lors de la suppression : " + error.message);
+    } else {
+      setData(prev => prev.filter(m => m.id !== id));
+    }
+  };
+
+  if (!mounted || loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: 50 }}>
+        <Loader2 className="animate-spin" size={32} style={{ color: "var(--gold)" }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">{showCorbeille ? "Corbeille" : "Bergerie"}</h2>
+          <p style={{ fontSize:12, color:"var(--muted)", marginTop:4 }}>
+            {showCorbeille 
+              ? `${archivedMembers.length} membre(s) archivé(s)`
+              : `${activeMembers.length} membres actifs dans la bergerie`
+            }
+          </p>
+        </div>
+        {canManageMembers && (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {!showCorbeille && (
+              <>
+                <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
+                  <Plus size={14} /> Nouveau Membre
+                </button>
+                <button className="btn btn-outline" style={{ borderColor: "var(--sky)", color: "var(--sky)" }} onClick={() => setIsConseillerModalOpen(true)}>
+                  <Eye size={14} /> Ajouter Conseiller
+                </button>
+              </>
+            )}
+            <button 
+              className="btn btn-outline" 
+              style={showCorbeille ? { background: "var(--red)", borderColor: "var(--red)", color: "white" } : { borderColor: "rgba(239,68,68,0.4)", color: "var(--red)" }}
+              onClick={() => setShowCorbeille(!showCorbeille)}
+            >
+              <Trash2 size={14} /> {showCorbeille ? "Quitter la Corbeille" : "Corbeille"}
+              {!showCorbeille && archivedMembers.length > 0 && (
+                <span style={{ background: "var(--red)", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
+                  {archivedMembers.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* External Conseiller Card */}
+      {!showCorbeille && externalConseiller && (
+        <div className="glass" style={{ padding: 14, display: "flex", alignItems: "center", justifyContent: "space-between", borderLeft: "3px solid var(--sky)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="avatar" style={{ width: 34, height: 34, background: "rgba(91,168,224,0.15)", border: "1px solid var(--sky)", color: "var(--sky)" }}>
+              {externalConseiller.firstName[0]}{externalConseiller.lastName[0]}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{externalConseiller.firstName} {externalConseiller.lastName}</div>
+              <div style={{ fontSize: 10, color: "var(--sky)" }}>Conseiller externe</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 9, padding: "3px 8px", borderRadius: 4, background: "rgba(91,168,224,0.15)", color: "var(--sky)", fontWeight: 700 }}>EXTERNE</div>
+            {canManageMembers && (
+              <button className="btn-icon" style={{ color: "var(--red)", opacity: 0.6 }} onClick={() => handleDeleteMember(externalConseiller.id)}>
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="glass-compact" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:15 }}>
+        <div style={{ display:"flex", gap:12, alignItems:"center", flex: 1, minWidth: 250 }}>
+          <div style={{ position:"relative", flex: 1 }}>
+            <Search size={14} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"var(--muted)" }} />
+            <input className="input" placeholder="Rechercher un membre..." value={search} onChange={(e)=>setSearch(e.target.value)} style={{ paddingLeft:32, fontSize:12 }} />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
+          <select 
+            className="input" 
+            value={periodType} 
+            onChange={(e) => setPeriodType(e.target.value as "mensuel" | "annuel")}
+            style={{ width: 100, fontSize: 11, padding: "4px 8px" }}
+          >
+            <option value="mensuel">Mensuel</option>
+            <option value="annuel">Annuel</option>
+          </select>
+
+          {periodType === "mensuel" && (
+            <select className="input" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} style={{ width: 110, fontSize: 11, padding: "4px 8px" }}>
+              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                <option key={i} value={i}>{m}</option>
+              ))}
+            </select>
+          )}
+
+          <select className="input" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
+            {[2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        
+        <div style={{ display:"flex", border:"1px solid var(--border)", borderRadius:6, overflow:"hidden" }}>
+          <button onClick={()=>setView("list")} className="btn-icon" style={{ padding:"6px 10px", background:view==="list"?"var(--gold-glow)":"transparent", border:"none", color:view==="list"?"var(--gold)":"var(--muted)", cursor:"pointer" }}><List size={14} /></button>
+          <button onClick={()=>setView("grid")} className="btn-icon" style={{ padding:"6px 10px", background:view==="grid"?"var(--gold-glow)":"transparent", border:"none", color:view==="grid"?"var(--gold)":"var(--muted)", cursor:"pointer" }}><Grid3X3 size={14} /></button>
+        </div>
+      </div>
+
+      {view === "list" ? (
+        <div className="glass-flush">
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Civ.</th>
+                  <th>Nom & Prénom</th>
+                  <th>Statut</th>
+                  <th className="hide-mobile">Âge</th>
+                  <th className="hide-mobile">Téléphone</th>
+                  <th>Engagement</th>
+                  <th style={{ textAlign:"right" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((m) => {
+                  const engagement = calculateEngagement(m);
+                  const color = getEngagementColor(engagement);
+                  const isMainLeader = m.status === "Berger" || m.status === "Second";
+                  
+                  return (
+                    <tr key={m.id} className={isMainLeader ? "leader-row" : ""}>
+                      <td style={{ color:"var(--muted)", fontSize:12 }}>{m.civility}</td>
+                      <td>
+                        <div style={{ fontWeight:600 }}>{m.lastName} {m.firstName}</div>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <div className={`badge badge-${m.status.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 9, minWidth: 80, justifyContent: "center" }}>
+                            {m.status.toUpperCase()}
+                          </div>
+                          {m.is_conseiller && (
+                            <div style={{ fontSize: 8, padding: "2px 6px", borderRadius: 4, background: "rgba(91,168,224,0.15)", color: "var(--sky)", fontWeight: 700, letterSpacing: 0.5 }}>CONSEILLER</div>
+                          )}
+                          <select 
+                            value={m.status} 
+                            onChange={(e) => updateStatus(m.id, e.target.value)}
+                            disabled={!isLeader}
+                            className="input"
+                            style={{ 
+                              width: "auto",
+                              fontSize: 10, 
+                              padding: "2px 4px", 
+                              height: 24,
+                              opacity: isLeader ? 1 : 0.6,
+                              cursor: isLeader ? "pointer" : "default"
+                            }}
+                          >
+                            {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
+                        </div>
+                      </td>
+                      <td className="hide-mobile" style={{ color:"var(--muted)" }}>{m.age}</td>
+                      <td className="hide-mobile" style={{ color:"var(--muted)", fontSize:12 }}>{m.phone}</td>
+                      <td>
+                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                          <div className="progress" style={{ width:44 }}><div className="progress-fill" style={{ width:`${engagement}%`, background:color }} /></div>
+                          <span style={{ color: color, fontWeight: 700, fontSize: 11, minWidth: 35, textAlign: "right" }}>{engagement}</span>
+                          <span style={{ fontSize: 10, color: "var(--muted)" }}>%</span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign:"right" }}>
+                        {canManageMembers && (
+                          <div className="action-group">
+                            {showCorbeille ? (
+                              <>
+                                <button 
+                                  className="btn-icon btn-icon-green" 
+                                  onClick={() => handleRestoreMember(m.id)} 
+                                  title="Restaurer"
+                                >
+                                  <RotateCcw size={14} />
+                                </button>
+                                <button 
+                                  className="btn-icon btn-icon-red" 
+                                  onClick={() => handlePermanentDelete(m.id)} 
+                                  title="Supprimer définitivement"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button 
+                                  className="btn-icon btn-icon-gold" 
+                                  onClick={() => {
+                                    setNewMember(m);
+                                    setIsConseillerChecked(m.is_conseiller || false);
+                                    setIsAddModalOpen(true);
+                                  }}
+                                  title="Modifier"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button 
+                                  className="btn-icon btn-icon-red" 
+                                  onClick={() => handleDeleteMember(m.id)}
+                                  title="Mettre à la corbeille"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:12 }}>
+          {filtered.map((m) => {
+            const engagement = calculateEngagement(m);
+            const color = getEngagementColor(engagement);
+            const isMainLeader = m.status === "Berger" || m.status === "Second";
+
+            return (
+              <div key={m.id} className={`glass ${isMainLeader ? "leader-card" : ""}`} style={{ position:"relative" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14 }}>
+                  <div className="avatar" style={{ background:color.replace(')', '-glow)'), border:`1px solid ${color}`, color:color, width:36, height:36 }}>{m.firstName[0]}{m.lastName[0]}</div>
+                <div className="action-group">
+                  {isLeader && (
+                    <>
+                      {showCorbeille ? (
+                        <>
+                          <button 
+                            className="btn-icon btn-icon-green" 
+                            onClick={() => handleRestoreMember(m.id)} 
+                            title="Restaurer"
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                          <button 
+                            className="btn-icon btn-icon-red" 
+                            onClick={() => handlePermanentDelete(m.id)} 
+                            title="Supprimer définitivement"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button 
+                            className="btn-icon btn-icon-gold" 
+                            onClick={() => {
+                              setNewMember(m);
+                              setIsConseillerChecked(m.is_conseiller || false);
+                              setIsAddModalOpen(true);
+                            }}
+                            title="Modifier"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button 
+                            className="btn-icon btn-icon-red" 
+                            onClick={() => handleDeleteMember(m.id)}
+                            title="Mettre à la corbeille"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+                </div>
+                <div style={{ marginBottom:12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ fontWeight:700, fontSize:15 }}>{m.lastName} {m.firstName}</div>
+                    <span className="badge badge-sky" style={{ fontSize: 9 }}>{m.status.toUpperCase()}</span>
+                  </div>
+                  <div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{m.civility} · {m.age} · {m.phone}</div>
+                </div>
+                <div className="progress progress-thick" style={{ marginBottom:6 }}>
+                  <div className="progress-fill" style={{ width:`${engagement}%`, background:color }} />
+                </div>
+                <div style={{ display:"flex", justifyContent:"center", alignItems:"center" }}>
+                  <span style={{ fontSize:10, color:color, fontWeight:600 }}>Engagement ({periodType}) : {engagement}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {isAddModalOpen && (
+        <div className="modal-overlay">
+          <div className="glass modal-content" style={{ maxWidth: 500 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 25 }}>
+              <h2 style={{ fontSize: 20, color: "var(--gold)" }}>{newMember.id ? "Modifier le Membre" : "Nouveau Membre"}</h2>
+              <button onClick={() => setIsAddModalOpen(false)} className="btn-icon"><XCircle size={20} /></button>
+            </div>
+            
+            <form onSubmit={handleSaveMember} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 15 }}>
+                <div>
+                  <label className="label">CIV.</label>
+                  <select className="input" value={newMember.civility} onChange={e => setNewMember({...newMember, civility: e.target.value})}>
+                    <option value="M.">M.</option>
+                    <option value="Mme.">Mme.</option>
+                    <option value="Mlle.">Mlle.</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">PRÉNOM</label>
+                  <input className="input" required value={newMember.firstName} onChange={e => setNewMember({...newMember, firstName: e.target.value})} placeholder="Prénom" />
+                </div>
+                <div>
+                  <label className="label">NOM</label>
+                  <input className="input" required value={newMember.lastName} onChange={e => setNewMember({...newMember, lastName: e.target.value})} placeholder="Nom" />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                <div>
+                  <label className="label">TÉLÉPHONE</label>
+                  <input className="input" value={newMember.phone} onChange={e => setNewMember({...newMember, phone: e.target.value})} placeholder="+32..." />
+                </div>
+                <div>
+                  <label className="label">ÂGE</label>
+                  <select className="input" value={newMember.age} onChange={e => setNewMember({...newMember, age: e.target.value})}>
+                    <option value="18-25">18-25 ans</option>
+                    <option value="26-30">26-30 ans</option>
+                    <option value="31-35">31-35 ans</option>
+                    <option value="36-40">36-40 ans</option>
+                    <option value="41-50">41-50 ans</option>
+                    <option value="> 50">Plus de 50 ans</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="label">ADRESSE E-MAIL (POUR LA CONNEXION)</label>
+                <input className="input" type="email" value={newMember.email} onChange={e => setNewMember({...newMember, email: e.target.value})} placeholder="membre@email.com" />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 15 }}>
+                <div>
+                  <label className="label">STATUT</label>
+                  <select className="input" value={newMember.status} onChange={e => setNewMember({...newMember, status: e.target.value})}>
+                    {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+                {newMember.status === "Brebi" && (
+                  <div>
+                    <label className="label">RESPONSABLE ASSIGNÉ</label>
+                    <select className="input" value={newMember.responsible || ""} onChange={e => setNewMember({...newMember, responsible: e.target.value})}>
+                      <option value="">-- Aucun --</option>
+                      {data.filter(m => m.status === "Responsable").map(r => (
+                        <option key={r.id} value={`${r.firstName} ${r.lastName}`}>{r.firstName} {r.lastName}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 8, background: "rgba(91,168,224,0.08)", border: "1px solid rgba(91,168,224,0.2)" }}>
+                  <input type="checkbox" id="is_conseiller" checked={isConseillerChecked} onChange={e => setIsConseillerChecked(e.target.checked)} style={{ accentColor: "var(--sky)", width: 16, height: 16 }} />
+                  <label htmlFor="is_conseiller" style={{ fontSize: 12, color: "var(--sky)", cursor: "pointer", fontWeight: 600 }}>
+                    Ce membre est le Conseiller assigné à cette bergerie
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button type="button" className="btn btn-outline" onClick={() => setIsAddModalOpen(false)}>Annuler</button>
+                <button type="submit" className="btn btn-primary">Enregistrer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Conseiller Assignment Modal */}
+      {isConseillerModalOpen && (
+        <div className="modal-overlay">
+          <div className="glass modal-content" style={{ maxWidth: 500 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 25 }}>
+              <h2 style={{ fontSize: 20, color: "var(--sky)" }}>Assigner un Conseiller</h2>
+              <button onClick={() => setIsConseillerModalOpen(false)} className="btn-icon"><XCircle size={20} /></button>
+            </div>
+
+            {(() => {
+              const currentConseiller = data.find(m => m.is_conseiller && !m.archived);
+              if (currentConseiller) {
+                return (
+                  <div style={{ padding: 20, borderRadius: 10, background: "rgba(91,168,224,0.08)", border: "1px solid rgba(91,168,224,0.2)", marginBottom: 20 }}>
+                    <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>Conseiller actuel :</p>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: "var(--sky)" }}>{currentConseiller.firstName} {currentConseiller.lastName}</p>
+                    <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                      {currentConseiller.status === "Externe" ? "Conseiller externe (hors bergerie)" : `Membre de la bergerie — ${currentConseiller.status}`}
+                    </p>
+                    <button className="btn btn-outline" style={{ marginTop: 14, borderColor: "var(--red)", color: "var(--red)", fontSize: 11 }}
+                      onClick={async () => {
+                        if (currentConseiller.status === "Externe") {
+                          const { error } = await supabase.from("members").delete().eq("id", currentConseiller.id);
+                          if (error) { alert("Erreur lors de la suppression : " + error.message); return; }
+                          setData(prev => prev.filter(m => m.id !== currentConseiller.id));
+                        } else {
+                          const { error } = await supabase.from("members").update({ is_conseiller: false }).eq("id", currentConseiller.id);
+                          if (error) { alert("Erreur lors de la mise à jour : " + error.message); return; }
+                          setData(prev => prev.map(m => m.id === currentConseiller.id ? { ...m, is_conseiller: false } : m));
+                        }
+                      }}
+                    >
+                      Retirer le rôle de Conseiller
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+                    <button className={`btn ${conseillerSource === 'existing' ? 'btn-primary' : 'btn-outline'}`} style={{ flex: 1, fontSize: 10 }} onClick={() => setConseillerSource('existing')}>Membre existant</button>
+                    <button className={`btn ${conseillerSource === 'new' ? 'btn-primary' : 'btn-outline'}`} style={{ flex: 1, fontSize: 10 }} onClick={() => setConseillerSource('new')}>Conseiller Externe</button>
+                  </div>
+
+                  {conseillerSource === 'existing' ? (
+                    <div>
+                      <label className="label">SÉLECTIONNER UN MEMBRE DE LA BERGERIE</label>
+                      <select className="input" value={selectedConseillerId} onChange={e => setSelectedConseillerId(e.target.value)}>
+                        <option value="">-- Choisir --</option>
+                        {activeMembers.filter(m => !m.is_conseiller).map(m => (
+                          <option key={m.id} value={m.id}>{m.firstName} {m.lastName} ({m.status})</option>
+                        ))}
+                      </select>
+                      <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 6 }}>Ce membre restera dans la bergerie et aura aussi le rôle de Conseiller.</p>
+                      <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                        <button className="btn btn-outline" onClick={() => setIsConseillerModalOpen(false)}>Annuler</button>
+                        <button className="btn btn-primary" style={{ background: "var(--sky)" }}
+                          onClick={async () => {
+                            if (!selectedConseillerId) { alert("Veuillez sélectionner un membre."); return; }
+                            const { error } = await supabase.from("members").update({ is_conseiller: true }).eq("id", selectedConseillerId);
+                            if (error) { alert("Erreur : " + error.message); return; }
+                            setData(prev => prev.map(m => m.id === selectedConseillerId ? { ...m, is_conseiller: true } : m));
+                            setIsConseillerModalOpen(false);
+                            setSelectedConseillerId("");
+                          }}
+                        >Assigner</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p style={{ fontSize: 11, color: "var(--sky)", marginBottom: 14, fontWeight: 600 }}>
+                        Le conseiller externe ne fait pas partie de la bergerie et ne sera pas compté dans les membres.
+                      </p>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <label className="label">CIV.</label>
+                          <select className="input" value={newMember.civility} onChange={e => setNewMember({...newMember, civility: e.target.value})}>
+                            <option value="M.">M.</option>
+                            <option value="Mme.">Mme.</option>
+                            <option value="Mlle.">Mlle.</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="label">PRÉNOM</label>
+                          <input className="input" value={newMember.firstName} onChange={e => setNewMember({...newMember, firstName: e.target.value})} placeholder="Prénom" />
+                        </div>
+                        <div>
+                          <label className="label">NOM</label>
+                          <input className="input" value={newMember.lastName} onChange={e => setNewMember({...newMember, lastName: e.target.value})} placeholder="Nom" />
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <label className="label">TÉLÉPHONE</label>
+                          <input className="input" value={newMember.phone} onChange={e => setNewMember({...newMember, phone: e.target.value})} placeholder="+33..." />
+                        </div>
+                        <div>
+                          <label className="label">E-MAIL</label>
+                          <input className="input" type="email" value={newMember.email} onChange={e => setNewMember({...newMember, email: e.target.value})} placeholder="email@..." />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                        <button className="btn btn-outline" onClick={() => setIsConseillerModalOpen(false)}>Annuler</button>
+                        <button className="btn btn-primary" style={{ background: "var(--sky)" }}
+                          onClick={async () => {
+                            if (!newMember.firstName || !newMember.lastName) { alert("Veuillez remplir le nom et prénom."); return; }
+                            if (!familyId) return;
+                            const { data: inserted, error } = await supabase.from("members").insert({
+                              bergerie_id: familyId,
+                              civility: newMember.civility,
+                              first_name: newMember.firstName,
+                              last_name: newMember.lastName,
+                              age: "26-30",
+                              phone: newMember.phone,
+                              email: newMember.email,
+                              status: "Externe",
+                              is_conseiller: true,
+                              attendance: {}
+                            }).select().single();
+                            if (error) { alert("Erreur : " + error.message); return; }
+                            if (inserted) {
+                              setData(prev => [...prev, {
+                                id: inserted.id, civility: inserted.civility,
+                                firstName: inserted.first_name, lastName: inserted.last_name,
+                                age: inserted.age, phone: inserted.phone, status: inserted.status,
+                                email: inserted.email || "", is_conseiller: true, archived: false,
+                                attendance: {}
+                              }]);
+                            }
+                            setIsConseillerModalOpen(false);
+                            setNewMember({ civility: "M.", firstName: "", lastName: "", age: "26-30", phone: "", status: "Brebi", email: "", attendance: {} });
+                          }}
+                        >Ajouter le conseiller externe</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        .modal-overlay {
+          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
+          z-index: 1000; display: flex; alignItems: center; justifyContent: center;
+          padding: 20px;
+        }
+        .modal-content {
+          width: 100%; position: relative; padding: 30px;
+          max-height: 90vh; overflow-y: auto;
+        }
+        .label {
+          font-size: 11px; color: var(--muted); display: block; margin-bottom: 6px;
+          text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .leader-row {
+          background: rgba(212, 160, 60, 0.05) !important;
+        }
+        .leader-row td {
+          border-bottom: 1px solid rgba(212, 160, 60, 0.2) !important;
+        }
+        .leader-card {
+          border: 1px solid var(--gold) !important;
+          background: linear-gradient(145deg, rgba(212, 160, 60, 0.1), rgba(0, 0, 0, 0.4)) !important;
+          box-shadow: 0 8px 32px rgba(212, 160, 60, 0.1) !important;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+
