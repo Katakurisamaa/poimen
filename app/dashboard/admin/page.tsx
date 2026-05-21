@@ -91,14 +91,22 @@ function AdminContent() {
   };
 
   const deleteChurch = async (id: string) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer cette église ?")) {
+    if (confirm("Êtes-vous sûr de vouloir supprimer cette église ? Tout le contenu rattaché (familles, membres, activités, invitations) sera définitivement supprimé en cascade.")) {
       const { error } = await supabase.from("churches").delete().eq("id", id);
-      if (!error) setChurches(churches.filter(c => c.id !== id));
+      if (!error) {
+        setChurches(churches.filter(c => c.id !== id));
+      } else {
+        console.error("Error deleting church:", error);
+        alert(
+          `Erreur lors de la suppression de l'église : ${error.message}\n\n` +
+          "Assurez-vous que le patch SQL v1.9 a bien été appliqué dans votre éditeur Supabase pour autoriser cette suppression."
+        );
+      }
     }
   };
 
   const deleteBergerie = async (id: string) => {
-    if (confirm("Supprimer cette Famille de Disciple ?")) {
+    if (confirm("Supprimer cette Famille de Disciple ? Tout le contenu rattaché (membres, activités, invitations) sera définitivement supprimé.")) {
       const { error } = await supabase.from("bergeries").delete().eq("id", id);
       if (!error) {
         setChurches(churches.map(c => ({
@@ -106,6 +114,12 @@ function AdminContent() {
           bergeries: c.bergeries?.filter((b: any) => b.id !== id)
         })));
         setPendingBergeries(pendingBergeries.filter(b => b.id !== id));
+      } else {
+        console.error("Error deleting bergerie:", error);
+        alert(
+          `Erreur lors de la suppression de la Famille : ${error.message}\n\n` +
+          "Assurez-vous que le patch SQL v1.9 a bien été appliqué dans votre éditeur Supabase pour autoriser cette action."
+        );
       }
     }
   };
@@ -114,6 +128,12 @@ function AdminContent() {
     const { error } = await supabase.from("bergeries").update({ status: "active" }).eq("id", id);
     if (!error) {
       fetchData(); // Refresh to get the nested structure updated
+    } else {
+      console.error("Error approving bergerie:", error);
+      alert(
+        `Erreur lors de l'approbation de la Famille : ${error.message}\n\n` +
+        "Assurez-vous que le patch SQL v1.9 a bien été appliqué dans votre éditeur Supabase pour autoriser cette action."
+      );
     }
   };
 
