@@ -373,12 +373,15 @@ export default function ActivitiesPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }} className="fade-in">
       {/* Page Header */}
-      <div className="page-header">
+      <div style={{ borderBottom: "1px solid rgba(212, 175, 55, 0.12)", paddingBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 }}>
         <div>
-          <h2 className="page-title">Centre des Activités</h2>
-          <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+          <h2 className="page-title" style={{ display: "flex", alignItems: "center", gap: 12, background: "linear-gradient(135deg, #FFF, var(--gold-light) 60%, var(--gold) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <Calendar size={28} className="text-[var(--gold)]" />
+            Centre des Activités
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
             {attendanceViewMode === "by-activity" && activeTab === "attendance" 
               ? "Mode Appel : Sélectionnez une activité et cochez les présents" 
               : "Planification, présences et engagement des membres"}
@@ -386,64 +389,64 @@ export default function ActivitiesPage() {
         </div>
         {isLeader && (
           <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
-            <Plus size={14} /> Nouvelle Activité
+            <Plus size={16} /> Planifier une Activité
           </button>
         )}
       </div>
 
       {/* Navigation Tabs & Period Selector */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 15 }}>
-        <div className="glass-compact" style={{ display: "flex", gap: 8, padding: 6, width: "fit-content" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+        <div className="glass-compact" style={{ display: "flex", gap: 6, padding: 6, width: "fit-content", border: "1px solid rgba(212,175,55,0.08)" }}>
           <button 
-            className={`pill ${activeTab === "attendance" ? "pill-active" : "pill-inactive"}`} 
+            className={`btn btn-sm ${activeTab === "attendance" ? "btn-primary" : "btn-ghost"}`} 
             onClick={() => setActiveTab("attendance")} 
-            style={{ display: "flex", alignItems: "center", gap: 6 }}
+            style={{ display: "flex", alignItems: "center", gap: 6, height: 36 }}
           >
             <Users size={14} /> Appel
           </button>
           <button 
-            className={`pill ${activeTab === "schedule" ? "pill-active" : "pill-inactive"}`} 
+            className={`btn btn-sm ${activeTab === "schedule" ? "btn-primary" : "btn-ghost"}`} 
             onClick={() => setActiveTab("schedule")} 
-            style={{ display: "flex", alignItems: "center", gap: 6 }}
+            style={{ display: "flex", alignItems: "center", gap: 6, height: 36 }}
           >
             <Calendar size={14} /> Calendrier
           </button>
           {isLeader && (
             <button 
-              className={`pill ${activeTab === "stats" ? "pill-active" : "pill-inactive"}`} 
+              className={`btn btn-sm ${activeTab === "stats" ? "btn-primary" : "btn-ghost"}`} 
               onClick={() => setActiveTab("stats")} 
-              style={{ display: "flex", alignItems: "center", gap: 6 }}
+              style={{ display: "flex", alignItems: "center", gap: 6, height: 36 }}
             >
               <BarChart3 size={14} /> Statistiques
             </button>
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "6px 16px", borderRadius: 12, border: "1px solid var(--border)" }}>
-          <Calendar size={14} style={{ color: "var(--gold)" }} />
+        <div className="glass" style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 16px", borderRadius: 12, border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+          <Calendar size={14} className="text-[var(--gold)]" />
           <select className="input-minimal" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))}>
             {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-              <option key={i} value={i}>{m}</option>
+              <option key={i} value={i} style={{ background: "var(--bg)", color: "var(--cream)" }}>{m}</option>
             ))}
           </select>
           <select className="input-minimal" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
-            {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+            {[2024, 2025, 2026].map(y => <option key={y} value={y} style={{ background: "var(--bg)", color: "var(--cream)" }}>{y}</option>)}
           </select>
         </div>
       </div>
 
       {/* Main Content Area */}
       {activeTab === "attendance" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* View Mode Switcher */}
           <div style={{ display: "flex", justifyContent: "center" }}>
-            <div className="glass-compact" style={{ display: "flex", gap: 4, padding: 4, borderRadius: 12 }}>
+            <div className="glass-compact" style={{ display: "flex", gap: 4, padding: 4, borderRadius: 12, border: "1px solid rgba(212,175,55,0.08)" }}>
               <button 
                 onClick={() => setAttendanceViewMode("by-activity")}
                 style={{ 
-                  padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, transition: "all 0.3s",
+                  padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 700, transition: "all 0.3s",
                   background: attendanceViewMode === "by-activity" ? "var(--gold)" : "transparent",
-                  color: attendanceViewMode === "by-activity" ? "black" : "var(--muted)",
+                  color: attendanceViewMode === "by-activity" ? "var(--bg)" : "var(--muted)",
                   border: "none", cursor: "pointer",
                   display: "flex", alignItems: "center", gap: 6
                 }}
@@ -453,10 +456,11 @@ export default function ActivitiesPage() {
               <button 
                 onClick={() => setAttendanceViewMode("by-member")}
                 style={{ 
-                  padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, transition: "all 0.3s",
+                  padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 700, transition: "all 0.3s",
                   background: attendanceViewMode === "by-member" ? "var(--gold)" : "transparent",
-                  color: attendanceViewMode === "by-member" ? "black" : "var(--muted)",
-                  border: "none", cursor: "pointer"
+                  color: attendanceViewMode === "by-member" ? "var(--bg)" : "var(--muted)",
+                  border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 6
                 }}
               >
                 Suivi Global (Par Membre)
@@ -467,21 +471,21 @@ export default function ActivitiesPage() {
           {attendanceViewMode === "by-activity" ? (
             /* BY ACTIVITY ROLL CALL VIEW */
             activities.length === 0 ? (
-              <div className="glass" style={{ padding: 60, textAlign: "center" }}>
-                <Calendar size={48} style={{ color: "var(--gold)", opacity: 0.2, marginBottom: 20 }} />
-                <h3 style={{ color: "var(--cream)", marginBottom: 10 }}>Aucune activité configurée</h3>
+              <div className="glass" style={{ padding: 60, textAlign: "center", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+                <Calendar size={48} className="text-[var(--gold)]" style={{ opacity: 0.2, margin: "0 auto 20px" }} />
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>Aucune activité configurée</h3>
                 <p style={{ color: "var(--muted)", marginBottom: 20 }}>Vous devez d'abord créer une activité (ex: Réunion de Bergerie) dans l'onglet Calendrier.</p>
-                <button className="btn btn-primary" onClick={() => setActiveTab("schedule")}>
+                <button className="btn btn-primary mx-auto" onClick={() => setActiveTab("schedule")}>
                   <Calendar size={14} /> Aller au Calendrier
                 </button>
               </div>
             ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div className="glass" style={{ padding: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 15, alignItems: "end" }}>
+              <div className="glass" style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, alignItems: "end", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
                 <div>
-                  <label className="label">ACTIVITÉ</label>
+                  <label className="form-label" style={{ marginBottom: 8 }}>Activité</label>
                   <select 
-                    className="input" 
+                    className="input w-full" 
                     value={selectedActivityId || ""} 
                     onChange={(e) => {
                       const id = e.target.value;
@@ -490,55 +494,59 @@ export default function ActivitiesPage() {
                         setSelectedDate(activityDates[id][0]);
                       }
                     }}
+                    style={{ height: 42 }}
                   >
-                    {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    {activities.map(a => <option key={a.id} value={a.id} style={{ background: "var(--bg)", color: "var(--cream)" }}>{a.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="label">DATE DE LA SÉANCE</label>
+                  <label className="form-label" style={{ marginBottom: 8 }}>Date de la séance</label>
                   <select 
-                    className="input" 
+                    className="input w-full" 
                     value={selectedDate} 
                     onChange={(e) => setSelectedDate(e.target.value)}
+                    style={{ height: 42 }}
                   >
                     {(activityDates[selectedActivityId || ""] || []).map(d => (
-                      <option key={d} value={d}>{formatDate(d)}</option>
+                      <option key={d} value={d} style={{ background: "var(--bg)", color: "var(--cream)" }}>{formatDate(d)}</option>
                     ))}
                   </select>
                 </div>
                 <div style={{ position: "relative" }}>
-                  <label className="label">RECHERCHER UN MEMBRE</label>
-                  <Search size={14} style={{ position: "absolute", left: 10, top: 38, color: "var(--muted)" }} />
-                  <input className="input" placeholder="Filtrer la liste..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+                  <label className="form-label" style={{ marginBottom: 8 }}>Rechercher un membre</label>
+                  <div className="relative">
+                    <Search size={14} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+                    <input className="input w-full" placeholder="Filtrer la liste..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 38, height: 42 }} />
+                  </div>
                 </div>
               </div>
 
               {/* Stats & Actions */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 10px" }}>
-                <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                  <span style={{ color: "var(--green)", fontWeight: 700 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>
+                  Présences : <span className="text-[var(--green)]" style={{ fontWeight: 800 }}>
                     {members.filter(m => m.attendance[selectedActivityId || ""]?.[selectedDate]).length}
-                  </span> / {members.length} présents
+                  </span> sur <span style={{ color: "var(--cream)" }}>{members.length}</span> fidèles
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <button 
-                    className="btn btn-outline" 
-                    style={{ fontSize: 11, padding: "6px 12px" }}
+                    className="btn btn-subtle btn-sm" 
+                    style={{ fontSize: 11, height: 32 }}
                     onClick={() => handleBatchAttendance(true)}
                   >
-                    <CheckCircle2 size={12} /> Marquer tous présents
+                    <CheckCircle2 size={12} className="text-[var(--green)]" /> Tous Présents
                   </button>
                   <button 
-                    className="btn btn-outline" 
-                    style={{ fontSize: 11, padding: "6px 12px", borderColor: "rgba(255, 100, 100, 0.3)", color: "var(--red)" }}
+                    className="btn btn-subtle btn-sm" 
+                    style={{ fontSize: 11, height: 32, border: "1px solid rgba(255, 100, 100, 0.15)", color: "var(--red)" }}
                     onClick={() => handleBatchAttendance(false)}
                   >
-                    <XCircle size={12} /> Tout démarquer
+                    <XCircle size={12} className="text-[var(--red)]" /> Tout effacer
                   </button>
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
                 {filteredMembers.map(m => {
                   // Final check for non-leaders: can only see themselves
                   // Final check for non-leaders: can only see themselves
@@ -551,39 +559,42 @@ export default function ActivitiesPage() {
                   return (
                     <div 
                       key={m.id} 
-                      className="glass" 
+                      className={`arch-card glass ${isPresent ? "hover-glow" : ""}`}
                       onClick={() => toggleAttendance(m.id, selectedActivityId!, selectedDate)}
                       style={{ 
-                        padding: "15px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", 
-                        cursor: "pointer", transition: "all 0.2s",
-                        border: `1px solid ${isPresent ? "var(--green)" : "var(--border)"}`,
-                        background: isPresent ? "rgba(0, 255, 136, 0.05)" : "rgba(255,255,255,0.02)"
+                        padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", 
+                        cursor: "pointer", transition: "all 0.3s ease",
+                        border: isPresent ? "1px solid rgba(0, 255, 136, 0.35)" : "1px solid rgba(212, 175, 55, 0.15)",
+                        background: isPresent ? "rgba(0, 255, 136, 0.04)" : "rgba(10, 6, 22, 0.25)",
+                        boxShadow: isPresent ? "0 0 20px rgba(0, 255, 136, 0.08)" : "none"
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                         <div className="avatar" style={{ 
-                          width: 32, height: 32, 
-                          background: isPresent ? "var(--green-glow)" : "rgba(255,255,255,0.05)",
-                          border: `1px solid ${isPresent ? "var(--green)" : "var(--border)"}`,
-                          color: isPresent ? "var(--green)" : "var(--muted)"
+                          width: 36, height: 36, fontSize: 12, fontWeight: 700,
+                          background: isPresent ? "rgba(0, 255, 136, 0.1)" : "rgba(255,255,255,0.05)",
+                          border: `1px solid ${isPresent ? "var(--green)" : "rgba(212,175,55,0.2)"}`,
+                          color: isPresent ? "var(--green)" : "var(--gold-light)"
                         }}>
                           {m.firstName[0]}{m.lastName[0]}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: 13, color: isPresent ? "var(--cream)" : "var(--muted)" }}>{m.lastName} {m.firstName}</div>
-                          <div style={{ fontSize: 10, color: "var(--muted)" }}>Engagement: {calculateEngagement(m)}%</div>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: isPresent ? "var(--cream)" : "var(--cream-dim)" }}>{m.lastName} {m.firstName}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                            Assiduité: <span style={{ color: "var(--gold-light)", fontWeight: 700 }}>{calculateEngagement(m)}%</span>
+                          </div>
                         </div>
                       </div>
                       <div style={{ 
-                        width: 44, height: 22, borderRadius: 11, position: "relative",
+                        width: 46, height: 22, borderRadius: 11, position: "relative",
                         background: isPresent ? "var(--green)" : "rgba(255,255,255,0.08)",
-                        transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-                        border: `1px solid ${isPresent ? "transparent" : "var(--border)"}`
+                        transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                        border: `1px solid ${isPresent ? "transparent" : "rgba(212,175,55,0.15)"}`
                       }}>
                         <div style={{ 
-                          position: "absolute", top: 2, left: isPresent ? 24 : 2,
+                          position: "absolute", top: 2, left: isPresent ? 26 : 2,
                           width: 16, height: 16, borderRadius: "50%", background: "white",
-                          boxShadow: "0 2px 4px rgba(0,0,0,0.3)", transition: "all 0.3s"
+                          boxShadow: "0 2px 5px rgba(0,0,0,0.4)", transition: "all 0.25s"
                         }} />
                       </div>
                     </div>

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { 
-  Search, Plus, UserPlus, Filter, CheckCircle2, XCircle, 
+  Search, Plus, UserPlus, Filter, CheckCircle2, XCircle, X, 
   Calendar, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2
 } from "lucide-react";
@@ -506,32 +506,35 @@ export default function AffectationPage() {
 
   if (loading && guests.length === 0) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <Loader2 className="animate-spin text-gold" size={40} />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
+        <div className="spinner" style={{ width: 40, height: 40 }} />
+        <div style={{ color: "var(--gold-light)", fontFamily: "var(--font-display)", fontSize: 16, letterSpacing: "0.05em" }}>
+          Chargement de vos affectations sacrées...
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       {/* Header */}
       {/* Read-only banner for Conseiller */}
       {isConseiller && (
-        <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(91,168,224,0.1)", border: "1px solid rgba(91,168,224,0.25)", display: "flex", alignItems: "center", gap: 10, marginBottom: 15 }}>
-          <span style={{ fontSize: 16 }}>👁️</span>
-          <span style={{ fontSize: 12, color: "var(--sky)", fontWeight: 600 }}>Mode Conseiller — Vue en lecture seule</span>
+        <div className="glass glass-compact fade-in" style={{ background: "rgba(56, 189, 248, 0.04)", borderColor: "rgba(56, 189, 248, 0.25)", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--sky)", boxShadow: "0 0 10px var(--sky)" }} />
+          <span style={{ fontSize: 11, color: "var(--sky)", fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase" }}>Mode Conseiller — Vue en lecture seule</span>
         </div>
       )}
 
-      <div className="page-header">
+      <div className="page-header fade-in">
         <div>
           <h2 className="page-title">Mes Affectations</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-            Suivi personnalisé de vos brebis affectées
+            Suivi personnalisé et accompagnement spirituel de vos brebis affectées
           </p>
         </div>
         {!isConseiller && (
-          <button className="btn btn-primary" onClick={() => {
+          <button className="btn btn-primary btn-sm" onClick={() => {
             setNewGuest({ ...newGuest, responsible: userName || "" });
             setIsAddModalOpen(true);
           }}>
@@ -541,18 +544,18 @@ export default function AffectationPage() {
       </div>
 
       {/* View Switcher Tabs */}
-      <div style={{ display: "flex", gap: 8, background: "rgba(255,255,255,0.05)", padding: 4, borderRadius: 10, width: "fit-content" }}>
+      <div className="fade-in" style={{ display: "flex", gap: 10, background: "rgba(10, 6, 22, 0.5)", border: "1px solid var(--border)", padding: 5, borderRadius: "14px", width: "fit-content" }}>
         <button 
           onClick={() => setCurrentView('list')}
-          className={`btn ${currentView === 'list' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ padding: "8px 24px", borderRadius: 8 }}
+          className={`pill ${currentView === 'list' ? 'pill-active' : 'pill-inactive'}`}
+          style={{ border: "none" }}
         >
           Liste ({filtered.length})
         </button>
         <button 
           onClick={() => setCurrentView('stats')}
-          className={`btn ${currentView === 'stats' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ padding: "8px 24px", borderRadius: 8 }}
+          className={`pill ${currentView === 'stats' ? 'pill-active' : 'pill-inactive'}`}
+          style={{ border: "none" }}
         >
           Statistiques
         </button>
@@ -560,24 +563,24 @@ export default function AffectationPage() {
 
       {/* Filters in Stats View */}
       {currentView === 'stats' && (
-        <div className="glass" style={{ padding: "12px 20px", display: "flex", gap: 15, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>ARRIVÉE</span>
-            <select className="input" style={{ width: 120, fontSize: 12 }} value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)}>
+        <div className="glass fade-in" style={{ padding: "16px 24px", display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>ARRIVÉE</span>
+            <select className="input" style={{ width: 130, fontSize: 12, padding: "8px 12px" }} value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)}>
               <option value="all">Tous les mois</option>
               {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i.toString()}>{m}</option>)}
             </select>
-            <select className="input" style={{ width: 90, fontSize: 12 }} value={arrivalYear} onChange={e => setArrivalYear(e.target.value)}>
+            <select className="input" style={{ width: 100, fontSize: 12, padding: "8px 12px" }} value={arrivalYear} onChange={e => setArrivalYear(e.target.value)}>
               <option value="all">Toutes années</option>
               {[2024, 2025, 2026].map(y => <option key={y} value={y.toString()}>{y}</option>)}
             </select>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>PRÉSENCES</span>
-            <select className="input" style={{ width: 120, fontSize: 12 }} value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>PRÉSENCES</span>
+            <select className="input" style={{ width: 130, fontSize: 12, padding: "8px 12px" }} value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}>
               {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i}>{m}</option>)}
             </select>
-            <select className="input" style={{ width: 90, fontSize: 12 }} value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))}>
+            <select className="input" style={{ width: 100, fontSize: 12, padding: "8px 12px" }} value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))}>
               {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
@@ -585,50 +588,50 @@ export default function AffectationPage() {
       )}
 
       {currentView === 'stats' ? (
-        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           {/* Main Key Stats */}
           <div className="bento bento-3">
-            <div className="stat-card" style={{ background: "linear-gradient(135deg, var(--card), rgba(212, 160, 60, 0.05))" }}>
+            <div className="stat-card">
               <span className="stat-label">Total Affectés</span>
-              <div className="stat-value" style={{ color: "var(--gold)" }}>{filtered.length}</div>
+              <div className="stat-value">{filtered.length}</div>
               <div className="stat-sub">{brebisCount} Brebis confirmées</div>
-              <UserPlus className="stat-icon" size={40} style={{ color: "var(--gold)" }} />
+              <UserPlus className="stat-icon" size={24} style={{ color: "var(--gold)" }} />
             </div>
             
-            <div className="stat-card" style={{ background: "linear-gradient(135deg, var(--card), rgba(91, 168, 224, 0.05))" }}>
+            <div className="stat-card">
               <span className="stat-label">Suivi Initial</span>
-              <div className="stat-value" style={{ color: "var(--sky)" }}>{callsSuccess}</div>
+              <div className="stat-value" style={{ background: "linear-gradient(135deg, #FFF, var(--sky) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{callsSuccess}</div>
               <div className="stat-sub">{Math.round((callsSuccess / (filtered.length || 1)) * 100)}% d'appels aboutis</div>
-              <Phone className="stat-icon" size={40} style={{ color: "var(--sky)" }} />
+              <Phone className="stat-icon" size={24} style={{ color: "var(--sky)" }} />
             </div>
 
-            <div className="stat-card" style={{ background: "linear-gradient(135deg, var(--card), rgba(61, 191, 140, 0.05))" }}>
+            <div className="stat-card">
               <span className="stat-label">Fidélisation</span>
-              <div className="stat-value" style={{ color: "var(--green)" }}>{fidelisees}</div>
+              <div className="stat-value" style={{ background: "linear-gradient(135deg, #FFF, var(--green) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{fidelisees}</div>
               <div className="stat-sub">Présences régulières (&gt;45%)</div>
-              <CheckCircle2 className="stat-icon" size={40} style={{ color: "var(--green)" }} />
+              <CheckCircle2 className="stat-icon" size={24} style={{ color: "var(--green)" }} />
             </div>
           </div>
 
           {/* PCNC Pipeline */}
-          <div className="glass" style={{ padding: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h3 style={{ fontSize: 18, color: "var(--gold)" }}>Progression PCNC</h3>
-              <div className="badge badge-violet">{totalPCNC} Personnes engagées</div>
+          <div className="glass">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <h3 style={{ fontSize: 18, color: "var(--gold-light)", fontFamily: "var(--font-display)", margin: 0 }}>Progression PCNC</h3>
+              <span className="badge badge-violet" style={{ fontSize: 10 }}>{totalPCNC} Personnes engagées</span>
             </div>
             
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
               {[
-                { label: "001 (Bienvenue dans le royaume)", val: pcnc001, color: "var(--violet)" },
-                { label: "101 (Les fondements du royaume)", val: pcnc101, color: "var(--sky)" },
-                { label: "201 (Les clés d'une croissance spirituelle)", val: pcnc201, color: "var(--orange)" },
-                { label: "301 (Restauration et transformation)", val: pcnc301, color: "var(--green)" }
+                { label: "001 (Bienvenue)", val: pcnc001, color: "var(--violet)" },
+                { label: "101 (Fondements)", val: pcnc101, color: "var(--sky)" },
+                { label: "201 (Croissance)", val: pcnc201, color: "var(--orange)" },
+                { label: "301 (Transformation)", val: pcnc301, color: "var(--green)" }
               ].map((stage) => {
                 const percentage = Math.round((stage.val / (filtered.length || 1)) * 100);
                 return (
-                  <div key={stage.label} className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
+                  <div key={stage.label} className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(212,175,55,0.08)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{stage.label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--cream-dim)" }}>{stage.label}</span>
                       <span style={{ fontSize: 12, color: stage.color, fontWeight: 700 }}>{stage.val}</span>
                     </div>
                     <div className="progress" style={{ height: 6 }}>
@@ -641,67 +644,59 @@ export default function AffectationPage() {
           </div>
 
           <div className="bento bento-3">
-            <div className="glass">
-              <h3 style={{ fontSize: 16, marginBottom: 15 }}>Urgence Suivi</h3>
-              <div className="stat-card" style={{ padding: 15, border: "1px solid var(--red-glow)" }}>
+            <div className="glass" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <h3 style={{ fontSize: 16, marginBottom: 16, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Urgence Suivi</h3>
+              <div className="stat-card" style={{ padding: "20px 16px", border: "1px solid rgba(239, 68, 68, 0.3)", background: "rgba(239, 68, 68, 0.02)" }}>
                 <span className="stat-label" style={{ color: "var(--red)" }}>Sans église locale</span>
-                <div className="stat-value" style={{ fontSize: 24, color: "var(--rose)" }}>{noChurch}</div>
-                <div className="stat-sub">Priorité d'intégration</div>
+                <div className="stat-value" style={{ fontSize: 28, background: "linear-gradient(135deg, #FFF, var(--red) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{noChurch}</div>
+                <div className="stat-sub">Priorité absolue d'intégration</div>
               </div>
             </div>
             <div className="glass">
-              <h3 style={{ fontSize: 16, marginBottom: 15 }}>Engagement spirituel</h3>
+              <h3 style={{ fontSize: 16, marginBottom: 16, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Engagement spirituel</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div className="glass-compact" style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>INTÉRÊT PCNC</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--gold)" }}>{interetPCNC}</div>
+                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
+                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>INTÉRÊT PCNC</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--gold)", marginTop: 4 }}>{interetPCNC}</div>
                 </div>
-                <div className="glass-compact" style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>BAPTÊME EAU</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--sky)" }}>{baptemeEauCount}</div>
+                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
+                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>BAPTÊME EAU</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--sky)", marginTop: 4 }}>{baptemeEauCount}</div>
                 </div>
-                <div className="glass-compact" style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>FAMILLE DISC.</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--violet)" }}>{dansFamilleDiscipleCount}</div>
+                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
+                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>FAMILLE DISC.</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--violet)", marginTop: 4 }}>{dansFamilleDiscipleCount}</div>
                 </div>
-                <div className="glass-compact" style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>INTÉGRÉ CDM</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--green)" }}>{integreCDMCount}</div>
+                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
+                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>INTÉGRÉ CDM</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--green)", marginTop: 4 }}>{integreCDMCount}</div>
                 </div>
-                <div className="glass-compact" style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>VEUT SERVIR</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--orange)" }}>{veutServirCount}</div>
+                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
+                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>VEUT SERVIR</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--orange)", marginTop: 4 }}>{veutServirCount}</div>
                 </div>
-                <div className="glass-compact" style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>DEVENU S.T.A.R</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--rose)" }}>{devenuStarCount}</div>
-                </div>
-                <div className="glass-compact" style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>INTÉRÊT CDM</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--gold)" }}>{filtered.filter(g => g.interetCDM).length}</div>
-                </div>
-                <div className="glass-compact" style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>INTÉRÊT BAPTÊME</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--sky)" }}>{filtered.filter(g => g.interetBapteme).length}</div>
+                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
+                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>DEVENU STAR</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--gold-light)", marginTop: 4 }}>{devenuStarCount}</div>
                 </div>
               </div>
             </div>
-            <div className="glass">
-              <h3 style={{ fontSize: 16, marginBottom: 15 }}>Participation Moyenne</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="glass" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <h3 style={{ fontSize: 16, marginBottom: 16, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Participation Moyenne</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, color: "var(--muted)" }}>Culte (Dimanche)</span>
-                    <span style={{ fontSize: 11, color: "var(--green)", fontWeight: 600 }}>{avgParticipationCulte}%</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Culte (Dimanche)</span>
+                    <span style={{ fontSize: 11, color: "var(--green)", fontWeight: 700 }}>{avgParticipationCulte}%</span>
                   </div>
                   <div className="progress" style={{ height: 6 }}>
                     <div className="progress-fill" style={{ width: `${avgParticipationCulte}%`, background: "var(--green)" }} />
                   </div>
                 </div>
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, color: "var(--muted)" }}>C.D.M (Jeudi)</span>
-                    <span style={{ fontSize: 11, color: "var(--sky)", fontWeight: 600 }}>{avgParticipationCDM}%</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>C.D.M (Jeudi)</span>
+                    <span style={{ fontSize: 11, color: "var(--sky)", fontWeight: 700 }}>{avgParticipationCDM}%</span>
                   </div>
                   <div className="progress" style={{ height: 6 }}>
                     <div className="progress-fill" style={{ width: `${avgParticipationCDM}%`, background: "var(--sky)" }} />
@@ -713,481 +708,480 @@ export default function AffectationPage() {
         </div>
       ) : (
         <>
-          {/* Add Modal */}
-      {isAddModalOpen && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)",
-          zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
-          padding: 20
-        }}>
-          <div className="glass" style={{ width: "100%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto", position: "relative", padding: 30 }}>
-            <button onClick={() => setIsAddModalOpen(false)} style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>
-              <XCircle size={24} />
-            </button>
-            <h2 style={{ fontSize: 20, color: "var(--gold)", marginBottom: 25 }}>Nouvelle Brebi</h2>
-            <form onSubmit={handleSaveGuest} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 15 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>CIVILITÉ</label>
-                  <select className="input" value={newGuest.civility} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
-                    <option value="M.">M.</option>
-                    <option value="Mme.">Mme.</option>
-                    <option value="Mlle.">Mlle.</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>PRÉNOM</label>
-                  <input className="input" required value={newGuest.firstName} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>NOM</label>
-                  <input className="input" required value={newGuest.lastName} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} />
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>TÉLÉPHONE</label>
-                  <input className="input" value={newGuest.phone} onChange={e => setNewGuest({...newGuest, phone: e.target.value})} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>E-MAIL</label>
-                  <input className="input" type="email" value={newGuest.email} onChange={e => setNewGuest({...newGuest, email: e.target.value})} />
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 15 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>DATE D'ARRIVÉE</label>
-                  <input className="input" type="date" value={newGuest.arrivalDate} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÂGE</label>
-                  <select className="input" value={newGuest.age} onChange={e => setNewGuest({...newGuest, age: e.target.value})}>
-                    <option value="< 18">Moins de 18 ans</option>
-                    <option value="18-25">18-25 ans</option>
-                    <option value="26-30">26-30 ans</option>
-                    <option value="31-40">31-40 ans</option>
-                    <option value="41-50">41-50 ans</option>
-                    <option value="> 50">Plus de 50 ans</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÉVÉNEMENT</label>
-                  <select className="input" value={newGuest.event} onChange={e => setNewGuest({...newGuest, event: e.target.value})}>
-                    <option value="Culte">Culte</option>
-                    <option value="Baptême">Baptême</option>
-                    <option value="Évangélisation">Évangélisation</option>
-                    <option value="Séminaire">Séminaire</option>
-                    <option value="Autre">Autre</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.aEteInvite} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} />
-                  <span style={{ fontSize: 13 }}>A été invité ?</span>
-                </div>
-                {newGuest.aEteInvite && (
-                  <div>
-                    <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>PAR QUI ?</label>
-                    <input className="input" value={newGuest.parQui} onChange={e => setNewGuest({...newGuest, parQui: e.target.value})} placeholder="Nom de l'invitant" />
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15, marginBottom: 15 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.baptemeEau} onChange={e => setNewGuest({...newGuest, baptemeEau: e.target.checked})} />
-                  <span style={{ fontSize: 13 }}>Baptisé par immersion ?</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.interetFormation} onChange={e => setNewGuest({...newGuest, interetFormation: e.target.checked})} />
-                  <span style={{ fontSize: 13 }}>Intérêt PCNC</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.interetCDM} onChange={e => setNewGuest({...newGuest, interetCDM: e.target.checked})} />
-                  <span style={{ fontSize: 13 }}>Intérêt C.D.M</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.interetBapteme} onChange={e => setNewGuest({...newGuest, interetBapteme: e.target.checked})} />
-                  <span style={{ fontSize: 13 }}>Intérêt Baptême</span>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 20, marginBottom: 15 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.aps} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} />
-                  <span style={{ fontSize: 13 }}>APS</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.localChurch} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} />
-                  <span style={{ fontSize: 13 }}>Déjà d'une église locale</span>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 15 }}>
-                <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ADRESSE</label>
-                <input className="input" value={newGuest.address} onChange={e => setNewGuest({...newGuest, address: e.target.value})} />
-              </div>
-
-              <div style={{ marginBottom: 15 }}>
-                <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>COMMENTAIRE / NOTES PARTICULIÈRES</label>
-                <textarea 
-                  className="input" 
-                  value={newGuest.commentaire} 
-                  onChange={e => setNewGuest({...newGuest, commentaire: e.target.value})} 
-                  placeholder="Informations complémentaires, sujet de prière..."
-                  style={{ minHeight: 80, fontSize: 12 }}
-                />
-              </div>
-
-              <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
-                <button type="button" className="btn btn-outline" onClick={() => setIsAddModalOpen(false)}>Annuler</button>
-                <button type="submit" className="btn btn-primary">Enregistrer la brebi</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="glass-compact" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ position: "relative", flex: 2, minWidth: 200 }}>
-          <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-          <input className="input" placeholder="Rechercher une brebi..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 36 }} />
-        </div>
-        
-        {/* Arrival Filters */}
-        <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
-          <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600 }}>ARRIVÉE :</span>
-          <select className="input" value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)} style={{ width: 100, fontSize: 11, padding: "4px 8px" }}>
-            <option value="all">Tous les mois</option>
-            {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-              <option key={i} value={i}>{m}</option>
-            ))}
-          </select>
-          <select className="input" value={arrivalYear} onChange={e => setArrivalYear(e.target.value)} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
-            <option value="all">Toutes</option>
-            {[2023, 2024, 2025, 2026].map(y => (
-              <option key={y} value={y.toString()}>{y}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Presence Display Filters */}
-        <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
-          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>PRÉSENCES :</span>
-          <select 
-            className="input" 
-            value={selectedMonth} 
-            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            style={{ width: 100, fontSize: 11, padding: "4px 8px" }}
-          >
-            {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-              <option key={i} value={i}>{m}</option>
-            ))}
-          </select>
-          <select 
-            className="input" 
-            value={selectedYear} 
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            style={{ width: 80, fontSize: 11, padding: "4px 8px" }}
-          >
-            {[2023, 2024, 2025, 2026].map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* List */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {filtered.map((guest) => {
-          const rateCDM = calculateRate(guest, thursdays);
-          const rateCulte = calculateRate(guest, sundays);
-          const fidelised = isFidelise(guest);
-          const isExpanded = expandedId === guest.id;
-          const isRestricted = guest.responsible !== userName;
-
-          return (
-            <div key={guest.id} className="glass-flush" style={{ overflow: "hidden" }}>
-              <div 
-                onClick={() => setExpandedId(isExpanded ? null : guest.id)}
-                style={{ 
-                  padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
-                  cursor: "pointer", background: isExpanded ? "rgba(255,255,255,0.03)" : "transparent"
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 15, flex: 1 }}>
-                  <div className={`avatar ${fidelised ? "avatar-gradient" : ""}`} style={{ width: 40, height: 40 }}>
-                    {guest.firstName[0]}{guest.lastName[0]}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <h3 style={{ fontSize: 14, fontWeight: 600 }}>{guest.firstName} {guest.lastName}</h3>
-                      {fidelised && <CheckCircle2 size={12} style={{ color: "var(--green)" }} />}
-                      {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); openEditModal(guest); }}
-                          className="btn-icon"
-                          style={{ background: "rgba(255,255,255,0.05)", padding: 6, borderRadius: 6, marginLeft: 4 }}
-                          title="Modifier les informations"
-                        >
-                          <MoreHorizontal size={14} style={{ color: "var(--gold)" }} />
-                        </button>
-                      )}
+          {/* Add / Edit Modal */}
+          {isAddModalOpen && (
+            <div style={{
+              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+              background: "rgba(2, 1, 4, 0.8)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+              zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
+              padding: 20
+            }}>
+              <div className="glass fade-in" style={{ width: "100%", maxWidth: 620, maxHeight: "90vh", overflowY: "auto", position: "relative", padding: 32, border: "1px solid var(--gold)", boxShadow: "0 20px 50px rgba(0,0,0,0.8)" }}>
+                <button onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }} style={{ position: "absolute", top: 24, right: 24, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}>
+                  <X size={20} />
+                </button>
+                <h2 style={{ fontSize: 22, color: "var(--gold-light)", marginBottom: 24, fontFamily: "var(--font-display)" }}>
+                  {editingGuestId ? "Modifier la Brebi" : "Enregistrer une Brebi"}
+                </h2>
+                <form onSubmit={handleSaveGuest} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 15 }}>
+                    <div>
+                      <label className="form-label">CIVILITÉ</label>
+                      <select className="input" value={newGuest.civility} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
+                        <option value="M.">M.</option>
+                        <option value="Mme.">Mme.</option>
+                        <option value="Mlle.">Mlle.</option>
+                      </select>
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                      {guest.civility} · {guest.age} · Resp: {guest.responsible}
+                    <div>
+                      <label className="form-label">PRÉNOM</label>
+                      <input className="input" required value={newGuest.firstName} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="form-label">NOM</label>
+                      <input className="input" required value={newGuest.lastName} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} />
                     </div>
                   </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-                  <div style={{ textAlign: "right", minWidth: 60 }}>
-                    <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>CDM</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: rateCDM >= 45 ? "var(--green)" : "var(--rose)" }}>{rateCDM}%</div>
-                  </div>
-                  <div style={{ textAlign: "right", minWidth: 60 }}>
-                    <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>Culte</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: rateCulte >= 45 ? "var(--green)" : "var(--rose)" }}>{rateCulte}%</div>
-                  </div>
-                  {isExpanded ? <ChevronUp size={18} style={{ color: "var(--muted)" }} /> : <ChevronDown size={18} style={{ color: "var(--muted)" }} />}
-                </div>
-              </div>
-
-              {isExpanded && (
-                <>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, padding: 20 }}>
-                    {/* Info Column */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                        <Mail size={14} style={{ color: "var(--muted)" }} /> <span style={{ color: "var(--cream)" }}>{guest.email}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                        <Phone size={14} style={{ color: "var(--muted)" }} /> <span style={{ color: "var(--cream)" }}>{guest.phone}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                        <Calendar size={14} style={{ color: "var(--gold)" }} /> <span style={{ color: "var(--cream)" }}>Arrivé: {guest.arrivalDate ? guest.arrivalDate.split('-').reverse().join('/') : ''}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                        <div className="badge badge-primary" style={{ fontSize: 10 }}>{guest.event}</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                        <MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12 }}>{guest.address}</span>
-                      </div>
-                      <div style={{ display: "gap", gap: 10, marginTop: 5 }}>
-                        <span className={`badge ${guest.aps ? "badge-green" : "badge-rose"}`}>APS: {guest.aps ? "Oui" : "Non"}</span>
-                        <span className={`badge ${guest.localChurch ? "badge-green" : "badge-rose"}`}>Église: {guest.localChurch ? "Oui" : "Non"}</span>
-                      </div>
-
-                      <div style={{ marginTop: 10 }}>
-                        <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE ARRIVÉE</label>
-                        <div style={{ fontSize: 12, color: "var(--cream)", background: "rgba(0,0,0,0.2)", padding: 8, borderRadius: 6, border: "1px solid var(--border)" }}>
-                          {guest.commentaire || "Aucun commentaire"}
-                        </div>
-                      </div>
-                      
-                      {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
-                        <button 
-                          className="btn btn-outline" 
-                          style={{ marginTop: 15, borderColor: "#ff4d4d", color: "#ff4d4d", background: "rgba(255, 77, 77, 0.05)", fontSize: 11 }}
-                          onClick={() => handleDeleteGuest(guest.id)}
-                        >
-                          Supprimer définitivement
-                        </button>
-                      )}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                    <div>
+                      <label className="form-label">TÉLÉPHONE</label>
+                      <input className="input" value={newGuest.phone} onChange={e => setNewGuest({...newGuest, phone: e.target.value})} />
                     </div>
-
-                    {/* Attendance Tracking (Dynamic) */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                    <div>
+                      <label className="form-label">E-MAIL</label>
+                      <input className="input" type="email" value={newGuest.email} onChange={e => setNewGuest({...newGuest, email: e.target.value})} />
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 15 }}>
+                    <div>
+                      <label className="form-label">DATE D'ARRIVÉE</label>
+                      <input className="input" type="date" value={newGuest.arrivalDate} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="form-label">ÂGE</label>
+                      <select className="input" value={newGuest.age} onChange={e => setNewGuest({...newGuest, age: e.target.value})}>
+                        <option value="< 18">Moins de 18 ans</option>
+                        <option value="18-25">18-25 ans</option>
+                        <option value="26-30">26-30 ans</option>
+                        <option value="31-40">31-40 ans</option>
+                        <option value="41-50">41-50 ans</option>
+                        <option value="> 50">Plus de 50 ans</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="form-label">ÉVÉNEMENT</label>
+                      <select className="input" value={newGuest.event} onChange={e => setNewGuest({...newGuest, event: e.target.value})}>
+                        <option value="Culte">Culte</option>
+                        <option value="Baptême">Baptême</option>
+                        <option value="Évangélisation">Évangélisation</option>
+                        <option value="Séminaire">Séminaire</option>
+                        <option value="Autre">Autre</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" checked={newGuest.aEteInvite} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>A été invité ?</span>
+                    </div>
+                    {newGuest.aEteInvite && (
                       <div>
-                        <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Présences CDM (Jeudi)</h4>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {thursdays.map((day) => (
-                            <div 
-                              key={day} 
-                              title={day} 
-                              onClick={() => !isRestricted && toggleAttendance(guest.id, day)}
-                              style={{ 
-                                width: 28, height: 28, borderRadius: 6, 
-                                background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.05)",
-                                border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
-                                cursor: isRestricted ? "default" : "pointer", transition: "all 0.2s",
-                                opacity: isRestricted ? 0.4 : 1
-                              }}>
-                              <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Présences Culte (Dimanche)</h4>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {sundays.map((day) => (
-                            <div 
-                              key={day} 
-                              title={day} 
-                              onClick={() => !isRestricted && toggleAttendance(guest.id, day)}
-                              style={{ 
-                                width: 28, height: 28, borderRadius: 6, 
-                                background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.05)",
-                                border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
-                                cursor: isRestricted ? "default" : "pointer", transition: "all 0.2s",
-                                opacity: isRestricted ? 0.4 : 1
-                              }}>
-                              <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Suivi Groups - Grid layout within details */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                      <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
-                        <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Premier Contact</h5>
-                          <div style={{ marginBottom: 4 }}>
-                            <SuiviToggle label="Appel abouti" checked={guest.appelAbouti} onChange={() => toggleSuivi(guest.id, 'appelAbouti')} disabled={isRestricted} />
-                            {!guest.appelAbouti && !isRestricted && (
-                              <div 
-                                className="glass-compact"
-                                style={{ 
-                                  marginTop: 8, 
-                                  marginBottom: 8,
-                                  padding: 10,
-                                  background: "rgba(244, 63, 94, 0.05)",
-                                  border: "1px dashed rgba(244, 63, 94, 0.3)",
-                                  borderRadius: 8,
-                                  animation: "fadeIn 0.3s ease-out"
-                                }}
-                              >
-                                <label style={{ fontSize: 9, color: "var(--rose)", display: "block", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                                  Raison de l'échec
-                                </label>
-                                <textarea 
-                                  placeholder="Pourquoi l'appel n'a pas abouti ? (ex: Ne décroche pas, numéro invalide...)" 
-                                  value={guest.commentaireSuivi || ""} 
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: val } : g));
-                                  }}
-                                  onBlur={(e) => {
-                                    supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id).then();
-                                  }}
-                                  style={{ 
-                                    width: "100%", 
-                                    minHeight: 60,
-                                    fontSize: 11, 
-                                    background: "rgba(0,0,0,0.3)", 
-                                    border: "1px solid rgba(255,255,255,0.1)", 
-                                    borderRadius: 6, 
-                                    padding: "10px", 
-                                    color: "var(--cream)",
-                                    resize: "vertical",
-                                    lineHeight: "1.5"
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        <SuiviToggle label="Groupe WhatsApp" checked={guest.groupeWhatsapp} onChange={() => toggleSuivi(guest.id, 'groupeWhatsapp')} disabled={isRestricted} />
-                        <SuiviToggle label="Prévu revenir" checked={guest.prevuRevenir} onChange={() => toggleSuivi(guest.id, 'prevuRevenir')} disabled={isRestricted} />
-                        <SuiviToggle label="Revenu au culte" checked={guest.estRevenuCulte} onChange={() => toggleSuivi(guest.id, 'estRevenuCulte')} disabled={isRestricted} />
-                      </div>
-                      <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
-                        <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Engagement & C.D.M</h5>
-                         <SuiviToggle label="Intérêt PCNC" checked={guest.interetFormation} onChange={() => toggleSuivi(guest.id, 'interetFormation')} disabled={isRestricted} />
-                         <SuiviToggle label="Prière/Partage" checked={guest.prierePartage} onChange={() => toggleSuivi(guest.id, 'prierePartage')} disabled={isRestricted} />
-                        <SuiviToggle label="Intérêt C.D.M" checked={guest.interetCDM} onChange={() => toggleSuivi(guest.id, 'interetCDM')} disabled={isRestricted} />
-                        <SuiviToggle label="A intégré C.D.M" checked={guest.integreCDM} onChange={() => toggleSuivi(guest.id, 'integreCDM')} disabled={isRestricted} />
-                        <SuiviToggle label="Famille Disciple" checked={guest.dansFamilleDisciple} onChange={() => toggleSuivi(guest.id, 'dansFamilleDisciple')} disabled={isRestricted} />
-                        <SuiviToggle label="Intérêt Baptême" checked={guest.interetBapteme} onChange={() => toggleSuivi(guest.id, 'interetBapteme')} disabled={isRestricted} />
-                        <SuiviToggle label="Cocktail" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, 'cocktailBienvenue')} disabled={isRestricted} />
-                      </div>
-                    </div>
-
-                    {/* PCNC & Service */}
-                    <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", gridColumn: "span 2" }}>
-                      <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 12 }}>PCNC & Intégration</h5>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-                        <SuiviToggle label="001" checked={guest.pcnc} onChange={() => toggleSuivi(guest.id, 'pcnc')} disabled={isRestricted} />
-                        <SuiviToggle label="101" checked={guest.p101} onChange={() => toggleSuivi(guest.id, 'p101')} disabled={isRestricted} />
-                        <SuiviToggle label="201" checked={guest.p201} onChange={() => toggleSuivi(guest.id, 'p201')} disabled={isRestricted} />
-                        <SuiviToggle label="301" checked={guest.p301} onChange={() => toggleSuivi(guest.id, 'p301')} disabled={isRestricted} />
-                        <SuiviToggle label="Terminé" checked={guest.terminePCNC} onChange={() => toggleSuivi(guest.id, 'terminePCNC')} disabled={isRestricted} />
-                        <SuiviToggle label="Baptisé par immersion" checked={guest.baptemeEau} onChange={() => toggleSuivi(guest.id, 'baptemeEau')} disabled={isRestricted} />
-                        <SuiviToggle label="Veut servir" checked={guest.veutServir} onChange={() => toggleSuivi(guest.id, 'veutServir')} disabled={isRestricted} />
-                        <SuiviToggle label="Devenu STAR" checked={guest.devenuStar} onChange={() => toggleSuivi(guest.id, 'devenuStar')} disabled={isRestricted} />
-                      </div>
-                       <div style={{ marginTop: 15 }}>
-                        <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE SUIVI</label>
-                        <textarea 
-                          className="input" 
-                          rows={3} 
-                          defaultValue={guest.commentaireSuivi} 
-                          disabled={isRestricted}
-                          style={{ 
-                            fontSize: 12, 
-                            resize: "vertical", 
-                            background: "rgba(0,0,0,0.3)",
-                            minHeight: 60,
-                            padding: 10,
-                            opacity: isRestricted ? 0.5 : 1,
-                            cursor: isRestricted ? "not-allowed" : "text"
-                          }}
-                          onBlur={async (e) => {
-                            const newVal = e.target.value;
-                            setGuests(prev => prev.map(g => g.id === guest.id ? {...g, commentaireSuivi: newVal} : g));
-                            await supabase.from("invites").update({ commentaire_suivi: newVal }).eq("id", guest.id);
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Dynamic Assignment Control for Leaders */}
-                    {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
-                      <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", gridColumn: "span 2", marginTop: 5 }}>
-                        <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>Affectation (Leader Only)</h5>
-                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                          <div style={{ flex: 1 }}>
-                            <select 
-                              className="input" 
-                              style={{ fontSize: 11, padding: "4px 8px" }}
-                              value={guest.responsible} 
-                              onChange={e => handleUpdateAssignment(guest.id, e.target.value)}
-                            >
-                              {responsibles.map(r => (
-                                <option key={r} value={r}>{r}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <button 
-                            className="btn btn-primary" 
-                            style={{ padding: "4px 12px", fontSize: 11 }}
-                            onClick={() => handleSelfAssign(guest.id)}
-                          >
-                            M'affecter
-                          </button>
-                        </div>
+                        <label className="form-label">PAR QUI ?</label>
+                        <input className="input" value={newGuest.parQui} onChange={e => setNewGuest({...newGuest, parQui: e.target.value})} placeholder="Nom de l'invitant" />
                       </div>
                     )}
                   </div>
-                </>
-              )}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" checked={newGuest.baptemeEau} onChange={e => setNewGuest({...newGuest, baptemeEau: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Baptisé par immersion ?</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" checked={newGuest.interetFormation} onChange={e => setNewGuest({...newGuest, interetFormation: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt PCNC</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" checked={newGuest.interetCDM} onChange={e => setNewGuest({...newGuest, interetCDM: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt C.D.M</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" checked={newGuest.interetBapteme} onChange={e => setNewGuest({...newGuest, interetBapteme: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt Baptême</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" checked={newGuest.aps} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Fiche APS Remplie</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" checked={newGuest.localChurch} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Déjà d'une église locale</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="form-label">ADRESSE DOMICILE</label>
+                    <input className="input" value={newGuest.address} onChange={e => setNewGuest({...newGuest, address: e.target.value})} />
+                  </div>
+
+                  <div>
+                    <label className="form-label">COMMENTAIRE / NOTES PARTICULIÈRES</label>
+                    <textarea 
+                      className="input" 
+                      value={newGuest.commentaire} 
+                      onChange={e => setNewGuest({...newGuest, commentaire: e.target.value})} 
+                      placeholder="Sujets de prières, contexte spirituel ou familial..."
+                      style={{ minHeight: 80, fontSize: 12, resize: "vertical" }}
+                    />
+                  </div>
+
+                  <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                    <button type="button" className="btn btn-subtle" onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }}>Annuler</button>
+                    <button type="submit" className="btn btn-primary">Enregistrer la brebi</button>
+                  </div>
+                </form>
+              </div>
             </div>
-          );
-        })}
-      </div>
-    </>
-  )}
-</div>
-);
+          )}
+
+          {/* Filters */}
+          <div className="glass fade-in" style={{ padding: "16px 20px", display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flex: 2, minWidth: 240 }}>
+              <Search size={14} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+              <input className="input" placeholder="Rechercher une brebi par nom ou prénom..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 38 }} />
+            </div>
+            
+            {/* Arrival Filters */}
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(10, 6, 22, 0.4)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
+              <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.5px" }}>ARRIVÉE</span>
+              <select className="input" value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)} style={{ width: 110, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}>
+                <option value="all">Tous les mois</option>
+                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                  <option key={i} value={i}>{m}</option>
+                ))}
+              </select>
+              <select className="input" value={arrivalYear} onChange={e => setArrivalYear(e.target.value)} style={{ width: 80, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}>
+                <option value="all">Toutes</option>
+                {[2024, 2025, 2026].map(y => (
+                  <option key={y} value={y.toString()}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Presence Display Filters */}
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(10, 6, 22, 0.4)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
+              <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.5px" }}>PRÉSENCES</span>
+              <select 
+                className="input" 
+                value={selectedMonth} 
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                style={{ width: 110, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}
+              >
+                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                  <option key={i} value={i}>{m}</option>
+                ))}
+              </select>
+              <select 
+                className="input" 
+                value={selectedYear} 
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                style={{ width: 80, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}
+              >
+                {[2024, 2025, 2026].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="fade-in d1" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {filtered.map((guest) => {
+              const rateCDM = calculateRate(guest, thursdays);
+              const rateCulte = calculateRate(guest, sundays);
+              const fidelised = isFidelise(guest);
+              const isExpanded = expandedId === guest.id;
+              const isRestricted = guest.responsible !== userName;
+
+              return (
+                <div key={guest.id} className="glass glass-flush" style={{ borderLeft: fidelised ? "4px solid var(--gold)" : "1px solid var(--border)", transition: "all 0.3s ease" }}>
+                  <div 
+                    onClick={() => setExpandedId(isExpanded ? null : guest.id)}
+                    style={{ 
+                      padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
+                      cursor: "pointer", background: isExpanded ? "rgba(212, 175, 55, 0.03)" : "transparent"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 16, flex: 1 }}>
+                      <div className={`avatar ${fidelised ? "avatar-gradient avatar-effect-aura" : "avatar-gradient"}`} style={{ width: 42, height: 42, fontSize: 12 }}>
+                        {guest.firstName[0]}{guest.lastName[0]}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cream)" }}>{guest.firstName} {guest.lastName}</h3>
+                          {fidelised && <span className="badge badge-gold" style={{ fontSize: 8 }}>Fidélisé</span>}
+                          {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); openEditModal(guest); }}
+                              className="btn-icon btn-icon-gold"
+                              style={{ marginLeft: 4 }}
+                              title="Modifier les informations"
+                            >
+                              <MoreHorizontal size={14} />
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                          {guest.civility} · {guest.age} ans · Responsable: <span style={{ color: "var(--gold-light)" }}>{guest.responsible}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                      <div style={{ textAlign: "right", minWidth: 60 }}>
+                        <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>CDM (Jeudi)</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: rateCDM >= 45 ? "var(--green)" : "var(--red)", marginTop: 2 }}>{rateCDM}%</div>
+                      </div>
+                      <div style={{ textAlign: "right", minWidth: 60 }}>
+                        <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Culte (Dim)</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: rateCulte >= 45 ? "var(--green)" : "var(--red)", marginTop: 2 }}>{rateCulte}%</div>
+                      </div>
+                      {isExpanded ? <ChevronUp size={18} style={{ color: "var(--gold)" }} /> : <ChevronDown size={18} style={{ color: "var(--muted)" }} />}
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div style={{ borderTop: "1px solid var(--border)", background: "rgba(0, 0, 0, 0.25)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, padding: 24 }}>
+                        {/* Info Column */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                          <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4, fontFamily: "var(--font-body)", fontWeight: 700 }}>Informations Générales</h4>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                            <Mail size={14} style={{ color: "var(--muted)" }} /> <span style={{ color: "var(--cream-dim)" }}>{guest.email || "Non renseigné"}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                            <Phone size={14} style={{ color: "var(--muted)" }} /> <span style={{ color: "var(--cream-dim)" }}>{guest.phone || "Non renseigné"}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                            <Calendar size={14} style={{ color: "var(--gold)" }} /> <span style={{ color: "var(--cream-dim)" }}>Arrivé le: {guest.arrivalDate ? guest.arrivalDate.split('-').reverse().join('/') : ''}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                            <MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12, color: "var(--cream-dim)" }}>{guest.address || "Adresse non renseignée"}</span>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                            <span className="badge badge-gold" style={{ fontSize: 9 }}>{guest.event}</span>
+                            <span className={`badge ${guest.aps ? "badge-green" : "badge-red"}`} style={{ fontSize: 9 }}>APS: {guest.aps ? "Oui" : "Non"}</span>
+                            <span className={`badge ${guest.localChurch ? "badge-green" : "badge-red"}`} style={{ fontSize: 9 }}>Église locale: {guest.localChurch ? "Oui" : "Non"}</span>
+                          </div>
+
+                          <div style={{ marginTop: 10 }}>
+                            <label className="form-label" style={{ fontSize: 9 }}>Commentaire d'arrivée</label>
+                            <div style={{ fontSize: 12, color: "var(--cream-dim)", background: "rgba(10, 6, 22, 0.4)", padding: 12, borderRadius: 10, border: "1px solid var(--border)", lineHeight: 1.5 }}>
+                              {guest.commentaire || <span style={{ fontStyle: "italic", color: "var(--muted)" }}>Aucun commentaire d'arrivée rédigé.</span>}
+                            </div>
+                          </div>
+                          
+                          {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
+                            <button 
+                              className="btn btn-subtle btn-sm" 
+                              style={{ marginTop: 16, color: "var(--red)", borderColor: "rgba(239, 68, 68, 0.2)", width: "fit-content" }}
+                              onClick={() => handleDeleteGuest(guest.id)}
+                            >
+                              Supprimer définitivement
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Attendance Tracking (Dynamic) */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                          <div>
+                            <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, fontFamily: "var(--font-body)", fontWeight: 700 }}>Présences CDM (Jeudi)</h4>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {thursdays.map((day) => (
+                                <div 
+                                  key={day} 
+                                  title={day} 
+                                  onClick={() => !isRestricted && toggleAttendance(guest.id, day)}
+                                  style={{ 
+                                    width: 32, height: 32, borderRadius: 8, 
+                                    background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.02)",
+                                    border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
+                                    cursor: isRestricted ? "default" : "pointer", transition: "all 0.2s",
+                                    opacity: isRestricted ? 0.4 : 1
+                                  }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700 }}>{parseInt(day.split('-')[2], 10)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, fontFamily: "var(--font-body)", fontWeight: 700 }}>Présences Culte (Dimanche)</h4>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {sundays.map((day) => (
+                                <div 
+                                  key={day} 
+                                  title={day} 
+                                  onClick={() => !isRestricted && toggleAttendance(guest.id, day)}
+                                  style={{ 
+                                    width: 32, height: 32, borderRadius: 8, 
+                                    background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.02)",
+                                    border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
+                                    cursor: isRestricted ? "default" : "pointer", transition: "all 0.2s",
+                                    opacity: isRestricted ? 0.4 : 1
+                                  }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700 }}>{parseInt(day.split('-')[2], 10)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Suivi Groups */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                          <div className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", display: "flex", flexDirection: "column", gap: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+                            <h4 style={{ fontSize: 10, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "var(--font-body)", fontWeight: 700 }}>Premier Contact</h4>
+                            <div>
+                              <SuiviToggle label="Appel abouti" checked={guest.appelAbouti} onChange={() => toggleSuivi(guest.id, 'appelAbouti')} disabled={isRestricted} />
+                              {!guest.appelAbouti && !isRestricted && (
+                                <div 
+                                  className="glass"
+                                  style={{ 
+                                    marginTop: 10, 
+                                    padding: 12,
+                                    background: "rgba(239, 68, 68, 0.04)",
+                                    border: "1px dashed rgba(239, 68, 68, 0.3)",
+                                    borderRadius: 10,
+                                  }}
+                                >
+                                  <label className="form-label" style={{ color: "var(--red)", fontSize: 9 }}>Raison de l'échec</label>
+                                  <textarea 
+                                    placeholder="Pourquoi l'appel n'a pas abouti ? (ex: répondeur, faux numéro...)" 
+                                    value={guest.commentaireSuivi || ""} 
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: val } : g));
+                                    }}
+                                    onBlur={(e) => {
+                                      supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id).then();
+                                    }}
+                                    style={{ 
+                                      width: "100%", 
+                                      minHeight: 50,
+                                      fontSize: 11, 
+                                      background: "rgba(0,0,0,0.3)", 
+                                      border: "1px solid var(--border)", 
+                                      borderRadius: 6, 
+                                      padding: "8px", 
+                                      color: "var(--cream)",
+                                      resize: "vertical",
+                                      lineHeight: "1.4"
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            <SuiviToggle label="Groupe WhatsApp" checked={guest.groupeWhatsapp} onChange={() => toggleSuivi(guest.id, 'groupeWhatsapp')} disabled={isRestricted} />
+                            <SuiviToggle label="Prévu de revenir" checked={guest.prevuRevenir} onChange={() => toggleSuivi(guest.id, 'prevuRevenir')} disabled={isRestricted} />
+                            <SuiviToggle label="Revenu au culte" checked={guest.estRevenuCulte} onChange={() => toggleSuivi(guest.id, 'estRevenuCulte')} disabled={isRestricted} />
+                          </div>
+                          
+                          <div className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", display: "flex", flexDirection: "column", gap: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+                            <h4 style={{ fontSize: 10, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "var(--font-body)", fontWeight: 700 }}>Intégration & CDM</h4>
+                            <SuiviToggle label="Intérêt PCNC" checked={guest.interetFormation} onChange={() => toggleSuivi(guest.id, 'interetFormation')} disabled={isRestricted} />
+                            <SuiviToggle label="Sujet Prière/Partage" checked={guest.prierePartage} onChange={() => toggleSuivi(guest.id, 'prierePartage')} disabled={isRestricted} />
+                            <SuiviToggle label="Intérêt C.D.M" checked={guest.interetCDM} onChange={() => toggleSuivi(guest.id, 'interetCDM')} disabled={isRestricted} />
+                            <SuiviToggle label="A intégré C.D.M" checked={guest.integreCDM} onChange={() => toggleSuivi(guest.id, 'integreCDM')} disabled={isRestricted} />
+                            <SuiviToggle label="Famille Disciple" checked={guest.dansFamilleDisciple} onChange={() => toggleSuivi(guest.id, 'dansFamilleDisciple')} disabled={isRestricted} />
+                            <SuiviToggle label="Intérêt Baptême" checked={guest.interetBapteme} onChange={() => toggleSuivi(guest.id, 'interetBapteme')} disabled={isRestricted} />
+                            <SuiviToggle label="Cocktail Bienvenue" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, 'cocktailBienvenue')} disabled={isRestricted} />
+                          </div>
+                        </div>
+
+                        {/* PCNC & Service */}
+                        <div className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", gridColumn: "span 2", border: "1px solid rgba(212,175,55,0.08)" }}>
+                          <h4 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12, fontFamily: "var(--font-body)", fontWeight: 700 }}>PCNC & Engagement spirituel</h4>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+                            <SuiviToggle label="PCNC 001" checked={guest.pcnc} onChange={() => toggleSuivi(guest.id, 'pcnc')} disabled={isRestricted} />
+                            <SuiviToggle label="PCNC 101" checked={guest.p101} onChange={() => toggleSuivi(guest.id, 'p101')} disabled={isRestricted} />
+                            <SuiviToggle label="PCNC 201" checked={guest.p201} onChange={() => toggleSuivi(guest.id, 'p201')} disabled={isRestricted} />
+                            <SuiviToggle label="PCNC 301" checked={guest.p301} onChange={() => toggleSuivi(guest.id, 'p301')} disabled={isRestricted} />
+                            <SuiviToggle label="PCNC Terminé" checked={guest.terminePCNC} onChange={() => toggleSuivi(guest.id, 'terminePCNC')} disabled={isRestricted} />
+                            <SuiviToggle label="Baptême par immersion" checked={guest.baptemeEau} onChange={() => toggleSuivi(guest.id, 'baptemeEau')} disabled={isRestricted} />
+                            <SuiviToggle label="Veut servir" checked={guest.veutServir} onChange={() => toggleSuivi(guest.id, 'veutServir')} disabled={isRestricted} />
+                            <SuiviToggle label="Devenu S.T.A.R" checked={guest.devenuStar} onChange={() => toggleSuivi(guest.id, 'devenuStar')} disabled={isRestricted} />
+                          </div>
+                          
+                          <div style={{ marginTop: 16 }}>
+                            <label className="form-label" style={{ fontSize: 9 }}>Commentaires de suivi / Notes d'accompagnement</label>
+                            <textarea 
+                              className="input" 
+                              rows={3} 
+                              defaultValue={guest.commentaireSuivi} 
+                              disabled={isRestricted}
+                              placeholder="Notes détaillées sur son parcours spirituel, ses défis, ses besoins de prière..."
+                              style={{ 
+                                fontSize: 12, 
+                                resize: "vertical", 
+                                background: "rgba(0,0,0,0.3)",
+                                minHeight: 70,
+                                padding: 12,
+                                opacity: isRestricted ? 0.5 : 1,
+                                cursor: isRestricted ? "not-allowed" : "text"
+                              }}
+                              onBlur={async (e) => {
+                                const newVal = e.target.value;
+                                setGuests(prev => prev.map(g => g.id === guest.id ? {...g, commentaireSuivi: newVal} : g));
+                                await supabase.from("invites").update({ commentaire_suivi: newVal }).eq("id", guest.id);
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Dynamic Assignment Control for Leaders */}
+                        {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
+                          <div className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", gridColumn: "span 2", border: "1px solid rgba(212,175,55,0.15)" }}>
+                            <h4 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, fontFamily: "var(--font-body)", fontWeight: 700 }}>Affectation Administrative</h4>
+                            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                              <div style={{ flex: 1 }}>
+                                <select 
+                                  className="input" 
+                                  style={{ fontSize: 12 }}
+                                  value={guest.responsible} 
+                                  onChange={e => handleUpdateAssignment(guest.id, e.target.value)}
+                                >
+                                  {responsibles.map(r => (
+                                    <option key={r} value={r}>{r}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <button 
+                                className="btn btn-primary btn-sm" 
+                                onClick={() => handleSelfAssign(guest.id)}
+                              >
+                                M'affecter
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function SuiviToggle({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange?: () => void; disabled?: boolean }) {
@@ -1199,17 +1193,18 @@ function SuiviToggle({ label, checked, onChange, disabled }: { label: string; ch
         display: "flex", 
         alignItems: "center", 
         justifyContent: "space-between", 
-        padding: "6px 10px",
-        background: "rgba(255,255,255,0.03)",
+        padding: "8px 12px",
+        background: "rgba(10, 6, 22, 0.4)",
         borderRadius: "8px",
         cursor: (onChange && !disabled) ? "pointer" : "default",
         opacity: disabled ? 0.5 : 1,
         transition: "all 0.2s ease",
-        border: "1px solid rgba(255,255,255,0.02)"
+        border: "1px solid rgba(255, 255, 255, 0.02)"
       }}
     >
-      <span style={{ fontSize: 10, fontWeight: 600, color: checked ? "var(--cream)" : "var(--muted)", transition: "color 0.2s" }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: checked ? "var(--cream)" : "var(--muted)", transition: "color 0.2s" }}>{label}</span>
       <button className={`toggle ${checked ? "on" : ""}`} style={{ transform: "scale(0.65)", transformOrigin: "right", pointerEvents: "none" }} />
     </div>
   );
 }
+

@@ -82,12 +82,21 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
       {/* Desktop / Tablet Sidebar */}
       <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
         {/* Logo */}
-        <div style={{ padding: "22px 20px 18px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "26px 22px 20px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 700, color: "var(--gold-light)", letterSpacing: "-0.02em" }}>
+            <div style={{ 
+              fontFamily: "var(--font-display)", 
+              fontSize: 26, 
+              fontWeight: 800, 
+              background: "linear-gradient(135deg, #FFF6D6 0%, #D4AF37 60%, #AA771C 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              letterSpacing: "-0.01em" 
+            }}>
               Poimén
             </div>
-            <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginTop: 1, textTransform: "uppercase" }}>
+            <div style={{ fontSize: 9, color: "var(--gold-light)", letterSpacing: 2.5, marginTop: 4, textTransform: "uppercase", fontWeight: 700, opacity: 0.8 }}>
               {isAdmin ? "ADMINISTRATION" : churchName}
             </div>
           </div>
@@ -161,23 +170,30 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
 
         {/* User - Only show if Admin or Has Family */}
         {(isAdmin || hasFamily) && (
-          <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ 
+            padding: "16px 20px", 
+            borderTop: "1px solid rgba(212, 175, 55, 0.15)", 
+            display: "flex", 
+            alignItems: "center", 
+            gap: 12,
+            background: "linear-gradient(180deg, rgba(212, 175, 55, 0.02) 0%, rgba(139, 92, 246, 0.01) 100%)" 
+          }}>
             {(() => {
               const avatarUrl = userInfo?.avatarUrl || "";
               const effect = avatarUrl.startsWith("effect:") ? avatarUrl.replace("effect:", "") : null;
               const effectClass = effect ? `avatar-effect-${effect}` : "";
               
               return (
-                <div className={`avatar avatar-gradient ${effectClass}`} style={{ width: 32, height: 32, fontSize: 11, border: effect ? "2px solid" : "none" }}>
+                <div className={`avatar avatar-gradient ${effectClass}`} style={{ width: 34, height: 34, fontSize: 11, border: effect ? "2px solid" : "none", boxShadow: "0 0 10px rgba(212, 175, 55, 0.15)" }}>
                   {isAdmin ? "SA" : (userInfo?.firstName?.[0] || "") + (userInfo?.lastName?.[0] || "")}
                 </div>
               );
             })()}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cream)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--cream)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "0.01em" }}>
                 {isAdmin ? "Junior Minko" : (userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : "Utilisateur")}
               </div>
-              <div style={{ fontSize: 10, color: "var(--gold)", letterSpacing: 0.5, textTransform: "uppercase" }}>
+              <div style={{ fontSize: 9, color: "var(--gold-light)", letterSpacing: 0.8, textTransform: "uppercase", fontWeight: 700 }}>
                 {isAdmin ? "SUPER ADMIN" : (userInfo?.role || "MEMBRE")}
               </div>
             </div>
@@ -188,10 +204,19 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
                 window.dispatchEvent(new Event("storage"));
                 window.location.href = "/dashboard";
               }}
-              style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", opacity: 0.5 }}
+              style={{ 
+                background: "none", 
+                border: "none", 
+                color: "var(--muted)", 
+                cursor: "pointer", 
+                opacity: 0.6,
+                transition: "all 0.2s ease" 
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.opacity = "1"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "var(--muted)"; e.currentTarget.style.opacity = "0.6"; }}
               title="Quitter la famille"
             >
-              <LogOut size={15} />
+              <LogOut size={16} />
             </button>
           </div>
         )}

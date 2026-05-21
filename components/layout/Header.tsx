@@ -45,10 +45,10 @@ export default function Header({ bergerieName = "Famille Alpha", onMenuClick }: 
           <Menu size={20} />
         </button>
         <div>
-          <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2 }}>
+          <div style={{ fontSize: 9, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 700, opacity: 0.8 }}>
             Famille de disciple
           </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, color: "var(--cream)", margin: 0 }}>
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 19, fontWeight: 700, color: "var(--cream)", margin: 0, letterSpacing: "0.01em" }}>
             {currentFamilyName}
           </h1>
         </div>
