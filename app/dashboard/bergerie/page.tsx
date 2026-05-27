@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
   Search, Plus, Grid3X3, List, UserMinus, UserPlus, 
   ChevronDown, ChevronUp, XCircle, Loader2, Pencil, Eye,
   Trash2, Trash, RotateCcw, Archive
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { autoAddLeaderToMembers } from "@/app/actions/auth";
+
 
 const STATUS_OPTIONS = ["Brebi", "Responsable", "Berger", "Second"];
 
@@ -47,6 +50,27 @@ const getEngagementColor = (engagement: number) => {
 };
 
 export default function BergeriePage() {
+  const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (
+      [46, 8, 9, 27, 13].includes(e.keyCode) ||
+      (e.keyCode === 65 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+A
+      (e.keyCode === 67 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+C
+      (e.keyCode === 86 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+V
+      (e.keyCode === 88 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+X
+      (e.keyCode >= 35 && e.keyCode <= 39) // Fin, Début, Flèches
+    ) {
+      return;
+    }
+    const allowedChars = /[0-9+\-\s()]/;
+    if (!allowedChars.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const handlePhoneChange = (val: string) => {
+    return val.replace(/[^0-9+\-\s()]/g, "");
+  };
+
   const [data, setData] = useState<M[]>(INITIAL_DATA);
   const [activities] = useState<Activity[]>(INITIAL_ACTIVITIES);
   const [mounted, setMounted] = useState(false);
@@ -86,6 +110,21 @@ export default function BergeriePage() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    const shouldLock = isAddModalOpen || isConseillerModalOpen;
+    if (shouldLock) {
+      document.documentElement.classList.add("no-scroll");
+      document.body.classList.add("no-scroll");
+    } else {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    }
+    return () => {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    };
+  }, [isAddModalOpen, isConseillerModalOpen]);
 
   const userRoleVal = (userRole || "brebi").toLowerCase().trim().replace(/ /g, '_');
   const isLeader = [
@@ -136,8 +175,8 @@ export default function BergeriePage() {
         console.log("Vérification auto-add pour:", userEmail, "Trouvé ?", !!me);
         
         if (!me) {
-          console.log("Tentative d'ajout automatique du leader...");
-          const { error: insErr } = await supabase.from("members").insert({
+          console.log("Tentative d'ajout automatique du leader via Server Action...");
+          const res = await autoAddLeaderToMembers({
             bergerie_id: familyId,
             civility: "M.",
             first_name: userName?.split(' ')[0] || "Leader",
@@ -146,8 +185,8 @@ export default function BergeriePage() {
             status: userRoleVal.includes('second') ? 'Second' : (userRoleVal.includes('berger') ? 'Berger' : 'Responsable')
           });
           
-          if (insErr) {
-            console.error("ÉCHEC de l'ajout automatique:", insErr.message);
+          if (!res.success) {
+            console.error("ÉCHEC de l'ajout automatique:", res.error);
           } else {
             console.log("SUCCÈS de l'ajout automatique !");
             const { data: retryData } = await supabase.from("members").select("*").eq("bergerie_id", familyId);
@@ -174,7 +213,7 @@ export default function BergeriePage() {
     civility: "M.",
     firstName: "",
     lastName: "",
-    age: "26-30",
+    age: "26-30 ans",
     phone: "",
     status: "Brebi",
     email: "",
@@ -353,7 +392,7 @@ export default function BergeriePage() {
       
       setIsAddModalOpen(false);
       setIsConseillerChecked(false);
-      setNewMember({ civility: "M.", firstName: "", lastName: "", age: "26-30", phone: "", status: "Brebi", email: "", attendance: {} });
+      setNewMember({ civility: "M.", firstName: "", lastName: "", age: "26-30 ans", phone: "", status: "Brebi", email: "", attendance: {} });
     }
   };
 
@@ -412,6 +451,110 @@ export default function BergeriePage() {
   const handlePermanentDelete = async (id: string) => {
     if (!confirm("⚠️ Suppression DÉFINITIVE. Cette action est irréversible. Continuer ?")) return;
 
+    try {
+      // 1. Fetch the member's details before deletion
+      const { data: memberToDelete } = await supabase
+        .from("members")
+        .select("email, bergerie_id")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (memberToDelete?.email) {
+        const memberEmail = memberToDelete.email.toLowerCase().trim();
+        
+        // 2. Fetch the corresponding profile in profiles to get their UUID
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, role, church_id")
+          .eq("email", memberEmail)
+          .maybeSingle();
+
+        if (profile) {
+          const profileId = profile.id;
+          const role = (profile.role || "").toLowerCase().trim();
+          const churchId = profile.church_id;
+          let superiorId = null;
+
+          // 3. Identify the superior ID
+          if (role.startsWith("integration_")) {
+            // Integration role: superior is 'integration_responsable' in the same church
+            const { data: head } = await supabase
+              .from("profiles")
+              .select("id")
+              .eq("church_id", churchId)
+              .eq("role", "integration_responsable")
+              .limit(1)
+              .maybeSingle();
+              
+            if (head) {
+              superiorId = head.id;
+            } else {
+              // Fallback to any admin
+              const { data: admin } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("church_id", churchId)
+                .in("role", ["super_admin", "admin"])
+                .limit(1)
+                .maybeSingle();
+              if (admin) superiorId = admin.id;
+            }
+          } else {
+            // Family role: superior is the Berger of the family
+            const { data: family } = await supabase
+              .from("bergeries")
+              .select("berger_id, church_id")
+              .eq("id", memberToDelete.bergerie_id)
+              .maybeSingle();
+
+            if (family?.berger_id) {
+              superiorId = family.berger_id;
+            } else {
+              // Fallback to any profile with 'berger' role in this family
+              const { data: bProfile } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("bergerie_id", memberToDelete.bergerie_id)
+                .ilike("role", "%berger%")
+                .limit(1)
+                .maybeSingle();
+
+              if (bProfile) {
+                superiorId = bProfile.id;
+              } else if (family?.church_id) {
+                // Fallback to integration head of the church
+                const { data: head } = await supabase
+                  .from("profiles")
+                  .select("id")
+                  .eq("church_id", family.church_id)
+                  .eq("role", "integration_responsable")
+                  .limit(1)
+                  .maybeSingle();
+                if (head) superiorId = head.id;
+              }
+            }
+          }
+
+          // 4. Perform the reassignments if a superior was found
+          if (superiorId && superiorId !== profileId) {
+            // A. Update invites assignments
+            await supabase
+              .from("invites")
+              .update({ assigned_to: superiorId })
+              .eq("assigned_to", profileId);
+
+            // B. Update evangelisations created_by
+            await supabase
+              .from("evangelisations")
+              .update({ created_by: superiorId })
+              .eq("created_by", profileId);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error reassigning assets on permanent delete:", err);
+    }
+
     const { error } = await supabase
       .from("members")
       .delete()
@@ -451,9 +594,7 @@ export default function BergeriePage() {
                 <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
                   <Plus size={14} /> Nouveau Membre
                 </button>
-                <button className="btn btn-outline" style={{ borderColor: "var(--sky)", color: "var(--sky)" }} onClick={() => setIsConseillerModalOpen(true)}>
-                  <Eye size={14} /> Ajouter Conseiller
-                </button>
+                {/* Le bouton "Ajouter Conseiller" a été supprimé car les conseillers sont désormais gérés de manière centralisée au Département d'Intégration */}
               </>
             )}
             <button 
@@ -724,9 +865,9 @@ export default function BergeriePage() {
       )}
 
       {/* Add Member Modal */}
-      {isAddModalOpen && (
+      {typeof window !== "undefined" && isAddModalOpen && createPortal(
         <div className="modal-overlay">
-          <div className="glass modal-content" style={{ maxWidth: 500 }}>
+          <div className="custom-modal fade-in">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 25 }}>
               <h2 style={{ fontSize: 20, color: "var(--gold)" }}>{newMember.id ? "Modifier le Membre" : "Nouveau Membre"}</h2>
               <button onClick={() => setIsAddModalOpen(false)} className="btn-icon"><XCircle size={20} /></button>
@@ -739,7 +880,6 @@ export default function BergeriePage() {
                   <select className="input" value={newMember.civility} onChange={e => setNewMember({...newMember, civility: e.target.value})}>
                     <option value="M.">M.</option>
                     <option value="Mme.">Mme.</option>
-                    <option value="Mlle.">Mlle.</option>
                   </select>
                 </div>
                 <div>
@@ -755,17 +895,25 @@ export default function BergeriePage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
                 <div>
                   <label className="label">TÉLÉPHONE</label>
-                  <input className="input" value={newMember.phone} onChange={e => setNewMember({...newMember, phone: e.target.value})} placeholder="+32..." />
+                  <input 
+                    className="input" 
+                    value={newMember.phone} 
+                    onKeyDown={handlePhoneKeyDown}
+                    onChange={e => setNewMember({...newMember, phone: handlePhoneChange(e.target.value)})} 
+                    placeholder="+32 470 12 34 56" 
+                  />
                 </div>
                 <div>
                   <label className="label">ÂGE</label>
                   <select className="input" value={newMember.age} onChange={e => setNewMember({...newMember, age: e.target.value})}>
-                    <option value="18-25">18-25 ans</option>
-                    <option value="26-30">26-30 ans</option>
-                    <option value="31-35">31-35 ans</option>
-                    <option value="36-40">36-40 ans</option>
-                    <option value="41-50">41-50 ans</option>
-                    <option value="> 50">Plus de 50 ans</option>
+                    <option value="Moins de 18 ans">Moins de 18 ans</option>
+                    <option value="18-25 ans">18-25 ans</option>
+                    <option value="26-30 ans">26-30 ans</option>
+                    <option value="31-35 ans">31-35 ans</option>
+                    <option value="36-40 ans">36-40 ans</option>
+                    <option value="41-45 ans">41-45 ans</option>
+                    <option value="46-50 ans">46-50 ans</option>
+                    <option value="Plus de 50 ans">Plus de 50 ans</option>
                   </select>
                 </div>
               </div>
@@ -793,12 +941,6 @@ export default function BergeriePage() {
                     </select>
                   </div>
                 )}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 8, background: "rgba(91,168,224,0.08)", border: "1px solid rgba(91,168,224,0.2)" }}>
-                  <input type="checkbox" id="is_conseiller" checked={isConseillerChecked} onChange={e => setIsConseillerChecked(e.target.checked)} style={{ accentColor: "var(--sky)", width: 16, height: 16 }} />
-                  <label htmlFor="is_conseiller" style={{ fontSize: 12, color: "var(--sky)", cursor: "pointer", fontWeight: 600 }}>
-                    Ce membre est le Conseiller assigné à cette bergerie
-                  </label>
-                </div>
               </div>
 
               <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -807,13 +949,14 @@ export default function BergeriePage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Conseiller Assignment Modal */}
-      {isConseillerModalOpen && (
+      {typeof window !== "undefined" && isConseillerModalOpen && createPortal(
         <div className="modal-overlay">
-          <div className="glass modal-content" style={{ maxWidth: 500 }}>
+          <div className="custom-modal fade-in">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 25 }}>
               <h2 style={{ fontSize: 20, color: "var(--sky)" }}>Assigner un Conseiller</h2>
               <button onClick={() => setIsConseillerModalOpen(false)} className="btn-icon"><XCircle size={20} /></button>
@@ -831,45 +974,45 @@ export default function BergeriePage() {
                     </p>
                     <button className="btn btn-outline" style={{ marginTop: 14, borderColor: "var(--red)", color: "var(--red)", fontSize: 11 }}
                       onClick={async () => {
-                        if (currentConseiller.status === "Externe") {
-                          const { error } = await supabase.from("members").delete().eq("id", currentConseiller.id);
-                          if (error) { alert("Erreur lors de la suppression : " + error.message); return; }
-                          setData(prev => prev.filter(m => m.id !== currentConseiller.id));
-                        } else {
-                          const { error } = await supabase.from("members").update({ is_conseiller: false }).eq("id", currentConseiller.id);
-                          if (error) { alert("Erreur lors de la mise à jour : " + error.message); return; }
-                          setData(prev => prev.map(m => m.id === currentConseiller.id ? { ...m, is_conseiller: false } : m));
-                        }
+                        if (!confirm("Retirer ce conseiller ?")) return;
+                        const { error } = await supabase.from("members").update({ is_conseiller: false }).eq("id", currentConseiller.id);
+                        if (error) { alert("Erreur : " + error.message); return; }
+                        setData(prev => prev.map(m => m.id === currentConseiller.id ? { ...m, is_conseiller: false } : m).filter(m => m.status !== "Externe"));
                       }}
-                    >
-                      Retirer le rôle de Conseiller
-                    </button>
+                    >Désassigner le conseiller</button>
                   </div>
                 );
               }
 
+              const potentialConseillers = data.filter(m => m.status === "Responsable" || m.status === "Second");
+
               return (
                 <>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-                    <button className={`btn ${conseillerSource === 'existing' ? 'btn-primary' : 'btn-outline'}`} style={{ flex: 1, fontSize: 10 }} onClick={() => setConseillerSource('existing')}>Membre existant</button>
-                    <button className={`btn ${conseillerSource === 'new' ? 'btn-primary' : 'btn-outline'}`} style={{ flex: 1, fontSize: 10 }} onClick={() => setConseillerSource('new')}>Conseiller Externe</button>
+                  <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+                    <button className={`btn btn-sm ${conseillerSource === "existing" ? "btn-primary" : "btn-ghost"}`} style={{ flex: 1, height: 32, fontSize: 11 }} onClick={() => setConseillerSource("existing")}>Membre de la Bergerie</button>
+                    <button className={`btn btn-sm ${conseillerSource === "new" ? "btn-primary" : "btn-ghost"}`} style={{ flex: 1, height: 32, fontSize: 11 }} onClick={() => setConseillerSource("new")}>Conseiller Externe</button>
                   </div>
 
-                  {conseillerSource === 'existing' ? (
+                  {conseillerSource === "existing" ? (
                     <div>
-                      <label className="label">SÉLECTIONNER UN MEMBRE DE LA BERGERIE</label>
-                      <select className="input" value={selectedConseillerId} onChange={e => setSelectedConseillerId(e.target.value)}>
-                        <option value="">-- Choisir --</option>
-                        {activeMembers.filter(m => !m.is_conseiller).map(m => (
-                          <option key={m.id} value={m.id}>{m.firstName} {m.lastName} ({m.status})</option>
-                        ))}
-                      </select>
-                      <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 6 }}>Ce membre restera dans la bergerie et aura aussi le rôle de Conseiller.</p>
-                      <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                      {potentialConseillers.length === 0 ? (
+                        <p style={{ fontSize: 13, color: "var(--muted)", textAlign: "center", padding: "20px 0" }}>Aucun Responsable ou Second disponible dans la bergerie.</p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                          <label className="label">SÉLECTIONNER UN MEMBRE ACTIF</label>
+                          <select className="input" value={selectedConseillerId} onChange={e => setSelectedConseillerId(e.target.value)}>
+                            <option value="">-- Choisir --</option>
+                            {potentialConseillers.map(c => (
+                              <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.status})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
                         <button className="btn btn-outline" onClick={() => setIsConseillerModalOpen(false)}>Annuler</button>
-                        <button className="btn btn-primary" style={{ background: "var(--sky)" }}
+                        <button className="btn btn-primary" style={{ background: "var(--sky)" }} disabled={!selectedConseillerId}
                           onClick={async () => {
-                            if (!selectedConseillerId) { alert("Veuillez sélectionner un membre."); return; }
+                            if (!selectedConseillerId) return;
                             const { error } = await supabase.from("members").update({ is_conseiller: true }).eq("id", selectedConseillerId);
                             if (error) { alert("Erreur : " + error.message); return; }
                             setData(prev => prev.map(m => m.id === selectedConseillerId ? { ...m, is_conseiller: true } : m));
@@ -890,7 +1033,6 @@ export default function BergeriePage() {
                           <select className="input" value={newMember.civility} onChange={e => setNewMember({...newMember, civility: e.target.value})}>
                             <option value="M.">M.</option>
                             <option value="Mme.">Mme.</option>
-                            <option value="Mlle.">Mlle.</option>
                           </select>
                         </div>
                         <div>
@@ -904,8 +1046,14 @@ export default function BergeriePage() {
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
                         <div>
-                          <label className="label">TÉLÉPHONE</label>
-                          <input className="input" value={newMember.phone} onChange={e => setNewMember({...newMember, phone: e.target.value})} placeholder="+33..." />
+                           <label className="label">TÉLÉPHONE</label>
+                           <input 
+                             className="input" 
+                             value={newMember.phone} 
+                             onKeyDown={handlePhoneKeyDown}
+                             onChange={e => setNewMember({...newMember, phone: handlePhoneChange(e.target.value)})} 
+                             placeholder="+32 470 12 34 56" 
+                           />
                         </div>
                         <div>
                           <label className="label">E-MAIL</label>
@@ -923,7 +1071,7 @@ export default function BergeriePage() {
                               civility: newMember.civility,
                               first_name: newMember.firstName,
                               last_name: newMember.lastName,
-                              age: "26-30",
+                              age: "26-30 ans",
                               phone: newMember.phone,
                               email: newMember.email,
                               status: "Externe",
@@ -941,7 +1089,7 @@ export default function BergeriePage() {
                               }]);
                             }
                             setIsConseillerModalOpen(false);
-                            setNewMember({ civility: "M.", firstName: "", lastName: "", age: "26-30", phone: "", status: "Brebi", email: "", attendance: {} });
+                            setNewMember({ civility: "M.", firstName: "", lastName: "", age: "26-30 ans", phone: "", status: "Brebi", email: "", attendance: {} });
                           }}
                         >Ajouter le conseiller externe</button>
                       </div>
@@ -951,19 +1099,31 @@ export default function BergeriePage() {
               );
             })()}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <style jsx>{`
         .modal-overlay {
           position: fixed; top: 0; left: 0; right: 0; bottom: 0;
           background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
-          z-index: 1000; display: flex; alignItems: center; justifyContent: center;
+          z-index: 1000; display: flex; align-items: center; justify-content: center;
           padding: 20px;
         }
-        .modal-content {
-          width: 100%; position: relative; padding: 30px;
-          max-height: 90vh; overflow-y: auto;
+        .custom-modal {
+          background: rgba(18, 12, 38, 0.85) !important;
+          backdrop-filter: blur(16px) !important;
+          -webkit-backdrop-filter: blur(16px) !important;
+          border: 1px solid var(--gold) !important;
+          border-radius: 16px !important;
+          padding: 30px !important;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6) !important;
+          width: 100% !important;
+          max-width: 500px !important;
+          max-height: 85vh !important;
+          overflow-y: auto !important;
+          position: relative !important;
+          z-index: 1001 !important;
         }
         .label {
           font-size: 11px; color: var(--muted); display: block; margin-bottom: 6px;

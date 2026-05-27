@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
-  Search, Plus, UserPlus, UserMinus, Filter, CheckCircle2, XCircle, 
+  Search, Plus, UserPlus, UserMinus, Filter, CheckCircle2, XCircle, X,
   Calendar, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2,
-  Trash2, Trash, RotateCcw, Pencil, Archive
+  Trash2, Trash, RotateCcw, Pencil, Archive, AlertTriangle
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { autoAddLeaderToMembers } from "@/app/actions/auth";
+
 
 interface Guest {
   id: string;
@@ -56,6 +59,10 @@ interface Guest {
   commentaire: string;
   commentaireSuivi: string;
   archived: boolean;
+  assigned_to?: string | null;
+  church_id?: string | null;
+  bergerie_id?: string | null;
+  created_by?: string | null;
 }
 
 const MOCK_GUESTS: Guest[] = [];
@@ -65,6 +72,27 @@ const MOCK_RESPONSIBLES = ["Non assigné"];
 const STATUS_OPTIONS = ["Brebi", "Responsable", "Berger", "Second"];
 
 export default function InvitesPage() {
+  const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (
+      [46, 8, 9, 27, 13].includes(e.keyCode) ||
+      (e.keyCode === 65 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+A
+      (e.keyCode === 67 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+C
+      (e.keyCode === 86 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+V
+      (e.keyCode === 88 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+X
+      (e.keyCode >= 35 && e.keyCode <= 39) // Fin, Début, Flèches
+    ) {
+      return;
+    }
+    const allowedChars = /[0-9+\-\s()]/;
+    if (!allowedChars.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const handlePhoneChange = (val: string) => {
+    return val.replace(/[^0-9+\-\s()]/g, "");
+  };
+
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -74,13 +102,21 @@ export default function InvitesPage() {
   const [currentView, setCurrentView] = useState<'list' | 'stats'>('list');
   const [arrivalMonth, setArrivalMonth] = useState<string>("all");
   const [arrivalYear, setArrivalYear] = useState<string>("all");
+  const [localChurchFilter, setLocalChurchFilter] = useState<string>("all");
   const [userRole, setUserRole] = useState<string | null>(null);
+  const userRoleClean = useMemo(() => (userRole || "").toLowerCase().trim(), [userRole]);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
+  const [churchId, setChurchId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [guests, setGuests] = useState<Guest[]>(MOCK_GUESTS);
   const [responsibles, setResponsibles] = useState<string[]>(["Non assigné"]);
+  const [counselors, setCounselors] = useState<{ id: string; display_name: string; email: string }[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingGuest, setDeletingGuest] = useState<Guest | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isConseiller, setIsConseiller] = useState(false);
   const [showCorbeille, setShowCorbeille] = useState(false);
@@ -90,12 +126,30 @@ export default function InvitesPage() {
   }, []);
 
   useEffect(() => {
+    const shouldLock = isAddModalOpen || editingGuestId !== null || confirmDeleteId !== null;
+    if (shouldLock) {
+      document.documentElement.classList.add("no-scroll");
+      document.body.classList.add("no-scroll");
+    } else {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    }
+    return () => {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    };
+  }, [isAddModalOpen, editingGuestId, confirmDeleteId]);
+
+  useEffect(() => {
     const userInfoStr = localStorage.getItem("poimen_user_info");
     if (userInfoStr) {
       try {
         const parsed = JSON.parse(userInfoStr);
         setUserRole(parsed.role);
-        setIsConseiller(parsed.isConseiller === true);
+        setUserId(parsed.id);
+        const rLower = (parsed.role || "").toLowerCase().trim();
+        setIsConseiller(parsed.isConseiller === true || rLower === "integration_conseiller" || rLower === "conseiller");
+        setChurchId(parsed.church_id);
         
         // Robust name generation
         const firstName = (parsed.firstName || "").trim();
@@ -117,7 +171,7 @@ export default function InvitesPage() {
   }, []);
 
   useEffect(() => {
-    if (familyId) {
+    if (familyId || (userRoleClean.startsWith("integration_") && churchId)) {
       fetchGuests();
       fetchResponsibles();
       syncUserRole();
@@ -139,29 +193,58 @@ export default function InvitesPage() {
         supabase.removeChannel(channel);
       };
     }
-  }, [familyId]);
+  }, [familyId, userRole, churchId]);
 
   const syncUserRole = async () => {
     const userInfo = JSON.parse(localStorage.getItem("poimen_user_info") || "{}");
     const userEmail = userInfo.email?.toLowerCase();
     if (!userEmail) return;
 
-    const { data, error } = await supabase
+    // 1. Essayer de récupérer le rôle depuis la table profiles (officiel pour les connexions)
+    const { data: profData, error: profErr } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userInfo.id || "")
+      .single();
+
+    if (!profErr && profData) {
+      console.log("Synchronized role from profiles:", profData.role);
+      setUserRole(profData.role);
+      const updatedInfo = { ...userInfo, role: profData.role };
+      localStorage.setItem("poimen_user_info", JSON.stringify(updatedInfo));
+      return;
+    }
+
+    // 2. Repli vers la table members si profiles échoue
+    const { data: memData, error: memErr } = await supabase
       .from("members")
       .select("status")
       .eq("email", userEmail)
       .single();
 
-    if (!error && data) {
-      console.log("Synchronized role from DB:", data.status);
-      setUserRole(data.status);
-      // Update local storage too to keep it consistent
-      const updatedInfo = { ...userInfo, role: data.status };
+    if (!memErr && memData) {
+      console.log("Synchronized role from members:", memData.status);
+      setUserRole(memData.status);
+      const updatedInfo = { ...userInfo, role: memData.status };
       localStorage.setItem("poimen_user_info", JSON.stringify(updatedInfo));
     }
   };
 
   const fetchResponsibles = async () => {
+    if (userRoleClean.startsWith("integration_")) {
+      if (!churchId) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, email")
+        .eq("church_id", churchId)
+        .in("role", ["integration_responsable", "integration_second", "integration_conseiller"]);
+      
+      if (!error && data) {
+        setCounselors(data);
+      }
+      return;
+    }
+
     if (!familyId) return;
     const { data, error } = await supabase
       .from("members")
@@ -177,8 +260,8 @@ export default function InvitesPage() {
       
       const me = data.find(m => m.email?.toLowerCase() === userEmail);
       if (!me && isLeader && userEmail) {
-        // Add me to members table
-        const { error: insError } = await supabase.from("members").insert({
+        // Add me to members table via Server Action
+        const res = await autoAddLeaderToMembers({
           bergerie_id: familyId,
           first_name: userInfo.firstName || "Leader",
           last_name: userInfo.lastName || "User",
@@ -187,8 +270,8 @@ export default function InvitesPage() {
           civility: "M."
         });
         
-        if (insError) {
-          console.error("Error adding me to members", insError);
+        if (!res.success) {
+          console.error("Error adding me to members via Server Action:", res.error);
         } else {
           fetchResponsibles(); // Refresh to include me
         }
@@ -219,11 +302,31 @@ export default function InvitesPage() {
 
   const fetchGuests = async () => {
     setLoading(true);
-    const { data: dbGuests, error } = await supabase
-      .from("invites")
-      .select("*")
-      .eq("bergerie_id", familyId)
-      .order("created_at", { ascending: false });
+    let query = supabase.from("invites").select("*");
+    
+    if (userRoleClean.startsWith("integration_")) {
+      if (churchId) {
+        query = query.eq("church_id", churchId);
+        if (userRoleClean === "integration_conseiller" && userId) {
+          query = query.eq("created_by", userId);
+        }
+      } else {
+        setLoading(false);
+        return;
+      }
+    } else {
+      if (familyId) {
+        query = query.eq("bergerie_id", familyId);
+        if (userRoleClean === "conseiller" && userId) {
+          query = query.eq("created_by", userId);
+        }
+      } else {
+        setLoading(false);
+        return;
+      }
+    }
+
+    const { data: dbGuests, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching guests:", error);
@@ -242,6 +345,9 @@ export default function InvitesPage() {
         aps: g.aps,
         localChurch: g.local_church,
         responsible: g.responsible,
+        assigned_to: g.assigned_to,
+        church_id: g.church_id,
+        bergerie_id: g.bergerie_id,
         isInBergerie: g.is_in_bergerie,
         status: g.status,
         attendance: g.attendance || {},
@@ -274,7 +380,8 @@ export default function InvitesPage() {
         interetBapteme: g.interet_bapteme || false,
         commentaire: g.commentaire || "",
         commentaireSuivi: g.commentaire_suivi || "",
-        archived: g.archived || false
+        archived: g.archived || false,
+        created_by: g.created_by
       }));
       setGuests(mapped);
     }
@@ -285,7 +392,7 @@ export default function InvitesPage() {
     civility: "M.",
     firstName: "",
     lastName: "",
-    age: "26-30",
+    age: "26-30 ans",
     phone: "",
     email: "",
     address: "",
@@ -357,36 +464,57 @@ export default function InvitesPage() {
 
   const handleSaveGuest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!familyId) return;
+    if (!familyId && !churchId) return;
+
+    const payload: any = {
+      civility: newGuest.civility,
+      first_name: newGuest.firstName,
+      last_name: newGuest.lastName,
+      age: newGuest.age,
+      phone: newGuest.phone,
+      email: newGuest.email,
+      address: newGuest.address,
+      arrival_date: newGuest.arrivalDate,
+      event: newGuest.event,
+      aps: newGuest.aps,
+      local_church: newGuest.localChurch,
+      responsible: newGuest.responsible,
+      a_ete_invite: newGuest.aEteInvite,
+      par_qui: newGuest.parQui,
+      bapteme_eau: newGuest.baptemeEau,
+      interet_formation: newGuest.interetFormation,
+      interet_cdm: newGuest.interetCDM,
+      integre_cdm: newGuest.integreCDM,
+      priere_partage: newGuest.prierePartage,
+      dans_famille_disciple: newGuest.dansFamilleDisciple,
+      interet_bapteme: newGuest.interetBapteme,
+      commentaire: newGuest.commentaire,
+      commentaire_suivi: newGuest.commentaireSuivi || ""
+    };
+
+    if (userRoleClean.startsWith("integration_")) {
+      payload.church_id = churchId;
+      payload.bergerie_id = null;
+    } else {
+      payload.bergerie_id = familyId;
+    }
+
+    if (editingGuestId) {
+      if (userRoleClean.startsWith("integration_")) {
+        payload.assigned_to = newGuest.assigned_to || null;
+      } else {
+        payload.responsible = newGuest.responsible || "Non assigné";
+      }
+    } else {
+      payload.assigned_to = null;
+      payload.responsible = "Non assigné";
+      payload.created_by = userId;
+    }
 
     if (editingGuestId) {
       const { error } = await supabase
         .from("invites")
-        .update({
-          civility: newGuest.civility,
-          first_name: newGuest.firstName,
-          last_name: newGuest.lastName,
-          age: newGuest.age,
-          phone: newGuest.phone,
-          email: newGuest.email,
-          address: newGuest.address,
-          arrival_date: newGuest.arrivalDate,
-          event: newGuest.event,
-          aps: newGuest.aps,
-          local_church: newGuest.localChurch,
-          responsible: newGuest.responsible,
-          a_ete_invite: newGuest.aEteInvite,
-          par_qui: newGuest.parQui,
-          bapteme_eau: newGuest.baptemeEau,
-          interet_formation: newGuest.interetFormation,
-          interet_cdm: newGuest.interetCDM,
-          integre_cdm: newGuest.integreCDM,
-          priere_partage: newGuest.prierePartage,
-          dans_famille_disciple: newGuest.dansFamilleDisciple,
-          interet_bapteme: newGuest.interetBapteme,
-          commentaire: newGuest.commentaire,
-          commentaire_suivi: newGuest.commentaireSuivi || ""
-        })
+        .update(payload)
         .eq("id", editingGuestId);
 
       if (error) {
@@ -397,34 +525,12 @@ export default function InvitesPage() {
         setEditingGuestId(null);
       }
     } else {
+      if (!userRoleClean.startsWith("integration_")) {
+        payload.commentaire_suivi = "";
+      }
       const { data: inserted, error } = await supabase
         .from("invites")
-        .insert({
-          bergerie_id: familyId,
-          civility: newGuest.civility,
-          first_name: newGuest.firstName,
-          last_name: newGuest.lastName,
-          age: newGuest.age,
-          phone: newGuest.phone,
-          email: newGuest.email,
-          address: newGuest.address,
-          arrival_date: newGuest.arrivalDate,
-          event: newGuest.event,
-          aps: newGuest.aps,
-          local_church: newGuest.localChurch,
-          responsible: newGuest.responsible,
-          a_ete_invite: newGuest.aEteInvite,
-          par_qui: newGuest.parQui,
-          bapteme_eau: newGuest.baptemeEau,
-          interet_formation: newGuest.interetFormation,
-          interet_cdm: newGuest.interetCDM,
-          integre_cdm: newGuest.integreCDM,
-          priere_partage: newGuest.prierePartage,
-          dans_famille_disciple: newGuest.dansFamilleDisciple,
-          interet_bapteme: newGuest.interetBapteme,
-          commentaire: newGuest.commentaire,
-          commentaire_suivi: ""
-        })
+        .insert(payload)
         .select()
         .single();
 
@@ -440,7 +546,7 @@ export default function InvitesPage() {
       civility: "M.",
       firstName: "",
       lastName: "",
-      age: "26-30",
+      age: "26-30 ans",
       phone: "",
       email: "",
       address: "",
@@ -449,6 +555,8 @@ export default function InvitesPage() {
       aps: false,
       localChurch: false,
       responsible: "Non assigné",
+      assigned_to: null,
+      created_by: null,
       aEteInvite: false,
       parQui: "",
       interetCDM: false,
@@ -459,15 +567,46 @@ export default function InvitesPage() {
   };
 
   const handleDeleteGuest = async (id: string) => {
+    setDeleteError(null);
+    setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from("invites")
-        .update({ archived: true })
-        .eq("id", id);
-      if (error) throw error;
-      setGuests(guests.map(g => g.id === id ? { ...g, archived: true } : g));
-    } catch (err) {
-      console.error("Error archiving guest:", err);
+      const guest = guests.find(g => g.id === id);
+      const isFamilyRole = !userRoleClean.startsWith("integration_") && userRoleClean !== "super_admin";
+      
+      if (isFamilyRole && guest && guest.church_id) {
+        const { error } = await supabase
+          .from("invites")
+          .update({
+            bergerie_id: null,
+            dans_famille_disciple: false,
+            responsible: "Non assigné"
+          })
+          .eq("id", id);
+        if (error) throw error;
+        setGuests(prev => prev.filter(g => g.id !== id));
+        setDeletingGuest(null);
+      } else {
+        // Try archiving first (requires 'archived' column in DB)
+        const { error } = await supabase
+          .from("invites")
+          .update({ archived: true })
+          .eq("id", id);
+        if (error) {
+          // If the 'archived' column doesn't exist yet (PGRST204), fall back to direct deletion
+          if (error.code === 'PGRST204' || error.message?.includes('archived')) {
+            await handlePermanentDeleteGuest(id);
+            return;
+          }
+          throw error;
+        }
+        setGuests(prev => prev.map(g => g.id === id ? { ...g, archived: true } : g));
+        setDeletingGuest(null);
+      }
+    } catch (err: any) {
+      console.error("Error archiving/deleting guest:", err);
+      setDeleteError(err.message || String(err));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -477,26 +616,84 @@ export default function InvitesPage() {
         .from("invites")
         .update({ archived: false })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST204' || error.message?.includes('archived')) {
+          alert("La colonne 'archived' n'existe pas encore en base de données. Veuillez appliquer le patch SQL v2.5.");
+          return;
+        }
+        throw error;
+      }
       setGuests(guests.map(g => g.id === id ? { ...g, archived: false } : g));
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error restoring guest:", err);
+      alert("Erreur lors de la restauration de l'invité : " + (err.message || err));
     }
   };
 
   const handlePermanentDeleteGuest = async (id: string) => {
+    setDeleteError(null);
+    setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from("invites")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-      setGuests(guests.filter(g => g.id !== id));
-      setConfirmDeleteId(null);
-    } catch (err) {
+      const guest = guests.find(g => g.id === id);
+      const isFamilyRole = !userRoleClean.startsWith("integration_") && userRoleClean !== "super_admin";
+      
+      if (isFamilyRole && guest && guest.church_id) {
+        const { error } = await supabase
+          .from("invites")
+          .update({
+            bergerie_id: null,
+            dans_famille_disciple: false,
+            responsible: "Non assigné"
+          })
+          .eq("id", id);
+        if (error) throw error;
+        setGuests(prev => prev.filter(g => g.id !== id));
+        setDeletingGuest(null);
+      } else {
+        const { error } = await supabase
+          .from("invites")
+          .delete()
+          .eq("id", id);
+        if (error) throw error;
+        setGuests(prev => prev.filter(g => g.id !== id));
+        setDeletingGuest(null);
+      }
+    } catch (err: any) {
       console.error("Error permanent deleting guest:", err);
+      setDeleteError(err.message || String(err));
+    } finally {
+      setIsDeleting(false);
     }
   };
+
+  const handleSelfAssign = async (guestId: string) => {
+    if (userRoleClean.startsWith("integration_")) {
+      if (userId) {
+        const { error } = await supabase
+          .from("invites")
+          .update({ assigned_to: userId })
+          .eq("id", guestId);
+        if (error) {
+          alert("Erreur lors de l'affectation : " + error.message);
+        } else {
+          setGuests(prev => prev.map(g => g.id === guestId ? { ...g, assigned_to: userId } : g));
+        }
+      }
+    } else {
+      if (userName) {
+        const { error } = await supabase
+          .from("invites")
+          .update({ responsible: userName })
+          .eq("id", guestId);
+        if (error) {
+          alert("Erreur lors de l'affectation : " + error.message);
+        } else {
+          setGuests(prev => prev.map(g => g.id === guestId ? { ...g, responsible: userName } : g));
+        }
+      }
+    }
+  };
+
 
   const promoteToMember = async (guest: Guest) => {
     if (!familyId) return;
@@ -522,7 +719,7 @@ export default function InvitesPage() {
       if (insertError) throw insertError;
 
       // 2. Mark as in bergerie in invites (DO NOT DELETE as per user request)
-      const { error: updateError } = await supabase.from("invites").update({ is_in_bergerie: true, status: "Brebi" }).eq("id", guest.id);
+      const { error: updateError } = await supabase.from("invites").update({ is_in_bergerie: true, status: "Brebi", dans_famille_disciple: true }).eq("id", guest.id);
       if (updateError) throw updateError;
 
       // 3. Refresh list
@@ -555,7 +752,7 @@ export default function InvitesPage() {
       if (deleteError) throw deleteError;
 
       // 2. Mark as NOT in bergerie in invites
-      const { error: updateError } = await supabase.from("invites").update({ is_in_bergerie: false }).eq("id", guest.id);
+      const { error: updateError } = await supabase.from("invites").update({ is_in_bergerie: false, dans_famille_disciple: false }).eq("id", guest.id);
       if (updateError) throw updateError;
 
       // 3. Refresh list
@@ -584,6 +781,8 @@ export default function InvitesPage() {
       aps: guest.aps,
       localChurch: guest.localChurch,
       responsible: guest.responsible || "Non assigné",
+      assigned_to: guest.assigned_to || null,
+      created_by: guest.created_by || null,
       aEteInvite: guest.aEteInvite,
       parQui: guest.parQui,
       baptemeEau: guest.baptemeEau,
@@ -601,15 +800,30 @@ export default function InvitesPage() {
 
   const getDaysOfMonth = (year: number, month: number, dayOfWeek: number) => {
     const dates = [];
-    let d = new Date(year, month, 1);
-    while (d.getMonth() === month) {
-      if (d.getDay() === dayOfWeek) {
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        dates.push(`${yyyy}-${mm}-${dd}`);
+    if (month === -1) {
+      for (let m = 0; m < 12; m++) {
+        let d = new Date(year, m, 1);
+        while (d.getMonth() === m) {
+          if (d.getDay() === dayOfWeek) {
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            dates.push(`${yyyy}-${mm}-${dd}`);
+          }
+          d.setDate(d.getDate() + 1);
+        }
       }
-      d.setDate(d.getDate() + 1);
+    } else {
+      let d = new Date(year, month, 1);
+      while (d.getMonth() === month) {
+        if (d.getDay() === dayOfWeek) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          dates.push(`${yyyy}-${mm}-${dd}`);
+        }
+        d.setDate(d.getDate() + 1);
+      }
     }
     return dates;
   };
@@ -622,14 +836,31 @@ export default function InvitesPage() {
       const fullName = `${g.firstName} ${g.lastName}`.toLowerCase();
       const matchSearch = fullName.includes(search.toLowerCase());
       const matchArchived = (g.archived || false) === showCorbeille;
-      return matchSearch && matchArchived;
+      const matchesLocalChurch = localChurchFilter === "all" || 
+        (localChurchFilter === "yes" && g.localChurch) || 
+        (localChurchFilter === "no" && !g.localChurch);
+      return matchSearch && matchArchived && matchesLocalChurch;
     });
-  }, [guests, search, showCorbeille]);
+  }, [guests, search, showCorbeille, localChurchFilter]);
+
+  const canModifyInvites = useMemo(() => {
+    if (!userRole) return false;
+    const role = userRole.toLowerCase();
+    return (
+      role.includes("berger") ||
+      role.includes("second") ||
+      role.includes("responsable") ||
+      role.includes("coordonnateur")
+    );
+  }, [userRole]);
 
   const calculateRate = (guest: Guest, dates: string[]) => {
-    if (dates.length === 0) return 0;
-    const presents = dates.filter(d => guest.attendance[d]).length;
-    return Math.round((presents / dates.length) * 100);
+    const eligibleDates = guest.arrivalDate 
+      ? dates.filter(d => d > guest.arrivalDate) 
+      : dates;
+    if (eligibleDates.length === 0) return 0;
+    const presents = eligibleDates.filter(d => guest.attendance[d]).length;
+    return Math.round((presents / eligibleDates.length) * 100);
   };
 
   const isFidelise = (guest: Guest) => {
@@ -650,12 +881,28 @@ export default function InvitesPage() {
     const isOnlyResponsable = userRoleLower === "responsable de brebi" || userRoleLower === "responsable";
     if (isOnlyResponsable && userName && g.responsible !== userName) return false;
     
-    return matchesMonth && matchesYear;
+    const matchesLocalChurch = localChurchFilter === "all" || 
+      (localChurchFilter === "yes" && g.localChurch) || 
+      (localChurchFilter === "no" && !g.localChurch);
+      
+    return matchesMonth && matchesYear && matchesLocalChurch;
   });
 
   const brebisCount = statsBase.filter(g => g.status === "Brebi").length;
   const callsSuccess = statsBase.filter(g => g.appelAbouti).length;
   const noChurch = statsBase.filter(g => !g.localChurch).length;
+  const apsCount = statsBase.filter(g => g.aps).length;
+  const phoneCount = statsBase.filter(g => g.phone && g.phone.trim() !== "").length;
+  const returnedCount = statsBase.filter(g => {
+    if (g.estRevenuCulte) return true;
+    const attendanceDates = Object.keys(g.attendance || {});
+    return attendanceDates.some(d => {
+      if (g.attendance[d] !== true || d <= g.arrivalDate) return false;
+      const [year, month, day] = d.split('-').map(Number);
+      const dateObj = new Date(year, month - 1, day);
+      return dateObj.getDay() === 0;
+    });
+  }).length;
   const interetPCNC = statsBase.filter(g => g.interetFormation).length;
   const pcnc001 = statsBase.filter(g => g.pcnc).length;
   const pcnc101 = statsBase.filter(g => g.p101).length;
@@ -682,74 +929,97 @@ export default function InvitesPage() {
     );
   }
 
-  // Conseiller read-only logic
-  const userRoleLower = (userRole || "").toLowerCase();
-  const isBergerOrSecond = userRoleLower.includes("berger") || userRoleLower.includes("second");
-  const canModifyInvites = (isBergerOrSecond || userRoleLower.includes("responsable")) && !isConseiller;
+  // Permissions logic for integration roles:
+  // - Leaders (responsable, second) can add, edit, and delete.
+  // - Counselors (conseiller) can add, but not delete.
+  const canAddOrEditInvites = 
+    userRoleClean === "integration_responsable" || 
+    userRoleClean === "integration_second" ||
+    userRoleClean === "integration_conseiller" ||
+    userRoleClean === "conseiller";
+
+  const canDeleteInvites = 
+    userRoleClean === "integration_responsable" || 
+    userRoleClean === "integration_second";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Read-only banner for Conseiller */}
-      {isConseiller && !canModifyInvites && (
-        <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(91,168,224,0.1)", border: "1px solid rgba(91,168,224,0.25)", display: "flex", alignItems: "center", gap: 10 }}>
+      {/* Global Read-only banner */}
+      {!canDeleteInvites && !isConseiller && (
+        <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(212,160,60,0.08)", border: "1px solid rgba(212,160,60,0.25)", display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 16 }}>👁️</span>
-          <span style={{ fontSize: 12, color: "var(--sky)", fontWeight: 600 }}>Mode Conseiller — Vue en lecture seule</span>
+          <span style={{ fontSize: 12, color: "var(--gold-light)", fontWeight: 600 }}>
+            {canAddOrEditInvites 
+              ? 'Mode Conseiller — Le suivi et les modifications s\'effectuent exclusivement dans "Mes Affectations".' 
+              : 'Mode Lecture Uniquement — L\'ajout, le suivi et la promotion s\'effectuent exclusivement dans "Mes Affectations".'}
+          </span>
         </div>
       )}
       <div className="page-header">
         <div>
-          <h2 className="page-title">Invités</h2>
+          <h2 className="page-title">{isConseiller ? "Ajouter un Invité" : "Invités"}</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
             Gestion et suivi des nouveaux arrivants
           </p>
         </div>
-        {canModifyInvites && (
+        {(canDeleteInvites || canAddOrEditInvites) && (
           <div style={{ display: "flex", gap: 10 }}>
-            <button 
-              className="btn btn-outline" 
-              style={showCorbeille ? { background: "var(--red)", borderColor: "var(--red)", color: "white" } : { borderColor: "rgba(239,68,68,0.4)", color: "var(--red)" }}
-              onClick={() => setShowCorbeille(!showCorbeille)}
-            >
-              <Trash2 size={14} /> {showCorbeille ? "Quitter la Corbeille" : "Corbeille"}
-              {!showCorbeille && archivedGuests.length > 0 && (
-                <span style={{ background: "var(--red)", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
-                  {archivedGuests.length}
-                </span>
-              )}
-            </button>
-            <button className="btn btn-primary" onClick={() => {
-              setNewGuest({
-                civility: "M.", firstName: "", lastName: "", age: "26-30",
-                phone: "", email: "", address: "", arrivalDate: new Date().toISOString().split('T')[0],
-                event: "Culte", aps: false, localChurch: false,
-                responsible: "Non assigné", aEteInvite: false, parQui: "",
-                baptemeEau: false, interetFormation: false, interetCDM: false, commentaire: ""
-              });
-              setIsAddModalOpen(true);
-            }}>
-              <Plus size={14} /> Ajouter
-            </button>
+            {canDeleteInvites && (
+              <button 
+                className="btn btn-outline" 
+                style={showCorbeille ? { background: "var(--red)", borderColor: "var(--red)", color: "white" } : { borderColor: "rgba(239,68,68,0.4)", color: "var(--red)" }}
+                onClick={() => setShowCorbeille(!showCorbeille)}
+              >
+                <Trash2 size={14} /> {showCorbeille ? "Quitter la Corbeille" : "Corbeille"}
+                {!showCorbeille && archivedGuests.length > 0 && (
+                  <span style={{ background: "var(--red)", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
+                    {archivedGuests.length}
+                  </span>
+                )}
+              </button>
+            )}
+            {canAddOrEditInvites && (
+              <button className="btn btn-primary" onClick={() => {
+                setNewGuest({
+                  civility: "M.", firstName: "", lastName: "", age: "26-30 ans",
+                  phone: "", email: "", address: "", arrivalDate: new Date().toISOString().split('T')[0],
+                  event: "Culte", aps: false, localChurch: false,
+                  responsible: "Non assigné", aEteInvite: false, parQui: "",
+                  baptemeEau: false, interetFormation: false, interetCDM: false, commentaire: ""
+                });
+                setIsAddModalOpen(true);
+              }}>
+                <Plus size={14} /> Ajouter
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* View Switcher Tabs */}
-      <div style={{ display: "flex", gap: 8, background: "rgba(255,255,255,0.05)", padding: 4, borderRadius: 10, width: "fit-content" }}>
-        <button 
-          onClick={() => setCurrentView('list')}
-          className={`btn ${currentView === 'list' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ padding: "8px 24px", borderRadius: 8 }}
-        >
-          Liste ({filtered.length})
-        </button>
-        <button 
-          onClick={() => setCurrentView('stats')}
-          className={`btn ${currentView === 'stats' ? 'btn-primary' : 'btn-ghost'}`}
-          style={{ padding: "8px 24px", borderRadius: 8 }}
-        >
-          Statistiques
-        </button>
-      </div>
+      {!isConseiller && (
+        <div style={{ display: "flex", gap: 8, background: "rgba(255,255,255,0.05)", padding: 4, borderRadius: 10, width: "fit-content" }}>
+          <button 
+            onClick={() => {
+              setCurrentView('list');
+              if (selectedMonth === -1) {
+                setSelectedMonth(new Date().getMonth());
+              }
+            }}
+            className={`btn ${currentView === 'list' ? 'btn-primary' : 'btn-ghost'}`}
+            style={{ padding: "8px 24px", borderRadius: 8 }}
+          >
+            Liste ({filtered.length})
+          </button>
+          <button 
+            onClick={() => setCurrentView('stats')}
+            className={`btn ${currentView === 'stats' ? 'btn-primary' : 'btn-ghost'}`}
+            style={{ padding: "8px 24px", borderRadius: 8 }}
+          >
+            Statistiques
+          </button>
+        </div>
+      )}
 
       {/* Filters in Stats View */}
       {currentView === 'stats' && (
@@ -767,11 +1037,20 @@ export default function InvitesPage() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>PRÉSENCES</span>
-            <select className="input" style={{ width: 120, fontSize: 12 }} value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}>
+            <select className="input" style={{ width: 130, fontSize: 12 }} value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}>
+              <option value="-1">Tous les mois</option>
               {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i}>{m}</option>)}
             </select>
             <select className="input" style={{ width: 90, fontSize: 12 }} value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))}>
               {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>ÉGLISE LOCALE</span>
+            <select className="input" style={{ width: 145, fontSize: 12 }} value={localChurchFilter} onChange={e => setLocalChurchFilter(e.target.value)}>
+              <option value="all">Tous (avec/sans)</option>
+              <option value="yes">Avec église</option>
+              <option value="no">Sans église</option>
             </select>
           </div>
         </div>
@@ -836,12 +1115,25 @@ export default function InvitesPage() {
 
           {/* New Stats Row */}
           <div className="bento bento-3">
-            <div className="glass">
-              <h3 style={{ fontSize: 16, marginBottom: 15 }}>Urgence Suivi</h3>
-              <div className="stat-card" style={{ padding: 15, border: "1px solid var(--red-glow)" }}>
-                <span className="stat-label" style={{ color: "var(--red)" }}>Sans église locale</span>
-                <div className="stat-value" style={{ fontSize: 24, color: "var(--rose)" }}>{noChurch}</div>
-                <div className="stat-sub">Priorité d'intégration</div>
+            <div className="glass" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+              <h3 style={{ fontSize: 16, marginBottom: 5 }}>Suivi & Intégration</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, flex: 1 }}>
+                <div className="glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(239, 68, 68, 0.25)", background: "rgba(239, 68, 68, 0.02)", padding: "12px 6px" }}>
+                  <div style={{ fontSize: 9, color: "var(--rose)", fontWeight: 700, textTransform: "uppercase" }}>SANS ÉGLISE</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--rose)", marginTop: 4 }}>{noChurch}</div>
+                </div>
+                <div className="glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(91, 168, 224, 0.25)", background: "rgba(91, 168, 224, 0.02)", padding: "12px 6px" }}>
+                  <div style={{ fontSize: 9, color: "var(--sky)", fontWeight: 700, textTransform: "uppercase" }}>AVEC TÉLÉPHONE</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--sky)", marginTop: 4 }}>{phoneCount}</div>
+                </div>
+                <div className="glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(168, 85, 247, 0.25)", background: "rgba(168, 85, 247, 0.02)", padding: "12px 6px" }}>
+                  <div style={{ fontSize: 9, color: "var(--violet)", fontWeight: 700, textTransform: "uppercase" }}>FICHES APS</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--violet)", marginTop: 4 }}>{apsCount}</div>
+                </div>
+                <div className="glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(34, 197, 94, 0.25)", background: "rgba(34, 197, 94, 0.02)", padding: "12px 6px" }}>
+                  <div style={{ fontSize: 9, color: "var(--green)", fontWeight: 700, textTransform: "uppercase" }}>REVENUS AU CULTE</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--green)", marginTop: 4 }}>{returnedCount}</div>
+                </div>
               </div>
             </div>
             <div className="glass">
@@ -910,14 +1202,9 @@ export default function InvitesPage() {
         <>
 
       {/* Add Guest Modal */}
-      {isAddModalOpen && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)",
-          zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
-          padding: 20
-        }}>
-          <div className="glass" style={{ width: "100%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto", position: "relative", padding: 30 }}>
+      {typeof window !== "undefined" && isAddModalOpen && createPortal(
+        <div className="modal-overlay">
+          <div className="custom-modal fade-in">
             <button 
               onClick={() => setIsAddModalOpen(false)}
               style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}
@@ -933,52 +1220,59 @@ export default function InvitesPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 15 }}>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>CIVILITÉ</label>
-                  <select className="input" value={newGuest.civility} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
+                  <select className="input" value={newGuest.civility || "M."} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
                     <option value="M.">M.</option>
                     <option value="Mme.">Mme.</option>
-                    <option value="Mlle.">Mlle.</option>
                   </select>
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>PRÉNOM</label>
-                  <input className="input" required value={newGuest.firstName} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} placeholder="Jean" />
+                  <input className="input" required value={newGuest.firstName || ""} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} placeholder="Jean" />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>NOM</label>
-                  <input className="input" required value={newGuest.lastName} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} placeholder="Dupont" />
+                  <input className="input" required value={newGuest.lastName || ""} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} placeholder="Dupont" />
                 </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>TÉLÉPHONE</label>
-                  <input className="input" value={newGuest.phone} onChange={e => setNewGuest({...newGuest, phone: e.target.value})} placeholder="+33 6..." />
+                  <input 
+                    className="input" 
+                    value={newGuest.phone || ""} 
+                    onKeyDown={handlePhoneKeyDown}
+                    onChange={e => setNewGuest({...newGuest, phone: handlePhoneChange(e.target.value)})} 
+                    placeholder="+32 470 12 34 56" 
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>E-MAIL</label>
-                  <input className="input" type="email" value={newGuest.email} onChange={e => setNewGuest({...newGuest, email: e.target.value})} placeholder="jean@email.com" />
+                  <input className="input" type="email" value={newGuest.email || ""} onChange={e => setNewGuest({...newGuest, email: e.target.value})} placeholder="jean@email.com" />
                 </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>DATE D'ARRIVÉE</label>
-                  <input className="input" type="date" value={newGuest.arrivalDate} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
+                  <input className="input" type="date" value={newGuest.arrivalDate || ""} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÂGE</label>
-                  <select className="input" value={newGuest.age} onChange={e => setNewGuest({...newGuest, age: e.target.value})}>
-                    <option value="< 18">Moins de 18 ans</option>
-                    <option value="18-25">18-25 ans</option>
-                    <option value="26-30">26-30 ans</option>
-                    <option value="31-40">31-40 ans</option>
-                    <option value="41-50">41-50 ans</option>
-                    <option value="> 50">Plus de 50 ans</option>
+                  <select className="input" value={newGuest.age || "26-30 ans"} onChange={e => setNewGuest({...newGuest, age: e.target.value})}>
+                    <option value="Moins de 18 ans">Moins de 18 ans</option>
+                    <option value="18-25 ans">18-25 ans</option>
+                    <option value="26-30 ans">26-30 ans</option>
+                    <option value="31-35 ans">31-35 ans</option>
+                    <option value="36-40 ans">36-40 ans</option>
+                    <option value="41-45 ans">41-45 ans</option>
+                    <option value="46-50 ans">46-50 ans</option>
+                    <option value="Plus de 50 ans">Plus de 50 ans</option>
                   </select>
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÉVÉNEMENT</label>
-                  <select className="input" value={newGuest.event} onChange={e => setNewGuest({...newGuest, event: e.target.value})}>
+                  <select className="input" value={newGuest.event || "Culte"} onChange={e => setNewGuest({...newGuest, event: e.target.value})}>
                     <option value="Culte">Culte</option>
                     <option value="Baptême">Baptême</option>
                     <option value="Évangélisation">Évangélisation</option>
@@ -990,32 +1284,50 @@ export default function InvitesPage() {
 
               <div>
                 <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ADRESSE / LIEU DE RÉSIDENCE</label>
-                <input className="input" value={newGuest.address} onChange={e => setNewGuest({...newGuest, address: e.target.value})} placeholder="12 rue de..." />
+                <input className="input" value={newGuest.address || ""} onChange={e => setNewGuest({...newGuest, address: e.target.value})} placeholder="Rue de l'Industrie 12, 6040 Jumet" />
               </div>
 
-              <div>
-                <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>RESPONSABLE ASSIGNÉ</label>
-                <select 
-                  className="input" 
-                  value={newGuest.responsible} 
-                  onChange={e => setNewGuest({...newGuest, responsible: e.target.value})}
-                  disabled={(userRole?.toLowerCase() || "").includes("responsable")}
-                >
-                  <option value="Non assigné">Non assigné</option>
-                  {responsibles.filter(r => r !== "Non assigné").map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                  {newGuest.responsible && newGuest.responsible !== "Non assigné" && !responsibles.includes(newGuest.responsible) && (
-                    <option key={newGuest.responsible} value={newGuest.responsible}>{newGuest.responsible}</option>
-                  )}
-                </select>
-              </div>
+              {userRoleClean.startsWith("integration_") ? (
+                userRoleClean !== "integration_conseiller" && (
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>CONSEILLER ASSIGNÉ</label>
+                    <select 
+                       className="input" 
+                       value={newGuest.assigned_to || ""} 
+                       onChange={e => setNewGuest({...newGuest, assigned_to: e.target.value})}
+                    >
+                      <option value="">Non assigné</option>
+                      {counselors.map(c => (
+                        <option key={c.id} value={c.id}>{c.display_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              ) : (
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>RESPONSABLE ASSIGNÉ</label>
+                  <select 
+                    className="input" 
+                    value={newGuest.responsible || "Non assigné"} 
+                    onChange={e => setNewGuest({...newGuest, responsible: e.target.value})}
+                    disabled={isConseiller}
+                  >
+                    <option value="Non assigné">Non assigné</option>
+                    {responsibles.filter(r => r !== "Non assigné").map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                    {newGuest.responsible && newGuest.responsible !== "Non assigné" && !responsibles.includes(newGuest.responsible) && (
+                      <option key={newGuest.responsible} value={newGuest.responsible}>{newGuest.responsible}</option>
+                    )}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>COMMENTAIRE ARRIVÉE / NOTES PARTICULIÈRES</label>
                 <textarea 
                   className="input" 
-                  value={newGuest.commentaire} 
+                  value={newGuest.commentaire || ""} 
                   onChange={e => setNewGuest({...newGuest, commentaire: e.target.value})} 
                   placeholder="Informations complémentaires, sujet de prière..."
                   style={{ minHeight: 80, fontSize: 12 }}
@@ -1023,13 +1335,13 @@ export default function InvitesPage() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15, marginBottom: 15 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.aEteInvite} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} />
+                  <input type="checkbox" checked={newGuest.aEteInvite || false} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} />
                   <span style={{ fontSize: 13 }}>A été invité ?</span>
                 </div>
                 {newGuest.aEteInvite && (
                   <div>
                     <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>PAR QUI ?</label>
-                    <input className="input" value={newGuest.parQui} onChange={e => setNewGuest({...newGuest, parQui: e.target.value})} placeholder="Nom de l'invitant" />
+                    <input className="input" value={newGuest.parQui || ""} onChange={e => setNewGuest({...newGuest, parQui: e.target.value})} placeholder="Nom de l'invitant" />
                   </div>
                 )}
               </div>
@@ -1070,7 +1382,8 @@ export default function InvitesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Search & Filters */}
@@ -1080,35 +1393,48 @@ export default function InvitesPage() {
           <input className="input" placeholder="Rechercher par nom..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 36 }} />
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
-          <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600 }}>ARRIVÉE :</span>
-          <select className="input" value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)} style={{ width: 100, fontSize: 11, padding: "4px 8px" }}>
-            <option value="all">Tous les mois</option>
-            {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-              <option key={i} value={i.toString()}>{m}</option>
-            ))}
-          </select>
-          <select className="input" value={arrivalYear} onChange={e => setArrivalYear(e.target.value)} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
-            <option value="all">Toutes</option>
-            {[2023, 2024, 2025, 2026].map(y => (
-              <option key={y} value={y.toString()}>{y}</option>
-            ))}
-          </select>
-        </div>
+        {!isConseiller && (
+          <>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
+              <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600 }}>ARRIVÉE :</span>
+              <select className="input" value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)} style={{ width: 100, fontSize: 11, padding: "4px 8px" }}>
+                <option value="all">Tous les mois</option>
+                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                  <option key={i} value={i.toString()}>{m}</option>
+                ))}
+              </select>
+              <select className="input" value={arrivalYear} onChange={e => setArrivalYear(e.target.value)} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
+                <option value="all">Toutes</option>
+                {[2023, 2024, 2025, 2026].map(y => (
+                  <option key={y} value={y.toString()}>{y}</option>
+                ))}
+              </select>
+            </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
-          <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 600 }}>PRÉSENCES :</span>
-          <select className="input" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} style={{ width: 100, fontSize: 11, padding: "4px 8px" }}>
-            {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-              <option key={i} value={i}>{m}</option>
-            ))}
-          </select>
-          <select className="input" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
-            {[2023, 2024, 2025, 2026].map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
+              <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 600 }}>PRÉSENCES :</span>
+              <select className="input" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} style={{ width: 100, fontSize: 11, padding: "4px 8px" }}>
+                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                  <option key={i} value={i}>{m}</option>
+                ))}
+              </select>
+              <select className="input" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
+                {[2023, 2024, 2025, 2026].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
+              <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>ÉGLISE LOCALE :</span>
+              <select className="input" value={localChurchFilter} onChange={e => setLocalChurchFilter(e.target.value)} style={{ width: 130, fontSize: 11, padding: "4px 8px" }}>
+                <option value="all">Tous</option>
+                <option value="yes">Avec église</option>
+                <option value="no">Sans église</option>
+              </select>
+            </div>
+          </>
+        )}
       </div>
 
       {/* List */}
@@ -1118,7 +1444,13 @@ export default function InvitesPage() {
           const rateCulte = calculateRate(guest, sundays);
           const fidelised = isFidelise(guest);
           const isExpanded = expandedId === guest.id;
-          const isRestricted = guest.responsible !== userName;
+          const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second";
+          const isRestricted = !isIntegrationLeader;
+          const isActionBlocked = !isIntegrationLeader && guest.assigned_to !== userId && guest.created_by !== userId;
+          const isUnassigned = !guest.assigned_to;
+          // Follow-up information can only be edited by the assigned counselor
+          const isEditBlocked = isUnassigned || guest.assigned_to !== userId;
+          const isAttendanceBlocked = isUnassigned || guest.assigned_to !== userId;
 
           return (
             <div key={guest.id} className="glass-flush" style={{ overflow: "hidden" }}>
@@ -1137,32 +1469,63 @@ export default function InvitesPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <h3 style={{ fontSize: 14, fontWeight: 600 }}>{guest.firstName} {guest.lastName}</h3>
                       {fidelised && <CheckCircle2 size={12} style={{ color: "var(--green)" }} />}
-                      {canModifyInvites && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); openEditModal(guest); }}
-                          className="btn-icon"
-                          style={{ background: "rgba(255,255,255,0.05)", padding: 6, borderRadius: 6, marginLeft: 4 }}
-                        >
-                          <MoreHorizontal size={14} style={{ color: "var(--gold)" }} />
-                        </button>
+                      {((canAddOrEditInvites && !isActionBlocked) || (canDeleteInvites && !isActionBlocked)) && (
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          {canAddOrEditInvites && !isActionBlocked && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); openEditModal(guest); }}
+                              className="btn-icon"
+                              style={{ background: "rgba(255,255,255,0.05)", padding: 6, borderRadius: 6 }}
+                              title="Modifier les informations"
+                            >
+                              <MoreHorizontal size={14} style={{ color: "var(--gold)" }} />
+                            </button>
+                          )}
+                          {canDeleteInvites && !isActionBlocked && (
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setDeletingGuest(guest);
+                                setDeleteError(null);
+                              }}
+                              className="btn-icon"
+                              style={{ 
+                                background: "rgba(239, 68, 68, 0.05)", 
+                                border: "1px solid rgba(239, 68, 68, 0.15)",
+                                padding: 6, 
+                                borderRadius: 6,
+                                transition: "all 0.2s ease"
+                              }}
+                              title="Supprimer cet invité"
+                            >
+                              <Trash2 size={13} style={{ color: "var(--red)" }} />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                      {guest.civility} · {guest.age} · Resp: {guest.responsible}
+                      {guest.civility} · {guest.age} · {userRoleClean.startsWith("integration_") ? (
+                        `Conseiller: ${guest.assigned_to === userId ? (userName || "Moi") : (counselors.find(c => c.id === guest.assigned_to)?.display_name || "Non assigné")}`
+                      ) : (
+                        `Resp: ${guest.responsible}`
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 24, alignItems: "center" }} className="hide-mobile">
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Participation CDM</div>
-                    <div style={{ fontWeight: 600, color: rateCDM >= 45 ? "var(--green)" : "var(--orange)" }}>{rateCDM}%</div>
+                {!isConseiller && (
+                  <div style={{ display: "flex", gap: 24, alignItems: "center" }} className="hide-mobile">
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Participation CDM</div>
+                      <div style={{ fontWeight: 600, color: rateCDM >= 45 ? "var(--green)" : "var(--orange)" }}>{rateCDM}%</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Participation Culte</div>
+                      <div style={{ fontWeight: 600, color: rateCulte >= 45 ? "var(--green)" : "var(--orange)" }}>{rateCulte}%</div>
+                    </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Participation Culte</div>
-                    <div style={{ fontWeight: 600, color: rateCulte >= 45 ? "var(--green)" : "var(--orange)" }}>{rateCulte}%</div>
-                  </div>
-                </div>
+                )}
 
                 <div style={{ marginLeft: 20, color: "var(--muted)" }}>
                   {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -1192,171 +1555,240 @@ export default function InvitesPage() {
                       </div>
                     </div>
 
-                    {/* Column 2: Attendance */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
-                      <div>
-                        <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>CDM (Jeudi)</h4>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {thursdays.map(day => (
-                            <div key={day} onClick={() => !isRestricted && toggleAttendance(guest.id, day)} style={{ width: 28, height: 28, borderRadius: 6, background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.05)", border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`, display: "flex", alignItems: "center", justifyContent: "center", color: guest.attendance[day] ? "var(--green)" : "var(--muted)", cursor: isRestricted ? "default" : "pointer", opacity: isRestricted ? 0.4 : 1 }}>
-                              <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
+                    {!isConseiller && (
+                      <>
+                        {/* Column 2: Attendance */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                          <div>
+                            <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>CDM (Jeudi)</h4>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              {thursdays.map(day => {
+                                const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
+                                return (
+                                  <div 
+                                    key={day} 
+                                    title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day}
+                                    onClick={() => !isAttendanceBlocked && !isBeforeArrival && toggleAttendance(guest.id, day)} 
+                                    style={{ 
+                                      width: 28, height: 28, borderRadius: 6, 
+                                      background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.05)", 
+                                      border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`, 
+                                      display: "flex", alignItems: "center", justifyContent: "center", 
+                                      color: guest.attendance[day] ? "var(--green)" : "var(--muted)", 
+                                      cursor: isBeforeArrival ? "not-allowed" : (isAttendanceBlocked ? "default" : "pointer"), 
+                                      opacity: isBeforeArrival ? 0.12 : (isAttendanceBlocked ? 0.4 : 1) 
+                                    }}>
+                                    <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>Culte (Dimanche)</h4>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {sundays.map(day => (
-                            <div key={day} onClick={() => !isRestricted && toggleAttendance(guest.id, day)} style={{ width: 28, height: 28, borderRadius: 6, background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.05)", border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`, display: "flex", alignItems: "center", justifyContent: "center", color: guest.attendance[day] ? "var(--green)" : "var(--muted)", cursor: isRestricted ? "default" : "pointer", opacity: isRestricted ? 0.4 : 1 }}>
-                              <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
+                          </div>
+                          <div>
+                            <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>Culte (Dimanche)</h4>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              {sundays.map(day => {
+                                const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
+                                return (
+                                  <div 
+                                    key={day} 
+                                    title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day}
+                                    onClick={() => !isAttendanceBlocked && !isBeforeArrival && toggleAttendance(guest.id, day)} 
+                                    style={{ 
+                                      width: 28, height: 28, borderRadius: 6, 
+                                      background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.05)", 
+                                      border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`, 
+                                      display: "flex", alignItems: "center", justifyContent: "center", 
+                                      color: guest.attendance[day] ? "var(--green)" : "var(--muted)", 
+                                      cursor: isBeforeArrival ? "not-allowed" : (isAttendanceBlocked ? "default" : "pointer"), 
+                                      opacity: isBeforeArrival ? 0.12 : (isAttendanceBlocked ? 0.4 : 1) 
+                                    }}>
+                                    <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          ))}
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Column 3: Actions & Status */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
-                      {canModifyInvites && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {showCorbeille ? (
-                            <button 
-                              className="btn btn-outline" 
-                              style={{ borderColor: "var(--green)", color: "var(--green)", background: "rgba(16, 185, 129, 0.05)" }} 
-                              onClick={() => handleRestoreGuest(guest.id)}
-                            >
-                              <RotateCcw size={14} /> Restaurer cet invité
-                            </button>
-                          ) : (
-                            !guest.isInBergerie ? (
-                              <button className="btn btn-primary" onClick={() => promoteToMember(guest)}>
-                                <UserPlus size={14} /> Ajouter à la Bergerie
-                              </button>
-                            ) : (
-                              <button className="btn btn-outline" style={{ borderColor: "var(--rose)", color: "var(--rose)", background: "rgba(255, 77, 148, 0.05)" }} onClick={() => removeFromMember(guest)}>
-                                <UserMinus size={14} /> Retirer de la Bergerie
-                              </button>
-                            )
-                          )}
-                          
-                          <div style={{ marginTop: 10, padding: 12, background: "rgba(239, 68, 68, 0.1)", borderRadius: 8, border: "1px solid rgba(239, 68, 68, 0.2)" }}>
-                            <p style={{ fontSize: 11, color: "#ef4444", marginBottom: 8, textAlign: "center", fontWeight: 600 }}>{showCorbeille ? "SUPPRESSION DÉFINITIVE" : "ZONE DANGEREUSE"}</p>
-                            
-                            {confirmDeleteId === guest.id ? (
-                              <div style={{ display: "flex", gap: 8 }}>
-                                <button 
-                                  className="btn" 
-                                  style={{ flex: 1, backgroundColor: "#ef4444", color: "white", border: "none", fontWeight: "bold", fontSize: 10 }}
-                                  onClick={() => {
-                                    if (showCorbeille) {
-                                      handlePermanentDeleteGuest(guest.id);
-                                    } else {
-                                      handleDeleteGuest(guest.id);
-                                      setConfirmDeleteId(null);
-                                    }
-                                  }}
-                                >
-                                  OUI, {showCorbeille ? "DÉTRUIRE" : "SUPPRIMER"}
-                                </button>
-                                <button 
-                                  className="btn" 
-                                  style={{ flex: 1, backgroundColor: "#374151", color: "white", border: "none", fontSize: 10 }}
-                                  onClick={() => setConfirmDeleteId(null)}
-                                >
-                                  ANNULER
-                                </button>
+                        {/* Column 3: Actions & Status */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                          {userRoleClean.startsWith("integration_") && (
+                            guest.bergerie_id ? (
+                              <div style={{ padding: "10px", borderRadius: 8, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                                <span style={{ color: "var(--green)", fontSize: 12, fontWeight: 600 }}>Déjà affecté à une bergerie</span>
                               </div>
                             ) : (
-                              <button 
-                                className="btn" 
-                                style={{ width: "100%", backgroundColor: "transparent", color: "#ef4444", border: "1px solid #ef4444", fontWeight: "bold", padding: "10px", fontSize: 11 }} 
-                                onClick={() => setConfirmDeleteId(guest.id)}
-                              >
-                                {showCorbeille ? (
-                                  <>
-                                    <Trash2 size={14} /> Supprimer définitivement
-                                  </>
-                                ) : (
-                                  <>
-                                    <Archive size={14} /> Envoyer à la corbeille
-                                  </>
-                                )}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {canModifyInvites && (
-                        <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
-                          <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>Affectation</h5>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <select className="input" value={guest.responsible || "Non assigné"} onChange={async (e) => {
-                              const newResp = e.target.value;
-                              setGuests(prev => prev.map(g => g.id === guest.id ? {...g, responsible: newResp} : g));
-                              await supabase.from("invites").update({ responsible: newResp }).eq("id", guest.id);
-                            }} style={{ flex: 1, fontSize: 12 }}>
-                              {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                              <div style={{ padding: "10px", borderRadius: 8, background: "rgba(212,160,60,0.1)", border: "1px solid rgba(212,160,60,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                                <span style={{ color: "var(--gold-light)", fontSize: 12, fontWeight: 600 }}>En cours d'intégration</span>
+                              </div>
+                            )
+                          )}
 
-                    {/* Column 4: Detailed Follow-up */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 15, gridColumn: "span 2" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
-                        <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
-                          <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Premier Contact</h5>
-                          <SuiviToggle label="Appel abouti" checked={guest.appelAbouti} onChange={() => toggleSuivi(guest.id, 'appelAbouti')} disabled={isRestricted} />
-                          {!guest.appelAbouti && !isRestricted && (
-                            <div className="glass-compact" style={{ marginTop: 8, marginBottom: 8, padding: 10, background: "rgba(244, 63, 94, 0.05)", border: "1px dashed rgba(244, 63, 94, 0.3)", borderRadius: 8, animation: "fadeIn 0.3s ease-out" }}>
-                              <label style={{ fontSize: 9, color: "var(--rose)", display: "block", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Raison de l'échec</label>
-                              <textarea 
-                                placeholder="Pourquoi l'appel n'a pas abouti ? (ex: Ne décroche pas, numéro invalide...)" 
-                                value={guest.commentaireSuivi || ""} 
-                                disabled={isRestricted}
-                                onChange={(e) => setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: e.target.value } : g))}
-                                onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id).then()}
-                                style={{ width: "100%", minHeight: 60, fontSize: 11, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "10px", color: "var(--cream)", resize: "vertical", lineHeight: "1.5" }}
-                              />
+                          {canDeleteInvites && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {showCorbeille && (
+                                <button 
+                                  className="btn btn-outline" 
+                                  style={{ borderColor: "var(--green)", color: "var(--green)", background: "rgba(16, 185, 129, 0.05)" }} 
+                                  onClick={() => handleRestoreGuest(guest.id)}
+                                >
+                                  <RotateCcw size={14} /> Restaurer cet invité
+                                </button>
+                              )}
+                              
+                              <div style={{ marginTop: 10, padding: 12, background: "rgba(239, 68, 68, 0.1)", borderRadius: 8, border: "1px solid rgba(239, 68, 68, 0.2)" }}>
+                                <p style={{ fontSize: 11, color: "#ef4444", marginBottom: 8, textAlign: "center", fontWeight: 600 }}>{showCorbeille ? "SUPPRESSION DÉFINITIVE" : "ZONE DANGEREUSE"}</p>
+                                <button 
+                                  className="btn" 
+                                  style={{ width: "100%", backgroundColor: "transparent", color: "#ef4444", border: "1px solid #ef4444", fontWeight: "bold", padding: "10px", fontSize: 11 }} 
+                                  onClick={() => { setDeletingGuest(guest); setDeleteError(null); }}
+                                >
+                                  {showCorbeille ? (
+                                    <>
+                                      <Trash2 size={14} /> Supprimer définitivement
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Archive size={14} /> Envoyer à la corbeille
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             </div>
                           )}
-                          <SuiviToggle label="Groupe WhatsApp" checked={guest.groupeWhatsapp} onChange={() => toggleSuivi(guest.id, 'groupeWhatsapp')} disabled={isRestricted} />
-                          <SuiviToggle label="Prévu revenir" checked={guest.prevuRevenir} onChange={() => toggleSuivi(guest.id, 'prevuRevenir')} disabled={isRestricted} />
-                          <SuiviToggle label="Revenu au culte" checked={guest.estRevenuCulte} onChange={() => toggleSuivi(guest.id, 'estRevenuCulte')} disabled={isRestricted} />
-                        </div>
-                        <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
-                          <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Engagement & CDM</h5>
-                          <SuiviToggle label="Intérêt PCNC" checked={guest.interetFormation} onChange={() => toggleSuivi(guest.id, 'interetFormation')} disabled={isRestricted} />
-                          <SuiviToggle label="Prière/Partage" checked={guest.prierePartage} onChange={() => toggleSuivi(guest.id, 'prierePartage')} disabled={isRestricted} />
-                          <SuiviToggle label="Intérêt C.D.M" checked={guest.interetCDM} onChange={() => toggleSuivi(guest.id, 'interetCDM')} disabled={isRestricted} />
-                          <SuiviToggle label="A intégré C.D.M" checked={guest.integreCDM} onChange={() => toggleSuivi(guest.id, 'integreCDM')} disabled={isRestricted} />
-                          <SuiviToggle label="Famille Disciple" checked={guest.dansFamilleDisciple} onChange={() => toggleSuivi(guest.id, 'dansFamilleDisciple')} disabled={isRestricted} />
-                          <SuiviToggle label="Intérêt Baptême" checked={guest.interetBapteme} onChange={() => toggleSuivi(guest.id, 'interetBapteme')} disabled={isRestricted} />
-                          <SuiviToggle label="Cocktail" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, 'cocktailBienvenue')} disabled={isRestricted} />
-                        </div>
-                      </div>
 
-                      <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
-                        <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 12 }}>PCNC & Intégration</h5>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-                          <SuiviToggle label="001" checked={guest.pcnc} onChange={() => toggleSuivi(guest.id, 'pcnc')} disabled={isRestricted} />
-                          <SuiviToggle label="101" checked={guest.p101} onChange={() => toggleSuivi(guest.id, 'p101')} disabled={isRestricted} />
-                          <SuiviToggle label="201" checked={guest.p201} onChange={() => toggleSuivi(guest.id, 'p201')} disabled={isRestricted} />
-                          <SuiviToggle label="301" checked={guest.p301} onChange={() => toggleSuivi(guest.id, 'p301')} disabled={isRestricted} />
-                          <SuiviToggle label="Terminé" checked={guest.terminePCNC} onChange={() => toggleSuivi(guest.id, 'terminePCNC')} disabled={isRestricted} />
-                          <SuiviToggle label="Baptisé par immersion" checked={guest.baptemeEau} onChange={() => toggleSuivi(guest.id, 'baptemeEau')} disabled={isRestricted} />
-                          <SuiviToggle label="Veut servir" checked={guest.veutServir} onChange={() => toggleSuivi(guest.id, 'veutServir')} disabled={isRestricted} />
-                          <SuiviToggle label="Devenu STAR" checked={guest.devenuStar} onChange={() => toggleSuivi(guest.id, 'devenuStar')} disabled={isRestricted} />
+                          {/* Ajout/Retrait de la Bergerie pour les Familles de Disciples */}
+                          {!userRoleClean.startsWith("integration_") && (
+                            (() => {
+                              const role = userRoleClean;
+                              const isLeader = role.includes("berger") || role.includes("second") || role.includes("responsable");
+                              const isAssignedToMe = guest.responsible === userName;
+                              if (!isLeader && !isAssignedToMe) return null;
+                              
+                              return !guest.isInBergerie ? (
+                                <button className="btn btn-primary" onClick={() => promoteToMember(guest)} style={{ width: "100%" }}>
+                                  <UserPlus size={14} /> Ajouter à la Bergerie
+                                </button>
+                              ) : (
+                                <button className="btn btn-outline" style={{ width: "100%", borderColor: "var(--rose)", color: "var(--rose)", background: "rgba(255, 77, 148, 0.05)" }} onClick={() => removeFromMember(guest)}>
+                                  <UserMinus size={14} /> Retirer de la Bergerie
+                                </button>
+                              );
+                            })()
+                          )}
+                          
+                          {canModifyInvites && (
+                            <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
+                              <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>
+                                {userRoleClean.startsWith("integration_") ? "Assigner à un conseiller" : "Affectation"}
+                              </h5>
+                              <div style={{ display: "flex", gap: 8 }}>
+                                {userRoleClean.startsWith("integration_") ? (
+                                  <select 
+                                    className="input" 
+                                    value={guest.assigned_to || ""} 
+                                    onChange={async (e) => {
+                                      const newAssignee = e.target.value || null;
+                                      setGuests(prev => prev.map(g => g.id === guest.id ? {...g, assigned_to: newAssignee} : g));
+                                      await supabase.from("invites").update({ assigned_to: newAssignee }).eq("id", guest.id);
+                                    }} 
+                                    style={{ flex: 1, fontSize: 12 }}
+                                  >
+                                    <option value="">Non assigné</option>
+                                    {counselors.map(c => (
+                                      <option key={c.id} value={c.id}>{c.display_name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <select className="input" value={guest.responsible || "Non assigné"} onChange={async (e) => {
+                                    const newResp = e.target.value;
+                                    setGuests(prev => prev.map(g => g.id === guest.id ? {...g, responsible: newResp} : g));
+                                    await supabase.from("invites").update({ responsible: newResp }).eq("id", guest.id);
+                                  }} style={{ flex: 1, fontSize: 12 }}>
+                                    {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
+                                    {guest.responsible && guest.responsible !== "Non assigné" && !responsibles.includes(guest.responsible) && (
+                                      <option key={guest.responsible} value={guest.responsible}>{guest.responsible}</option>
+                                    )}
+                                  </select>
+                                )}
+                                {/* Self-assign button */}
+                                {(() => {
+                                  const isAlreadyMine = userRoleClean.startsWith("integration_")
+                                    ? guest.assigned_to === userId
+                                    : guest.responsible === userName;
+                                  if (isAlreadyMine) return null;
+                                  return (
+                                    <button
+                                      className="btn btn-primary btn-sm"
+                                      style={{ whiteSpace: "nowrap", fontSize: 11, padding: "6px 14px" }}
+                                      onClick={() => handleSelfAssign(guest.id)}
+                                      title="M'affecter cet invité"
+                                    >
+                                      M'affecter
+                                    </button>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div style={{ marginTop: 15 }}>
-                          <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE SUIVI</label>
-                          <textarea className="input" rows={2} defaultValue={guest.commentaireSuivi} disabled={isRestricted} style={{ fontSize: 12, resize: "vertical", background: "rgba(0,0,0,0.2)", opacity: isRestricted ? 0.5 : 1 }} onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id)} />
+
+                        {/* Column 4: Detailed Follow-up */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 15, gridColumn: "span 2" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                            <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
+                              <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Premier Contact</h5>
+                              <SuiviToggle label="Appel abouti" checked={guest.appelAbouti} onChange={() => toggleSuivi(guest.id, 'appelAbouti')} disabled={isEditBlocked} />
+                              {!guest.appelAbouti && !isEditBlocked && (
+                                <div className="glass-compact" style={{ marginTop: 8, marginBottom: 8, padding: 10, background: "rgba(244, 63, 94, 0.05)", border: "1px dashed rgba(244, 63, 94, 0.3)", borderRadius: 8, animation: "fadeIn 0.3s ease-out" }}>
+                                  <label style={{ fontSize: 9, color: "var(--rose)", display: "block", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Raison de l'échec</label>
+                                  <textarea 
+                                    placeholder="Pourquoi l'appel n'a pas abouti ? (ex: Ne décroche pas, numéro invalide...)" 
+                                    value={guest.commentaireSuivi || ""} 
+                                    disabled={isEditBlocked}
+                                    onChange={(e) => setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: e.target.value } : g))}
+                                    onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id).then()}
+                                    style={{ width: "100%", minHeight: 60, fontSize: 11, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "10px", color: "var(--cream)", resize: "vertical", lineHeight: "1.5" }}
+                                  />
+                                </div>
+                              )}
+                              <SuiviToggle label="Groupe WhatsApp" checked={guest.groupeWhatsapp} onChange={() => toggleSuivi(guest.id, 'groupeWhatsapp')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Prévu revenir" checked={guest.prevuRevenir} onChange={() => toggleSuivi(guest.id, 'prevuRevenir')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Revenu au culte" checked={guest.estRevenuCulte} onChange={() => toggleSuivi(guest.id, 'estRevenuCulte')} disabled={isEditBlocked} />
+                            </div>
+                            <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
+                              <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Engagement & CDM</h5>
+                              <SuiviToggle label="Intérêt PCNC" checked={guest.interetFormation} onChange={() => toggleSuivi(guest.id, 'interetFormation')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Prière/Partage" checked={guest.prierePartage} onChange={() => toggleSuivi(guest.id, 'prierePartage')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Intérêt C.D.M" checked={guest.interetCDM} onChange={() => toggleSuivi(guest.id, 'interetCDM')} disabled={isEditBlocked} />
+                              <SuiviToggle label="A intégré C.D.M" checked={guest.integreCDM} onChange={() => toggleSuivi(guest.id, 'integreCDM')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Famille Disciple" checked={guest.dansFamilleDisciple} onChange={() => toggleSuivi(guest.id, 'dansFamilleDisciple')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Intérêt Baptême" checked={guest.interetBapteme} onChange={() => toggleSuivi(guest.id, 'interetBapteme')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Cocktail" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, 'cocktailBienvenue')} disabled={isEditBlocked} />
+                            </div>
+                          </div>
+
+                          <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
+                            <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 12 }}>PCNC & Intégration</h5>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+                              <SuiviToggle label="001" checked={guest.pcnc} onChange={() => toggleSuivi(guest.id, 'pcnc')} disabled={isEditBlocked} />
+                              <SuiviToggle label="101" checked={guest.p101} onChange={() => toggleSuivi(guest.id, 'p101')} disabled={isEditBlocked} />
+                              <SuiviToggle label="201" checked={guest.p201} onChange={() => toggleSuivi(guest.id, 'p201')} disabled={isEditBlocked} />
+                              <SuiviToggle label="301" checked={guest.p301} onChange={() => toggleSuivi(guest.id, 'p301')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Terminé" checked={guest.terminePCNC} onChange={() => toggleSuivi(guest.id, 'terminePCNC')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Baptisé par immersion" checked={guest.baptemeEau} onChange={() => toggleSuivi(guest.id, 'baptemeEau')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Veut servir" checked={guest.veutServir} onChange={() => toggleSuivi(guest.id, 'veutServir')} disabled={isEditBlocked} />
+                              <SuiviToggle label="Devenu STAR" checked={guest.devenuStar} onChange={() => toggleSuivi(guest.id, 'devenuStar')} disabled={isEditBlocked} />
+                            </div>
+                            <div style={{ marginTop: 15 }}>
+                              <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE SUIVI</label>
+                              <textarea className="input" rows={2} defaultValue={guest.commentaireSuivi} disabled={isEditBlocked} style={{ fontSize: 12, resize: "vertical", background: "rgba(0,0,0,0.2)", opacity: isEditBlocked ? 0.5 : 1 }} onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id)} />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -1364,6 +1796,310 @@ export default function InvitesPage() {
           );
         })}
       </div>
+
+      {typeof window !== "undefined" && deletingGuest && createPortal(
+        <div className="modal-overlay">
+          <div className="custom-modal fade-in" style={{ border: "1px solid rgba(239, 68, 68, 0.5)", boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.85), 0 0 50px rgba(239, 68, 68, 0.15)" }}>
+            <button 
+              type="button" 
+              onClick={() => { setDeletingGuest(null); setDeleteError(null); }}
+              style={{
+                position: "absolute",
+                top: 16,
+                right: 16,
+                background: "none",
+                border: "none",
+                color: "var(--cream-dim)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 6,
+                borderRadius: "50%",
+                transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "white";
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--cream-dim)";
+                e.currentTarget.style.background = "none";
+              }}
+              title="Fermer"
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{
+              display: "flex",
+              justifyContent: "center",
+              marginBottom: 20
+            }}>
+              <div style={{
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                background: "rgba(239, 68, 68, 0.1)",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 0 20px rgba(239, 68, 68, 0.2)"
+              }}>
+                <AlertTriangle size={28} style={{ color: "var(--red)" }} />
+              </div>
+            </div>
+
+            <h2 style={{
+              color: "#f3f4f6",
+              textAlign: "center",
+              fontSize: 20,
+              fontWeight: 600,
+              letterSpacing: "-0.025em",
+              marginBottom: 8
+            }}>
+              {showCorbeille ? "Suppression définitive" : "Mise à la corbeille"}
+            </h2>
+
+            <p style={{
+              fontSize: 14,
+              color: "var(--cream-dim)",
+              textAlign: "center",
+              lineHeight: 1.6,
+              marginBottom: 24
+            }}>
+              {showCorbeille ? (
+                <>
+                  Voulez-vous vraiment <strong style={{ color: "var(--red)" }}>supprimer définitivement</strong> l'invité{" "}
+                  <span style={{
+                    display: "inline-block",
+                    background: "rgba(239, 68, 68, 0.1)",
+                    border: "1px solid rgba(239, 68, 68, 0.2)",
+                    padding: "2px 8px",
+                    borderRadius: 6,
+                    color: "white",
+                    fontWeight: 600
+                  }}>
+                    {deletingGuest.firstName} {deletingGuest.lastName}
+                  </span> de l'application ? Cette action est définitive et irréversible.
+                </>
+              ) : (
+                <>
+                  Voulez-vous envoyer l'invité{" "}
+                  <span style={{
+                    display: "inline-block",
+                    background: "rgba(255, 193, 7, 0.1)",
+                    border: "1px solid rgba(255, 193, 7, 0.2)",
+                    padding: "2px 8px",
+                    borderRadius: 6,
+                    color: "white",
+                    fontWeight: 600
+                  }}>
+                    {deletingGuest.firstName} {deletingGuest.lastName}
+                  </span> à la corbeille ? Vous pourrez le restaurer plus tard si besoin.
+                </>
+              )}
+            </p>
+
+            {deleteError && (
+              <div style={{ 
+                marginBottom: 16, padding: "10px 14px", borderRadius: 8,
+                background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)",
+                fontSize: 12, color: "var(--red)", fontFamily: "monospace", wordBreak: "break-all", lineHeight: 1.4
+              }}>
+                ⚠️ <strong>Erreur :</strong> {deleteError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {!showCorbeille ? (
+                <>
+                  <button 
+                    type="button" 
+                    className="btn" 
+                    style={{
+                      width: "100%",
+                      background: "var(--red)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "12px 16px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      transition: "all 0.2s ease",
+                      boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)"
+                    }}
+                    disabled={isDeleting} 
+                    onClick={() => handleDeleteGuest(deletingGuest.id)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#e03e3e";
+                      e.currentTarget.style.boxShadow = "0 6px 16px rgba(239, 68, 68, 0.35)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "var(--red)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(239, 68, 68, 0.2)";
+                    }}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="spinner" size={16} />
+                        Archivage en cours...
+                      </>
+                    ) : (
+                      <>
+                        <Archive size={16} />
+                        Envoyer à la corbeille
+                      </>
+                    )}
+                  </button>
+
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <button 
+                      type="button" 
+                      className="btn" 
+                      onClick={() => { setDeletingGuest(null); setDeleteError(null); }}
+                      style={{
+                        flex: 1,
+                        background: "rgba(255, 255, 255, 0.05)",
+                        color: "#e2e8f0",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        borderRadius: 8,
+                        padding: "10px 16px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+                        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+                        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                      }}
+                    >
+                      Annuler
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="btn" 
+                      style={{
+                        flex: 1.2,
+                        background: "rgba(239, 68, 68, 0.06)",
+                        color: "#fc8181",
+                        border: "1px solid rgba(239, 68, 68, 0.2)",
+                        borderRadius: 8,
+                        padding: "10px 16px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        transition: "all 0.2s ease"
+                      }}
+                      disabled={isDeleting} 
+                      onClick={() => handlePermanentDeleteGuest(deletingGuest.id)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)";
+                        e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.4)";
+                        e.currentTarget.style.color = "#fff";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(239, 68, 68, 0.06)";
+                        e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.2)";
+                        e.currentTarget.style.color = "#fc8181";
+                      }}
+                    >
+                      <Trash2 size={14} />
+                      Détruire définitivement
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button 
+                    type="button" 
+                    className="btn" 
+                    onClick={() => { setDeletingGuest(null); setDeleteError(null); }}
+                    style={{
+                      flex: 1,
+                      background: "rgba(255, 255, 255, 0.05)",
+                      color: "#e2e8f0",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: 8,
+                      padding: "10px 16px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+                      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+                      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                    }}
+                  >
+                    Annuler
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn" 
+                    style={{
+                      flex: 1.5,
+                      background: "var(--red)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "10px 16px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      transition: "all 0.2s ease",
+                      boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)"
+                    }}
+                    disabled={isDeleting} 
+                    onClick={() => handlePermanentDeleteGuest(deletingGuest.id)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#e03e3e";
+                      e.currentTarget.style.boxShadow = "0 6px 16px rgba(239, 68, 68, 0.35)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "var(--red)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(239, 68, 68, 0.2)";
+                    }}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="spinner" size={14} />
+                        Suppression...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={14} />
+                        Supprimer définitivement
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   )}
 </div>

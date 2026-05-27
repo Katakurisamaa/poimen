@@ -165,7 +165,7 @@ function SetupChurchContent() {
             </label>
             <input
               className="input"
-              placeholder="ex: ICC Bruxelles"
+              placeholder="ex: ICC Charleroi"
               value={church.name}
               onChange={e => setChurch({ ...church, name: e.target.value })}
               required
@@ -182,7 +182,7 @@ function SetupChurchContent() {
                 <MapPin size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
                 <input
                   className="input"
-                  placeholder="Bruxelles"
+                  placeholder="Charleroi"
                   value={church.city}
                   onChange={e => setChurch({ ...church, city: e.target.value })}
                   required

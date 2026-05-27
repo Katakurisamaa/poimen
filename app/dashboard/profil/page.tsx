@@ -3,10 +3,22 @@
 import { useState, useEffect } from "react";
 import { 
   User, Mail, Phone, Lock, Save, Loader2, 
-  CheckCircle2, AlertCircle, Camera, ShieldCheck
+  CheckCircle2, AlertCircle, Camera, ShieldCheck,
+  Eye, EyeOff
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
+
+const AGE_RANGES = [
+  "Moins de 18 ans",
+  "18-25 ans",
+  "26-30 ans",
+  "31-35 ans",
+  "36-40 ans",
+  "41-45 ans",
+  "46-50 ans",
+  "Plus de 50 ans"
+];
 
 export default function ProfilePage() {
   const [userInfo, setUserInfo] = useState<any>(null);
@@ -15,37 +27,128 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Password update states
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdMessage, setPwdMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setPwdMessage({ type: "error", text: "Les mots de passe ne correspondent pas." });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPwdMessage({ type: "error", text: "Le mot de passe doit contenir au moins 6 caractères." });
+      return;
+    }
+
+    setPwdLoading(true);
+    setPwdMessage(null);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
+      setPwdMessage({ type: "success", text: "Votre mot de passe a été mis à jour avec succès !" });
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      setPwdMessage({ type: "error", text: err.message || "Une erreur est survenue lors de la mise à jour." });
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
 
   const SPECIAL_ROLES = ["Berger", "Second", "Responsable", "Conseiller", "Super Admin"];
   const isSpecial = memberData && SPECIAL_ROLES.includes(memberData.status);
+  const isIntegration = userInfo?.role?.toLowerCase().startsWith("integration_");
 
   useEffect(() => {
     const info = localStorage.getItem("poimen_user_info");
     if (info) {
       const parsed = JSON.parse(info);
       setUserInfo(parsed);
-      fetchMemberData(parsed.email);
+      fetchMemberData(parsed.email, parsed.role, parsed.id);
     } else {
       setLoading(false);
     }
   }, []);
 
-  const fetchMemberData = async (email: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("members")
-        .select("*")
-        .eq("email", email)
-        .single();
+  const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (
+      [46, 8, 9, 27, 13].includes(e.keyCode) ||
+      (e.keyCode === 65 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+A
+      (e.keyCode === 67 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+C
+      (e.keyCode === 86 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+V
+      (e.keyCode === 88 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+X
+      (e.keyCode >= 35 && e.keyCode <= 39) // Fin, Début, Flèches
+    ) {
+      return;
+    }
+    const allowedChars = /[0-9+\-\s()]/;
+    if (!allowedChars.test(e.key)) {
+      e.preventDefault();
+    }
+  };
 
-      if (data) {
-        setMemberData({
-          ...data,
-          firstName: data.first_name,
-          lastName: data.last_name
-        });
-        // Profile check can be kept for future avatar_url usage (images)
-        const { data: profile } = await supabase.from("profiles").select("avatar_url").eq("email", email).maybeSingle();
+  const handlePhoneChange = (val: string) => {
+    return val.replace(/[^0-9+\-\s()]/g, "");
+  };
+
+  const fetchMemberData = async (email: string, role?: string, userId?: string) => {
+    try {
+      const isUserIntegration = role?.toLowerCase().startsWith("integration_");
+
+      if (isUserIntegration) {
+        // Query profiles table
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId || "")
+          .maybeSingle();
+
+        if (data) {
+          const parsedRole = data.role === "integration_responsable" 
+            ? "Responsable Intégration" 
+            : data.role === "integration_second" 
+            ? "Second Intégration" 
+            : "Conseiller Intégration";
+
+          setMemberData({
+            id: data.id,
+            firstName: data.display_name?.split(' ')[0] || "",
+            lastName: data.display_name?.split(' ').slice(1).join(' ') || "",
+            email: data.email,
+            role: data.role,
+            status: parsedRole,
+            civility: data.civility || "M.",
+            age: data.age || "",
+            phone: data.phone || ""
+          });
+        }
+      } else {
+        // Query members table
+        const { data, error } = await supabase
+          .from("members")
+          .select("*")
+          .eq("email", email)
+          .single();
+
+        if (data) {
+          setMemberData({
+            ...data,
+            firstName: data.first_name,
+            lastName: data.last_name
+          });
+        }
       }
     } catch (err) {
       console.error("Error fetching member profile:", err);
@@ -60,25 +163,50 @@ export default function ProfilePage() {
     setMessage(null);
 
     try {
-      // Update members table
-      const { error } = await supabase
-        .from("members")
-        .update({
-          civility: memberData.civility,
-          first_name: memberData.firstName,
-          last_name: memberData.lastName,
-          phone: memberData.phone,
-          email: memberData.email,
-          age: memberData.age
-        })
-        .eq("id", memberData.id);
+      if (isIntegration) {
+        const displayName = `${memberData.firstName} ${memberData.lastName}`;
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            display_name: displayName,
+            email: memberData.email,
+            phone: memberData.phone || null,
+            age: memberData.age || null,
+            civility: memberData.civility || "M."
+          })
+          .eq("id", memberData.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        // Update members table
+        const { error } = await supabase
+          .from("members")
+          .update({
+            civility: memberData.civility,
+            first_name: memberData.firstName,
+            last_name: memberData.lastName,
+            phone: memberData.phone,
+            email: memberData.email,
+            age: memberData.age
+          })
+          .eq("id", memberData.id);
 
-      // Update profiles table if needed (placeholder for image upload)
-      const { data: authUser } = await supabase.auth.getUser();
-      if (authUser?.user) {
-        // No avatar effect anymore
+        if (error) throw error;
+
+        // Sync with profiles table
+        if (userInfo?.id) {
+          const displayName = `${memberData.firstName} ${memberData.lastName}`;
+          await supabase
+            .from("profiles")
+            .update({
+              display_name: displayName,
+              email: memberData.email,
+              phone: memberData.phone || null,
+              age: memberData.age || null,
+              civility: memberData.civility || "M."
+            })
+            .eq("id", userInfo.id);
+        }
       }
 
       // Update localStorage
@@ -119,183 +247,292 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 fade-in">
+    <div className="profile-page fade-in">
+      {/* ── Page Header ── */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative mb-8 border-b border-[rgba(212,175,55,0.12)] pb-6"
+        className="profile-header"
       >
-        <div className="absolute -top-12 -left-12 w-64 h-64 bg-[var(--purple-glow)] rounded-full filter blur-[100px] opacity-25 pointer-events-none" />
-        <h1 className="text-3xl md:text-4xl font-extrabold flex items-center gap-3" style={{ fontFamily: "var(--font-display)", background: "linear-gradient(135deg, #FFF, var(--gold-light) 60%, var(--gold) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          <User className="text-[var(--gold)]" size={32} />
+        <div className="profile-header-glow" />
+        <h1 className="profile-title">
+          <User className="profile-title-icon" size={28} />
           Mon Profil
         </h1>
-        <p className="text-[var(--muted)] mt-2 text-sm md:text-base">Gérez vos informations personnelles et vos paramètres d'accès pastoral.</p>
+        <p className="profile-subtitle">Gérez vos informations personnelles et vos paramètres de sécurité.</p>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Col: Avatar & Status */}
+      <div className="profile-grid">
+        {/* ══ Left Col: Avatar Card ══ */}
         <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="lg:col-span-1"
+          className="profile-sidebar"
         >
-          <div className="arch-card glass" style={{ padding: "40px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", minHeight: "100%", border: "1px solid rgba(212, 175, 55, 0.25)" }}>
-            {/* Top decorative arch line */}
-            <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 80, height: 3, background: "linear-gradient(90deg, transparent, var(--gold), transparent)", borderRadius: "0 0 4px 4px" }} />
+          <div className="profile-avatar-card">
+            {/* Decorative top bar */}
+            <div className="profile-avatar-card-accent" />
 
-            <div style={{ position: "relative", marginBottom: "28px" }} className="avatar-effect-pulse">
-              <div className="w-28 h-28 rounded-full border-2 border-[var(--gold)] flex items-center justify-center bg-white/5 overflow-hidden shadow-[0_0_30px_rgba(212,175,55,0.15)] relative z-10">
-                <User size={52} className="text-[var(--gold-light)] opacity-70" />
+            <div className="profile-avatar-wrapper">
+              <div className="profile-avatar-ring">
+                <User size={44} className="profile-avatar-icon" />
               </div>
-              <div className="absolute bottom-1 right-1 p-2 bg-[var(--gold)] text-[var(--bg)] rounded-full shadow-[0_0_15px_rgba(212,175,55,0.4)] z-20 cursor-pointer hover:scale-110 transition-transform">
-                <Camera size={14} className="stroke-[2.5]" />
-              </div>
+              <button className="profile-avatar-camera" type="button">
+                <Camera size={12} strokeWidth={2.5} />
+              </button>
             </div>
 
-            <h2 className="text-xl font-bold text-white leading-tight mb-2" style={{ fontFamily: "var(--font-display)" }}>
-              {memberData.firstName} {memberData.lastName}
-            </h2>
-            <div className="badge badge-gold mb-8 text-[9px] font-black uppercase tracking-[2px]">
-              {memberData.status || "Membre"}
+            <div className="profile-avatar-info">
+              <h2 className="profile-avatar-name">
+                {memberData.firstName} {memberData.lastName}
+              </h2>
+              <div className="badge badge-gold profile-avatar-badge">
+                {memberData.status || "Membre"}
+              </div>
             </div>
             
-            <div className="w-full border-t border-[rgba(212,175,55,0.08)]" style={{ paddingTop: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div className="flex items-center justify-between bg-white/5 rounded-xl border border-[rgba(212,175,55,0.08)]" style={{ padding: "14px 18px" }}>
-                <div className="flex items-center gap-3">
-                  <ShieldCheck size={18} className="text-[var(--green)]" />
-                  <span className="text-xs font-semibold text-white/70">Statut Compte</span>
+            <div className="profile-status-list">
+              <div className="profile-status-item">
+                <div className="profile-status-left">
+                  <ShieldCheck size={16} className="profile-status-icon profile-status-icon--green" />
+                  <span className="profile-status-label">Compte</span>
                 </div>
-                <span className="text-[9px] font-bold text-[var(--green)] bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20 uppercase tracking-wider">Actif</span>
+                <span className="profile-status-value profile-status-value--green">Actif</span>
               </div>
-
-              <div className="flex items-center justify-between bg-white/5 rounded-xl border border-[rgba(212,175,55,0.08)]" style={{ padding: "14px 18px" }}>
-                <div className="flex items-center gap-3">
-                  <Lock size={18} className="text-[var(--gold-light)] opacity-80" />
-                  <span className="text-xs font-semibold text-white/70">Sécurité</span>
+              <div className="profile-status-item">
+                <div className="profile-status-left">
+                  <Lock size={16} className="profile-status-icon profile-status-icon--gold" />
+                  <span className="profile-status-label">Sécurité</span>
                 </div>
-                <span className="text-[9px] font-bold text-[var(--gold-light)] bg-gold-500/10 px-2 py-0.5 rounded border border-gold-500/20 uppercase tracking-wider">Sécurisé</span>
+                <span className="profile-status-value profile-status-value--gold">Sécurisé</span>
               </div>
             </div>
           </div>
         </motion.div>
 
-        {/* Right Col: Form */}
+        {/* ══ Right Col: Forms ══ */}
         <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="lg:col-span-2"
+          className="profile-main"
         >
-          <div className="glass" style={{ padding: "36px 40px", border: "1px solid rgba(212, 175, 55, 0.2)" }}>
-            <form onSubmit={handleSave} className="space-y-6">
+          {/* ── Personal Info Card ── */}
+          <div className="profile-card">
+            <div className="profile-card-header">
+              <div className="profile-card-icon-wrap">
+                <User size={18} />
+              </div>
+              <div>
+                <h3 className="profile-card-title">Informations personnelles</h3>
+                <p className="profile-card-desc">Modifiez votre identité et vos coordonnées.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSave}>
               <AnimatePresence>
                 {message && (
                   <motion.div 
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className={`p-4 rounded-xl flex items-center gap-3 ${
-                      message.type === "success" 
-                        ? "bg-green-500/10 text-green-400 border border-green-500/20" 
-                        : "bg-red-500/10 text-red-400 border border-red-500/20"
-                    }`}
+                    className={`profile-alert ${message.type === "success" ? "profile-alert--success" : "profile-alert--error"}`}
                   >
-                    {message.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                    <p className="text-sm font-medium">{message.text}</p>
+                    {message.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                    <p>{message.text}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+              <div className="profile-form-grid">
                 {/* Civilité */}
-                <div className="flex flex-col gap-2">
+                <div className="profile-field">
                   <label className="form-label">Civilité</label>
                   <select 
                     value={memberData.civility || ""}
                     onChange={(e) => setMemberData({...memberData, civility: e.target.value})}
-                    className="input w-full"
-                    style={{ height: '44px' }}
+                    className="input w-full profile-input"
                   >
-                    <option value="M.">Monsieur (M.)</option>
-                    <option value="Mme">Madame (Mme)</option>
-                    <option value="Mlle">Mademoiselle (Mlle)</option>
+                    <option value="M.">M.</option>
+                    <option value="Mme.">Mme.</option>
                   </select>
                 </div>
 
                 {/* Âge */}
-                <div className="flex flex-col gap-2">
-                  <label className="form-label">Âge</label>
-                  <input 
-                    type="number"
+                <div className="profile-field">
+                  <label className="form-label">Tranche d'âge</label>
+                  <select 
                     value={memberData.age || ""}
                     onChange={(e) => setMemberData({...memberData, age: e.target.value})}
-                    placeholder="Votre âge"
-                    className="input w-full"
-                    style={{ height: '44px' }}
-                  />
+                    className="input w-full profile-input"
+                  >
+                    <option value="" disabled>Sélectionnez</option>
+                    {AGE_RANGES.map((range) => (
+                      <option key={range} value={range}>{range}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Prénom */}
-                <div className="flex flex-col gap-2">
+                <div className="profile-field">
                   <label className="form-label">Prénom</label>
-                  <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                  <div className="profile-input-wrap">
+                    <User className="profile-input-icon" size={15} />
                     <input 
                       type="text"
                       required
                       value={memberData.firstName || ""}
                       onChange={(e) => setMemberData({...memberData, firstName: e.target.value})}
-                      className="input w-full"
-                      style={{ height: '44px', paddingLeft: '44px' }}
+                      className="input w-full profile-input profile-input--icon"
                     />
                   </div>
                 </div>
 
                 {/* Nom */}
-                <div className="flex flex-col gap-2">
+                <div className="profile-field">
                   <label className="form-label">Nom</label>
-                  <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                  <div className="profile-input-wrap">
+                    <User className="profile-input-icon" size={15} />
                     <input 
                       type="text"
                       required
                       value={memberData.lastName || ""}
                       onChange={(e) => setMemberData({...memberData, lastName: e.target.value})}
-                      className="input w-full"
-                      style={{ height: '44px', paddingLeft: '44px' }}
+                      className="input w-full profile-input profile-input--icon"
+                    />
+                  </div>
+                </div>
+
+                {/* Téléphone */}
+                <div className="profile-field profile-field--full">
+                  <label className="form-label">Téléphone</label>
+                  <div className="profile-input-wrap">
+                    <Phone className="profile-input-icon" size={15} />
+                    <input 
+                      type="text"
+                      value={memberData.phone || ""}
+                      onKeyDown={handlePhoneKeyDown}
+                      onChange={(e) => setMemberData({...memberData, phone: handlePhoneChange(e.target.value)})}
+                      placeholder="+32 470 12 34 56"
+                      className="input w-full profile-input profile-input--icon"
                     />
                   </div>
                 </div>
 
                 {/* Email */}
-                <div className="flex flex-col gap-2 md:col-span-2">
+                <div className="profile-field profile-field--full">
                   <label className="form-label">Email (Identifiant de Connexion)</label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                  <div className="profile-input-wrap">
+                    <Mail className="profile-input-icon" size={15} />
                     <input 
                       type="email"
                       required
                       value={memberData.email || ""}
                       onChange={(e) => setMemberData({...memberData, email: e.target.value})}
-                      className="input w-full"
-                      style={{ height: '44px', paddingLeft: '44px' }}
+                      className="input w-full profile-input profile-input--icon"
                     />
                   </div>
-                  <p className="text-[10px] text-[var(--muted)] italic mt-1 ml-1">L'email sert d'identifiant de connexion et de suivi.</p>
+                  <p className="profile-field-hint">L'email sert d'identifiant de connexion et de suivi.</p>
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-[rgba(212,175,55,0.08)] flex justify-end">
+              <div className="profile-card-footer">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="btn btn-primary px-8"
-                  style={{ height: '44px', minWidth: '220px' }}
+                  className="btn btn-primary profile-btn"
                 >
-                  {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                  {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                   Enregistrer
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* ── Change Password Card ── */}
+          <div className="profile-card">
+            <div className="profile-card-header">
+              <div className="profile-card-icon-wrap profile-card-icon-wrap--lock">
+                <Lock size={18} />
+              </div>
+              <div>
+                <h3 className="profile-card-title">Sécurité & Mot de passe</h3>
+                <p className="profile-card-desc">Mettez à jour votre mot de passe pour sécuriser votre compte.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleUpdatePassword}>
+              <AnimatePresence>
+                {pwdMessage && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className={`profile-alert ${pwdMessage.type === "success" ? "profile-alert--success" : "profile-alert--error"}`}
+                  >
+                    {pwdMessage.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                    <p>{pwdMessage.text}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="profile-form-grid">
+                {/* Nouveau mot de passe */}
+                <div className="profile-field">
+                  <label className="form-label">Nouveau mot de passe</label>
+                  <div className="profile-input-wrap">
+                    <Lock className="profile-input-icon" size={15} />
+                    <input 
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="input w-full profile-input profile-input--icon profile-input--pwd"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="profile-pwd-toggle"
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirmer */}
+                <div className="profile-field">
+                  <label className="form-label">Confirmer le mot de passe</label>
+                  <div className="profile-input-wrap">
+                    <Lock className="profile-input-icon" size={15} />
+                    <input 
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="input w-full profile-input profile-input--icon profile-input--pwd"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="profile-pwd-toggle"
+                    >
+                      {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="profile-card-footer">
+                <button
+                  type="submit"
+                  disabled={pwdLoading}
+                  className="btn btn-primary profile-btn"
+                >
+                  {pwdLoading ? <Loader2 className="animate-spin" size={16} /> : <Lock size={16} />}
+                  Mettre à jour
                 </button>
               </div>
             </form>

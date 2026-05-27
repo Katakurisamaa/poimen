@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   LayoutDashboard, Users, UserPlus, CalendarDays, Target,
   AlertTriangle, FileText, ChevronLeft, LogOut,
@@ -15,8 +16,6 @@ const NAV = [
   { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
   { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
   { label: "Activités", href: "/dashboard/activities", icon: CalendarDays },
-  { label: "Challenges", href: "/dashboard/challenges", icon: AlertTriangle },
-  { label: "Objectifs", href: "/dashboard/objectives", icon: Target },
 ];
 
 const ADMIN_NAV = [
@@ -58,16 +57,30 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
       const savedFamily = localStorage.getItem("selected_family");
       setHasFamily(!!savedFamily);
 
+      const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
+      let superAdminDetected = isLocalSuperAdmin;
+
       const user = localStorage.getItem("poimen_user");
       if (user) {
-        const profile = JSON.parse(user);
-        setIsSuperAdmin(profile.role === 'super_admin' || profile.email === 'minkojunior400@gmail.com');
+        try {
+          const profile = JSON.parse(user);
+          if (profile.role === 'super_admin' || profile.email === 'minkojunior400@gmail.com') {
+            superAdminDetected = true;
+          }
+        } catch (e) {}
       }
 
       const info = localStorage.getItem("poimen_user_info");
       if (info) {
-        setUserInfo(JSON.parse(info));
+        try {
+          const parsedInfo = JSON.parse(info);
+          setUserInfo(parsedInfo);
+          if (parsedInfo.role === 'super_admin' || parsedInfo.email === 'minkojunior400@gmail.com') {
+            superAdminDetected = true;
+          }
+        } catch (e) {}
       }
+      setIsSuperAdmin(superAdminDetected);
     };
 
     checkState();
@@ -75,7 +88,9 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
     return () => window.removeEventListener("storage", checkState);
   }, []);
 
-  if (!isAdmin && !hasFamily && !isSuperAdmin) return null;
+  const isIntegration = userInfo?.role?.toLowerCase().startsWith("integration_");
+  
+  if (!isAdmin && !hasFamily && !isSuperAdmin && !isIntegration) return null;
 
   return (
     <>
@@ -109,10 +124,10 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
         {/* Nav */}
         <nav style={{ flex: 1, padding: "14px 0", overflowY: "auto" }}>
           {(() => {
-            const userRole = (userInfo?.role || "").toLowerCase();
+            const userRole = (userInfo?.role || "").toLowerCase().trim();
             const isBergerOrSecond = userRole.includes("berger") || userRole.includes("second");
-            const isConseiller = userInfo?.isConseiller === true;
-            const isResponsable = userRole.includes("responsable");
+            const isConseiller = userInfo?.isConseiller === true || userRole === "integration_conseiller" || userRole === "conseiller";
+            const isResponsable = userRole.includes("responsable") || userRole === "integration_responsable" || userRole === "integration_second";
 
             // Conseiller + Berger/Second → full access
             // Conseiller + Responsable → Invités (lecture) + Affectations + Profil
@@ -123,21 +138,54 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
 
             if (isAdmin) {
               navItems = [...currentNav, { label: "Profil", href: "/dashboard/profil", icon: User }];
-            } else if (isBergerOrSecond) {
-              navItems = [...currentNav, { label: "Profil", href: "/dashboard/profil", icon: User }];
-            } else if (isConseiller && isResponsable) {
+            } else if (userRole === "integration_responsable" || userRole === "integration_second") {
               navItems = [
+                { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
+                { label: "Équipe", href: "/dashboard/equipe", icon: Users },
                 { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
                 { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Évangélisation", href: "/dashboard/evangelisation", icon: Globe },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
+            } else if (userRole === "integration_conseiller") {
+              navItems = [
+                { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
+                { label: "Ajouter un Invité", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Évangélisation", href: "/dashboard/evangelisation", icon: Globe },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
+            } else if (isBergerOrSecond) {
+              navItems = [
+                ...currentNav.slice(0, 4),
+                { label: "Évangélisation", href: "/dashboard/evangelisation", icon: Globe },
+                ...currentNav.slice(4),
+                { label: "Profil", href: "/dashboard/profil", icon: User }
+              ];
+            } else if (isConseiller && isResponsable) {
+              navItems = [
+                { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
+                { label: "Ajouter un Invité", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Évangélisation", href: "/dashboard/evangelisation", icon: Globe },
                 { label: "Profil", href: "/dashboard/profil", icon: User },
               ];
             } else if (isConseiller) {
               navItems = [
-                { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
+                { label: "Ajouter un Invité", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
+            } else if (userRole.includes("responsable")) {
+              // Responsable de brebis dans la bergerie (a accès à l'onglet personnalisé)
+              navItems = [
+                { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Évangélisation", href: "/dashboard/evangelisation", icon: Globe },
                 { label: "Profil", href: "/dashboard/profil", icon: User },
               ];
             } else {
-              // Responsable / Brebi / Autre
+              // Brebi / Autre
               navItems = [
                 { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
                 { label: "Profil", href: "/dashboard/profil", icon: User },
@@ -168,8 +216,8 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
           })()}
         </nav>
 
-        {/* User - Only show if Admin or Has Family */}
-        {(isAdmin || hasFamily) && (
+        {/* User - Only show if Admin, Has Family, or Integration */}
+        {(isAdmin || hasFamily || isIntegration) && (
           <div style={{ 
             padding: "16px 20px", 
             borderTop: "1px solid rgba(212, 175, 55, 0.15)", 
@@ -191,18 +239,20 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
             })()}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "var(--cream)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "0.01em" }}>
-                {isAdmin ? "Junior Minko" : (userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : "Utilisateur")}
-              </div>
-              <div style={{ fontSize: 9, color: "var(--gold-light)", letterSpacing: 0.8, textTransform: "uppercase", fontWeight: 700 }}>
-                {isAdmin ? "SUPER ADMIN" : (userInfo?.role || "MEMBRE")}
+                {isAdmin ? "Junior" : (userInfo ? userInfo.firstName : "Utilisateur")}
               </div>
             </div>
             <button 
-              onClick={() => { 
-                localStorage.removeItem("selected_family");
-                localStorage.removeItem("poimen_user_info");
-                window.dispatchEvent(new Event("storage"));
-                window.location.href = "/dashboard";
+              onClick={async () => { 
+                try {
+                  await supabase.auth.signOut();
+                } catch (err) {
+                  console.error("Error signing out from Supabase:", err);
+                }
+                
+                // Signal logout and redirect immediately to landing page "/" to bypass Layout RLS guards
+                localStorage.setItem("poimen_logging_out", "true");
+                window.location.href = "/";
               }}
               style={{ 
                 background: "none", 
@@ -214,7 +264,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
               }}
               onMouseEnter={e => { e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.opacity = "1"; }}
               onMouseLeave={e => { e.currentTarget.style.color = "var(--muted)"; e.currentTarget.style.opacity = "0.6"; }}
-              title="Quitter la famille"
+              title="Se déconnecter"
             >
               <LogOut size={16} />
             </button>
@@ -223,29 +273,46 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
       </aside>
 
       {/* Mobile Bottom Tab Bar */}
-      {(isAdmin || hasFamily) && (
+      {(isAdmin || hasFamily || isIntegration) && (
         <nav className="bottom-nav">
           {(() => {
-            const userRole = (userInfo?.role || "").toLowerCase();
+            const userRole = (userInfo?.role || "").toLowerCase().trim();
             const isBergerOrSecond = userRole.includes("berger") || userRole.includes("second");
-            const isConseiller = userInfo?.isConseiller === true;
-            const isResponsable = userRole.includes("responsable");
+            const isConseiller = userInfo?.isConseiller === true || userRole === "integration_conseiller" || userRole === "conseiller";
+            const isResponsable = userRole.includes("responsable") || userRole === "integration_responsable" || userRole === "integration_second";
 
             let mobileItems: any[];
 
             if (isAdmin) {
               mobileItems = currentNav.slice(0, 5);
+            } else if (userRole === "integration_responsable" || userRole === "integration_second") {
+              mobileItems = [
+                { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+                { label: "Équipe", href: "/dashboard/equipe", icon: Users },
+                { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+              ];
+            } else if (userRole === "integration_conseiller") {
+              mobileItems = [
+                { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+                { label: "Ajouter Invité", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
+                { label: "Profil", href: "/dashboard/profil", icon: User },
+              ];
             } else if (isBergerOrSecond) {
               mobileItems = currentNav.slice(0, 5);
             } else if (isConseiller && isResponsable) {
               mobileItems = [
-                { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+                { label: "Ajouter Invité", href: "/dashboard/invites", icon: UserPlus },
                 { label: "Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
                 { label: "Profil", href: "/dashboard/profil", icon: User },
               ];
             } else if (isConseiller) {
               mobileItems = [
-                { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+                { label: "Ajouter Invité", href: "/dashboard/invites", icon: UserPlus },
+                { label: "Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
                 { label: "Profil", href: "/dashboard/profil", icon: User },
               ];
             } else {

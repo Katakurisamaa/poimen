@@ -49,10 +49,37 @@ function AdminContent() {
   };
 
   const [isAdding, setIsAdding] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingChurch, setEditingChurch] = useState<any>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [inviteLink, setInviteLink] = useState("");
   const [copied, setCopied] = useState(false);
-  const [newChurch, setNewChurch] = useState({ name: "", city: "", country: "Belgique", access_code: "" });
+
+  useEffect(() => {
+    const shouldLock = isAdding || isEditing || isInviting;
+    if (shouldLock) {
+      document.documentElement.classList.add("no-scroll");
+      document.body.classList.add("no-scroll");
+    } else {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    }
+    return () => {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    };
+  }, [isAdding, isEditing, isInviting]);
+
+  const [newChurch, setNewChurch] = useState({ 
+    name: "", 
+    city: "", 
+    country: "Belgique", 
+    access_code: "",
+    integration_email: "",
+    integration_access_code: "",
+    integration_first_name: "",
+    integration_last_name: ""
+  });
 
   const generateInvite = () => {
     const token = Math.random().toString(36).substring(7);
@@ -75,18 +102,65 @@ function AdminContent() {
 
     const { data, error } = await supabase.from("churches").insert([newChurch]).select();
     if (!error && data) {
-      setChurches([...churches, data[0]]);
+      // Add the new church to the list, initializing empty bergeries
+      setChurches([...churches, { ...data[0], bergeries: [] }]);
       setIsAdding(false);
-      setNewChurch({ name: "", city: "", country: "Belgique", access_code: "" });
+      setNewChurch({ name: "", city: "", country: "Belgique", access_code: "", integration_email: "", integration_access_code: "", integration_first_name: "", integration_last_name: "" });
     } else {
       console.error("Error creating church:", error);
       const isSchemaError = error?.message?.includes("column") || error?.message?.includes("access_code");
       alert(
         `Erreur: ${error?.message || "Inconnue"}\n\n` +
         (isSchemaError 
-          ? "Il semble que la table 'churches' n'est pas à jour. Exécutez le patch SQL (v1.3) dans votre éditeur Supabase." 
+          ? "Il semble que la table 'churches' n'est pas à jour. Exécutez le patch SQL (v2.0) dans votre éditeur Supabase." 
           : "Vérifiez les politiques RLS sur la table 'churches' ou assurez-vous d'être bien connecté avec le compte Admin.")
       );
+    }
+  };
+
+  const handleEditClick = (church: any) => {
+    setEditingChurch({
+      id: church.id,
+      name: church.name,
+      city: church.city,
+      country: church.country,
+      access_code: church.access_code || "",
+      integration_email: church.integration_email || "",
+      integration_access_code: church.integration_access_code || "",
+      integration_first_name: church.integration_first_name || "",
+      integration_last_name: church.integration_last_name || ""
+    });
+    setIsEditing(true);
+  };
+
+  const updateChurch = async () => {
+    if (!editingChurch.name || !editingChurch.access_code) {
+      alert("Veuillez remplir tous les champs obligatoires.");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("churches")
+      .update({
+        name: editingChurch.name,
+        city: editingChurch.city,
+        country: editingChurch.country,
+        access_code: editingChurch.access_code,
+        integration_email: editingChurch.integration_email || null,
+        integration_access_code: editingChurch.integration_access_code || null,
+        integration_first_name: editingChurch.integration_first_name || null,
+        integration_last_name: editingChurch.integration_last_name || null
+      })
+      .eq("id", editingChurch.id)
+      .select();
+
+    if (!error && data) {
+      setChurches(churches.map(c => c.id === editingChurch.id ? { ...c, ...data[0] } : c));
+      setIsEditing(false);
+      setEditingChurch(null);
+    } else {
+      console.error("Error updating church:", error);
+      alert(`Erreur lors de la modification de l'église: ${error?.message || "Inconnue"}`);
     }
   };
 
@@ -107,6 +181,17 @@ function AdminContent() {
 
   const deleteBergerie = async (id: string) => {
     if (confirm("Supprimer cette Famille de Disciple ? Tout le contenu rattaché (membres, activités, invitations) sera définitivement supprimé.")) {
+      // Step 1: Disassociate any profiles referencing this bergerie
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ bergerie_id: null })
+        .eq("bergerie_id", id);
+        
+      if (profileError) {
+        console.warn("Could not auto-disassociate profiles from this bergerie:", profileError);
+      }
+
+      // Step 2: Delete the bergerie
       const { error } = await supabase.from("bergeries").delete().eq("id", id);
       if (!error) {
         setChurches(churches.map(c => ({
@@ -118,7 +203,7 @@ function AdminContent() {
         console.error("Error deleting bergerie:", error);
         alert(
           `Erreur lors de la suppression de la Famille : ${error.message}\n\n` +
-          "Assurez-vous que le patch SQL v1.9 a bien été appliqué dans votre éditeur Supabase pour autoriser cette action."
+          "Assurez-vous que le patch SQL v1.9 et v3.3 ont bien été appliqués dans votre éditeur Supabase pour autoriser cette action."
         );
       }
     }
@@ -234,15 +319,23 @@ function AdminContent() {
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: "var(--cream)" }}>{church.name}</h3>
-                    <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                      <MapPin size={12} /> {church.city}, {church.country}
+                    <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 4 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} /> {church.city}, {church.country}</span>
                       <span style={{ color: "rgba(212,175,55,0.15)" }}>|</span>
-                      <Key size={12} style={{ color: "var(--gold)" }} /> <code style={{ color: "var(--gold-light)", fontWeight: 700 }}>{church.access_code}</code>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Key size={12} style={{ color: "var(--gold)" }} /> Code: <code style={{ color: "var(--gold-light)", fontWeight: 700 }}>{church.access_code}</code></span>
+                      {church.integration_email && (
+                        <>
+                          <span style={{ color: "rgba(212,175,55,0.15)" }}>|</span>
+                          <span style={{ color: "var(--cream-dim)", fontSize: 11, background: "rgba(212, 175, 55, 0.08)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+                            Intégration: {church.integration_email}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn-icon btn-icon-gold" title="Modifier l'église"><Edit2 size={14} /></button>
+                  <button className="btn-icon btn-icon-gold" onClick={() => handleEditClick(church)} title="Modifier l'église"><Edit2 size={14} /></button>
                   <button className="btn-icon btn-icon-red" onClick={() => deleteChurch(church.id)} title="Supprimer l'église"><Trash2 size={14} /></button>
                 </div>
               </div>
@@ -353,9 +446,8 @@ function AdminContent() {
 
       {/* Invitation Modal */}
       {isInviting && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(2, 1, 4, 0.8)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }} onClick={() => setIsInviting(false)} />
-          <div className="glass" style={{ width: "100%", maxWidth: 500, padding: 32, position: "relative", zIndex: 101, textAlign: "center", border: "1px solid var(--gold)", boxShadow: "0 20px 50px rgba(0,0,0,0.8), 0 0 30px rgba(212, 175, 55, 0.15)" }}>
+        <div className="modal-overlay" onClick={() => setIsInviting(false)}>
+          <div className="custom-modal fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--gold-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", margin: "0 auto 20px", border: "1px solid rgba(212, 175, 55, 0.3)" }}>
               <LinkIcon size={26} />
             </div>
@@ -376,22 +468,21 @@ function AdminContent() {
 
       {/* Add Church Modal */}
       {isAdding && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(2, 1, 4, 0.8)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }} onClick={() => setIsAdding(false)} />
-          <div className="glass" style={{ width: "100%", maxWidth: 460, padding: 32, position: "relative", zIndex: 101, border: "1px solid var(--gold)", boxShadow: "0 20px 50px rgba(0,0,0,0.8)" }}>
+        <div className="modal-overlay" onClick={() => setIsAdding(false)}>
+          <div className="custom-modal fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <h3 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Déployer une Église locale</h3>
               <button onClick={() => setIsAdding(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={20} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
               <div>
-                <label className="form-label">Dénomination de l'Église</label>
-                <input className="input" placeholder="ex: ICC Bruxelles" value={newChurch.name} onChange={e => setNewChurch({...newChurch, name: e.target.value})} />
+                <label className="form-label">Dénomination de l'Église *</label>
+                <input className="input" placeholder="ex: ICC Charleroi" value={newChurch.name} onChange={e => setNewChurch({...newChurch, name: e.target.value})} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
                   <label className="form-label">Ville</label>
-                  <input className="input" placeholder="Bruxelles" value={newChurch.city} onChange={e => setNewChurch({...newChurch, city: e.target.value})} />
+                  <input className="input" placeholder="Charleroi" value={newChurch.city} onChange={e => setNewChurch({...newChurch, city: e.target.value})} />
                 </div>
                 <div>
                   <label className="form-label">Pays</label>
@@ -399,16 +490,109 @@ function AdminContent() {
                 </div>
               </div>
               <div>
-                <label className="form-label">Code Secret de Connexion</label>
+                <label className="form-label">Code Secret de Connexion *</label>
                 <div style={{ position: "relative" }}>
                   <Key size={14} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--gold)" }} />
-                  <input className="input" style={{ paddingLeft: 38 }} placeholder="BRU2026" value={newChurch.access_code} onChange={e => setNewChurch({...newChurch, access_code: e.target.value.toUpperCase()})} />
+                  <input className="input" style={{ paddingLeft: 38 }} placeholder="CHA2026" value={newChurch.access_code} onChange={e => setNewChurch({...newChurch, access_code: e.target.value.toUpperCase()})} />
                 </div>
                 <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 6, lineHeight: 1.4 }}>Ce code secret unique sera requis par les bergers et membres pour s'enregistrer sous cette église locale.</p>
               </div>
+
+              <div style={{ borderTop: "1px solid rgba(212, 175, 55, 0.15)", paddingTop: 18, marginTop: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>
+                  Département de l'Intégration
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div>
+                      <label className="form-label">Prénom du Responsable</label>
+                      <input className="input" placeholder="ex: Benjamin" value={newChurch.integration_first_name} onChange={e => setNewChurch({...newChurch, integration_first_name: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="form-label">Nom du Responsable</label>
+                      <input className="input" placeholder="ex: Minko" value={newChurch.integration_last_name} onChange={e => setNewChurch({...newChurch, integration_last_name: e.target.value})} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="form-label">E-mail du Responsable</label>
+                    <input className="input" type="email" placeholder="integration.charleroi@poimen.org" value={newChurch.integration_email} onChange={e => setNewChurch({...newChurch, integration_email: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="form-label">Code d'accès / Mot de passe</label>
+                    <input className="input" type="text" placeholder="Entrez un code d'accès" value={newChurch.integration_access_code} onChange={e => setNewChurch({...newChurch, integration_access_code: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
                 <button className="btn btn-subtle" style={{ flex: 1 }} onClick={() => setIsAdding(false)}>Annuler</button>
                 <button className="btn btn-primary" style={{ flex: 2, justifyContent: "center" }} onClick={addChurch}>Initialiser l'Église</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Church Modal */}
+      {isEditing && editingChurch && (
+        <div className="modal-overlay" onClick={() => { setIsEditing(false); setEditingChurch(null); }}>
+          <div className="custom-modal fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <h3 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Modifier l'Église locale</h3>
+              <button onClick={() => { setIsEditing(false); setEditingChurch(null); }} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={20} /></button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <div>
+                <label className="form-label">Dénomination de l'Église *</label>
+                <input className="input" value={editingChurch.name} onChange={e => setEditingChurch({...editingChurch, name: e.target.value})} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  <label className="form-label">Ville</label>
+                  <input className="input" value={editingChurch.city} onChange={e => setEditingChurch({...editingChurch, city: e.target.value})} />
+                </div>
+                <div>
+                  <label className="form-label">Pays</label>
+                  <input className="input" value={editingChurch.country} onChange={e => setEditingChurch({...editingChurch, country: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                <label className="form-label">Code Secret de Connexion *</label>
+                <div style={{ position: "relative" }}>
+                  <Key size={14} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--gold)" }} />
+                  <input className="input" style={{ paddingLeft: 38 }} value={editingChurch.access_code} onChange={e => setEditingChurch({...editingChurch, access_code: e.target.value.toUpperCase()})} />
+                </div>
+              </div>
+
+              <div style={{ borderTop: "1px solid rgba(212, 175, 55, 0.15)", paddingTop: 18, marginTop: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>
+                  Département de l'Intégration
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div>
+                      <label className="form-label">Prénom du Responsable</label>
+                      <input className="input" placeholder="ex: Benjamin" value={editingChurch.integration_first_name} onChange={e => setEditingChurch({...editingChurch, integration_first_name: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="form-label">Nom du Responsable</label>
+                      <input className="input" placeholder="ex: Minko" value={editingChurch.integration_last_name} onChange={e => setEditingChurch({...editingChurch, integration_last_name: e.target.value})} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="form-label">E-mail du Responsable</label>
+                    <input className="input" type="email" placeholder="integration.charleroi@poimen.org" value={editingChurch.integration_email} onChange={e => setEditingChurch({...editingChurch, integration_email: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="form-label">Code d'accès / Mot de passe</label>
+                    <input className="input" type="text" placeholder="Entrez un code d'accès" value={editingChurch.integration_access_code} onChange={e => setEditingChurch({...editingChurch, integration_access_code: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+                <button className="btn btn-subtle" style={{ flex: 1 }} onClick={() => { setIsEditing(false); setEditingChurch(null); }}>Annuler</button>
+                <button className="btn btn-primary" style={{ flex: 2, justifyContent: "center" }} onClick={updateChurch}>Enregistrer les modifications</button>
               </div>
             </div>
           </div>

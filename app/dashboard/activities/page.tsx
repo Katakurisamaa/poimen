@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { 
   Plus, Calendar, Clock, MapPin, ChevronRight, XCircle, 
@@ -59,6 +60,20 @@ export default function ActivitiesPage() {
   const [userBergerieId, setUserBergerieId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [currentUserFullName, setCurrentUserFullName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAddModalOpen) {
+      document.documentElement.classList.add("no-scroll");
+      document.body.classList.add("no-scroll");
+    } else {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    }
+    return () => {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    };
+  }, [isAddModalOpen]);
 
   // Load activities from localStorage and members from Supabase
   useEffect(() => {
@@ -824,9 +839,9 @@ export default function ActivitiesPage() {
       )}
 
       {/* Add Activity Modal */}
-      {isAddModalOpen && (
+      {typeof window !== "undefined" && isAddModalOpen && createPortal(
         <div className="modal-overlay">
-          <div className="glass modal-content" style={{ maxWidth: 500 }}>
+          <div className="custom-modal fade-in">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 25 }}>
               <h2 style={{ fontSize: 20, color: "var(--gold)" }}>Nouvelle Activité</h2>
               <button onClick={() => setIsAddModalOpen(false)} className="btn-icon"><XCircle size={20} /></button>
@@ -871,20 +886,11 @@ export default function ActivitiesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <style jsx>{`
-        .modal-overlay {
-          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
-          z-index: 1000; display: flex; alignItems: center; justifyContent: center;
-          padding: 20px;
-        }
-        .modal-content {
-          width: 100%; position: relative; padding: 30px;
-          max-height: 90vh; overflow-y: auto;
-        }
         .label {
           font-size: 11px; color: var(--muted); display: block; margin-bottom: 6px;
           text-transform: uppercase; letter-spacing: 0.5px;

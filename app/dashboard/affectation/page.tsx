@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
   Search, Plus, UserPlus, Filter, CheckCircle2, XCircle, X, 
   Calendar, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { autoAddLeaderToMembers } from "@/app/actions/auth";
+
 
 interface Guest {
   id: string;
@@ -55,6 +58,10 @@ interface Guest {
   interetBapteme: boolean;
   commentaire: string;
   commentaireSuivi: string;
+  archived?: boolean;
+  assigned_to?: string | null;
+  church_id?: string | null;
+  bergerie_id?: string | null;
 }
 
 const MOCK_RESPONSIBLES = ["Non assigné"];
@@ -70,37 +77,109 @@ export default function AffectationPage() {
   const [currentView, setCurrentView] = useState<'list' | 'stats'>('list');
   const [arrivalMonth, setArrivalMonth] = useState<string>("all");
   const [arrivalYear, setArrivalYear] = useState<string>("all");
+  const [localChurchFilter, setLocalChurchFilter] = useState<string>("all");
   const [userRole, setUserRole] = useState<string | null>(null);
+  const userRoleClean = useMemo(() => (userRole || "").toLowerCase().trim(), [userRole]);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [churchId, setChurchId] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [responsibles, setResponsibles] = useState<string[]>(["Non assigné"]);
   const [isConseiller, setIsConseiller] = useState(false);
+  const [counselors, setCounselors] = useState<{ id: string; display_name: string; email: string }[]>([]);
+  const [activeBergeries, setActiveBergeries] = useState<{ id: string; name: string }[]>([]);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferringGuest, setTransferringGuest] = useState<Guest | null>(null);
+  const [selectedBergerieId, setSelectedBergerieId] = useState<string>("");
+  const [isTransferring, setIsTransferring] = useState(false);
+
+  const isAuthorizedLeader = useMemo(() => {
+    const role = userRoleClean;
+    return (
+      role === "berger" ||
+      role.includes("second") ||
+      role.includes("responsable") ||
+      role.includes("coordonnateur")
+    );
+  }, [userRoleClean]);
+
+  const canCreateOrDeleteInvites = useMemo(() => {
+    const role = userRoleClean;
+    const isIntegrationLeader = role === "integration_responsable" || role === "integration_second";
+    return isIntegrationLeader;
+  }, [userRoleClean]);
+
+  const isIntegrationOrCounselor = useMemo(() => {
+    return userRoleClean.startsWith("integration_") || userRoleClean === "conseiller" || isConseiller;
+  }, [userRoleClean, isConseiller]);
 
   useEffect(() => {
     const userInfo = localStorage.getItem("poimen_user_info");
     if (userInfo) {
-      const parsed = JSON.parse(userInfo);
-      setUserRole(parsed.role);
-      setIsConseiller(parsed.isConseiller === true);
-      setUserName(`${parsed.firstName} ${parsed.lastName}`);
+      try {
+        const parsed = JSON.parse(userInfo);
+        setUserRole(parsed.role);
+        setUserId(parsed.id);
+        setChurchId(parsed.church_id);
+        const rLower = (parsed.role || "").toLowerCase().trim();
+        setIsConseiller(parsed.isConseiller === true || rLower === "integration_conseiller" || rLower === "conseiller");
+        
+        const firstName = (parsed.firstName || "").trim();
+        const lastName = (parsed.lastName || "").trim();
+        const name = [firstName, lastName].filter(Boolean).join(" ");
+        if (name) {
+          setUserName(name);
+        }
+      } catch (e) {
+        console.error("Error parsing user info in affectation page", e);
+      }
     }
     const fam = localStorage.getItem("selected_family");
     if (fam) {
-      const parsedFam = JSON.parse(fam);
-      setFamilyId(parsedFam.id);
+      try {
+        const parsedFam = JSON.parse(fam);
+        setFamilyId(parsedFam.id);
+      } catch (e) {
+        console.error("Error parsing family info", e);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (familyId) {
+    if (familyId || (isIntegrationOrCounselor && churchId)) {
       fetchGuests();
       fetchResponsibles();
     }
-  }, [familyId]);
+  }, [familyId, isIntegrationOrCounselor, churchId, userName, userId]);
 
   const fetchResponsibles = async () => {
+    if (isIntegrationOrCounselor) {
+      if (!churchId) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, email")
+        .eq("church_id", churchId)
+        .in("role", ["integration_responsable", "integration_second", "integration_conseiller", "conseiller"]);
+      
+      if (!error && data) {
+        setCounselors(data);
+      }
+      
+      const { data: bData, error: bError } = await supabase
+        .from("bergeries")
+        .select("id, name")
+        .eq("church_id", churchId)
+        .eq("archived", false)
+        .order("name", { ascending: true });
+        
+      if (!bError && bData) {
+        setActiveBergeries(bData);
+      }
+      return;
+    }
+
     if (!familyId) return;
     const { data, error } = await supabase
       .from("members")
@@ -115,7 +194,7 @@ export default function AffectationPage() {
       
       const me = data.find(m => m.email?.toLowerCase() === userEmail);
       if (!me && isLeader && userEmail) {
-        await supabase.from("members").insert({
+        const res = await autoAddLeaderToMembers({
           bergerie_id: familyId,
           first_name: userInfo.firstName || "Leader",
           last_name: userInfo.lastName || "User",
@@ -123,6 +202,9 @@ export default function AffectationPage() {
           status: userInfo.role,
           civility: "M."
         });
+        if (!res.success) {
+          console.error("Error adding me to members via Server Action:", res.error);
+        }
         fetchResponsibles();
         return;
       }
@@ -138,11 +220,27 @@ export default function AffectationPage() {
 
   const fetchGuests = async () => {
     setLoading(true);
-    const { data: dbGuests, error } = await supabase
-      .from("invites")
-      .select("*")
-      .eq("bergerie_id", familyId)
-      .order("created_at", { ascending: false });
+    let query = supabase.from("invites").select("*");
+    
+    if (isIntegrationOrCounselor) {
+      if (churchId && userId) {
+        query = query.eq("church_id", churchId).eq("assigned_to", userId);
+      } else {
+        setGuests([]);
+        setLoading(false);
+        return;
+      }
+    } else {
+      if (familyId && userName) {
+        query = query.eq("bergerie_id", familyId).eq("responsible", userName);
+      } else {
+        setGuests([]);
+        setLoading(false);
+        return;
+      }
+    }
+
+    const { data: dbGuests, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching guests:", error);
@@ -192,7 +290,11 @@ export default function AffectationPage() {
         dansFamilleDisciple: g.dans_famille_disciple || false,
         interetBapteme: g.interet_bapteme || false,
         commentaire: g.commentaire || "",
-        commentaireSuivi: g.commentaire_suivi || ""
+        commentaireSuivi: g.commentaire_suivi || "",
+        assigned_to: g.assigned_to,
+        church_id: g.church_id,
+        bergerie_id: g.bergerie_id,
+        archived: g.archived || false
       }));
       setGuests(mapped);
     }
@@ -212,9 +314,31 @@ export default function AffectationPage() {
     }
   };
 
-  const handleSelfAssign = (guestId: string) => {
-    if (userName) {
-      handleUpdateAssignment(guestId, userName);
+  const handleSelfAssign = async (guestId: string) => {
+    if (isIntegrationOrCounselor) {
+      if (userId) {
+        const { error } = await supabase
+          .from("invites")
+          .update({ assigned_to: userId })
+          .eq("id", guestId);
+        if (error) {
+          alert("Erreur lors de l'affectation : " + error.message);
+        } else {
+          setGuests(prev => prev.map(g => g.id === guestId ? { ...g, assigned_to: userId } : g));
+        }
+      }
+    } else {
+      if (userName) {
+        const { error } = await supabase
+          .from("invites")
+          .update({ responsible: userName })
+          .eq("id", guestId);
+        if (error) {
+          alert("Erreur lors de l'affectation : " + error.message);
+        } else {
+          setGuests(prev => prev.map(g => g.id === guestId ? { ...g, responsible: userName } : g));
+        }
+      }
     }
   };
 
@@ -397,17 +521,136 @@ export default function AffectationPage() {
   };
 
   const handleDeleteGuest = async (guestId: string) => {
-    if (!window.confirm("Voulez-vous vraiment supprimer définitivement cet invité ? Cette action est irréversible.")) return;
+    const guest = guests.find(g => g.id === guestId);
+    const isFamilyRole = !isIntegrationOrCounselor && userRoleClean !== "super_admin";
     
-    const { error } = await supabase
-      .from("invites")
-      .delete()
-      .eq("id", guestId);
+    if (isFamilyRole && guest && guest.church_id) {
+      if (!window.confirm("Voulez-vous vraiment retirer cet invité de votre Famille ? Il restera disponible pour l'Intégration.")) return;
       
-    if (error) {
-      alert("Erreur lors de la suppression : " + error.message);
+      const { error } = await supabase
+        .from("invites")
+        .update({
+          bergerie_id: null,
+          dans_famille_disciple: false,
+          responsible: "Non assigné"
+        })
+        .eq("id", guestId);
+        
+      if (error) {
+        alert("Erreur lors du retrait : " + error.message);
+      } else {
+        fetchGuests();
+      }
     } else {
+      if (!window.confirm("Voulez-vous vraiment supprimer définitivement cet invité ? Cette action est irréversible.")) return;
+      
+      const { error } = await supabase
+        .from("invites")
+        .delete()
+        .eq("id", guestId);
+        
+      if (error) {
+        alert("Erreur lors de la suppression : " + error.message);
+      } else {
+        fetchGuests();
+      }
+    }
+  };
+
+  const handleTransferGuest = async () => {
+    if (!transferringGuest || !selectedBergerieId) return;
+    setIsTransferring(true);
+    try {
+      const { error } = await supabase
+        .from("invites")
+        .update({ 
+          bergerie_id: selectedBergerieId,
+          responsible: "Non assigné"
+        })
+        .eq("id", transferringGuest.id);
+
+      if (error) throw error;
+
+      alert(`L'invité ${transferringGuest.firstName} ${transferringGuest.lastName} a été confié avec succès !`);
+      setIsTransferModalOpen(false);
+      setTransferringGuest(null);
+      setSelectedBergerieId("");
       fetchGuests();
+    } catch (err: any) {
+      console.error("Error transferring guest:", err);
+      alert("Erreur lors de l'opération : " + err.message);
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  const promoteToMember = async (guest: Guest) => {
+    if (!guest.bergerie_id) return;
+    
+    if (!window.confirm(`Voulez-vous vraiment transformer ${guest.firstName} ${guest.lastName} en membre de la Bergerie ?`)) return;
+
+    setLoading(true);
+    try {
+      // 1. Insert into members
+      const { error: insertError } = await supabase.from("members").insert({
+        bergerie_id: guest.bergerie_id,
+        civility: guest.civility,
+        first_name: guest.firstName,
+        last_name: guest.lastName,
+        age: guest.age,
+        phone: guest.phone,
+        email: guest.email,
+        status: "Brebi",
+        attendance: {},
+        responsible: guest.responsible === "Non assigné" ? null : guest.responsible
+      });
+
+      if (insertError) throw insertError;
+
+      // 2. Mark as in bergerie in invites (DO NOT DELETE as per user request)
+      const { error: updateError } = await supabase.from("invites").update({ is_in_bergerie: true, status: "Brebi", dans_famille_disciple: true }).eq("id", guest.id);
+      if (updateError) throw updateError;
+
+      // 3. Refresh list
+      await fetchGuests();
+      alert(`${guest.firstName} a été ajouté à la Bergerie avec succès !`);
+    } catch (err: any) {
+      console.error("Promotion error:", err);
+      alert("Erreur lors de l'ajout à la bergerie : " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeFromMember = async (guest: Guest) => {
+    if (!guest.bergerie_id) return;
+    
+    if (!window.confirm(`Voulez-vous vraiment retirer ${guest.firstName} ${guest.lastName} de la Bergerie ?`)) return;
+
+    setLoading(true);
+    try {
+      // 1. Delete from members
+      const { error: deleteError } = await supabase.from("members")
+        .delete()
+        .eq("bergerie_id", guest.bergerie_id)
+        .eq("first_name", guest.firstName)
+        .eq("last_name", guest.lastName)
+        .or(`phone.eq."${guest.phone}",email.eq."${guest.email}"`);
+
+      if (deleteError) throw deleteError;
+
+      // 2. Mark as NOT in bergerie in invites
+      const { error: updateError } = await supabase.from("invites").update({ is_in_bergerie: false, dans_famille_disciple: false }).eq("id", guest.id);
+      if (updateError) throw updateError;
+
+      // 3. Refresh list
+      await fetchGuests();
+      alert(`${guest.firstName} a été retiré de la Bergerie.`);
+    } catch (err: any) {
+      console.error("Removal error:", err);
+      alert("Erreur lors du retrait : " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -443,15 +686,30 @@ export default function AffectationPage() {
 
   const getDaysOfMonth = (year: number, month: number, dayOfWeek: number) => {
     const dates = [];
-    let d = new Date(year, month, 1);
-    while (d.getMonth() === month) {
-      if (d.getDay() === dayOfWeek) {
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        dates.push(`${yyyy}-${mm}-${dd}`);
+    if (month === -1) {
+      for (let m = 0; m < 12; m++) {
+        let d = new Date(year, m, 1);
+        while (d.getMonth() === m) {
+          if (d.getDay() === dayOfWeek) {
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            dates.push(`${yyyy}-${mm}-${dd}`);
+          }
+          d.setDate(d.getDate() + 1);
+        }
       }
-      d.setDate(d.getDate() + 1);
+    } else {
+      let d = new Date(year, month, 1);
+      while (d.getMonth() === month) {
+        if (d.getDay() === dayOfWeek) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          dates.push(`${yyyy}-${mm}-${dd}`);
+        }
+        d.setDate(d.getDate() + 1);
+      }
     }
     return dates;
   };
@@ -460,9 +718,12 @@ export default function AffectationPage() {
   const sundays = useMemo(() => getDaysOfMonth(selectedYear, selectedMonth, 0), [selectedMonth, selectedYear]);
 
   const calculateRate = (guest: Guest, dates: string[]) => {
-    if (dates.length === 0) return 0;
-    const presents = dates.filter(d => guest.attendance[d]).length;
-    return Math.round((presents / dates.length) * 100);
+    const eligibleDates = guest.arrivalDate 
+      ? dates.filter(d => d > guest.arrivalDate) 
+      : dates;
+    if (eligibleDates.length === 0) return 0;
+    const presents = eligibleDates.filter(d => guest.attendance[d]).length;
+    return Math.round((presents / eligibleDates.length) * 100);
   };
 
   const isFidelise = (guest: Guest) => {
@@ -472,8 +733,12 @@ export default function AffectationPage() {
   };
 
   const filtered = guests.filter(g => {
-    // Strict isolation for Responsables: only see assigned people
-    if (userName && g.responsible !== userName) return false;
+    // Strict isolation: only show guests personally assigned to the current user
+    if (isIntegrationOrCounselor) {
+      if (g.assigned_to !== userId) return false;
+    } else {
+      if (!userName || g.responsible !== userName) return false;
+    }
 
     const matchesSearch = `${g.firstName} ${g.lastName}`.toLowerCase().includes(search.toLowerCase());
     const guestDate = new Date(g.arrivalDate);
@@ -482,12 +747,28 @@ export default function AffectationPage() {
     const matchesMonth = arrivalMonth === "all" || guestMonth === arrivalMonth;
     const matchesYear = arrivalYear === "all" || guestYear === arrivalYear;
     
-    return matchesSearch && matchesMonth && matchesYear;
+    const matchesLocalChurch = localChurchFilter === "all" || 
+      (localChurchFilter === "yes" && g.localChurch) || 
+      (localChurchFilter === "no" && !g.localChurch);
+
+    return matchesSearch && matchesMonth && matchesYear && matchesLocalChurch;
   });
 
   const brebisCount = filtered.filter(g => g.status === "Brebi").length;
   const callsSuccess = filtered.filter(g => g.appelAbouti).length;
   const noChurch = filtered.filter(g => !g.localChurch).length;
+  const apsCount = filtered.filter(g => g.aps).length;
+  const phoneCount = filtered.filter(g => g.phone && g.phone.trim() !== "").length;
+  const returnedCount = filtered.filter(g => {
+    if (g.estRevenuCulte) return true;
+    const attendanceDates = Object.keys(g.attendance || {});
+    return attendanceDates.some(d => {
+      if (g.attendance[d] !== true || d <= g.arrivalDate) return false;
+      const [year, month, day] = d.split('-').map(Number);
+      const dateObj = new Date(year, month - 1, day);
+      return dateObj.getDay() === 0;
+    });
+  }).length;
   const interetPCNC = filtered.filter(g => g.interetFormation).length;
   const pcnc001 = filtered.filter(g => g.pcnc).length;
   const pcnc101 = filtered.filter(g => g.p101).length;
@@ -520,9 +801,9 @@ export default function AffectationPage() {
       {/* Header */}
       {/* Read-only banner for Conseiller */}
       {isConseiller && (
-        <div className="glass glass-compact fade-in" style={{ background: "rgba(56, 189, 248, 0.04)", borderColor: "rgba(56, 189, 248, 0.25)", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--sky)", boxShadow: "0 0 10px var(--sky)" }} />
-          <span style={{ fontSize: 11, color: "var(--sky)", fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase" }}>Mode Conseiller — Vue en lecture seule</span>
+        <div className="glass glass-compact fade-in" style={{ background: "rgba(16, 185, 129, 0.04)", borderColor: "rgba(16, 185, 129, 0.25)", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--green)", boxShadow: "0 0 10px var(--green)" }} />
+          <span style={{ fontSize: 11, color: "var(--green)", fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase" }}>Mode Conseiller — Saisie des suivis autorisée</span>
         </div>
       )}
 
@@ -533,7 +814,7 @@ export default function AffectationPage() {
             Suivi personnalisé et accompagnement spirituel de vos brebis affectées
           </p>
         </div>
-        {!isConseiller && (
+        {isIntegrationOrCounselor && (
           <button className="btn btn-primary btn-sm" onClick={() => {
             setNewGuest({ ...newGuest, responsible: userName || "" });
             setIsAddModalOpen(true);
@@ -546,7 +827,12 @@ export default function AffectationPage() {
       {/* View Switcher Tabs */}
       <div className="fade-in" style={{ display: "flex", gap: 10, background: "rgba(10, 6, 22, 0.5)", border: "1px solid var(--border)", padding: 5, borderRadius: "14px", width: "fit-content" }}>
         <button 
-          onClick={() => setCurrentView('list')}
+          onClick={() => {
+            setCurrentView('list');
+            if (selectedMonth === -1) {
+              setSelectedMonth(new Date().getMonth());
+            }
+          }}
           className={`pill ${currentView === 'list' ? 'pill-active' : 'pill-inactive'}`}
           style={{ border: "none" }}
         >
@@ -578,10 +864,19 @@ export default function AffectationPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>PRÉSENCES</span>
             <select className="input" style={{ width: 130, fontSize: 12, padding: "8px 12px" }} value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}>
+              <option value="-1">Tous les mois</option>
               {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i}>{m}</option>)}
             </select>
             <select className="input" style={{ width: 100, fontSize: 12, padding: "8px 12px" }} value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))}>
               {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>ÉGLISE LOCALE</span>
+            <select className="input" style={{ width: 155, fontSize: 12, padding: "8px 12px" }} value={localChurchFilter} onChange={e => setLocalChurchFilter(e.target.value)}>
+              <option value="all">Tous (avec/sans)</option>
+              <option value="yes">Avec église</option>
+              <option value="no">Sans église</option>
             </select>
           </div>
         </div>
@@ -644,12 +939,25 @@ export default function AffectationPage() {
           </div>
 
           <div className="bento bento-3">
-            <div className="glass" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <h3 style={{ fontSize: 16, marginBottom: 16, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Urgence Suivi</h3>
-              <div className="stat-card" style={{ padding: "20px 16px", border: "1px solid rgba(239, 68, 68, 0.3)", background: "rgba(239, 68, 68, 0.02)" }}>
-                <span className="stat-label" style={{ color: "var(--red)" }}>Sans église locale</span>
-                <div className="stat-value" style={{ fontSize: 28, background: "linear-gradient(135deg, #FFF, var(--red) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{noChurch}</div>
-                <div className="stat-sub">Priorité absolue d'intégration</div>
+            <div className="glass" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+              <h3 style={{ fontSize: 16, marginBottom: 5, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Suivi & Intégration</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, flex: 1 }}>
+                <div className="glass glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(239, 68, 68, 0.25)", background: "rgba(239, 68, 68, 0.02)", padding: "12px 6px" }}>
+                  <div style={{ fontSize: 9, color: "var(--rose)", fontWeight: 700, textTransform: "uppercase" }}>SANS ÉGLISE</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--rose)", marginTop: 4 }}>{noChurch}</div>
+                </div>
+                <div className="glass glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(91, 168, 224, 0.25)", background: "rgba(91, 168, 224, 0.02)", padding: "12px 6px" }}>
+                  <div style={{ fontSize: 9, color: "var(--sky)", fontWeight: 700, textTransform: "uppercase" }}>AVEC TÉLÉPHONE</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--sky)", marginTop: 4 }}>{phoneCount}</div>
+                </div>
+                <div className="glass glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(168, 85, 247, 0.25)", background: "rgba(168, 85, 247, 0.02)", padding: "12px 6px" }}>
+                  <div style={{ fontSize: 9, color: "var(--violet)", fontWeight: 700, textTransform: "uppercase" }}>FICHES APS</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--violet)", marginTop: 4 }}>{apsCount}</div>
+                </div>
+                <div className="glass glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(34, 197, 94, 0.25)", background: "rgba(34, 197, 94, 0.02)", padding: "12px 6px" }}>
+                  <div style={{ fontSize: 9, color: "var(--green)", fontWeight: 700, textTransform: "uppercase" }}>REVENUS AU CULTE</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--green)", marginTop: 4 }}>{returnedCount}</div>
+                </div>
               </div>
             </div>
             <div className="glass">
@@ -708,15 +1016,9 @@ export default function AffectationPage() {
         </div>
       ) : (
         <>
-          {/* Add / Edit Modal */}
-          {isAddModalOpen && (
-            <div style={{
-              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-              background: "rgba(2, 1, 4, 0.8)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-              zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
-              padding: 20
-            }}>
-              <div className="glass fade-in" style={{ width: "100%", maxWidth: 620, maxHeight: "90vh", overflowY: "auto", position: "relative", padding: 32, border: "1px solid var(--gold)", boxShadow: "0 20px 50px rgba(0,0,0,0.8)" }}>
+          {typeof window !== "undefined" && isAddModalOpen && createPortal(
+            <div className="modal-overlay">
+              <div className="custom-modal fade-in" style={{ maxWidth: 620 }}>
                 <button onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }} style={{ position: "absolute", top: 24, right: 24, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}>
                   <X size={20} />
                 </button>
@@ -727,7 +1029,7 @@ export default function AffectationPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 15 }}>
                     <div>
                       <label className="form-label">CIVILITÉ</label>
-                      <select className="input" value={newGuest.civility} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
+                      <select className="input" value={newGuest.civility || "M."} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
                         <option value="M.">M.</option>
                         <option value="Mme.">Mme.</option>
                         <option value="Mlle.">Mlle.</option>
@@ -735,31 +1037,31 @@ export default function AffectationPage() {
                     </div>
                     <div>
                       <label className="form-label">PRÉNOM</label>
-                      <input className="input" required value={newGuest.firstName} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} />
+                      <input className="input" required value={newGuest.firstName || ""} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} />
                     </div>
                     <div>
                       <label className="form-label">NOM</label>
-                      <input className="input" required value={newGuest.lastName} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} />
+                      <input className="input" required value={newGuest.lastName || ""} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} />
                     </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
                     <div>
                       <label className="form-label">TÉLÉPHONE</label>
-                      <input className="input" value={newGuest.phone} onChange={e => setNewGuest({...newGuest, phone: e.target.value})} />
+                      <input className="input" value={newGuest.phone || ""} onChange={e => setNewGuest({...newGuest, phone: e.target.value})} />
                     </div>
                     <div>
                       <label className="form-label">E-MAIL</label>
-                      <input className="input" type="email" value={newGuest.email} onChange={e => setNewGuest({...newGuest, email: e.target.value})} />
+                      <input className="input" type="email" value={newGuest.email || ""} onChange={e => setNewGuest({...newGuest, email: e.target.value})} />
                     </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 15 }}>
                     <div>
                       <label className="form-label">DATE D'ARRIVÉE</label>
-                      <input className="input" type="date" value={newGuest.arrivalDate} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
+                      <input className="input" type="date" value={newGuest.arrivalDate || ""} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
                     </div>
                     <div>
                       <label className="form-label">ÂGE</label>
-                      <select className="input" value={newGuest.age} onChange={e => setNewGuest({...newGuest, age: e.target.value})}>
+                      <select className="input" value={newGuest.age || "26-30"} onChange={e => setNewGuest({...newGuest, age: e.target.value})}>
                         <option value="< 18">Moins de 18 ans</option>
                         <option value="18-25">18-25 ans</option>
                         <option value="26-30">26-30 ans</option>
@@ -770,7 +1072,7 @@ export default function AffectationPage() {
                     </div>
                     <div>
                       <label className="form-label">ÉVÉNEMENT</label>
-                      <select className="input" value={newGuest.event} onChange={e => setNewGuest({...newGuest, event: e.target.value})}>
+                      <select className="input" value={newGuest.event || "Culte"} onChange={e => setNewGuest({...newGuest, event: e.target.value})}>
                         <option value="Culte">Culte</option>
                         <option value="Baptême">Baptême</option>
                         <option value="Évangélisation">Évangélisation</option>
@@ -781,57 +1083,57 @@ export default function AffectationPage() {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.aEteInvite} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <input type="checkbox" checked={newGuest.aEteInvite || false} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>A été invité ?</span>
                     </div>
                     {newGuest.aEteInvite && (
                       <div>
                         <label className="form-label">PAR QUI ?</label>
-                        <input className="input" value={newGuest.parQui} onChange={e => setNewGuest({...newGuest, parQui: e.target.value})} placeholder="Nom de l'invitant" />
+                        <input className="input" value={newGuest.parQui || ""} onChange={e => setNewGuest({...newGuest, parQui: e.target.value})} placeholder="Nom de l'invitant" />
                       </div>
                     )}
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.baptemeEau} onChange={e => setNewGuest({...newGuest, baptemeEau: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <input type="checkbox" checked={newGuest.baptemeEau || false} onChange={e => setNewGuest({...newGuest, baptemeEau: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Baptisé par immersion ?</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.interetFormation} onChange={e => setNewGuest({...newGuest, interetFormation: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <input type="checkbox" checked={newGuest.interetFormation || false} onChange={e => setNewGuest({...newGuest, interetFormation: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt PCNC</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.interetCDM} onChange={e => setNewGuest({...newGuest, interetCDM: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <input type="checkbox" checked={newGuest.interetCDM || false} onChange={e => setNewGuest({...newGuest, interetCDM: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt C.D.M</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.interetBapteme} onChange={e => setNewGuest({...newGuest, interetBapteme: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <input type="checkbox" checked={newGuest.interetBapteme || false} onChange={e => setNewGuest({...newGuest, interetBapteme: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt Baptême</span>
                     </div>
                   </div>
 
                   <div style={{ display: "flex", gap: 20 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.aps} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <input type="checkbox" checked={newGuest.aps || false} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Fiche APS Remplie</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.localChurch} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <input type="checkbox" checked={newGuest.localChurch || false} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Déjà d'une église locale</span>
                     </div>
                   </div>
 
                   <div>
                     <label className="form-label">ADRESSE DOMICILE</label>
-                    <input className="input" value={newGuest.address} onChange={e => setNewGuest({...newGuest, address: e.target.value})} />
+                    <input className="input" value={newGuest.address || ""} onChange={e => setNewGuest({...newGuest, address: e.target.value})} />
                   </div>
 
                   <div>
                     <label className="form-label">COMMENTAIRE / NOTES PARTICULIÈRES</label>
                     <textarea 
                       className="input" 
-                      value={newGuest.commentaire} 
+                      value={newGuest.commentaire || ""} 
                       onChange={e => setNewGuest({...newGuest, commentaire: e.target.value})} 
                       placeholder="Sujets de prières, contexte spirituel ou familial..."
                       style={{ minHeight: 80, fontSize: 12, resize: "vertical" }}
@@ -844,7 +1146,8 @@ export default function AffectationPage() {
                   </div>
                 </form>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
           {/* Filters */}
@@ -895,6 +1198,21 @@ export default function AffectationPage() {
                 ))}
               </select>
             </div>
+
+            {/* Local Church Filter */}
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(10, 6, 22, 0.4)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
+              <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.5px" }}>ÉGLISE LOCALE</span>
+              <select 
+                className="input" 
+                value={localChurchFilter} 
+                onChange={e => setLocalChurchFilter(e.target.value)}
+                style={{ width: 120, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}
+              >
+                <option value="all">Tous</option>
+                <option value="yes">Avec église</option>
+                <option value="no">Sans église</option>
+              </select>
+            </div>
           </div>
 
           {/* List */}
@@ -904,7 +1222,9 @@ export default function AffectationPage() {
               const rateCulte = calculateRate(guest, sundays);
               const fidelised = isFidelise(guest);
               const isExpanded = expandedId === guest.id;
-              const isRestricted = guest.responsible !== userName;
+              const isRestricted = isIntegrationOrCounselor
+                ? guest.assigned_to !== userId
+                : guest.responsible !== userName;
 
               return (
                 <div key={guest.id} className="glass glass-flush" style={{ borderLeft: fidelised ? "4px solid var(--gold)" : "1px solid var(--border)", transition: "all 0.3s ease" }}>
@@ -923,7 +1243,7 @@ export default function AffectationPage() {
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cream)" }}>{guest.firstName} {guest.lastName}</h3>
                           {fidelised && <span className="badge badge-gold" style={{ fontSize: 8 }}>Fidélisé</span>}
-                          {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
+                          {(isIntegrationOrCounselor || isAuthorizedLeader) && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); openEditModal(guest); }}
                               className="btn-icon btn-icon-gold"
@@ -935,7 +1255,11 @@ export default function AffectationPage() {
                           )}
                         </div>
                         <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
-                          {guest.civility} · {guest.age} ans · Responsable: <span style={{ color: "var(--gold-light)" }}>{guest.responsible}</span>
+                          {guest.civility} · {guest.age} ans · {isIntegrationOrCounselor ? (
+                            <>Conseiller: <span style={{ color: "var(--gold-light)" }}>{guest.assigned_to === userId ? (userName || "Moi") : (counselors.find(c => c.id === guest.assigned_to)?.display_name || "Non assigné")}</span></>
+                          ) : (
+                            <>Responsable: <span style={{ color: "var(--gold-light)" }}>{guest.responsible}</span></>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -984,7 +1308,39 @@ export default function AffectationPage() {
                             </div>
                           </div>
                           
-                          {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
+                          {isIntegrationOrCounselor && (
+                            <button 
+                              className="btn btn-primary btn-sm" 
+                              style={{ marginTop: 16, width: "100%", background: "linear-gradient(135deg, var(--gold) 0%, #b8973b 100%)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                              onClick={() => {
+                                setTransferringGuest(guest);
+                                setSelectedBergerieId(guest.bergerie_id || "");
+                                setIsTransferModalOpen(true);
+                              }}
+                            >
+                              {guest.bergerie_id ? "Changer de famille" : "Confier à une famille"}
+                            </button>
+                          )}
+
+                          {guest.bergerie_id && (
+                            <button 
+                              className={`btn ${guest.isInBergerie ? "btn-subtle" : "btn-primary"} btn-sm`} 
+                              style={{ 
+                                marginTop: 12, 
+                                width: "100%", 
+                                display: "flex", 
+                                alignItems: "center", 
+                                justifyContent: "center", 
+                                gap: 6,
+                                ...(guest.isInBergerie ? { color: "var(--red)", borderColor: "rgba(239, 68, 68, 0.2)" } : { background: "linear-gradient(135deg, var(--green) 0%, #16a34a 100%)", border: "none" })
+                              }}
+                              onClick={() => guest.isInBergerie ? removeFromMember(guest) : promoteToMember(guest)}
+                            >
+                              {guest.isInBergerie ? "Retirer de la Bergerie (Membre)" : "Ajouter à la Bergerie (Membre)"}
+                            </button>
+                          )}
+
+                          {(isIntegrationOrCounselor || isAuthorizedLeader) && !isConseiller && (
                             <button 
                               className="btn btn-subtle btn-sm" 
                               style={{ marginTop: 16, color: "var(--red)", borderColor: "rgba(239, 68, 68, 0.2)", width: "fit-content" }}
@@ -1000,46 +1356,54 @@ export default function AffectationPage() {
                           <div>
                             <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, fontFamily: "var(--font-body)", fontWeight: 700 }}>Présences CDM (Jeudi)</h4>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              {thursdays.map((day) => (
-                                <div 
-                                  key={day} 
-                                  title={day} 
-                                  onClick={() => !isRestricted && toggleAttendance(guest.id, day)}
-                                  style={{ 
-                                    width: 32, height: 32, borderRadius: 8, 
-                                    background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.02)",
-                                    border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
-                                    cursor: isRestricted ? "default" : "pointer", transition: "all 0.2s",
-                                    opacity: isRestricted ? 0.4 : 1
-                                  }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700 }}>{parseInt(day.split('-')[2], 10)}</span>
-                                </div>
-                              ))}
+                              {thursdays.map((day) => {
+                                const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
+                                return (
+                                  <div 
+                                    key={day} 
+                                    title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day} 
+                                    onClick={() => !isRestricted && !isBeforeArrival && toggleAttendance(guest.id, day)}
+                                    style={{ 
+                                      width: 32, height: 32, borderRadius: 8, 
+                                      background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.02)",
+                                      border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
+                                      cursor: isBeforeArrival ? "not-allowed" : (isRestricted ? "default" : "pointer"), 
+                                      transition: "all 0.2s",
+                                      opacity: isBeforeArrival ? 0.12 : (isRestricted ? 0.4 : 1)
+                                    }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700 }}>{parseInt(day.split('-')[2], 10)}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
 
                           <div>
                             <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, fontFamily: "var(--font-body)", fontWeight: 700 }}>Présences Culte (Dimanche)</h4>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              {sundays.map((day) => (
-                                <div 
-                                  key={day} 
-                                  title={day} 
-                                  onClick={() => !isRestricted && toggleAttendance(guest.id, day)}
-                                  style={{ 
-                                    width: 32, height: 32, borderRadius: 8, 
-                                    background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.02)",
-                                    border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
-                                    cursor: isRestricted ? "default" : "pointer", transition: "all 0.2s",
-                                    opacity: isRestricted ? 0.4 : 1
-                                  }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700 }}>{parseInt(day.split('-')[2], 10)}</span>
-                                </div>
-                              ))}
+                              {sundays.map((day) => {
+                                const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
+                                return (
+                                  <div 
+                                    key={day} 
+                                    title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day} 
+                                    onClick={() => !isRestricted && !isBeforeArrival && toggleAttendance(guest.id, day)}
+                                    style={{ 
+                                      width: 32, height: 32, borderRadius: 8, 
+                                      background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.02)",
+                                      border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
+                                      cursor: isBeforeArrival ? "not-allowed" : (isRestricted ? "default" : "pointer"), 
+                                      transition: "all 0.2s",
+                                      opacity: isBeforeArrival ? 0.12 : (isRestricted ? 0.4 : 1)
+                                    }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700 }}>{parseInt(day.split('-')[2], 10)}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         </div>
@@ -1154,12 +1518,15 @@ export default function AffectationPage() {
                                 <select 
                                   className="input" 
                                   style={{ fontSize: 12 }}
-                                  value={guest.responsible} 
+                                  value={guest.responsible || "Non assigné"} 
                                   onChange={e => handleUpdateAssignment(guest.id, e.target.value)}
                                 >
                                   {responsibles.map(r => (
                                     <option key={r} value={r}>{r}</option>
                                   ))}
+                                  {guest.responsible && guest.responsible !== "Non assigné" && !responsibles.includes(guest.responsible) && (
+                                    <option key={guest.responsible} value={guest.responsible}>{guest.responsible}</option>
+                                  )}
                                 </select>
                               </div>
                               <button 
@@ -1178,6 +1545,64 @@ export default function AffectationPage() {
               );
             })}
           </div>
+
+          {/* Transfer Modal */}
+          {typeof window !== "undefined" && isTransferModalOpen && transferringGuest && createPortal(
+            <div className="modal-overlay">
+              <div className="custom-modal fade-in" style={{ maxWidth: 450 }}>
+                <button 
+                  onClick={() => { setIsTransferModalOpen(false); setTransferringGuest(null); }} 
+                  style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}
+                >
+                  <X size={20} />
+                </button>
+                
+                <h3 style={{ fontSize: 18, color: "var(--gold-light)", marginBottom: 20, fontFamily: "var(--font-display)" }}>
+                  Confier l'invité
+                </h3>
+                
+                <p style={{ fontSize: 13, color: "var(--cream-dim)", marginBottom: 20, lineHeight: 1.5 }}>
+                  Sélectionnez la famille de disciples (Bergerie) à laquelle vous souhaitez confier <strong>{transferringGuest.firstName} {transferringGuest.lastName}</strong>.
+                </p>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: 10, marginBottom: 6, display: "block" }}>CHOISIR UNE FAMILLE</label>
+                    <select 
+                      className="input" 
+                      value={selectedBergerieId} 
+                      onChange={e => setSelectedBergerieId(e.target.value)}
+                      style={{ fontSize: 13 }}
+                    >
+                      <option value="">-- Choisir une famille --</option>
+                      {activeBergeries.map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 10 }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-subtle" 
+                      onClick={() => { setIsTransferModalOpen(false); setTransferringGuest(null); }}
+                    >
+                      Annuler
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn btn-primary" 
+                      disabled={isTransferring || !selectedBergerieId}
+                      onClick={handleTransferGuest}
+                    >
+                      {isTransferring ? "En cours..." : "Confier"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
         </>
       )}
     </div>

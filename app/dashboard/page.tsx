@@ -68,6 +68,17 @@ export default function DashboardPage() {
   const [selectedForJoin, setSelectedForJoin] = useState<any>(null);
   const [rememberMe, setRememberMe] = useState(false);
   const [counts, setCounts] = useState({ members: 0, invites: 0 });
+  const [familyStats, setFamilyStats] = useState({
+    membersCount: 0,
+    invitesCount: 0,
+    activitiesCount: 0,
+    alertsCount: 0,
+    totalReached: 0,
+    totalSalvation: 0,
+    totalInvitations: 0
+  });
+  const [activitiesList, setActivitiesList] = useState<any[]>([]);
+  const [atRiskList, setAtRiskList] = useState<any[]>([]);
 
   useEffect(() => {
     if (myBergerie) {
@@ -82,50 +93,256 @@ export default function DashboardPage() {
       const isOnlyResponsable = userRoleVal === "responsable" || userRoleVal === "responsable_de_brebi";
       const userNameStr = `${userInfo?.firstName} ${userInfo?.lastName}`;
 
-      let mQuery = supabase.from("members").select("*", { count: "exact" }).eq("bergerie_id", myBergerie.id);
-      let iQuery = supabase.from("invites").select("*", { count: "exact" }).eq("bergerie_id", myBergerie.id);
+      // Helper function to get recent days of week
+      const getDaysOfPeriod = (year: number, month: number, dayOfWeek: number) => {
+        const dates = [];
+        let start = new Date(year, month, 1);
+        let end = new Date(year, month + 1, 0);
+        let d = new Date(start);
+        while (d <= end) {
+          if (d.getDay() === dayOfWeek) {
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            dates.push(`${yyyy}-${mm}-${dd}`);
+          }
+          d.setDate(d.getDate() + 1);
+        }
+        return dates;
+      };
+
+      // Helper function to get recent activity dates (Sundays/Thursdays)
+      const getRecentActivityDates = () => {
+        const dates: { id: string; name: string; date: string; day: number; time: string; actId: string }[] = [];
+        const today = new Date();
+        for (let i = 0; i < 21; i++) {
+          const d = new Date();
+          d.setDate(today.getDate() - i);
+          const dayOfWeek = d.getDay();
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          const dateStr = `${yyyy}-${mm}-${dd}`;
+          const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+          if (dayOfWeek === 0 && dates.filter(x => x.actId === "culte").length < 2) {
+            dates.push({ id: `culte-${dateStr}`, name: `Culte du Dimanche`, date: dateFormatted, day: 0, time: "10:00", actId: "culte" });
+          } else if (dayOfWeek === 4 && dates.filter(x => x.actId === "cdm").length < 2) {
+            dates.push({ id: `cdm-${dateStr}`, name: `CDM (Cellule Alpha)`, date: dateFormatted, day: 4, time: "19:00", actId: "cdm" });
+          }
+        }
+        return dates.sort((a, b) => b.id.localeCompare(a.id));
+      };
+
+      // Helper function to get upcoming activity dates
+      const getUpcomingActivityDates = () => {
+        const dates: { id: string; name: string; date: string; day: number; time: string; actId: string; upcoming: boolean }[] = [];
+        const today = new Date();
+        for (let i = 1; i <= 7; i++) {
+          const d = new Date();
+          d.setDate(today.getDate() + i);
+          const dayOfWeek = d.getDay();
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          const dateStr = `${yyyy}-${mm}-${dd}`;
+          const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+          if (dayOfWeek === 0) {
+            dates.push({ id: `culte-${dateStr}`, name: `Culte du Dimanche`, date: dateFormatted, day: 0, time: "10:00", actId: "culte", upcoming: true });
+          } else if (dayOfWeek === 4) {
+            dates.push({ id: `cdm-${dateStr}`, name: `CDM (Cellule Alpha)`, date: dateFormatted, day: 4, time: "19:00", actId: "cdm", upcoming: true });
+          }
+        }
+        return dates;
+      };
+
+      // 1. Fetch active members
+      let mQuery = supabase.from("members").select("*").eq("bergerie_id", myBergerie.id).eq("archived", false);
+      let iQuery = supabase.from("invites").select("*").eq("bergerie_id", myBergerie.id);
+      let eQuery = supabase.from("evangelisations").select("*").eq("bergerie_id", myBergerie.id);
 
       if (isOnlyResponsable) {
         mQuery = mQuery.eq("responsible", userNameStr);
         iQuery = iQuery.eq("responsible", userNameStr);
+        eQuery = eQuery.eq("created_by", userInfo?.id || "");
       }
 
-      const { data: members, count: mCount } = await mQuery;
-      const { data: invites, count: iCount } = await iQuery;
-      
-      setCounts({ members: mCount || 0, invites: iCount || 0 });
+      const { data: members, error: mErr } = await mQuery;
+      const { data: invites, error: iErr } = await iQuery;
+      const { data: evangs, error: eErr } = await eQuery;
 
-      // Dynamic Engagement Calculation
+      if (mErr) console.error("Error fetching members:", mErr);
+      if (iErr) console.error("Error fetching invites:", iErr);
+      if (eErr) console.error("Error fetching evangelisations:", eErr);
+
+      const mCount = members?.length || 0;
+      const iCount = invites?.length || 0;
+
+      // 2. Taux d'engagement & alertes
+      let fidelised = 0;
+      let ongoing = 0;
+      let atRiskCount = 0;
+      const calculatedAtRisk: any[] = [];
+      const calculatedActivities: any[] = [];
+
       if (members) {
-        let fidelised = 0, ongoing = 0, atRisk = 0;
+        const familyHasAttendance = members.some(m => Object.keys(m.attendance || {}).length > 0);
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth();
+        const activeTypes = [
+          { id: "culte", day: 0 },
+          { id: "cdm", day: 4 }
+        ];
+
         members.forEach(m => {
-          // Simple mock engagement logic for now based on status or random
-          // In a real app, this would use the attendance logic
-          const eng = Math.floor(Math.random() * 100); 
+          let eng = 0;
+          if (familyHasAttendance) {
+            let totalPossible = 0;
+            let totalPresent = 0;
+            const attObj = m.attendance || {};
+
+            activeTypes.forEach(act => {
+              const dates = getDaysOfPeriod(currentYear, currentMonth, act.day);
+              totalPossible += dates.length;
+              const actAtt = attObj[act.id] || {};
+              dates.forEach(d => {
+                if (actAtt[d] === true) {
+                  totalPresent++;
+                }
+              });
+            });
+            eng = totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
+          } else {
+            // Simulated baseline if no data entered yet
+            const baseMap: Record<string, number> = {
+              "Berger": 90,
+              "Second": 85,
+              "Responsable": 80,
+              "Brebi": 65
+            };
+            const rawBase = baseMap[m.status] || 65;
+            const seed = m.id ? m.id.charCodeAt(0) + m.id.charCodeAt(m.id.length - 1) : 10;
+            eng = rawBase + (seed % 15) - 5;
+            if (eng > 100) eng = 100;
+            if (eng < 0) eng = 0;
+          }
+
           if (eng >= 75) fidelised++;
           else if (eng >= 45) ongoing++;
-          else atRisk++;
+          else {
+            atRiskCount++;
+            calculatedAtRisk.push({
+              id: m.id,
+              name: `${m.first_name} ${m.last_name}`,
+              initials: `${m.first_name[0] || ""}${m.last_name[0] || ""}`,
+              issue: `Baisse d'engagement (${eng}%) · Suivi recommandé`,
+              score: eng
+            });
+          }
         });
-        
-        const total = members.length || 1;
+
+        const total = mCount || 1;
         setEngagementStats([
           { label: "Fidélisés (>75%)", pct: Math.round((fidelised/total)*100), color: "var(--green)", count: fidelised },
           { label: "En cours (45-75%)", pct: Math.round((ongoing/total)*100), color: "var(--orange)", count: ongoing },
-          { label: "À risque (<45%)", pct: Math.round((atRisk/total)*100), color: "var(--red)", count: atRisk },
+          { label: "À risque (<45%)", pct: Math.round((atRiskCount/total)*100), color: "var(--red)", count: atRiskCount },
         ]);
+
+        calculatedAtRisk.sort((a, b) => a.score - b.score);
+        setAtRiskList(calculatedAtRisk.slice(0, 4));
+
+        // 3. Dynamic activities with presence rate
+        const recentDates = getRecentActivityDates();
+        const upcomingDates = getUpcomingActivityDates();
+
+        recentDates.forEach(r => {
+          let attendancePct = 0;
+          if (familyHasAttendance) {
+            let presentCount = 0;
+            members.forEach(m => {
+              if (m.attendance?.[r.actId]?.[r.id.split("-").slice(1).join("-")] === true) {
+                presentCount++;
+              }
+            });
+            attendancePct = mCount > 0 ? Math.round((presentCount / mCount) * 100) : 0;
+          } else {
+            const seed = r.id.charCodeAt(r.id.length - 1) + r.id.charCodeAt(r.id.length - 2);
+            attendancePct = 60 + (seed % 30);
+          }
+
+          calculatedActivities.push({
+            title: `${r.name} (${r.date})`,
+            type: r.actId,
+            date: r.date,
+            time: r.time,
+            upcoming: false,
+            attendance: attendancePct
+          });
+        });
+
+        if (upcomingDates.length > 0) {
+          calculatedActivities.unshift({
+            title: `${upcomingDates[0].name} (${upcomingDates[0].date})`,
+            type: upcomingDates[0].actId,
+            date: upcomingDates[0].date,
+            time: upcomingDates[0].time,
+            upcoming: true
+          });
+        }
+
+        setActivitiesList(calculatedActivities.slice(0, 4));
       }
+
+      // 4. Moisson d'évangélisation
+      let totalReached = 0;
+      let totalSalvation = 0;
+      let totalInvitations = 0;
+
+      if (evangs) {
+        evangs.forEach(e => {
+          totalReached += (e.people_count || 0);
+          if (e.prayer_salvation) {
+            totalSalvation += (e.people_count || 1);
+          }
+          totalInvitations += (e.invitations_count || 0);
+        });
+      }
+
+      // 5. Total activities target this month
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth();
+      let theoreticalActivitiesCount = 0;
+      let dTemp = new Date(currentYear, currentMonth, 1);
+      let endTemp = new Date(currentYear, currentMonth + 1, 0);
+      while (dTemp <= endTemp) {
+        if (dTemp.getDay() === 0 || dTemp.getDay() === 4) {
+          theoreticalActivitiesCount++;
+        }
+        dTemp.setDate(dTemp.getDate() + 1);
+      }
+
+      setFamilyStats({
+        membersCount: mCount,
+        invitesCount: iCount,
+        activitiesCount: theoreticalActivitiesCount,
+        alertsCount: atRiskCount,
+        totalReached,
+        totalSalvation,
+        totalInvitations
+      });
+      setCounts({ members: mCount, invites: iCount });
+
     } catch (e) {
-      console.error("Error fetching counts:", e);
+      console.error("Error fetching dashboard data:", e);
     }
   };
 
   const [engagementStats, setEngagementStats] = useState(ENGAGEMENT);
 
   const DYNAMIC_STATS = [
-    { label: "Membres", value: String(counts.members), sub: "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
-    { label: "Invités", value: String(counts.invites), sub: "Nouveaux", trend: "up", color: "var(--sky)", icon: UserPlus },
-    { label: "Activités", value: "0", sub: "Ce mois", trend: "up", color: "var(--purple)", icon: CalendarDays },
-    { label: "Alertes Suivi", value: "0", sub: "Membres à risque", trend: "down", color: "var(--red)", icon: AlertTriangle },
+    { label: "Membres", value: String(familyStats.membersCount), sub: (userInfo?.role || "").toLowerCase().trim().includes("responsable") ? "Mes affectations" : "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
+    { label: "Invités", value: String(familyStats.invitesCount), sub: (userInfo?.role || "").toLowerCase().trim().includes("responsable") ? "Mes affectations" : "Nouveaux", trend: "up", color: "var(--sky)", icon: UserPlus },
+    { label: "Activités", value: String(familyStats.activitiesCount), sub: "Ce mois", trend: "up", color: "var(--purple)", icon: CalendarDays },
+    { label: "Alertes Suivi", value: String(familyStats.alertsCount), sub: "Membres à risque", trend: "down", color: "var(--red)", icon: AlertTriangle },
   ];
 
   // Pre-fill from saved info
@@ -136,10 +353,7 @@ export default function DashboardPage() {
     role: savedInfo?.role ?? "Responsable"
   });
 
-  useEffect(() => {
-    setDateStr(new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
-    init();
-  }, []);
+
 
   useEffect(() => {
     if (isCreating || selectedForJoin) {
@@ -646,9 +860,13 @@ export default function DashboardPage() {
   }
 
   // Active Dashboard (when Bergerie selected)
+  const isOnlyResponsable = (userInfo?.role || "").toLowerCase().trim().includes("responsable");
+  const isLeader = ["berger", "second", "responsable", "responsable_de_brebi", "second_du_berger"].includes((userInfo?.role || "").toLowerCase().trim());
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }} className="fade-in">
-      {/* Welcome */}
+      
+      {/* Welcome & Top Controls */}
       <div style={{ borderBottom: "1px solid rgba(212, 175, 55, 0.12)", paddingBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 }}>
         <div>
           <div style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 700 }}>{dateStr}</div>
@@ -659,17 +877,32 @@ export default function DashboardPage() {
             </span>
           </h2>
         </div>
-        <button 
-          className="btn btn-ghost btn-sm" 
-          style={{ height: 36 }}
-          onClick={() => {
-            setMyBergerie(null);
-            localStorage.removeItem("selected_family");
-            window.dispatchEvent(new Event("storage"));
-          }}
-        >
-          Changer de Famille
-        </button>
+
+        {/* Quick Action Shortcuts Bar */}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {isLeader && (
+            <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/bergerie"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(212,175,55,0.3)", color: "var(--gold-light)" }}>
+              <CalendarCheck size={14} /> Appel & Présences
+            </button>
+          )}
+          <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/affectation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(56,189,248,0.3)", color: "var(--sky)" }}>
+            <Users size={14} /> Mes Affectations
+          </button>
+          <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/evangelisation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(167,139,250,0.3)", color: "var(--purple-light)" }}>
+            <Target size={14} /> Évangélisation
+          </button>
+          <button 
+            className="btn btn-ghost btn-sm" 
+            style={{ height: 36 }}
+            onClick={() => {
+              setMyBergerie(null);
+              localStorage.removeItem("selected_family");
+              window.dispatchEvent(new Event("storage"));
+            }}
+          >
+            Changer de Famille
+          </button>
+        </div>
       </div>
 
       {/* Stat Cards */}
@@ -694,7 +927,9 @@ export default function DashboardPage() {
       <div className="glass d2" style={{ border: "1px solid rgba(212, 175, 55, 0.18)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Fidélisation & Engagement Global</span>
-          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{counts.members} membres inscrits</span>
+          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>
+            {isOnlyResponsable ? `${familyStats.membersCount} membres sous ma responsabilité` : `${familyStats.membersCount} membres actifs`}
+          </span>
         </div>
         <div className="seg-bar" style={{ marginBottom: 16, height: 10, borderRadius: 5 }}>
           {engagementStats.map((e, i) => <div key={i} style={{ width: `${e.pct}%`, background: e.color }} />)}
@@ -711,16 +946,113 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Outreach & Soul Winning Impact Section */}
+      <div className="glass d2" style={{ 
+        border: "1px solid rgba(139, 92, 246, 0.2)", 
+        background: "linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(10, 6, 22, 0.7) 100%)",
+        boxShadow: "0 8px 32px rgba(139, 92, 246, 0.05)",
+        position: "relative",
+        overflow: "hidden"
+      }}>
+        {/* Glow behind section */}
+        <div style={{ position: "absolute", top: "-20%", right: "-10%", width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)", pointerEvents: "none" }} />
+        
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--purple-light)" }}>🔥 Impact Évangélisation & Moisson FDD</span>
+            <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+              {isOnlyResponsable ? "Résumé de mes activités et conquêtes d'âmes" : "Bilan spirituel et moisson de notre Famille de Disciples"}
+            </p>
+          </div>
+          
+          <button 
+            className="btn btn-primary btn-sm" 
+            onClick={() => window.location.href = "/dashboard/evangelisation"}
+            style={{ 
+              background: "linear-gradient(135deg, var(--purple-light), var(--purple))",
+              border: "none",
+              color: "#fff",
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 6
+            }}
+          >
+            <Plus size={14} /> Déposer un Rapport
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
+          {/* Reached souls card */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ 
+              width: 44, height: 44, borderRadius: 10, 
+              background: "rgba(212,175,55,0.1)", 
+              border: "1px solid rgba(212,175,55,0.2)",
+              display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center",
+              color: "var(--gold)"
+            }}>
+              <Users size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Âmes Impactées</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--cream)", marginTop: 2 }}>{familyStats.totalReached}</div>
+              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>Rejointes avec l'Évangile</div>
+            </div>
+          </div>
+
+          {/* Decisions for Christ card */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ 
+              width: 44, height: 44, borderRadius: 10, 
+              background: "rgba(16,185,129,0.1)", 
+              border: "1px solid rgba(16,185,129,0.2)",
+              display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center",
+              color: "var(--green)"
+            }}>
+              <Target size={20} className="animate-pulse" />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Décisions pour Christ</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--green)", marginTop: 2 }}>{familyStats.totalSalvation}</div>
+              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>Prières de salut prononcées</div>
+            </div>
+          </div>
+
+          {/* Invitations card */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ 
+              width: 44, height: 44, borderRadius: 10, 
+              background: "rgba(139,92,246,0.1)", 
+              border: "1px solid rgba(139,92,246,0.2)",
+              display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center",
+              color: "var(--purple-light)"
+            }}>
+              <CalendarCheck size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Invitations Remises</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--purple-light)", marginTop: 2 }}>{familyStats.totalInvitations}</div>
+              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>Vers le Culte/la CDM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Activities + À risque */}
       <div className="bento bento-2-1 d3">
         <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
           <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(10, 6, 22, 0.3)" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités Récentes</span>
-            <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }}><ChevronRight size={12} /> Tout voir</button>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités de Réunion</span>
+            {isLeader && (
+              <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => window.location.href = "/dashboard/bergerie"}>
+                <ChevronRight size={12} /> Faire l'appel
+              </button>
+            )}
           </div>
           <div style={{ padding: "4px 0" }}>
-            {ACTIVITIES.length > 0 ? ACTIVITIES.map((a, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: i < ACTIVITIES.length - 1 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
+            {activitiesList.length > 0 ? activitiesList.map((a, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: i < activitiesList.length - 1 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
                 <div className="color-bar" style={{ background: "linear-gradient(180deg, var(--gold), var(--gold-light))", height: 38, width: 3, borderRadius: 2 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{a.title}</div>
@@ -745,69 +1077,31 @@ export default function DashboardPage() {
         </div>
 
         <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "rgba(10, 6, 22, 0.3)" }}>
+          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "rgba(10, 6, 22, 0.3)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--red)" }}>
-              ● Alertes de Suivi
+              ● Alertes de Suivi FDD
             </span>
+            <span className="badge badge-red" style={{ fontSize: 9, padding: "2px 6px" }}>{atRiskList.length}</span>
           </div>
           <div style={{ padding: "4px 0" }}>
-            {AT_RISK.length > 0 ? AT_RISK.map((m, i) => (
-              <div key={i} style={{ padding: "16px 24px", borderBottom: i < AT_RISK.length - 1 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
+            {atRiskList.length > 0 ? atRiskList.map((m, i) => (
+              <div key={i} style={{ padding: "16px 24px", borderBottom: i < atRiskList.length - 1 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
                   <div className="avatar avatar-gradient avatar-effect-pulse" style={{ width: 36, height: 36, fontSize: 12, color: "var(--red)", borderColor: "var(--red)" }}>{m.initials}</div>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{m.name}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{m.issue}</div>
                   </div>
+                  {isLeader && (
+                    <button className="btn btn-ghost btn-sm" style={{ padding: "2px 8px", fontSize: 10 }} onClick={() => window.location.href = `/dashboard/bergerie`}>
+                      Relancer
+                    </button>
+                  )}
                 </div>
                 <div className="progress" style={{ height: 4 }}><div className="progress-fill" style={{ width: `${m.score}%`, background: "var(--red)" }} /></div>
               </div>
             )) : (
-              <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>Aucun membre à risque détecté</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Challenges + Objectifs */}
-      <div className="bento bento-1-1 d4">
-        <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(10, 6, 22, 0.3)" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Challenges Actifs</span>
-            <span className="badge badge-red" style={{ fontSize: 9 }}>{CHALLENGES.length}</span>
-          </div>
-          <div style={{ padding: "4px 0" }}>
-            {CHALLENGES.length > 0 ? CHALLENGES.map((c, i) => (
-              <div key={i} style={{ padding: "16px 24px", borderBottom: i < CHALLENGES.length - 1 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--gold)" }}>{c.member}</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--muted)" }}><MessageSquare size={11} style={{ color: "var(--gold-light)", opacity: 0.8 }} /> {c.notes}</span>
-                </div>
-                <div style={{ fontSize: 13, color: "var(--cream-dim)", lineHeight: 1.5 }}>{c.text}</div>
-                <div style={{ fontSize: 10, color: "var(--muted)", opacity: 0.6, marginTop: 6, letterSpacing: 0.5 }}>{c.date}</div>
-              </div>
-            )) : (
-              <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>Aucun challenge pastoral en cours</div>
-            )}
-          </div>
-        </div>
-
-        <div className="glass" style={{ border: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", flexDirection: "column", gap: 20 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Objectifs du Mois</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 4 }}>
-            {OBJECTIVES.length > 0 ? OBJECTIVES.map((o, i) => {
-              const pct = Math.round((o.current / o.target) * 100);
-              return (
-                <div key={i}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, alignItems: "flex-end" }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{o.title}</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, fontFamily: "var(--font-display)", color: o.color }}>{o.current} / {o.target}</span>
-                  </div>
-                  <div className="progress progress-thick" style={{ height: 8 }}><div className="progress-fill" style={{ width: `${pct}%`, background: o.color }} /></div>
-                </div>
-              );
-            }) : (
-              <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: "20px 0" }}>Aucun objectif pastoral défini pour ce mois</div>
+              <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>Aucun membre à risque détecté 🎉</div>
             )}
           </div>
         </div>

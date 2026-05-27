@@ -224,5 +224,5 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
 };
 
 export const AGE_RANGES = [
-  "-18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "+50"
+  "Moins de 18 ans", "18-25 ans", "26-30 ans", "31-35 ans", "36-40 ans", "41-45 ans", "46-50 ans", "Plus de 50 ans"
 ] as const;

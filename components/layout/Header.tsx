@@ -35,7 +35,12 @@ export default function Header({ bergerieName = "Famille Alpha", onMenuClick }: 
     return () => window.removeEventListener("storage", checkState);
   }, []);
 
-  if (isAdmin || !hasFamily) return null; 
+  const isIntegration = userRole?.toLowerCase().startsWith("integration_");
+
+  if (isAdmin || (!hasFamily && !isIntegration)) return null; 
+
+  const headerCategory = isIntegration ? "Département de l'Intégration" : "Famille de disciple";
+  const headerTitle = isIntegration ? "Suivi & Intégration" : currentFamilyName;
 
   return (
     <header className="top-header">
@@ -46,24 +51,15 @@ export default function Header({ bergerieName = "Famille Alpha", onMenuClick }: 
         </button>
         <div>
           <div style={{ fontSize: 9, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 700, opacity: 0.8 }}>
-            Famille de disciple
+            {headerCategory}
           </div>
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: 19, fontWeight: 700, color: "var(--cream)", margin: 0, letterSpacing: "0.01em" }}>
-            {currentFamilyName}
+            {headerTitle}
           </h1>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {(userRole === "Berger" || userRole === "Second du berger" || userRole === "berger" || userRole === "second") && (
-          <button className="btn btn-ghost btn-sm hide-mobile">
-            <Plus size={14} /> Membre
-          </button>
-        )}
-        <button className="btn btn-primary btn-sm">
-          <CalendarPlus size={14} /> <span className="hide-mobile">Activité</span>
-        </button>
-      </div>
+
     </header>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, MapPin, Lock, ChevronRight, X, Loader2, Church, Sparkles } from "lucide-react";
+import { Search, MapPin, Lock, ChevronRight, X, Loader2, Church, Flame } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -17,6 +17,14 @@ export default function LandingPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (localStorage.getItem("poimen_logging_out") === "true") {
+      localStorage.removeItem("selected_family");
+      localStorage.removeItem("poimen_user_info");
+      localStorage.removeItem("poimen_user");
+      localStorage.removeItem("is_super_admin");
+      localStorage.removeItem("poimen_logging_out");
+      window.dispatchEvent(new Event("storage"));
+    }
     fetchChurches();
   }, []);
 
@@ -114,7 +122,7 @@ export default function LandingPage() {
         <header style={{ textAlign: "center", marginBottom: 50, position: "relative" }} className="fade-in">
           {/* Sublime Liturgical Indicator */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20, gap: 8 }}>
-            <Sparkles size={16} style={{ color: "var(--gold)", opacity: 0.7 }} className="animate-pulse" />
+            <Flame size={16} style={{ color: "var(--gold)", opacity: 0.7 }} className="animate-pulse" />
             <div style={{ width: 1, height: 40, background: "linear-gradient(180deg, transparent, var(--gold))" }} />
           </div>
           
@@ -325,16 +333,19 @@ export default function LandingPage() {
               initial={{ scale: 0.95, opacity: 0, y: 30 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 30 }}
-              className="arch-card"
+              className="glass"
               style={{ 
                 width: "100%", 
                 maxWidth: 420, 
                 padding: "44px 40px", 
                 position: "relative", 
                 zIndex: 101, 
-                border: "1.5px solid rgba(212, 175, 55, 0.35)",
-                boxShadow: "0 30px 70px rgba(0, 0, 0, 0.8), 0 0 40px rgba(139, 92, 246, 0.15)"
+                border: "1px solid var(--gold)",
+                boxShadow: "0 20px 50px rgba(0, 0, 0, 0.8)",
+                maxHeight: "90vh",
+                overflowY: "auto"
               }}
+              onClick={e => e.stopPropagation()}
             >
               <button 
                 onClick={() => { setSelectedChurch(null); setCode(""); setError(""); }}
@@ -409,6 +420,49 @@ export default function LandingPage() {
                   disabled={validating || !code}
                 >
                   {validating ? <Loader2 className="animate-spin" /> : "Vérifier et entrer"}
+                </button>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0" }}>
+                  <div style={{ flex: 1, height: 1, background: "rgba(212, 175, 55, 0.15)" }} />
+                  <span style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 600 }}>ou</span>
+                  <div style={{ flex: 1, height: 1, background: "rgba(212, 175, 55, 0.15)" }} />
+                </div>
+
+                <button 
+                  type="button"
+                  className="btn"
+                  style={{ 
+                    width: "100%", 
+                    height: 48, 
+                    justifyContent: "center", 
+                    borderRadius: "var(--radius-sm)",
+                    background: "rgba(139, 92, 246, 0.12)",
+                    border: "1px solid rgba(139, 92, 246, 0.3)",
+                    color: "#c084fc",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    transition: "all 0.25s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8
+                  }}
+                  onClick={() => {
+                    localStorage.setItem("selected_church", JSON.stringify(selectedChurch));
+                    router.push("/login");
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = "rgba(139, 92, 246, 0.2)";
+                    e.currentTarget.style.border = "1px solid rgba(139, 92, 246, 0.45)";
+                    e.currentTarget.style.boxShadow = "0 0 15px rgba(139, 92, 246, 0.15)";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = "rgba(139, 92, 246, 0.12)";
+                    e.currentTarget.style.border = "1px solid rgba(139, 92, 246, 0.3)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  ✦ Connexion Espace Intégration / Leaders ✦
                 </button>
               </div>
             </motion.div>

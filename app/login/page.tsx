@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Eye, EyeOff, LogIn, MapPin, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { adminSignUp } from "@/app/actions/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,40 +32,368 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
+    const cleanEmail = email.toLowerCase().trim();
+
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: cleanEmail,
         password,
       });
 
       if (authError) throw authError;
 
       if (rememberMe) {
-        localStorage.setItem("poimen_remember_email", email);
+        localStorage.setItem("poimen_remember_email", cleanEmail);
       } else {
         localStorage.removeItem("poimen_remember_email");
       }
 
+      const mapToDBRole = (role: string) => {
+        if (!role) return "membre";
+        const r = role.toLowerCase().trim();
+        if (r === 'responsable') return 'responsable de brebi';
+        if (r === 'second') return 'second du berger';
+        return r;
+      };
+
       // Récupérer le profil pour stocker les infos de session locales
-      const { data: profile } = await supabase
+      const { data: profile, error: profErr } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", data.user?.id)
         .single();
 
-      if (profile) {
+      if (profErr) {
+        console.error("Login Page submit: Error fetching profile from DB:", profErr.message, profErr.details);
+      }
+
+      let activeProfile = profile;
+      if (!activeProfile && data.user) {
+        // Self-healing profile on login
+        // Check integration responsable
+        const { data: churchData } = await supabase
+          .from("churches")
+          .select("*")
+          .eq("integration_email", cleanEmail)
+          .maybeSingle();
+
+        if (churchData) {
+          const displayName = (churchData.integration_first_name && churchData.integration_last_name)
+            ? `${churchData.integration_first_name} ${churchData.integration_last_name}`
+            : "Responsable Intégration";
+
+          const { data: newProfile, error: insErr } = await supabase
+            .from("profiles")
+            .insert({
+              id: data.user.id,
+              email: cleanEmail,
+              display_name: displayName,
+              role: "integration_responsable",
+              church_id: churchData.id
+            })
+            .select()
+            .single();
+          if (insErr) console.error("Self-healing: Error inserting responsable integration profile:", insErr);
+          if (newProfile) activeProfile = newProfile;
+        } else {
+          // Check pending counselor
+          const { data: pendingCounselor } = await supabase
+            .from("pending_counselors")
+            .select("*")
+            .eq("email", cleanEmail)
+            .maybeSingle();
+
+          if (pendingCounselor) {
+            const displayName = `${pendingCounselor.first_name} ${pendingCounselor.last_name}`;
+            const { data: newProfile, error: insErr } = await supabase
+              .from("profiles")
+              .insert({
+                id: data.user.id,
+                email: cleanEmail,
+                display_name: displayName,
+                role: mapToDBRole(pendingCounselor.role),
+                church_id: pendingCounselor.church_id
+              })
+              .select()
+              .single();
+            if (insErr) console.error("Self-healing: Error inserting pending counselor profile:", insErr);
+            if (newProfile) {
+              activeProfile = newProfile;
+              await supabase.from("pending_counselors").delete().eq("id", pendingCounselor.id);
+            }
+          } else {
+            // Check member
+            const { data: member } = await supabase
+              .from("members")
+              .select("*, bergeries(*)")
+              .eq("email", cleanEmail)
+              .maybeSingle();
+
+            if (member) {
+              const displayName = `${member.first_name} ${member.last_name}`;
+              const dbRole = mapToDBRole(member.status);
+              const { data: newProfile, error: insErr } = await supabase
+                .from("profiles")
+                .insert({
+                  id: data.user.id,
+                  email: cleanEmail,
+                  display_name: displayName,
+                  role: dbRole,
+                  bergerie_id: member.bergerie_id,
+                  church_id: member.bergeries?.church_id
+                })
+                .select()
+                .single();
+              if (insErr) console.error(`Self-healing: Error inserting member profile (role: ${dbRole}):`, insErr);
+              if (newProfile) activeProfile = newProfile;
+            }
+          }
+        }
+
+        // ULTIMATE FALLBACK: If still no profile, create a default profile row for this auth user!
+        if (!activeProfile) {
+          const { data: chData } = await supabase.from("churches").select("id").limit(1);
+          const defaultChurchId = chData?.[0]?.id;
+          const displayName = cleanEmail.split('@')[0] || "Nouvel Équipier";
+          
+          const { data: newProfile, error: insErr } = await supabase
+            .from("profiles")
+            .insert({
+              id: data.user.id,
+              email: cleanEmail,
+              display_name: displayName,
+              role: "integration_conseiller",
+              church_id: defaultChurchId
+            })
+            .select()
+            .single();
+            
+          if (!insErr && newProfile) {
+            activeProfile = newProfile;
+          } else {
+            console.error("Ultimate fallback profile creation failed:", insErr);
+          }
+        }
+      }
+
+      if (activeProfile) {
         localStorage.setItem("poimen_user_info", JSON.stringify({
-          id: profile.id,
-          email: profile.email,
-          role: profile.role,
-          firstName: profile.display_name?.split(' ')[0] || '',
-          lastName: profile.display_name?.split(' ').slice(1).join(' ') || '',
-          church_id: profile.church_id
+          id: activeProfile.id,
+          email: activeProfile.email,
+          role: activeProfile.role,
+          firstName: activeProfile.display_name?.split(' ')[0] || '',
+          lastName: activeProfile.display_name?.split(' ').slice(1).join(' ') || '',
+          church_id: activeProfile.church_id
         }));
+
+        // Load and save church details for integration roles
+        if (activeProfile.church_id && activeProfile.role?.toLowerCase().startsWith("integration_")) {
+          const { data: chInfo } = await supabase
+            .from("churches")
+            .select("*")
+            .eq("id", activeProfile.church_id)
+            .single();
+
+          if (chInfo) {
+            localStorage.setItem("selected_church", JSON.stringify(chInfo));
+          }
+        }
       }
 
       router.push("/dashboard");
     } catch (err: any) {
+      // Intercept credentials error to see if they are a first-time integration user
+      if (err.message === "Invalid login credentials") {
+        try {
+          // 1. Check if they are the Integration Responsable for a church
+          const { data: churchData, error: chErr } = await supabase
+            .from("churches")
+            .select("*")
+            .eq("integration_email", cleanEmail)
+            .eq("integration_access_code", password)
+            .maybeSingle();
+
+          if (!chErr && churchData) {
+            // Yes! Sign them up dynamically on server-side with auto-confirmed email
+            const res = await adminSignUp(cleanEmail, password);
+            if (!res.success) throw new Error(res.error);
+
+            const signUpUser = res.user;
+            if (signUpUser) {
+              const displayName = (churchData.integration_first_name && churchData.integration_last_name)
+                ? `${churchData.integration_first_name} ${churchData.integration_last_name}`
+                : "Responsable Intégration";
+
+              // Create profile
+              const { error: profError } = await supabase.from("profiles").insert({
+                id: signUpUser.id,
+                email: cleanEmail,
+                display_name: displayName,
+                role: "integration_responsable",
+                church_id: churchData.id
+              });
+
+              if (profError) throw profError;
+
+              // Sign in client-side to establish token session
+              const { error: signInErr } = await supabase.auth.signInWithPassword({
+                email: cleanEmail,
+                password,
+              });
+              if (signInErr) throw signInErr;
+
+              // Store session locals
+              localStorage.setItem("poimen_user_info", JSON.stringify({
+                id: signUpUser.id,
+                email: cleanEmail,
+                role: "integration_responsable",
+                firstName: churchData.integration_first_name || "Responsable",
+                lastName: churchData.integration_last_name || "Intégration",
+                church_id: churchData.id
+              }));
+
+              // Save church to local storage to bypass community selection
+              localStorage.setItem("selected_church", JSON.stringify(churchData));
+
+              router.push("/dashboard");
+              return;
+            }
+          }
+
+          // 2. Check if they are a pending counselor or second
+          const { data: pendingCounselor, error: pcErr } = await supabase
+            .from("pending_counselors")
+            .select("*")
+            .eq("email", cleanEmail)
+            .eq("access_code", password)
+            .maybeSingle();
+
+          if (!pcErr && pendingCounselor) {
+            // Yes! Sign them up dynamically on server-side with auto-confirmed email
+            const res = await adminSignUp(cleanEmail, password);
+            if (!res.success) throw new Error(res.error);
+
+            const signUpUser = res.user;
+            if (signUpUser) {
+              const displayName = `${pendingCounselor.first_name} ${pendingCounselor.last_name}`;
+              // Create profile
+              const { error: profError } = await supabase.from("profiles").insert({
+                id: signUpUser.id,
+                email: cleanEmail,
+                display_name: displayName,
+                role: pendingCounselor.role,
+                church_id: pendingCounselor.church_id
+              });
+
+              if (profError) throw profError;
+
+              // Sign in client-side to establish token session
+              const { error: signInErr } = await supabase.auth.signInWithPassword({
+                email: cleanEmail,
+                password,
+              });
+              if (signInErr) throw signInErr;
+
+              // Delete pending counselor record
+              await supabase.from("pending_counselors").delete().eq("id", pendingCounselor.id);
+
+              // Load church info to store in localstorage
+              const { data: chInfo } = await supabase
+                .from("churches")
+                .select("*")
+                .eq("id", pendingCounselor.church_id)
+                .single();
+
+              if (chInfo) {
+                localStorage.setItem("selected_church", JSON.stringify(chInfo));
+              }
+
+              // Store session locals
+              localStorage.setItem("poimen_user_info", JSON.stringify({
+                id: signUpUser.id,
+                email: cleanEmail,
+                role: pendingCounselor.role,
+                firstName: pendingCounselor.first_name,
+                lastName: pendingCounselor.last_name,
+                church_id: pendingCounselor.church_id
+              }));
+
+              router.push("/dashboard");
+              return;
+            }
+          }
+
+          // 3. Check if they are a member of a family (Berger, Second, Responsable) trying to connect for the first time
+          const { data: member, error: memErr } = await supabase
+            .from("members")
+            .select("*, bergeries(*)")
+            .eq("email", cleanEmail)
+            .maybeSingle();
+
+          if (!memErr && member) {
+            const familyCode = member.bergeries?.access_code;
+            if (familyCode && password === familyCode) {
+              // Yes! Sign them up dynamically on server-side with auto-confirmed email
+              const res = await adminSignUp(cleanEmail, password);
+              if (!res.success) throw new Error(res.error);
+
+              const signUpUser = res.user;
+              if (signUpUser) {
+                const displayName = `${member.first_name} ${member.last_name}`;
+                const dbRole = member.status ? (
+                  member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
+                  member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
+                  member.status.toLowerCase().trim()
+                ) : "membre";
+                
+                // Create profile
+                const { error: profError } = await supabase.from("profiles").insert({
+                  id: signUpUser.id,
+                  email: cleanEmail,
+                  display_name: displayName,
+                  role: dbRole,
+                  bergerie_id: member.bergerie_id,
+                  church_id: member.bergeries?.church_id
+                });
+
+                if (profError) throw profError;
+
+                // Sign in client-side to establish token session
+                const { error: signInErr } = await supabase.auth.signInWithPassword({
+                  email: cleanEmail,
+                  password,
+                });
+                if (signInErr) throw signInErr;
+
+                // Store session locals
+                localStorage.setItem("poimen_user_info", JSON.stringify({
+                  id: signUpUser.id,
+                  email: cleanEmail,
+                  role: dbRole,
+                  firstName: member.first_name,
+                  lastName: member.last_name,
+                  church_id: member.bergeries?.church_id
+                }));
+
+                // Load church info to store in localstorage
+                if (member.bergeries) {
+                  localStorage.setItem("selected_church", JSON.stringify(member.bergeries));
+                  localStorage.setItem("selected_family", JSON.stringify(member.bergeries));
+                }
+
+                router.push("/dashboard");
+                return;
+              }
+            }
+          }
+        } catch (innerErr: any) {
+          console.error("Dynamic signup error:", innerErr);
+          setError(innerErr.message);
+          setLoading(false);
+          return;
+        }
+      }
+
       setError(err.message === "Invalid login credentials" ? "Email ou mot de passe incorrect" : err.message);
       setLoading(false);
     }
@@ -100,7 +429,7 @@ export default function LoginPage() {
             </div>
           )}
           
-          <p style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginBottom: 28 }}>Accédez à votre bergerie</p>
+          <p style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginBottom: 28 }}>Accédez à votre espace Poimén</p>
 
           <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <div>
