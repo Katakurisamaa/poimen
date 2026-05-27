@@ -136,7 +136,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
 
             let navItems: any[];
 
-            if (isAdmin) {
+            if (isAdmin || isSuperAdmin) {
               navItems = [...currentNav, { label: "Profil", href: "/dashboard/profil", icon: User }];
             } else if (userRole === "integration_responsable" || userRole === "integration_second") {
               navItems = [
@@ -196,7 +196,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
               const Icon = item.icon;
               let active = false;
 
-              if (isAdmin) {
+              if (item.tab) {
                 if (item.tab === "ecosystem") {
                   active = !currentTab || currentTab === "ecosystem";
                 } else {
@@ -217,7 +217,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
         </nav>
 
         {/* User - Only show if Admin, Has Family, or Integration */}
-        {(isAdmin || hasFamily || isIntegration) && (
+        {(isAdmin || isSuperAdmin || hasFamily || isIntegration) && (
           <div style={{ 
             padding: "16px 20px", 
             borderTop: "1px solid rgba(212, 175, 55, 0.15)", 
@@ -233,13 +233,13 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
               
               return (
                 <div className={`avatar avatar-gradient ${effectClass}`} style={{ width: 34, height: 34, fontSize: 11, border: effect ? "2px solid" : "none", boxShadow: "0 0 10px rgba(212, 175, 55, 0.15)" }}>
-                  {isAdmin ? "SA" : (userInfo?.firstName?.[0] || "") + (userInfo?.lastName?.[0] || "")}
+                  {(isAdmin || isSuperAdmin) ? "SA" : (userInfo?.firstName?.[0] || "") + (userInfo?.lastName?.[0] || "")}
                 </div>
               );
             })()}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "var(--cream)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "0.01em" }}>
-                {isAdmin ? "Junior" : (userInfo ? userInfo.firstName : "Utilisateur")}
+                {(isAdmin || isSuperAdmin) ? "Junior" : (userInfo ? userInfo.firstName : "Utilisateur")}
               </div>
             </div>
             <button 
@@ -273,7 +273,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
       </aside>
 
       {/* Mobile Bottom Tab Bar */}
-      {(isAdmin || hasFamily || isIntegration) && (
+      {(isAdmin || isSuperAdmin || hasFamily || isIntegration) && (
         <nav className="bottom-nav">
           {(() => {
             const userRole = (userInfo?.role || "").toLowerCase().trim();
@@ -283,8 +283,11 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
 
             let mobileItems: any[];
 
-            if (isAdmin) {
-              mobileItems = currentNav.slice(0, 5);
+            if (isAdmin || isSuperAdmin) {
+              mobileItems = [
+                ...currentNav,
+                { label: "Profil", href: "/dashboard/profil", icon: User }
+              ];
             } else if (userRole === "integration_responsable" || userRole === "integration_second") {
               mobileItems = [
                 { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -300,7 +303,10 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
                 { label: "Profil", href: "/dashboard/profil", icon: User },
               ];
             } else if (isBergerOrSecond) {
-              mobileItems = currentNav.slice(0, 5);
+              mobileItems = [
+                ...currentNav,
+                { label: "Profil", href: "/dashboard/profil", icon: User }
+              ];
             } else if (isConseiller && isResponsable) {
               mobileItems = [
                 { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -325,7 +331,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
             return mobileItems.map((item: any) => {
               const Icon = item.icon;
               let active = false;
-              if (isAdmin) {
+              if (item.tab) {
                 if (item.tab === "ecosystem") {
                   active = !currentTab || currentTab === "ecosystem";
                 } else {

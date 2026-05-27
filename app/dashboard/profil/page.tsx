@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { 
   User, Mail, Phone, Lock, Save, Loader2, 
   CheckCircle2, AlertCircle, Camera, ShieldCheck,
-  Eye, EyeOff
+  Eye, EyeOff, LogOut
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
@@ -72,6 +72,24 @@ export default function ProfilePage() {
   const isIntegration = userInfo?.role?.toLowerCase().startsWith("integration_");
 
   useEffect(() => {
+    const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
+    if (isLocalSuperAdmin) {
+      const mockAdmin = {
+        firstName: "Junior",
+        lastName: "Super Admin",
+        email: "minkojunior400@gmail.com",
+        role: "super_admin",
+        status: "Super Admin",
+        civility: "M.",
+        phone: "+33 6 00 00 00 00",
+        age: "31-35 ans"
+      };
+      setUserInfo(mockAdmin);
+      setMemberData(mockAdmin);
+      setLoading(false);
+      return;
+    }
+
     const info = localStorage.getItem("poimen_user_info");
     if (info) {
       const parsed = JSON.parse(info);
@@ -163,6 +181,20 @@ export default function ProfilePage() {
     setMessage(null);
 
     try {
+      if (userInfo?.role === "super_admin") {
+        const newUserInfo = {
+          ...userInfo,
+          firstName: memberData.firstName,
+          lastName: memberData.lastName,
+          email: memberData.email,
+        };
+        localStorage.setItem("poimen_user_info", JSON.stringify(newUserInfo));
+        setUserInfo(newUserInfo);
+        setMessage({ type: "success", text: "Profil administrateur mis à jour localement !" });
+        setSaving(false);
+        return;
+      }
+
       if (isIntegration) {
         const displayName = `${memberData.firstName} ${memberData.lastName}`;
         const { error } = await supabase
@@ -287,9 +319,36 @@ export default function ProfilePage() {
               <h2 className="profile-avatar-name">
                 {memberData.firstName} {memberData.lastName}
               </h2>
-              <div className="badge badge-gold profile-avatar-badge">
+              <div className="badge badge-gold profile-avatar-badge" style={{ marginBottom: 12 }}>
                 {memberData.status || "Membre"}
               </div>
+              <button
+                onClick={async () => {
+                  try {
+                    await supabase.auth.signOut();
+                  } catch (err) {
+                    console.error("Error signing out:", err);
+                  }
+                  localStorage.setItem("poimen_logging_out", "true");
+                  window.location.href = "/";
+                }}
+                className="btn btn-outline btn-sm"
+                style={{
+                  width: "100%",
+                  borderColor: "rgba(239, 68, 68, 0.4)",
+                  color: "var(--red)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  height: 34,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  marginTop: 6
+                }}
+              >
+                <LogOut size={13} /> Se déconnecter
+              </button>
             </div>
             
             <div className="profile-status-list">
@@ -451,92 +510,106 @@ export default function ProfilePage() {
           </div>
 
           {/* ── Change Password Card ── */}
-          <div className="profile-card">
-            <div className="profile-card-header">
-              <div className="profile-card-icon-wrap profile-card-icon-wrap--lock">
-                <Lock size={18} />
-              </div>
-              <div>
-                <h3 className="profile-card-title">Sécurité & Mot de passe</h3>
-                <p className="profile-card-desc">Mettez à jour votre mot de passe pour sécuriser votre compte.</p>
+          {userInfo?.role === "super_admin" ? (
+            <div className="profile-card">
+              <div className="profile-card-header">
+                <div className="profile-card-icon-wrap profile-card-icon-wrap--lock" style={{ background: "rgba(212, 175, 55, 0.1)", color: "var(--gold)" }}>
+                  <Lock size={18} />
+                </div>
+                <div>
+                  <h3 className="profile-card-title">Sécurité & Mot de passe</h3>
+                  <p className="profile-card-desc">Le mot de passe du Super Administrateur est géré au niveau de la configuration système sécurisée.</p>
+                </div>
               </div>
             </div>
+          ) : (
+            <div className="profile-card">
+              <div className="profile-card-header">
+                <div className="profile-card-icon-wrap profile-card-icon-wrap--lock">
+                  <Lock size={18} />
+                </div>
+                <div>
+                  <h3 className="profile-card-title">Sécurité & Mot de passe</h3>
+                  <p className="profile-card-desc">Mettez à jour votre mot de passe pour sécuriser votre compte.</p>
+                </div>
+              </div>
 
-            <form onSubmit={handleUpdatePassword}>
-              <AnimatePresence>
-                {pwdMessage && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className={`profile-alert ${pwdMessage.type === "success" ? "profile-alert--success" : "profile-alert--error"}`}
+              <form onSubmit={handleUpdatePassword}>
+                <AnimatePresence>
+                  {pwdMessage && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={`profile-alert ${pwdMessage.type === "success" ? "profile-alert--success" : "profile-alert--error"}`}
+                    >
+                      {pwdMessage.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                      <p>{pwdMessage.text}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="profile-form-grid">
+                  {/* Nouveau mot de passe */}
+                  <div className="profile-field">
+                    <label className="form-label">Nouveau mot de passe</label>
+                    <div className="profile-input-wrap">
+                      <Lock className="profile-input-icon" size={15} />
+                      <input 
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="input w-full profile-input profile-input--icon profile-input--pwd"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="profile-pwd-toggle"
+                      >
+                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirmer */}
+                  <div className="profile-field">
+                    <label className="form-label">Confirmer le mot de passe</label>
+                    <div className="profile-input-wrap">
+                      <Lock className="profile-input-icon" size={15} />
+                      <input 
+                        type={showConfirmPassword ? "text" : "password"}
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="input w-full profile-input profile-input--icon profile-input--pwd"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="profile-pwd-toggle"
+                      >
+                        {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="profile-card-footer">
+                  <button
+                    type="submit"
+                    disabled={pwdLoading}
+                    className="btn btn-primary profile-btn"
                   >
-                    {pwdMessage.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                    <p>{pwdMessage.text}</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <div className="profile-form-grid">
-                {/* Nouveau mot de passe */}
-                <div className="profile-field">
-                  <label className="form-label">Nouveau mot de passe</label>
-                  <div className="profile-input-wrap">
-                    <Lock className="profile-input-icon" size={15} />
-                    <input 
-                      type={showPassword ? "text" : "password"}
-                      required
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="input w-full profile-input profile-input--icon profile-input--pwd"
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="profile-pwd-toggle"
-                    >
-                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
+                    {pwdLoading ? <Loader2 className="animate-spin" size={16} /> : <Lock size={16} />}
+                    Mettre à jour
+                  </button>
                 </div>
-
-                {/* Confirmer */}
-                <div className="profile-field">
-                  <label className="form-label">Confirmer le mot de passe</label>
-                  <div className="profile-input-wrap">
-                    <Lock className="profile-input-icon" size={15} />
-                    <input 
-                      type={showConfirmPassword ? "text" : "password"}
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="input w-full profile-input profile-input--icon profile-input--pwd"
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="profile-pwd-toggle"
-                    >
-                      {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="profile-card-footer">
-                <button
-                  type="submit"
-                  disabled={pwdLoading}
-                  className="btn btn-primary profile-btn"
-                >
-                  {pwdLoading ? <Loader2 className="animate-spin" size={16} /> : <Lock size={16} />}
-                  Mettre à jour
-                </button>
-              </div>
-            </form>
-          </div>
+              </form>
+            </div>
+          )}
         </motion.div>
       </div>
     </div>
