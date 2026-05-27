@@ -341,10 +341,17 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
                 active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
               }
 
+              const getShortLabel = (label: string) => {
+                if (label === "Tableau de bord") return "Dashboard";
+                if (label === "Mes Affectations" || label === "Affectations") return "Affectations";
+                if (label === "Ajouter un Invité" || label === "Ajouter Invité" || label === "Invités") return "Invités";
+                return label;
+              };
+
               return (
                 <Link key={item.href} href={item.href} className={`tab ${active ? "active" : ""}`}>
                   <Icon size={20} />
-                  <span>{item.label.split(" ").pop()}</span>
+                  <span>{getShortLabel(item.label)}</span>
                 </Link>
               );
             });

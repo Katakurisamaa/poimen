@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 export default function SuperAdminDashboard() {
   return (
-    <Suspense fallback={<div className="loading-state" style={{ padding: 40, textAlign: "center", color: "var(--gold-light)", fontFamily: "var(--font-display)", fontSize: 18 }}>Initialisation de la Divine Console...</div>}>
+    <Suspense fallback={<div className="loading-state" style={{ padding: 40, textAlign: "center", color: "var(--gold-light)", fontFamily: "var(--font-display)", fontSize: 18 }}>Chargement de la console d'administration...</div>}>
       <AdminContent />
     </Suspense>
   );
@@ -227,7 +227,7 @@ function AdminContent() {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
         <div className="spinner" style={{ width: 40, height: 40 }} />
         <div style={{ color: "var(--gold-light)", fontFamily: "var(--font-display)", fontSize: 16, letterSpacing: "0.05em" }}>
-          Chargement de l'Écosystème Céleste...
+          Chargement des données...
         </div>
       </div>
     );
@@ -239,7 +239,7 @@ function AdminContent() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--gold-light)", marginBottom: 6 }}>
             <ShieldCheck size={16} />
-            <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 700 }}>Console de Contrôle Suprême</span>
+            <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 700 }}>Administration Centrale</span>
           </div>
           <h2 className="page-title" style={{ margin: 0 }}>
             {activeTab === "churches" ? "Églises & Familles" : 
@@ -312,21 +312,21 @@ function AdminContent() {
         <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {churches.map((church) => (
             <div key={church.id} className="glass" style={{ overflow: "hidden", padding: 0 }}>
-              <div style={{ padding: "20px 24px", background: "linear-gradient(90deg, rgba(212, 175, 55, 0.05) 0%, rgba(139, 92, 246, 0.02) 100%)", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--gold-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", border: "1px solid rgba(212,175,55,0.25)" }}>
+              <div style={{ padding: "20px 24px", background: "linear-gradient(90deg, rgba(212, 175, 55, 0.05) 0%, rgba(139, 92, 246, 0.02) 100%)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, borderBottom: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 16, minWidth: 0, flex: 1 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--gold-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", border: "1px solid rgba(212,175,55,0.25)", flexShrink: 0 }}>
                     <Church size={22} />
                   </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: "var(--cream)" }}>{church.name}</h3>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <h3 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: "var(--cream)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{church.name}</h3>
                     <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 4 }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} /> {church.city}, {church.country}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}><MapPin size={12} /> {church.city}, {church.country}</span>
                       <span style={{ color: "rgba(212,175,55,0.15)" }}>|</span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Key size={12} style={{ color: "var(--gold)" }} /> Code: <code style={{ color: "var(--gold-light)", fontWeight: 700 }}>{church.access_code}</code></span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}><Key size={12} style={{ color: "var(--gold)" }} /> Code: <code style={{ color: "var(--gold-light)", fontWeight: 700 }}>{church.access_code}</code></span>
                       {church.integration_email && (
                         <>
                           <span style={{ color: "rgba(212,175,55,0.15)" }}>|</span>
-                          <span style={{ color: "var(--cream-dim)", fontSize: 11, background: "rgba(212, 175, 55, 0.08)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+                          <span style={{ color: "var(--cream-dim)", fontSize: 11, background: "rgba(212, 175, 55, 0.08)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(212, 175, 55, 0.15)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             Intégration: {church.integration_email}
                           </span>
                         </>
@@ -334,7 +334,7 @@ function AdminContent() {
                     </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                   <button className="btn-icon btn-icon-gold" onClick={() => handleEditClick(church)} title="Modifier l'église"><Edit2 size={14} /></button>
                   <button className="btn-icon btn-icon-red" onClick={() => deleteChurch(church.id)} title="Supprimer l'église"><Trash2 size={14} /></button>
                 </div>
@@ -451,11 +451,11 @@ function AdminContent() {
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--gold-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", margin: "0 auto 20px", border: "1px solid rgba(212, 175, 55, 0.3)" }}>
               <LinkIcon size={26} />
             </div>
-            <h3 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12, fontFamily: "var(--font-display)" }}>Invitation Prête</h3>
-            <p style={{ color: "var(--muted)", fontSize: 14, marginBottom: 24 }}>Partagez ce lien sacré avec le pasteur responsable pour qu'il puisse configurer son église locale.</p>
+            <h3 style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 700, marginBottom: 12, fontFamily: "var(--font-display)" }}>Invitation Prête</h3>
+            <p style={{ color: "var(--muted)", fontSize: "clamp(12px, 1.5vw, 14px)", marginBottom: 20 }}>Partagez ce lien avec le pasteur responsable.</p>
             
-            <div style={{ background: "rgba(0,0,0,0.4)", padding: "14px 16px", borderRadius: 10, border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-              <input readOnly value={inviteLink} style={{ background: "none", border: "none", color: "var(--gold-light)", fontSize: 13, width: "100%", outline: "none", fontFamily: "monospace" }} />
+            <div style={{ background: "rgba(0,0,0,0.4)", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <input readOnly value={inviteLink} style={{ background: "none", border: "none", color: "var(--gold-light)", fontSize: 12, width: "100%", outline: "none", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis" }} />
               <button onClick={copyLink} style={{ background: "none", border: "none", color: copied ? "var(--green)" : "var(--gold)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontWeight: 700, fontSize: 12 }}>
                 {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? "Copié" : "Copier"}
               </button>
@@ -471,7 +471,7 @@ function AdminContent() {
         <div className="modal-overlay" onClick={() => setIsAdding(false)}>
           <div className="custom-modal fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Déployer une Église locale</h3>
+              <h3 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Déployer une Église</h3>
               <button onClick={() => setIsAdding(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={20} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -479,7 +479,7 @@ function AdminContent() {
                 <label className="form-label">Dénomination de l'Église *</label>
                 <input className="input" placeholder="ex: ICC Charleroi" value={newChurch.name} onChange={e => setNewChurch({...newChurch, name: e.target.value})} />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div className="form-grid-2">
                 <div>
                   <label className="form-label">Ville</label>
                   <input className="input" placeholder="Charleroi" value={newChurch.city} onChange={e => setNewChurch({...newChurch, city: e.target.value})} />
@@ -503,7 +503,7 @@ function AdminContent() {
                   Département de l'Intégration
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div className="form-grid-2">
                     <div>
                       <label className="form-label">Prénom du Responsable</label>
                       <input className="input" placeholder="ex: Benjamin" value={newChurch.integration_first_name} onChange={e => setNewChurch({...newChurch, integration_first_name: e.target.value})} />
@@ -538,7 +538,7 @@ function AdminContent() {
         <div className="modal-overlay" onClick={() => { setIsEditing(false); setEditingChurch(null); }}>
           <div className="custom-modal fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Modifier l'Église locale</h3>
+              <h3 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Modifier l'Église</h3>
               <button onClick={() => { setIsEditing(false); setEditingChurch(null); }} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={20} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -546,7 +546,7 @@ function AdminContent() {
                 <label className="form-label">Dénomination de l'Église *</label>
                 <input className="input" value={editingChurch.name} onChange={e => setEditingChurch({...editingChurch, name: e.target.value})} />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div className="form-grid-2">
                 <div>
                   <label className="form-label">Ville</label>
                   <input className="input" value={editingChurch.city} onChange={e => setEditingChurch({...editingChurch, city: e.target.value})} />
@@ -569,7 +569,7 @@ function AdminContent() {
                   Département de l'Intégration
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div className="form-grid-2">
                     <div>
                       <label className="form-label">Prénom du Responsable</label>
                       <input className="input" placeholder="ex: Benjamin" value={editingChurch.integration_first_name} onChange={e => setEditingChurch({...editingChurch, integration_first_name: e.target.value})} />

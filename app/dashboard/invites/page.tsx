@@ -6,7 +6,8 @@ import {
   Search, Plus, UserPlus, UserMinus, Filter, CheckCircle2, XCircle, X,
   Calendar, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2,
-  Trash2, Trash, RotateCcw, Pencil, Archive, AlertTriangle
+  Trash2, Trash, RotateCcw, Pencil, Archive, AlertTriangle,
+  ListChecks, BarChart3
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
@@ -998,7 +999,7 @@ export default function InvitesPage() {
 
       {/* View Switcher Tabs */}
       {!isConseiller && (
-        <div style={{ display: "flex", gap: 8, background: "rgba(255,255,255,0.05)", padding: 4, borderRadius: 10, width: "fit-content" }}>
+        <div className="invite-view-switcher">
           <button 
             onClick={() => {
               setCurrentView('list');
@@ -1006,17 +1007,23 @@ export default function InvitesPage() {
                 setSelectedMonth(new Date().getMonth());
               }
             }}
-            className={`btn ${currentView === 'list' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ padding: "8px 24px", borderRadius: 8 }}
+            className={`invite-view-option ${currentView === 'list' ? 'active' : ''}`}
           >
-            Liste ({filtered.length})
+            <span className="invite-view-icon"><ListChecks size={18} /></span>
+            <span className="invite-view-copy">
+              <span className="invite-view-title">Liste</span>
+              <span className="invite-view-subtitle">{filtered.length} invite{filtered.length > 1 ? "s" : ""} a suivre</span>
+            </span>
           </button>
           <button 
             onClick={() => setCurrentView('stats')}
-            className={`btn ${currentView === 'stats' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ padding: "8px 24px", borderRadius: 8 }}
+            className={`invite-view-option ${currentView === 'stats' ? 'active' : ''}`}
           >
-            Statistiques
+            <span className="invite-view-icon"><BarChart3 size={18} /></span>
+            <span className="invite-view-copy">
+              <span className="invite-view-title">Statistiques</span>
+              <span className="invite-view-subtitle">Suivi, presences et progression</span>
+            </span>
           </button>
         </div>
       )}
@@ -1116,8 +1123,8 @@ export default function InvitesPage() {
           {/* New Stats Row */}
           <div className="bento bento-3">
             <div className="glass" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
-              <h3 style={{ fontSize: 16, marginBottom: 5 }}>Suivi & Intégration</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, flex: 1 }}>
+              <h3 style={{ fontSize: "clamp(13px, 2vw, 16px)", marginBottom: 5 }}>Suivi & Intégration</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(110px, 100%), 1fr))", gap: 10, flex: 1 }}>
                 <div className="glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(239, 68, 68, 0.25)", background: "rgba(239, 68, 68, 0.02)", padding: "12px 6px" }}>
                   <div style={{ fontSize: 9, color: "var(--rose)", fontWeight: 700, textTransform: "uppercase" }}>SANS ÉGLISE</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: "var(--rose)", marginTop: 4 }}>{noChurch}</div>
@@ -1137,8 +1144,8 @@ export default function InvitesPage() {
               </div>
             </div>
             <div className="glass">
-              <h3 style={{ fontSize: 16, marginBottom: 15 }}>Engagement spirituel</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <h3 style={{ fontSize: "clamp(13px, 2vw, 16px)", marginBottom: 15 }}>Engagement spirituel</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(110px, 100%), 1fr))", gap: 10 }}>
                 <div className="glass-compact" style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 10, color: "var(--muted)" }}>INTÉRÊT PCNC</div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: "var(--gold)" }}>{interetPCNC}</div>
@@ -1212,12 +1219,12 @@ export default function InvitesPage() {
               <XCircle size={24} />
             </button>
             
-            <h2 style={{ fontSize: 20, color: "var(--gold)", marginBottom: 25 }}>
+            <h2 style={{ fontSize: "clamp(16px, 2.5vw, 20px)", color: "var(--gold)", marginBottom: 20 }}>
               {editingGuestId ? "Modifier l'invité" : "Nouvel Invité"}
             </h2>
             
             <form onSubmit={handleSaveGuest} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 15 }}>
+              <div className="form-grid-3">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>CIVILITÉ</label>
                   <select className="input" value={newGuest.civility || "M."} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
@@ -1235,7 +1242,7 @@ export default function InvitesPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+              <div className="form-grid-2">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>TÉLÉPHONE</label>
                   <input 
@@ -1252,7 +1259,7 @@ export default function InvitesPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+              <div className="form-grid-3-equal">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>DATE D'ARRIVÉE</label>
                   <input className="input" type="date" value={newGuest.arrivalDate || ""} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
@@ -1333,7 +1340,7 @@ export default function InvitesPage() {
                   style={{ minHeight: 80, fontSize: 12 }}
                 />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15, marginBottom: 15 }}>
+              <div className="form-grid-2" style={{ marginBottom: 15 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <input type="checkbox" checked={newGuest.aEteInvite || false} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} />
                   <span style={{ fontSize: 13 }}>A été invité ?</span>
@@ -1346,7 +1353,7 @@ export default function InvitesPage() {
                 )}
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+              <div className="form-grid-2">
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <input type="checkbox" checked={newGuest.baptemeEau} onChange={e => setNewGuest({...newGuest, baptemeEau: e.target.checked})} />
                   <span style={{ fontSize: 13 }}>Baptisé par immersion ?</span>
@@ -1454,19 +1461,20 @@ export default function InvitesPage() {
 
           return (
             <div key={guest.id} className="glass-flush" style={{ overflow: "hidden" }}>
-              <div 
+              <div
+                className="invite-card-header"
                 onClick={() => setExpandedId(isExpanded ? null : guest.id)}
                 style={{ 
                   padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
                   cursor: "pointer", background: isExpanded ? "rgba(255,255,255,0.03)" : "transparent"
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 15, flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 15, flex: 1, minWidth: 0 }}>
                   <div className={`avatar ${fidelised ? "avatar-gradient" : ""}`} style={{ width: 40, height: 40 }}>
                     {guest.firstName[0]}{guest.lastName[0]}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <h3 style={{ fontSize: 14, fontWeight: 600 }}>{guest.firstName} {guest.lastName}</h3>
                       {fidelised && <CheckCircle2 size={12} style={{ color: "var(--green)" }} />}
                       {((canAddOrEditInvites && !isActionBlocked) || (canDeleteInvites && !isActionBlocked)) && (
@@ -1527,25 +1535,25 @@ export default function InvitesPage() {
                   </div>
                 )}
 
-                <div style={{ marginLeft: 20, color: "var(--muted)" }}>
+                <div className="invite-card-chevron" style={{ marginLeft: 20, color: "var(--muted)" }}>
                   {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </div>
               </div>
 
               {isExpanded && (
-                <div style={{ padding: "0 20px 20px", borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.1)" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, paddingTop: 20 }}>
+                <div className="invite-expanded" style={{ padding: "0 20px 20px", borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.1)" }}>
+                  <div className="invite-expanded-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, paddingTop: 20 }}>
                     {/* Column 1: Info */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 4 }}>Informations</h4>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><Phone size={14} style={{ color: "var(--muted)" }} /> <span>{guest.phone}</span></div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><Mail size={14} style={{ color: "var(--muted)" }} /> <span>{guest.email}</span></div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><Phone size={14} style={{ color: "var(--muted)" }} /> <span style={{ wordBreak: "break-all" }}>{guest.phone}</span></div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><Mail size={14} style={{ color: "var(--muted)" }} /> <span style={{ wordBreak: "break-all" }}>{guest.email}</span></div>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
                         <Calendar size={14} style={{ color: "var(--gold)" }} /> 
                         <span style={{ color: "var(--gold)", fontWeight: 500 }}>Arrivé le : {guest.arrivalDate ? guest.arrivalDate.split('-').reverse().join('/') : ''}</span>
                       </div>
                       <div className="badge badge-primary" style={{ width: "fit-content", fontSize: 10 }}>{guest.event}</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12 }}>{guest.address}</span></div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12, wordBreak: "break-word" }}>{guest.address}</span></div>
                       
                       <div style={{ marginTop: 10 }}>
                         <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE ARRIVÉE</label>
@@ -1558,7 +1566,7 @@ export default function InvitesPage() {
                     {!isConseiller && (
                       <>
                         {/* Column 2: Attendance */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                        <div className="invite-attendance-block" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
                           <div>
                             <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>CDM (Jeudi)</h4>
                             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -1612,7 +1620,7 @@ export default function InvitesPage() {
                         </div>
 
                         {/* Column 3: Actions & Status */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                        <div className="invite-actions-block" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
                           {userRoleClean.startsWith("integration_") && (
                             guest.bergerie_id ? (
                               <div style={{ padding: "10px", borderRadius: 8, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
@@ -1735,8 +1743,8 @@ export default function InvitesPage() {
                         </div>
 
                         {/* Column 4: Detailed Follow-up */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 15, gridColumn: "span 2" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                        <div className="invite-followup-block" style={{ display: "flex", flexDirection: "column", gap: 15, gridColumn: "span 2" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 15 }}>
                             <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
                               <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Premier Contact</h5>
                               <SuiviToggle label="Appel abouti" checked={guest.appelAbouti} onChange={() => toggleSuivi(guest.id, 'appelAbouti')} disabled={isEditBlocked} />

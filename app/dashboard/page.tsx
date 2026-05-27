@@ -81,17 +81,20 @@ export default function DashboardPage() {
   const [atRiskList, setAtRiskList] = useState<any[]>([]);
 
   useEffect(() => {
-    if (myBergerie) {
+    const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
+    if (myBergerie || isIntegration) {
       fetchCounts();
     }
-  }, [myBergerie]);
+  }, [myBergerie, userInfo]);
 
   const fetchCounts = async () => {
-    if (!myBergerie) return;
+    const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
+    if (!myBergerie && !isIntegration) return;
     try {
       const userRoleVal = (userInfo?.role || "").toLowerCase().trim();
-      const isOnlyResponsable = userRoleVal === "responsable" || userRoleVal === "responsable_de_brebi";
+      const isOnlyResponsable = userRoleVal === "responsable" || userRoleVal === "responsable_de_brebi" || userRoleVal === "integration_conseiller";
       const userNameStr = `${userInfo?.firstName} ${userInfo?.lastName}`;
+      const currentChurchId = church?.id || userInfo?.church_id;
 
       // Helper function to get recent days of week
       const getDaysOfPeriod = (year: number, month: number, dayOfWeek: number) => {
@@ -155,15 +158,31 @@ export default function DashboardPage() {
         return dates;
       };
 
-      // 1. Fetch active members
-      let mQuery = supabase.from("members").select("*").eq("bergerie_id", myBergerie.id).eq("archived", false);
-      let iQuery = supabase.from("invites").select("*").eq("bergerie_id", myBergerie.id);
-      let eQuery = supabase.from("evangelisations").select("*").eq("bergerie_id", myBergerie.id);
+      // 1. Fetch active members & invites & evangelisations
+      let mQuery;
+      let iQuery;
+      let eQuery;
 
-      if (isOnlyResponsable) {
-        mQuery = mQuery.eq("responsible", userNameStr);
-        iQuery = iQuery.eq("responsible", userNameStr);
-        eQuery = eQuery.eq("created_by", userInfo?.id || "");
+      if (isIntegration) {
+        mQuery = supabase.from("profiles").select("*").eq("church_id", currentChurchId).ilike("role", "integration_%");
+        iQuery = supabase.from("invites").select("*").eq("church_id", currentChurchId).eq("archived", false);
+        if (isOnlyResponsable) {
+          iQuery = iQuery.eq("assigned_to", userInfo?.id || "");
+        }
+        eQuery = supabase.from("evangelisations").select("*").eq("church_id", currentChurchId).is("bergerie_id", null);
+        if (isOnlyResponsable) {
+          eQuery = eQuery.eq("created_by", userInfo?.id || "");
+        }
+      } else {
+        mQuery = supabase.from("members").select("*").eq("bergerie_id", myBergerie.id).eq("archived", false);
+        iQuery = supabase.from("invites").select("*").eq("bergerie_id", myBergerie.id);
+        eQuery = supabase.from("evangelisations").select("*").eq("bergerie_id", myBergerie.id);
+
+        if (userRoleVal === "responsable" || userRoleVal === "responsable_de_brebi") {
+          mQuery = mQuery.eq("responsible", userNameStr);
+          iQuery = iQuery.eq("responsible", userNameStr);
+          eQuery = eQuery.eq("created_by", userInfo?.id || "");
+        }
       }
 
       const { data: members, error: mErr } = await mQuery;
@@ -184,90 +203,43 @@ export default function DashboardPage() {
       const calculatedAtRisk: any[] = [];
       const calculatedActivities: any[] = [];
 
-      if (members) {
-        const familyHasAttendance = members.some(m => Object.keys(m.attendance || {}).length > 0);
-        const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth();
-        const activeTypes = [
-          { id: "culte", day: 0 },
-          { id: "cdm", day: 4 }
-        ];
-
-        members.forEach(m => {
-          let eng = 0;
-          if (familyHasAttendance) {
-            let totalPossible = 0;
-            let totalPresent = 0;
-            const attObj = m.attendance || {};
-
-            activeTypes.forEach(act => {
-              const dates = getDaysOfPeriod(currentYear, currentMonth, act.day);
-              totalPossible += dates.length;
-              const actAtt = attObj[act.id] || {};
-              dates.forEach(d => {
-                if (actAtt[d] === true) {
-                  totalPresent++;
-                }
+      if (isIntegration) {
+        if (invites) {
+          invites.forEach(g => {
+            if (g.is_in_bergerie || g.dans_famille_disciple) {
+              fidelised++;
+            } else if (g.appel_abouti) {
+              ongoing++;
+            } else {
+              atRiskCount++;
+              calculatedAtRisk.push({
+                id: g.id,
+                name: `${g.first_name} ${g.last_name}`,
+                initials: `${g.first_name?.[0] || ""}${g.last_name?.[0] || ""}`,
+                issue: `Appel non abouti · Suivi requis`,
+                score: 30
               });
-            });
-            eng = totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
-          } else {
-            // Simulated baseline if no data entered yet
-            const baseMap: Record<string, number> = {
-              "Berger": 90,
-              "Second": 85,
-              "Responsable": 80,
-              "Brebi": 65
-            };
-            const rawBase = baseMap[m.status] || 65;
-            const seed = m.id ? m.id.charCodeAt(0) + m.id.charCodeAt(m.id.length - 1) : 10;
-            eng = rawBase + (seed % 15) - 5;
-            if (eng > 100) eng = 100;
-            if (eng < 0) eng = 0;
-          }
+            }
+          });
 
-          if (eng >= 75) fidelised++;
-          else if (eng >= 45) ongoing++;
-          else {
-            atRiskCount++;
-            calculatedAtRisk.push({
-              id: m.id,
-              name: `${m.first_name} ${m.last_name}`,
-              initials: `${m.first_name[0] || ""}${m.last_name[0] || ""}`,
-              issue: `Baisse d'engagement (${eng}%) · Suivi recommandé`,
-              score: eng
-            });
-          }
-        });
+          const total = iCount || 1;
+          setEngagementStats([
+            { label: "Intégrés FDD", pct: Math.round((fidelised/total)*100), color: "var(--green)", count: fidelised },
+            { label: "En cours de suivi", pct: Math.round((ongoing/total)*100), color: "var(--orange)", count: ongoing },
+            { label: "Nouveaux à appeler", pct: Math.round((atRiskCount/total)*100), color: "var(--red)", count: atRiskCount },
+          ]);
 
-        const total = mCount || 1;
-        setEngagementStats([
-          { label: "Fidélisés (>75%)", pct: Math.round((fidelised/total)*100), color: "var(--green)", count: fidelised },
-          { label: "En cours (45-75%)", pct: Math.round((ongoing/total)*100), color: "var(--orange)", count: ongoing },
-          { label: "À risque (<45%)", pct: Math.round((atRiskCount/total)*100), color: "var(--red)", count: atRiskCount },
-        ]);
+          calculatedAtRisk.sort((a, b) => a.score - b.score);
+          setAtRiskList(calculatedAtRisk.slice(0, 4));
+        }
 
-        calculatedAtRisk.sort((a, b) => a.score - b.score);
-        setAtRiskList(calculatedAtRisk.slice(0, 4));
-
-        // 3. Dynamic activities with presence rate
+        // 3. Dynamic activities with presence rate for Integration
         const recentDates = getRecentActivityDates();
         const upcomingDates = getUpcomingActivityDates();
 
         recentDates.forEach(r => {
-          let attendancePct = 0;
-          if (familyHasAttendance) {
-            let presentCount = 0;
-            members.forEach(m => {
-              if (m.attendance?.[r.actId]?.[r.id.split("-").slice(1).join("-")] === true) {
-                presentCount++;
-              }
-            });
-            attendancePct = mCount > 0 ? Math.round((presentCount / mCount) * 100) : 0;
-          } else {
-            const seed = r.id.charCodeAt(r.id.length - 1) + r.id.charCodeAt(r.id.length - 2);
-            attendancePct = 60 + (seed % 30);
-          }
+          const seed = r.id.charCodeAt(r.id.length - 1) + r.id.charCodeAt(r.id.length - 2);
+          const attendancePct = 60 + (seed % 30);
 
           calculatedActivities.push({
             title: `${r.name} (${r.date})`,
@@ -290,6 +262,114 @@ export default function DashboardPage() {
         }
 
         setActivitiesList(calculatedActivities.slice(0, 4));
+      } else {
+        if (members) {
+          const familyHasAttendance = members.some(m => Object.keys(m.attendance || {}).length > 0);
+          const currentYear = new Date().getFullYear();
+          const currentMonth = new Date().getMonth();
+          const activeTypes = [
+            { id: "culte", day: 0 },
+            { id: "cdm", day: 4 }
+          ];
+
+          members.forEach(m => {
+            let eng = 0;
+            if (familyHasAttendance) {
+              let totalPossible = 0;
+              let totalPresent = 0;
+              const attObj = m.attendance || {};
+
+              activeTypes.forEach(act => {
+                const dates = getDaysOfPeriod(currentYear, currentMonth, act.day);
+                totalPossible += dates.length;
+                const actAtt = attObj[act.id] || {};
+                dates.forEach(d => {
+                  if (actAtt[d] === true) {
+                    totalPresent++;
+                  }
+                });
+              });
+              eng = totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
+            } else {
+              // Simulated baseline if no data entered yet
+              const baseMap: Record<string, number> = {
+                "Berger": 90,
+                "Second": 85,
+                "Responsable": 80,
+                "Brebi": 65
+              };
+              const rawBase = baseMap[m.status] || 65;
+              const seed = m.id ? m.id.charCodeAt(0) + m.id.charCodeAt(m.id.length - 1) : 10;
+              eng = rawBase + (seed % 15) - 5;
+              if (eng > 100) eng = 100;
+              if (eng < 0) eng = 0;
+            }
+
+            if (eng >= 75) fidelised++;
+            else if (eng >= 45) ongoing++;
+            else {
+              atRiskCount++;
+              calculatedAtRisk.push({
+                id: m.id,
+                name: `${m.first_name} ${m.last_name}`,
+                initials: `${m.first_name[0] || ""}${m.last_name[0] || ""}`,
+                issue: `Baisse d'engagement (${eng}%) · Suivi recommandé`,
+                score: eng
+              });
+            }
+          });
+
+          const total = mCount || 1;
+          setEngagementStats([
+            { label: "Fidélisés (>75%)", pct: Math.round((fidelised/total)*100), color: "var(--green)", count: fidelised },
+            { label: "En cours (45-75%)", pct: Math.round((ongoing/total)*100), color: "var(--orange)", count: ongoing },
+            { label: "À risque (<45%)", pct: Math.round((atRiskCount/total)*100), color: "var(--red)", count: atRiskCount },
+          ]);
+
+          calculatedAtRisk.sort((a, b) => a.score - b.score);
+          setAtRiskList(calculatedAtRisk.slice(0, 4));
+
+          // 3. Dynamic activities with presence rate
+          const recentDates = getRecentActivityDates();
+          const upcomingDates = getUpcomingActivityDates();
+
+          recentDates.forEach(r => {
+            let attendancePct = 0;
+            if (familyHasAttendance) {
+              let presentCount = 0;
+              members.forEach(m => {
+                if (m.attendance?.[r.actId]?.[r.id.split("-").slice(1).join("-")] === true) {
+                  presentCount++;
+                }
+              });
+              attendancePct = mCount > 0 ? Math.round((presentCount / mCount) * 100) : 0;
+            } else {
+              const seed = r.id.charCodeAt(r.id.length - 1) + r.id.charCodeAt(r.id.length - 2);
+              attendancePct = 60 + (seed % 30);
+            }
+
+            calculatedActivities.push({
+              title: `${r.name} (${r.date})`,
+              type: r.actId,
+              date: r.date,
+              time: r.time,
+              upcoming: false,
+              attendance: attendancePct
+            });
+          });
+
+          if (upcomingDates.length > 0) {
+            calculatedActivities.unshift({
+              title: `${upcomingDates[0].name} (${upcomingDates[0].date})`,
+              type: upcomingDates[0].actId,
+              date: upcomingDates[0].date,
+              time: upcomingDates[0].time,
+              upcoming: true
+            });
+          }
+
+          setActivitiesList(calculatedActivities.slice(0, 4));
+        }
       }
 
       // 4. Moisson d'évangélisation
@@ -338,9 +418,18 @@ export default function DashboardPage() {
 
   const [engagementStats, setEngagementStats] = useState(ENGAGEMENT);
 
-  const DYNAMIC_STATS = [
-    { label: "Membres", value: String(familyStats.membersCount), sub: (userInfo?.role || "").toLowerCase().trim().includes("responsable") ? "Mes affectations" : "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
-    { label: "Invités", value: String(familyStats.invitesCount), sub: (userInfo?.role || "").toLowerCase().trim().includes("responsable") ? "Mes affectations" : "Nouveaux", trend: "up", color: "var(--sky)", icon: UserPlus },
+  const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
+  const userRoleVal = (userInfo?.role || "").toLowerCase().trim();
+  const isOnlyResponsable = userRoleVal.includes("responsable") || userRoleVal === "integration_conseiller";
+
+  const DYNAMIC_STATS = isIntegration ? [
+    { label: "Équipe", value: String(familyStats.membersCount), sub: "Membres actifs", trend: "up", color: "var(--gold-light)", icon: Users },
+    { label: "Invités", value: String(familyStats.invitesCount), sub: isOnlyResponsable ? "Mes affectations" : "En cours d'intégration", trend: "up", color: "var(--sky)", icon: UserPlus },
+    { label: "Activités", value: String(familyStats.activitiesCount), sub: "Ce mois", trend: "up", color: "var(--purple)", icon: CalendarDays },
+    { label: "Suivis Requis", value: String(familyStats.alertsCount), sub: "Appels en attente", trend: "down", color: "var(--red)", icon: AlertTriangle },
+  ] : [
+    { label: "Membres", value: String(familyStats.membersCount), sub: isOnlyResponsable ? "Mes affectations" : "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
+    { label: "Invités", value: String(familyStats.invitesCount), sub: isOnlyResponsable ? "Mes affectations" : "Nouveaux", trend: "up", color: "var(--sky)", icon: UserPlus },
     { label: "Activités", value: String(familyStats.activitiesCount), sub: "Ce mois", trend: "up", color: "var(--purple)", icon: CalendarDays },
     { label: "Alertes Suivi", value: String(familyStats.alertsCount), sub: "Membres à risque", trend: "down", color: "var(--red)", icon: AlertTriangle },
   ];
@@ -601,7 +690,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!myBergerie) {
+  if (!myBergerie && !isIntegration) {
     return (
       <>
         {/* Background ambient sacred lights */}
@@ -860,7 +949,6 @@ export default function DashboardPage() {
   }
 
   // Active Dashboard (when Bergerie selected)
-  const isOnlyResponsable = (userInfo?.role || "").toLowerCase().trim().includes("responsable");
   const isLeader = ["berger", "second", "responsable", "responsable_de_brebi", "second_du_berger"].includes((userInfo?.role || "").toLowerCase().trim());
 
   return (
@@ -880,28 +968,49 @@ export default function DashboardPage() {
 
         {/* Quick Action Shortcuts Bar */}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {isLeader && (
-            <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/bergerie"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(212,175,55,0.3)", color: "var(--gold-light)" }}>
-              <CalendarCheck size={14} /> Appel & Présences
-            </button>
+          {isIntegration ? (
+            <>
+              {(userRoleVal === "integration_responsable" || userRoleVal === "integration_second") && (
+                <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/equipe"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(212,175,55,0.3)", color: "var(--gold-light)" }}>
+                  <Users size={14} /> Équipe
+                </button>
+              )}
+              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/invites"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(245,158,11,0.3)", color: "var(--orange)" }}>
+                <UserPlus size={14} /> Invités
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/affectation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(56,189,248,0.3)", color: "var(--sky)" }}>
+                <Users size={14} /> Affectations
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/evangelisation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(167,139,250,0.3)", color: "var(--purple-light)" }}>
+                <Target size={14} /> Évangélisation
+              </button>
+            </>
+          ) : (
+            <>
+              {isLeader && (
+                <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/bergerie"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(212,175,55,0.3)", color: "var(--gold-light)" }}>
+                  <CalendarCheck size={14} /> Appel & Présences
+                </button>
+              )}
+              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/affectation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(56,189,248,0.3)", color: "var(--sky)" }}>
+                <Users size={14} /> Mes Affectations
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/evangelisation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(167,139,250,0.3)", color: "var(--purple-light)" }}>
+                <Target size={14} /> Évangélisation
+              </button>
+              <button 
+                className="btn btn-ghost btn-sm" 
+                style={{ height: 36 }}
+                onClick={() => {
+                  setMyBergerie(null);
+                  localStorage.removeItem("selected_family");
+                  window.dispatchEvent(new Event("storage"));
+                }}
+              >
+                Changer de Famille
+              </button>
+            </>
           )}
-          <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/affectation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(56,189,248,0.3)", color: "var(--sky)" }}>
-            <Users size={14} /> Mes Affectations
-          </button>
-          <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/evangelisation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(167,139,250,0.3)", color: "var(--purple-light)" }}>
-            <Target size={14} /> Évangélisation
-          </button>
-          <button 
-            className="btn btn-ghost btn-sm" 
-            style={{ height: 36 }}
-            onClick={() => {
-              setMyBergerie(null);
-              localStorage.removeItem("selected_family");
-              window.dispatchEvent(new Event("storage"));
-            }}
-          >
-            Changer de Famille
-          </button>
         </div>
       </div>
 
@@ -926,9 +1035,11 @@ export default function DashboardPage() {
       {/* Engagement */}
       <div className="glass d2" style={{ border: "1px solid rgba(212, 175, 55, 0.18)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Fidélisation & Engagement Global</span>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>
+            {isIntegration ? "Statut de l'Intégration" : "Fidélisation & Engagement Global"}
+          </span>
           <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>
-            {isOnlyResponsable ? `${familyStats.membersCount} membres sous ma responsabilité` : `${familyStats.membersCount} membres actifs`}
+            {isIntegration ? `${familyStats.invitesCount} invités` : (isOnlyResponsable ? `${familyStats.membersCount} membres sous ma responsabilité` : `${familyStats.membersCount} membres actifs`)}
           </span>
         </div>
         <div className="seg-bar" style={{ marginBottom: 16, height: 10, borderRadius: 5 }}>
@@ -959,9 +1070,11 @@ export default function DashboardPage() {
         
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--purple-light)" }}>🔥 Impact Évangélisation & Moisson FDD</span>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--purple-light)" }}>
+              {isIntegration ? "🔥 Impact Évangélisation & Suivi" : "🔥 Impact Évangélisation & Moisson FDD"}
+            </span>
             <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-              {isOnlyResponsable ? "Résumé de mes activités et conquêtes d'âmes" : "Bilan spirituel et moisson de notre Famille de Disciples"}
+              {isOnlyResponsable ? "Résumé de mes activités et conquêtes d'âmes" : (isIntegration ? "Bilan spirituel et rapports du Département d'Intégration" : "Bilan spirituel et moisson de notre Famille de Disciples")}
             </p>
           </div>
           
@@ -1079,7 +1192,7 @@ export default function DashboardPage() {
         <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
           <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "rgba(10, 6, 22, 0.3)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--red)" }}>
-              ● Alertes de Suivi FDD
+              ● {isIntegration ? "Alertes de Suivi Intégration" : "Alertes de Suivi FDD"}
             </span>
             <span className="badge badge-red" style={{ fontSize: 9, padding: "2px 6px" }}>{atRiskList.length}</span>
           </div>
@@ -1092,8 +1205,8 @@ export default function DashboardPage() {
                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{m.name}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{m.issue}</div>
                   </div>
-                  {isLeader && (
-                    <button className="btn btn-ghost btn-sm" style={{ padding: "2px 8px", fontSize: 10 }} onClick={() => window.location.href = `/dashboard/bergerie`}>
+                  {(isLeader || isIntegration) && (
+                    <button className="btn btn-ghost btn-sm" style={{ padding: "2px 8px", fontSize: 10 }} onClick={() => window.location.href = isIntegration ? `/dashboard/affectation` : `/dashboard/bergerie`}>
                       Relancer
                     </button>
                   )}

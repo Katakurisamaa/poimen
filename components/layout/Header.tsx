@@ -36,24 +36,34 @@ export default function Header({ bergerieName = "Famille Alpha", onMenuClick }: 
   }, []);
 
   const isIntegration = userRole?.toLowerCase().startsWith("integration_");
+  const isSuperAdmin = userRole === "super_admin" || userRole === "admin";
+  const shouldShowHeader = isAdmin || isSuperAdmin || hasFamily || isIntegration;
 
-  if (isAdmin || (!hasFamily && !isIntegration)) return null; 
+  if (!shouldShowHeader) return null; 
 
-  const headerCategory = isIntegration ? "Département de l'Intégration" : "Famille de disciple";
-  const headerTitle = isIntegration ? "Suivi & Intégration" : currentFamilyName;
+  let headerCategory = "Famille de disciple";
+  let headerTitle = currentFamilyName;
+
+  if (isAdmin || isSuperAdmin) {
+    headerCategory = "Administration Centrale";
+    headerTitle = "Console de Gestion";
+  } else if (isIntegration) {
+    headerCategory = "Département de l'Intégration";
+    headerTitle = "Suivi & Intégration";
+  }
 
   return (
     <header className="top-header">
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
         {/* Mobile menu button */}
-        <button onClick={onMenuClick} className="btn-icon" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "none" }} id="mobile-menu-btn">
+        <button onClick={onMenuClick} className="btn-icon" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "none", flexShrink: 0 }} id="mobile-menu-btn">
           <Menu size={20} />
         </button>
-        <div>
-          <div style={{ fontSize: 9, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 700, opacity: 0.8 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: "clamp(8px, 1.2vw, 9px)", color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 2, fontWeight: 700, opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {headerCategory}
           </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 19, fontWeight: 700, color: "var(--cream)", margin: 0, letterSpacing: "0.01em" }}>
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(14px, 2vw, 19px)", fontWeight: 700, color: "var(--cream)", margin: 0, letterSpacing: "0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {headerTitle}
           </h1>
         </div>

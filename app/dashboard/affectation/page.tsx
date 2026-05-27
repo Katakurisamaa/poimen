@@ -790,7 +790,7 @@ export default function AffectationPage() {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
         <div className="spinner" style={{ width: 40, height: 40 }} />
         <div style={{ color: "var(--gold-light)", fontFamily: "var(--font-display)", fontSize: 16, letterSpacing: "0.05em" }}>
-          Chargement de vos affectations sacrées...
+          Chargement de vos affectations...
         </div>
       </div>
     );
@@ -910,12 +910,12 @@ export default function AffectationPage() {
 
           {/* PCNC Pipeline */}
           <div className="glass">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ fontSize: 18, color: "var(--gold-light)", fontFamily: "var(--font-display)", margin: 0 }}>Progression PCNC</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "clamp(12px, 2vw, 24px)", flexWrap: "wrap", gap: 8 }}>
+              <h3 style={{ fontSize: "clamp(14px, 2vw, 18px)", color: "var(--gold-light)", fontFamily: "var(--font-display)", margin: 0 }}>Progression PCNC</h3>
               <span className="badge badge-violet" style={{ fontSize: 10 }}>{totalPCNC} Personnes engagées</span>
             </div>
             
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: "clamp(10px, 2vw, 20px)" }}>
               {[
                 { label: "001 (Bienvenue)", val: pcnc001, color: "var(--violet)" },
                 { label: "101 (Fondements)", val: pcnc101, color: "var(--sky)" },
@@ -940,8 +940,8 @@ export default function AffectationPage() {
 
           <div className="bento bento-3">
             <div className="glass" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
-              <h3 style={{ fontSize: 16, marginBottom: 5, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Suivi & Intégration</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, flex: 1 }}>
+              <h3 style={{ fontSize: "clamp(13px, 2vw, 16px)", marginBottom: 5, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Suivi & Intégration</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(110px, 100%), 1fr))", gap: 10, flex: 1 }}>
                 <div className="glass glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(239, 68, 68, 0.25)", background: "rgba(239, 68, 68, 0.02)", padding: "12px 6px" }}>
                   <div style={{ fontSize: 9, color: "var(--rose)", fontWeight: 700, textTransform: "uppercase" }}>SANS ÉGLISE</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: "var(--rose)", marginTop: 4 }}>{noChurch}</div>
@@ -961,8 +961,8 @@ export default function AffectationPage() {
               </div>
             </div>
             <div className="glass">
-              <h3 style={{ fontSize: 16, marginBottom: 16, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Engagement spirituel</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <h3 style={{ fontSize: "clamp(13px, 2vw, 16px)", marginBottom: 14, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Engagement spirituel</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(110px, 100%), 1fr))", gap: 10 }}>
                 <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
                   <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>INTÉRÊT PCNC</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: "var(--gold)", marginTop: 4 }}>{interetPCNC}</div>
@@ -990,7 +990,7 @@ export default function AffectationPage() {
               </div>
             </div>
             <div className="glass" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <h3 style={{ fontSize: 16, marginBottom: 16, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Participation Moyenne</h3>
+              <h3 style={{ fontSize: "clamp(13px, 2vw, 16px)", marginBottom: 14, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Participation Moyenne</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -1022,11 +1022,11 @@ export default function AffectationPage() {
                 <button onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }} style={{ position: "absolute", top: 24, right: 24, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}>
                   <X size={20} />
                 </button>
-                <h2 style={{ fontSize: 22, color: "var(--gold-light)", marginBottom: 24, fontFamily: "var(--font-display)" }}>
+                <h2 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", color: "var(--gold-light)", marginBottom: 20, fontFamily: "var(--font-display)" }}>
                   {editingGuestId ? "Modifier la Brebi" : "Enregistrer une Brebi"}
                 </h2>
                 <form onSubmit={handleSaveGuest} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 15 }}>
+                  <div className="form-grid-3">
                     <div>
                       <label className="form-label">CIVILITÉ</label>
                       <select className="input" value={newGuest.civility || "M."} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
@@ -1044,7 +1044,7 @@ export default function AffectationPage() {
                       <input className="input" required value={newGuest.lastName || ""} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} />
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                  <div className="form-grid-2">
                     <div>
                       <label className="form-label">TÉLÉPHONE</label>
                       <input className="input" value={newGuest.phone || ""} onChange={e => setNewGuest({...newGuest, phone: e.target.value})} />
@@ -1054,7 +1054,7 @@ export default function AffectationPage() {
                       <input className="input" type="email" value={newGuest.email || ""} onChange={e => setNewGuest({...newGuest, email: e.target.value})} />
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 15 }}>
+                  <div className="form-grid-3-equal">
                     <div>
                       <label className="form-label">DATE D'ARRIVÉE</label>
                       <input className="input" type="date" value={newGuest.arrivalDate || ""} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
@@ -1081,7 +1081,7 @@ export default function AffectationPage() {
                       </select>
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                  <div className="form-grid-2">
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <input type="checkbox" checked={newGuest.aEteInvite || false} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>A été invité ?</span>
@@ -1094,7 +1094,7 @@ export default function AffectationPage() {
                     )}
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                  <div className="form-grid-2">
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <input type="checkbox" checked={newGuest.baptemeEau || false} onChange={e => setNewGuest({...newGuest, baptemeEau: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Baptisé par immersion ?</span>
@@ -1240,7 +1240,7 @@ export default function AffectationPage() {
                         {guest.firstName[0]}{guest.lastName[0]}
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cream)" }}>{guest.firstName} {guest.lastName}</h3>
                           {fidelised && <span className="badge badge-gold" style={{ fontSize: 8 }}>Fidélisé</span>}
                           {(isIntegrationOrCounselor || isAuthorizedLeader) && (
@@ -1284,16 +1284,16 @@ export default function AffectationPage() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                           <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4, fontFamily: "var(--font-body)", fontWeight: 700 }}>Informations Générales</h4>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                            <Mail size={14} style={{ color: "var(--muted)" }} /> <span style={{ color: "var(--cream-dim)" }}>{guest.email || "Non renseigné"}</span>
+                            <Mail size={14} style={{ color: "var(--muted)" }} /> <span style={{ color: "var(--cream-dim)", wordBreak: "break-all" }}>{guest.email || "Non renseigné"}</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                            <Phone size={14} style={{ color: "var(--muted)" }} /> <span style={{ color: "var(--cream-dim)" }}>{guest.phone || "Non renseigné"}</span>
+                            <Phone size={14} style={{ color: "var(--muted)" }} /> <span style={{ color: "var(--cream-dim)", wordBreak: "break-all" }}>{guest.phone || "Non renseigné"}</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
                             <Calendar size={14} style={{ color: "var(--gold)" }} /> <span style={{ color: "var(--cream-dim)" }}>Arrivé le: {guest.arrivalDate ? guest.arrivalDate.split('-').reverse().join('/') : ''}</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                            <MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12, color: "var(--cream-dim)" }}>{guest.address || "Adresse non renseignée"}</span>
+                            <MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12, color: "var(--cream-dim)", wordBreak: "break-word" }}>{guest.address || "Adresse non renseignée"}</span>
                           </div>
                           <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                             <span className="badge badge-gold" style={{ fontSize: 9 }}>{guest.event}</span>
@@ -1409,7 +1409,7 @@ export default function AffectationPage() {
                         </div>
 
                         {/* Suivi Groups */}
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 16 }}>
                           <div className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", display: "flex", flexDirection: "column", gap: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
                             <h4 style={{ fontSize: 10, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "var(--font-body)", fontWeight: 700 }}>Premier Contact</h4>
                             <div>

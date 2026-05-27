@@ -313,7 +313,7 @@ export default function LandingPage() {
             e.currentTarget.style.textShadow = "none"; 
           }}
         >
-          ✦ Accès Administration Centrale ✦
+          Accès Administration Centrale
         </a>
       </footer>
 
@@ -391,7 +391,7 @@ export default function LandingPage() {
                 <div>
                   <input 
                     type="text" 
-                    placeholder="Entrez le code..." 
+                    placeholder="CODE" 
                     className="input" 
                     style={{ 
                       textAlign: "center", 
@@ -462,7 +462,7 @@ export default function LandingPage() {
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 >
-                  ✦ Connexion Espace Intégration / Leaders ✦
+                  Espace Intégration & Leaders
                 </button>
               </div>
             </motion.div>

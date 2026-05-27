@@ -219,8 +219,8 @@ export default function IntegrationTeamPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 28 }} className="fade-in">
-      <header style={{ borderBottom: "1px solid rgba(212, 175, 55, 0.12)", paddingBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "clamp(16px, 3vw, 28px)" }} className="fade-in">
+      <header style={{ borderBottom: "1px solid rgba(212, 175, 55, 0.12)", paddingBottom: "clamp(12px, 2vw, 20px)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--gold-light)", marginBottom: 4 }}>
             <Users size={16} />
@@ -236,22 +236,22 @@ export default function IntegrationTeamPage() {
       {/* Team Load metrics */}
       <div className="glass" style={{ border: "1px solid rgba(212, 175, 55, 0.15)", padding: 24 }}>
         <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 700, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 0.5 }}>Charge de Suivi de l'Équipe</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(180px, 100%), 1fr))", gap: "clamp(10px, 2vw, 18px)" }}>
           <div style={{ padding: 18, background: "rgba(10,6,22,0.4)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
             <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total Conseillers</div>
-            <div style={{ fontSize: 28, fontWeight: 800, color: "var(--cream)", marginTop: 6 }}>{team.length}</div>
+            <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--cream)", marginTop: 6 }}>{team.length}</div>
             <div style={{ fontSize: 10, color: "var(--gold-light)", marginTop: 4 }}>{team.filter(t => t.status === "active").length} actifs · {team.filter(t => t.status === "pending").length} en attente</div>
           </div>
           <div style={{ padding: 18, background: "rgba(10,6,22,0.4)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
             <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total affectations actives</div>
-            <div style={{ fontSize: 28, fontWeight: 800, color: "var(--sky)", marginTop: 6 }}>
+            <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--sky)", marginTop: 6 }}>
               {team.reduce((acc, t) => acc + t.workload, 0)}
             </div>
             <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Invités pris en charge</div>
           </div>
           <div style={{ padding: 18, background: "rgba(10,6,22,0.4)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
             <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Charge Moyenne</div>
-            <div style={{ fontSize: 28, fontWeight: 800, color: "var(--purple-light)", marginTop: 6 }}>
+            <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--purple-light)", marginTop: 6 }}>
               {team.length > 0 ? (team.reduce((acc, t) => acc + t.workload, 0) / team.filter(t => t.status === "active").length || 0).toFixed(1) : "0.0"}
             </div>
             <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Suivis par conseiller actif</div>
@@ -261,7 +261,7 @@ export default function IntegrationTeamPage() {
 
       {/* Grid listing */}
       <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-        <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "rgba(10, 6, 22, 0.3)" }}>
+        <div style={{ padding: "clamp(12px, 2vw, 18px) clamp(14px, 2.5vw, 24px)", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "rgba(10, 6, 22, 0.3)" }}>
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Membres de l'Équipe</span>
         </div>
         <div>
@@ -273,7 +273,7 @@ export default function IntegrationTeamPage() {
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(212,175,55,0.1)", textAlign: "left" }}>
                     <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Nom & Prénom</th>
@@ -359,12 +359,12 @@ export default function IntegrationTeamPage() {
               <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--gold-glow)", border: "1px solid rgba(212,175,55,0.25)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", margin: "0 auto 12px" }}>
                 <UserPlus size={20} />
               </div>
-              <h3 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Nouveau Conseiller</h3>
+              <h3 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Nouveau Conseiller</h3>
               <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Pré-enregistrer un membre de votre équipe d'intégration</p>
             </div>
 
             <form onSubmit={handleAddCounselor} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="form-grid-2">
                 <div>
                   <label className="form-label">Prénom</label>
                   <input className="input" placeholder="Ex: Jean" value={newCounselor.firstName} onChange={e => setNewCounselor({...newCounselor, firstName: e.target.value})} required style={{ height: 40 }} />

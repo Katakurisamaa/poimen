@@ -86,6 +86,21 @@ export default function EvangelisationPage() {
   const isIntegration = useMemo(() => userRoleClean.startsWith("integration_"), [userRoleClean]);
 
   useEffect(() => {
+    if (isAddModalOpen) {
+      document.documentElement.classList.add("no-scroll");
+      document.body.classList.add("no-scroll");
+    } else {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    }
+
+    return () => {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    };
+  }, [isAddModalOpen]);
+
+  useEffect(() => {
     const userInfoLocal = localStorage.getItem("poimen_user_info");
     let uId = "";
     let cId = "";
@@ -749,10 +764,10 @@ export default function EvangelisationPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+    <div className="evang-page" style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       
       {/* Header */}
-      <div className="page-header fade-in">
+      <div className="page-header evang-page-hero fade-in">
         <div>
           <h2 className="page-title">Session d'Évangélisation</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
@@ -760,7 +775,7 @@ export default function EvangelisationPage() {
           </p>
         </div>
         <button 
-          className="btn btn-primary btn-sm" 
+          className="btn btn-primary btn-sm evang-primary-action" 
           onClick={() => { 
             setEditingReport(null);
             setFormData({
@@ -791,7 +806,7 @@ export default function EvangelisationPage() {
 
       {/* Stats Bento (Always visible if Leader in overview tab, or as small recap for Counselor) */}
       {(isLeader || activeTab === "mine") && (
-        <div className="bento bento-3 fade-in">
+        <div className="bento bento-3 evang-stats-grid fade-in">
           <div className="stat-card col-span-2">
             <div className="evang-stat-head">
               <span className="stat-label" style={{ margin: 0 }}>Personnes Évangélisées</span>
@@ -861,17 +876,17 @@ export default function EvangelisationPage() {
 
       {/* Tab Switcher (Only visible to Leaders who have both Vue d'ensemble and Mes Saisies) */}
       {isLeader && (
-        <div className="fade-in" style={{ display: "flex", gap: 10, background: "rgba(10, 6, 22, 0.5)", border: "1px solid var(--border)", padding: 5, borderRadius: "14px", width: "fit-content" }}>
+        <div className="evang-scope-switcher fade-in" style={{ display: "flex", gap: 10, background: "rgba(10, 6, 22, 0.5)", border: "1px solid var(--border)", padding: 5, borderRadius: "14px", width: "fit-content" }}>
           <button 
             onClick={() => setActiveTab("mine")}
-            className={`pill ${activeTab === "mine" ? "pill-active" : "pill-inactive"}`}
+            className={`pill evang-scope-option ${activeTab === "mine" ? "pill-active active" : "pill-inactive"}`}
             style={{ border: "none" }}
           >
             Mes Saisies ({evangelisations.filter(e => e.created_by === userId).length})
           </button>
           <button 
             onClick={() => setActiveTab("all")}
-            className={`pill ${activeTab === "all" ? "pill-active" : "pill-inactive"}`}
+            className={`pill evang-scope-option ${activeTab === "all" ? "pill-active active" : "pill-inactive"}`}
             style={{ border: "none" }}
           >
             Vue d'ensemble ({isIntegration ? "Département" : "Bergerie"})
@@ -880,10 +895,10 @@ export default function EvangelisationPage() {
       )}
 
       {/* List view filter */}
-      <div className="glass fade-in" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+      <div className="glass evang-filter-panel fade-in" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="evang-filter-row" style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
           {/* Search bar */}
-          <div style={{ position: "relative", flex: "2 1 300px" }}>
+          <div className="evang-search-field" style={{ position: "relative", flex: "2 1 300px" }}>
             <Search size={14} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
             <input 
               className="input" 
@@ -895,8 +910,8 @@ export default function EvangelisationPage() {
           </div>
 
           {/* Date range filters */}
-          <div style={{ display: "flex", gap: 12, flex: "1 1 300px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+          <div className="evang-date-range" style={{ display: "flex", gap: 12, flex: "1 1 300px", alignItems: "center", flexWrap: "wrap" }}>
+            <div className="evang-date-filter" style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
               <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>Du</span>
               <input 
                 type="date" 
@@ -906,7 +921,7 @@ export default function EvangelisationPage() {
                 style={{ fontSize: 12, padding: "8px 12px" }}
               />
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+            <div className="evang-date-filter" style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
               <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>Au</span>
               <input 
                 type="date" 
@@ -941,7 +956,7 @@ export default function EvangelisationPage() {
           <p style={{ color: "var(--muted)", fontSize: 13 }}>Aucun rapport d'évangélisation ne correspond à vos critères.</p>
         </div>
       ) : (
-        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="evang-report-list fade-in" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filteredList.map((e) => {
             const isExpanded = expandedId === e.id;
             const formattedDate = new Date(e.created_at).toLocaleDateString("fr-FR", {
@@ -954,7 +969,7 @@ export default function EvangelisationPage() {
             return (
               <div 
                 key={e.id} 
-                className="glass glass-flush" 
+                className="glass glass-flush evang-report-card" 
                 style={{ 
                   borderLeft: e.converted_guest_id ? "4px solid var(--green)" : e.is_anonymous ? "1px solid var(--border)" : "1px solid var(--gold)", 
                   transition: "all 0.3s ease" 
@@ -1223,48 +1238,71 @@ export default function EvangelisationPage() {
       {/* Add Report Modal */}
       {typeof window !== "undefined" && isAddModalOpen && createPortal(
         <div className="modal-overlay">
-          <div className="custom-modal fade-in" style={{ maxWidth: 620 }}>
+          <div className="custom-modal evang-report-modal fade-in" style={{ maxWidth: 620 }}>
             
-            <button 
-              onClick={() => { setIsAddModalOpen(false); setEditingReport(null); }} 
-              style={{ position: "absolute", top: 24, right: 24, background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}
-            >
-              <XCircle size={20} />
-            </button>
+            <div className="evang-modal-actions">
+              <button
+                type="button"
+                className="evang-modal-icon-action cancel"
+                onClick={() => { setIsAddModalOpen(false); setEditingReport(null); }}
+                aria-label="Annuler"
+                title="Annuler"
+              >
+                <XCircle size={20} />
+              </button>
+              <button
+                type="submit"
+                form="evang-report-form"
+                className="evang-modal-icon-action confirm"
+                disabled={submitting}
+                aria-label={editingReport ? "Enregistrer les modifications" : "Valider le rapport"}
+                title={editingReport ? "Enregistrer les modifications" : "Valider le rapport"}
+              >
+                {submitting ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
+              </button>
+            </div>
 
-            <h2 style={{ fontSize: 20, color: "var(--gold-light)", marginBottom: 24, fontFamily: "var(--font-display)" }}>
-              {editingReport ? "Modifier le Rapport d'Évangélisation" : "Nouveau Rapport d'Évangélisation"}
-            </h2>
+            <div className="evang-modal-header">
+              <div className="evang-modal-icon">
+                <Flame size={22} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: "clamp(18px, 2.5vw, 24px)", color: "var(--gold-light)", marginBottom: 4, fontFamily: "var(--font-display)" }}>
+                  {editingReport ? "Modifier le Rapport" : "Nouveau Rapport"}
+                </h2>
+                <p>Consignez la rencontre, les prieres et les invitations en quelques etapes.</p>
+              </div>
+            </div>
 
             {/* Mode selection tabs */}
-            <div style={{ display: "flex", gap: 10, background: "rgba(10, 6, 22, 0.6)", padding: 4, borderRadius: 10, border: "1px solid var(--border)", marginBottom: 20 }}>
+            <div className="evang-mode-switcher">
               {[
-                { mode: "nominative", label: "Individuel Nominatif" },
-                { mode: "anonymous_single", label: "Individuel Anonyme" },
-                { mode: "anonymous_bulk", label: "Groupe / Masse Anonyme" }
-              ].map(item => (
+                { mode: "nominative", label: "Nominatif", sub: "Personne identifiee" },
+                { mode: "anonymous_single", label: "Anonyme", sub: "Une personne" },
+                { mode: "anonymous_bulk", label: "Groupe", sub: "Plusieurs personnes" }
+              ].map((item, index) => (
                 <button
                   key={item.mode}
                   type="button"
+                  className={`evang-mode-option ${formMode === item.mode ? "active" : ""}`}
                   onClick={() => setFormMode(item.mode as any)}
-                  style={{
-                    flex: 1, padding: "8px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700,
-                    background: formMode === item.mode ? "var(--gold)" : "transparent",
-                    color: formMode === item.mode ? "var(--bg)" : "var(--muted)",
-                    border: "none", cursor: "pointer", transition: "all 0.2s"
-                  }}
                 >
-                  {item.label}
+                  <span className="evang-mode-step">{index + 1}</span>
+                  <span className="evang-mode-copy">
+                    <span className="evang-mode-label">{item.label}</span>
+                    <span className="evang-mode-sub">{item.sub}</span>
+                  </span>
                 </button>
               ))}
             </div>
 
-            <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <form id="evang-report-form" className="evang-report-form" onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div className="evang-modal-scroll">
               
               {/* Conditional Fields based on Mode */}
               {formMode === "nominative" && (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                  <div className="form-grid-2">
                     <div>
                       <label className="form-label">PRÉNOM</label>
                       <input 
@@ -1285,7 +1323,7 @@ export default function EvangelisationPage() {
                     </div>
                   </div>
                   
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                  <div className="form-grid-2">
                     <div>
                       <label className="form-label">TÉLÉPHONE</label>
                       <input 
@@ -1338,7 +1376,7 @@ export default function EvangelisationPage() {
                     />
                   </div>
 
-                  <div style={{ background: "rgba(255,255,255,0.01)", padding: 16, borderRadius: 10, border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div className="evang-form-panel" style={{ background: "rgba(255,255,255,0.01)", padding: 16, borderRadius: 10, border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
                     <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
                       <input 
                         type="checkbox" 
@@ -1377,8 +1415,8 @@ export default function EvangelisationPage() {
                   {/* Prayers Group */}
                   <div>
                     <label className="form-label" style={{ marginBottom: 10, display: "block" }}>PRIÈRES ACCOMPAGNÉES</label>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 15 }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
+                    <div className="evang-check-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 15 }}>
+                      <label className="evang-check-card" style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
                         <input 
                           type="checkbox" 
                           checked={formData.prayer_salvation} 
@@ -1387,7 +1425,7 @@ export default function EvangelisationPage() {
                         />
                         <span style={{ color: "var(--cream-dim)" }}>Prière du Salut</span>
                       </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
+                      <label className="evang-check-card" style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
                         <input 
                           type="checkbox" 
                           checked={formData.prayer_healing} 
@@ -1396,7 +1434,7 @@ export default function EvangelisationPage() {
                         />
                         <span style={{ color: "var(--cream-dim)" }}>Guérison</span>
                       </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
+                      <label className="evang-check-card" style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
                         <input 
                           type="checkbox" 
                           checked={formData.prayer_other} 
@@ -1422,7 +1460,7 @@ export default function EvangelisationPage() {
                   )}
 
                   {/* Invitations */}
-                  <div style={{ background: "rgba(255,255,255,0.01)", padding: 12, borderRadius: 10, border: "1px solid var(--border)" }}>
+                  <div className="evang-form-panel" style={{ background: "rgba(255,255,255,0.01)", padding: 12, borderRadius: 10, border: "1px solid var(--border)" }}>
                     <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
                       <input 
                         type="checkbox" 
@@ -1440,7 +1478,7 @@ export default function EvangelisationPage() {
               )}
 
               {/* Date of Evangelisation */}
-              <div>
+              <div className="evang-date-field">
                 <label className="form-label">DATE DE L'ÉVANGÉLISATION *</label>
                 <input 
                   type="date"
@@ -1469,22 +1507,6 @@ export default function EvangelisationPage() {
                 />
               </div>
 
-              {/* Actions */}
-              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 10 }}>
-                <button 
-                  type="button" 
-                  className="btn btn-subtle" 
-                  onClick={() => { setIsAddModalOpen(false); setEditingReport(null); }}
-                >
-                  Annuler
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn btn-primary"
-                  disabled={submitting}
-                >
-                  {submitting ? "Enregistrement..." : (editingReport ? "Enregistrer les modifications" : "Valider le Rapport")}
-                </button>
               </div>
 
             </form>

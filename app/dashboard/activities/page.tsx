@@ -410,34 +410,43 @@ export default function ActivitiesPage() {
       </div>
 
       {/* Navigation Tabs & Period Selector */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-        <div className="glass-compact" style={{ display: "flex", gap: 6, padding: 6, width: "fit-content", border: "1px solid rgba(212,175,55,0.08)" }}>
+      <div className="activity-toolbar">
+        <div className="activity-view-switcher">
           <button 
-            className={`btn btn-sm ${activeTab === "attendance" ? "btn-primary" : "btn-ghost"}`} 
+            className={`activity-view-option ${activeTab === "attendance" ? "active" : ""}`} 
             onClick={() => setActiveTab("attendance")} 
-            style={{ display: "flex", alignItems: "center", gap: 6, height: 36 }}
           >
-            <Users size={14} /> Appel
+            <span className="activity-view-icon"><Users size={18} /></span>
+            <span className="activity-view-copy">
+              <span className="activity-view-title">Appel</span>
+              <span className="activity-view-subtitle">Cocher les presents</span>
+            </span>
           </button>
           <button 
-            className={`btn btn-sm ${activeTab === "schedule" ? "btn-primary" : "btn-ghost"}`} 
+            className={`activity-view-option ${activeTab === "schedule" ? "active" : ""}`} 
             onClick={() => setActiveTab("schedule")} 
-            style={{ display: "flex", alignItems: "center", gap: 6, height: 36 }}
           >
-            <Calendar size={14} /> Calendrier
+            <span className="activity-view-icon"><Calendar size={18} /></span>
+            <span className="activity-view-copy">
+              <span className="activity-view-title">Calendrier</span>
+              <span className="activity-view-subtitle">Planifier et modifier</span>
+            </span>
           </button>
           {isLeader && (
             <button 
-              className={`btn btn-sm ${activeTab === "stats" ? "btn-primary" : "btn-ghost"}`} 
+              className={`activity-view-option ${activeTab === "stats" ? "active" : ""}`} 
               onClick={() => setActiveTab("stats")} 
-              style={{ display: "flex", alignItems: "center", gap: 6, height: 36 }}
             >
-              <BarChart3 size={14} /> Statistiques
+              <span className="activity-view-icon"><BarChart3 size={18} /></span>
+              <span className="activity-view-copy">
+                <span className="activity-view-title">Statistiques</span>
+                <span className="activity-view-subtitle">Engagement du mois</span>
+              </span>
             </button>
           )}
         </div>
 
-        <div className="glass" style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 16px", borderRadius: 12, border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+        <div className="glass activity-period-picker" style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 16px", borderRadius: 12, border: "1px solid rgba(212, 175, 55, 0.15)" }}>
           <Calendar size={14} className="text-[var(--gold)]" />
           <select className="input-minimal" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))}>
             {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
@@ -782,25 +791,25 @@ export default function ActivitiesPage() {
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 {/* Dashboard Summary */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 15 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: "clamp(10px, 2vw, 15px)" }}>
                   <div className="glass" style={{ padding: 20, textAlign: "center", borderTop: "3px solid var(--gold)" }}>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Taux Global</div>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: "var(--gold)" }}>{Math.round(stats.globalRate)}%</div>
+                    <div style={{ fontSize: "clamp(22px, 4vw, 32px)", fontWeight: 800, color: "var(--gold)" }}>{Math.round(stats.globalRate)}%</div>
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Assiduité moyenne</div>
                   </div>
                   <div className="glass" style={{ padding: 20, textAlign: "center", borderTop: "3px solid var(--green)" }}>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Engagement Élevé</div>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: "var(--green)" }}>{stats.engagementLevels.high}</div>
+                    <div style={{ fontSize: "clamp(22px, 4vw, 32px)", fontWeight: 800, color: "var(--green)" }}>{stats.engagementLevels.high}</div>
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Membres actifs ({">"}80%)</div>
                   </div>
                   <div className="glass" style={{ padding: 20, textAlign: "center", borderTop: "3px solid var(--red)" }}>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Attention Requise</div>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: "var(--red)" }}>{stats.engagementLevels.low}</div>
+                    <div style={{ fontSize: "clamp(22px, 4vw, 32px)", fontWeight: 800, color: "var(--red)" }}>{stats.engagementLevels.low}</div>
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Engagement faible ({"<"}50%)</div>
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: "clamp(12px, 2vw, 20px)" }}>
                   {/* Activities Performance */}
                   <div className="glass" style={{ padding: 25 }}>
                     <h3 style={{ fontSize: 15, color: "var(--cream)", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
@@ -843,7 +852,7 @@ export default function ActivitiesPage() {
         <div className="modal-overlay">
           <div className="custom-modal fade-in">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 25 }}>
-              <h2 style={{ fontSize: 20, color: "var(--gold)" }}>Nouvelle Activité</h2>
+              <h2 style={{ fontSize: "clamp(16px, 2.5vw, 20px)", color: "var(--gold)" }}>Nouvelle Activité</h2>
               <button onClick={() => setIsAddModalOpen(false)} className="btn-icon"><XCircle size={20} /></button>
             </div>
             
@@ -864,7 +873,7 @@ export default function ActivitiesPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+              <div className="form-grid-2">
                 <div>
                   <label className="label">HEURE DE DÉBUT</label>
                   <input className="input" type="time" value={newActivity.startTime} onChange={e => setNewActivity({...newActivity, startTime: e.target.value})} />

@@ -76,7 +76,9 @@ export default function BergeriePage() {
   const [mounted, setMounted] = useState(false);
   
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"list"|"grid">("list");
+  const [view, setView] = useState<"list"|"grid">(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches ? "grid" : "list"
+  );
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isConseillerModalOpen, setIsConseillerModalOpen] = useState(false);
   const [conseillerSource, setConseillerSource] = useState<"existing" | "new">("existing");
@@ -588,13 +590,12 @@ export default function BergeriePage() {
           </p>
         </div>
         {canManageMembers && (
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div className="mobile-scroll-x" style={{ gap: 8 }}>
             {!showCorbeille && (
               <>
                 <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
                   <Plus size={14} /> Nouveau Membre
                 </button>
-                {/* Le bouton "Ajouter Conseiller" a été supprimé car les conseillers sont désormais gérés de manière centralisée au Département d'Intégration */}
               </>
             )}
             <button 
@@ -636,34 +637,34 @@ export default function BergeriePage() {
         </div>
       )}
 
-      <div className="glass-compact" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:15 }}>
-        <div style={{ display:"flex", gap:12, alignItems:"center", flex: 1, minWidth: 250 }}>
-          <div style={{ position:"relative", flex: 1 }}>
+      <div className="glass-compact" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+        <div style={{ display:"flex", gap:10, alignItems:"center", flex: 1, minWidth: 0 }}>
+          <div style={{ position:"relative", flex: 1, minWidth: 0 }}>
             <Search size={14} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"var(--muted)" }} />
-            <input className="input" placeholder="Rechercher un membre..." value={search} onChange={(e)=>setSearch(e.target.value)} style={{ paddingLeft:32, fontSize:12 }} />
+            <input className="input" placeholder="Rechercher..." value={search} onChange={(e)=>setSearch(e.target.value)} style={{ paddingLeft:32, fontSize:12 }} />
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 8px", borderRadius: 8, flexWrap: "wrap" }}>
           <select 
             className="input" 
             value={periodType} 
             onChange={(e) => setPeriodType(e.target.value as "mensuel" | "annuel")}
-            style={{ width: 100, fontSize: 11, padding: "4px 8px" }}
+            style={{ width: 90, fontSize: 11, padding: "4px 6px" }}
           >
             <option value="mensuel">Mensuel</option>
             <option value="annuel">Annuel</option>
           </select>
 
           {periodType === "mensuel" && (
-            <select className="input" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} style={{ width: 110, fontSize: 11, padding: "4px 8px" }}>
+            <select className="input" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} style={{ width: 95, fontSize: 11, padding: "4px 6px" }}>
               {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
                 <option key={i} value={i}>{m}</option>
               ))}
             </select>
           )}
 
-          <select className="input" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
+          <select className="input" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} style={{ width: 70, fontSize: 11, padding: "4px 6px" }}>
             {[2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
@@ -738,7 +739,7 @@ export default function BergeriePage() {
                       </td>
                       <td style={{ textAlign:"right" }}>
                         {canManageMembers && (
-                          <div className="action-group">
+                          <div className="action-group" style={{ justifyContent: "flex-end" }}>
                             {showCorbeille ? (
                               <>
                                 <button 
@@ -789,7 +790,7 @@ export default function BergeriePage() {
           </div>
         </div>
       ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(min(220px, 100%), 1fr))", gap:10 }}>
           {filtered.map((m) => {
             const engagement = calculateEngagement(m);
             const color = getEngagementColor(engagement);
@@ -873,8 +874,8 @@ export default function BergeriePage() {
               <button onClick={() => setIsAddModalOpen(false)} className="btn-icon"><XCircle size={20} /></button>
             </div>
             
-            <form onSubmit={handleSaveMember} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 15 }}>
+            <form onSubmit={handleSaveMember} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="form-grid-3">
                 <div>
                   <label className="label">CIV.</label>
                   <select className="input" value={newMember.civility} onChange={e => setNewMember({...newMember, civility: e.target.value})}>
@@ -892,7 +893,7 @@ export default function BergeriePage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+              <div className="form-grid-2">
                 <div>
                   <label className="label">TÉLÉPHONE</label>
                   <input 
@@ -943,7 +944,7 @@ export default function BergeriePage() {
                 )}
               </div>
 
-              <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <div style={{ marginTop: 8, display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-outline" onClick={() => setIsAddModalOpen(false)}>Annuler</button>
                 <button type="submit" className="btn btn-primary">Enregistrer</button>
               </div>
@@ -1027,7 +1028,7 @@ export default function BergeriePage() {
                       <p style={{ fontSize: 11, color: "var(--sky)", marginBottom: 14, fontWeight: 600 }}>
                         Le conseiller externe ne fait pas partie de la bergerie et ne sera pas compté dans les membres.
                       </p>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 12, marginBottom: 12 }}>
+                      <div className="form-grid-3" style={{ marginBottom: 12 }}>
                         <div>
                           <label className="label">CIV.</label>
                           <select className="input" value={newMember.civility} onChange={e => setNewMember({...newMember, civility: e.target.value})}>
@@ -1044,7 +1045,7 @@ export default function BergeriePage() {
                           <input className="input" value={newMember.lastName} onChange={e => setNewMember({...newMember, lastName: e.target.value})} placeholder="Nom" />
                         </div>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                      <div className="form-grid-2" style={{ marginBottom: 12 }}>
                         <div>
                            <label className="label">TÉLÉPHONE</label>
                            <input 
@@ -1144,5 +1145,4 @@ export default function BergeriePage() {
     </div>
   );
 }
-
 
