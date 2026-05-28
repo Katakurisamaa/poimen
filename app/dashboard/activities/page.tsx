@@ -52,6 +52,7 @@ export default function ActivitiesPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [search, setSearch] = useState("");
+  const [presenceFilter, setPresenceFilter] = useState<"all" | "present" | "absent">("all");
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -432,6 +433,21 @@ export default function ActivitiesPage() {
     return list;
   }, [members, search, isLeader, currentUserEmail]);
 
+  const displayedMembers = useMemo(() => {
+    return filteredMembers.filter(m => {
+      // Privacy check
+      if (!isLeader && currentUserFullName) {
+        const mFullName = `${m.lastName} ${m.firstName}`.toLowerCase();
+        if (mFullName !== currentUserFullName.toLowerCase()) return false;
+      }
+      
+      const isPresent = m.attendance[selectedActivityId || ""]?.[selectedDate] || false;
+      if (presenceFilter === "present") return isPresent;
+      if (presenceFilter === "absent") return !isPresent;
+      return true;
+    });
+  }, [filteredMembers, selectedActivityId, selectedDate, presenceFilter, isLeader, currentUserFullName]);
+
   if (!isMounted || isLoading) {
     return (
       <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
@@ -608,6 +624,19 @@ export default function ActivitiesPage() {
                     <input className="input w-full search-bar-premium" placeholder="Filtrer la liste..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
                   </div>
                 </div>
+                <div>
+                  <label className="form-label" style={{ marginBottom: 8 }}>Statut de présence</label>
+                  <select 
+                    className="input w-full" 
+                    value={presenceFilter} 
+                    onChange={(e) => setPresenceFilter(e.target.value as any)}
+                    style={{ height: 42 }}
+                  >
+                    <option value="all" style={{ background: "var(--bg)", color: "var(--cream)" }}>Tous</option>
+                    <option value="present" style={{ background: "var(--bg)", color: "var(--cream)" }}>Présents</option>
+                    <option value="absent" style={{ background: "var(--bg)", color: "var(--cream)" }}>Absents</option>
+                  </select>
+                </div>
               </div>
 
               {/* Stats & Actions */}
@@ -636,14 +665,7 @@ export default function ActivitiesPage() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-                {filteredMembers.map(m => {
-                  // Final check for non-leaders: can only see themselves
-                  // Final check for non-leaders: can only see themselves
-                  if (!isLeader && currentUserFullName) {
-                    const mFullName = `${m.lastName} ${m.firstName}`.toLowerCase();
-                    if (mFullName !== currentUserFullName.toLowerCase()) return null;
-                  }
-                  
+                {displayedMembers.map(m => {
                   const isPresent = m.attendance[selectedActivityId || ""]?.[selectedDate] || false;
                   const comment = m.attendance["_comments"]?.[selectedActivityId || ""]?.[selectedDate] || "";
                   return (
