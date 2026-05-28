@@ -14,7 +14,13 @@ export default function LandingPage() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [validating, setValidating] = useState(false);
-  const [loading, setLoading] = useState(true);
+
+  const fetchChurches = async () => {
+    const { data } = await supabase.from("churches").select("*").order("name");
+    if (data) {
+      setTimeout(() => setChurches(data), 0);
+    }
+  };
 
   useEffect(() => {
     if (localStorage.getItem("poimen_logging_out") === "true") {
@@ -25,30 +31,53 @@ export default function LandingPage() {
       localStorage.removeItem("poimen_logging_out");
       window.dispatchEvent(new Event("storage"));
     }
-    fetchChurches();
+    setTimeout(() => {
+      fetchChurches();
+    }, 0);
   }, []);
-
-  const fetchChurches = async () => {
-    const { data } = await supabase.from("churches").select("*").order("name");
-    if (data) setChurches(data);
-    setLoading(false);
-  };
 
   const filteredChurches = churches.filter(c => 
     c.name.toLowerCase().includes(search.toLowerCase()) || 
     c.city.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleValidateCode = () => {
+  const handleValidateCode = async () => {
     if (!selectedChurch) return;
     setValidating(true);
     setError("");
 
-    if (code === selectedChurch.access_code) {
-      localStorage.setItem("selected_church", JSON.stringify(selectedChurch));
-      router.push("/dashboard");
-    } else {
-      setError("Code d'accès invalide. Veuillez réessayer.");
+    try {
+      const { data: isValid, error: rpcErr } = await supabase.rpc("verify_church_code", {
+        p_church_id: selectedChurch.id,
+        p_code: code
+      });
+
+      if (rpcErr) {
+        // Safe fallback if patch_v3.5 has not been applied to Supabase SQL editor yet
+        if (rpcErr.code === "PGRST202" || rpcErr.message?.includes("verify_church_code")) {
+          console.warn("verify_church_code RPC not found. Falling back to client-side verification. Please apply patch_v3.5 SQL.");
+          if (code === selectedChurch.access_code) {
+            localStorage.setItem("selected_church", JSON.stringify(selectedChurch));
+            router.push("/dashboard");
+          } else {
+            setError("Code d'accès invalide. Veuillez réessayer.");
+            setValidating(false);
+          }
+          return;
+        }
+        throw rpcErr;
+      }
+
+      if (isValid) {
+        localStorage.setItem("selected_church", JSON.stringify(selectedChurch));
+        router.push("/dashboard");
+      } else {
+        setError("Code d'accès invalide. Veuillez réessayer.");
+        setValidating(false);
+      }
+    } catch (err: any) {
+      console.error("Code verification error:", err);
+      setError("Erreur de validation. Veuillez réessayer.");
       setValidating(false);
     }
   };

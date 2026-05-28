@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import { supabase } from "@/lib/supabase";
+import { adminSignUp } from "@/app/actions/auth";
 
 const STATS = [
   { label: "Membres", value: "0", sub: "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
@@ -47,23 +48,6 @@ export default function DashboardPage() {
     email: "",
     code: ""
   });
-
-  useEffect(() => {
-    setDateStr(new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
-    
-    // Initial data loading
-    const info = localStorage.getItem("poimen_user_info");
-    if (info) {
-      try { setUserInfo(JSON.parse(info)); } catch (e) { console.error("Error parsing user info", e); }
-    }
-    const fam = localStorage.getItem("selected_family");
-    if (fam) {
-      try { setMyBergerie(JSON.parse(fam)); } catch (e) { console.error("Error parsing family info", e); }
-    }
-
-    init();
-  }, []);
-
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedForJoin, setSelectedForJoin] = useState<any>(null);
   const [rememberMe, setRememberMe] = useState(false);
@@ -79,15 +63,16 @@ export default function DashboardPage() {
   });
   const [activitiesList, setActivitiesList] = useState<any[]>([]);
   const [atRiskList, setAtRiskList] = useState<any[]>([]);
+  const [engagementStats, setEngagementStats] = useState(ENGAGEMENT);
 
-  useEffect(() => {
-    const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
-    if (myBergerie || isIntegration) {
-      fetchCounts();
-    }
-  }, [myBergerie, userInfo]);
+  const savedInfo = typeof window !== "undefined" ? (() => { try { const s = localStorage.getItem("poimen_saved_info"); return s ? JSON.parse(s) : null; } catch { return null; } })() : null;
+  const [registration, setRegistration] = useState({
+    email: savedInfo?.email ?? "",
+    code: savedInfo?.code ?? "",
+    role: savedInfo?.role ?? "Responsable"
+  });
 
-  const fetchCounts = async () => {
+  async function fetchCounts() {
     const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
     if (!myBergerie && !isIntegration) return;
     try {
@@ -96,12 +81,11 @@ export default function DashboardPage() {
       const userNameStr = `${userInfo?.firstName} ${userInfo?.lastName}`;
       const currentChurchId = church?.id || userInfo?.church_id;
 
-      // Helper function to get recent days of week
       const getDaysOfPeriod = (year: number, month: number, dayOfWeek: number) => {
         const dates = [];
-        let start = new Date(year, month, 1);
-        let end = new Date(year, month + 1, 0);
-        let d = new Date(start);
+        const start = new Date(year, month, 1);
+        const end = new Date(year, month + 1, 0);
+        const d = new Date(start);
         while (d <= end) {
           if (d.getDay() === dayOfWeek) {
             const yyyy = d.getFullYear();
@@ -114,7 +98,6 @@ export default function DashboardPage() {
         return dates;
       };
 
-      // Helper function to get recent activity dates (Sundays/Thursdays)
       const getRecentActivityDates = () => {
         const dates: { id: string; name: string; date: string; day: number; time: string; actId: string }[] = [];
         const today = new Date();
@@ -136,7 +119,6 @@ export default function DashboardPage() {
         return dates.sort((a, b) => b.id.localeCompare(a.id));
       };
 
-      // Helper function to get upcoming activity dates
       const getUpcomingActivityDates = () => {
         const dates: { id: string; name: string; date: string; day: number; time: string; actId: string; upcoming: boolean }[] = [];
         const today = new Date();
@@ -158,7 +140,6 @@ export default function DashboardPage() {
         return dates;
       };
 
-      // 1. Fetch active members & invites & evangelisations
       let mQuery;
       let iQuery;
       let eQuery;
@@ -196,7 +177,6 @@ export default function DashboardPage() {
       const mCount = members?.length || 0;
       const iCount = invites?.length || 0;
 
-      // 2. Taux d'engagement & alertes
       let fidelised = 0;
       let ongoing = 0;
       let atRiskCount = 0;
@@ -233,7 +213,6 @@ export default function DashboardPage() {
           setAtRiskList(calculatedAtRisk.slice(0, 4));
         }
 
-        // 3. Dynamic activities with presence rate for Integration
         const recentDates = getRecentActivityDates();
         const upcomingDates = getUpcomingActivityDates();
 
@@ -291,7 +270,6 @@ export default function DashboardPage() {
               });
               eng = totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
             } else {
-              // Simulated baseline if no data entered yet
               const baseMap: Record<string, number> = {
                 "Berger": 90,
                 "Second": 85,
@@ -329,7 +307,6 @@ export default function DashboardPage() {
           calculatedAtRisk.sort((a, b) => a.score - b.score);
           setAtRiskList(calculatedAtRisk.slice(0, 4));
 
-          // 3. Dynamic activities with presence rate
           const recentDates = getRecentActivityDates();
           const upcomingDates = getUpcomingActivityDates();
 
@@ -372,7 +349,6 @@ export default function DashboardPage() {
         }
       }
 
-      // 4. Moisson d'évangélisation
       let totalReached = 0;
       let totalSalvation = 0;
       let totalInvitations = 0;
@@ -387,12 +363,11 @@ export default function DashboardPage() {
         });
       }
 
-      // 5. Total activities target this month
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth();
       let theoreticalActivitiesCount = 0;
-      let dTemp = new Date(currentYear, currentMonth, 1);
-      let endTemp = new Date(currentYear, currentMonth + 1, 0);
+      const dTemp = new Date(currentYear, currentMonth, 1);
+      const endTemp = new Date(currentYear, currentMonth + 1, 0);
       while (dTemp <= endTemp) {
         if (dTemp.getDay() === 0 || dTemp.getDay() === 4) {
           theoreticalActivitiesCount++;
@@ -411,54 +386,12 @@ export default function DashboardPage() {
       });
       setCounts({ members: mCount, invites: iCount });
 
-    } catch (e) {
-      console.error("Error fetching dashboard data:", e);
+    } catch {
+      console.error("Error fetching dashboard data");
     }
-  };
+  }
 
-  const [engagementStats, setEngagementStats] = useState(ENGAGEMENT);
-
-  const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
-  const userRoleVal = (userInfo?.role || "").toLowerCase().trim();
-  const isOnlyResponsable = userRoleVal.includes("responsable") || userRoleVal === "integration_conseiller";
-
-  const DYNAMIC_STATS = isIntegration ? [
-    { label: "Équipe", value: String(familyStats.membersCount), sub: "Membres actifs", trend: "up", color: "var(--gold-light)", icon: Users },
-    { label: "Invités", value: String(familyStats.invitesCount), sub: isOnlyResponsable ? "Mes affectations" : "En cours d'intégration", trend: "up", color: "var(--sky)", icon: UserPlus },
-    { label: "Activités", value: String(familyStats.activitiesCount), sub: "Ce mois", trend: "up", color: "var(--purple)", icon: CalendarDays },
-    { label: "Suivis Requis", value: String(familyStats.alertsCount), sub: "Appels en attente", trend: "down", color: "var(--red)", icon: AlertTriangle },
-  ] : [
-    { label: "Membres", value: String(familyStats.membersCount), sub: isOnlyResponsable ? "Mes affectations" : "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
-    { label: "Invités", value: String(familyStats.invitesCount), sub: isOnlyResponsable ? "Mes affectations" : "Nouveaux", trend: "up", color: "var(--sky)", icon: UserPlus },
-    { label: "Activités", value: String(familyStats.activitiesCount), sub: "Ce mois", trend: "up", color: "var(--purple)", icon: CalendarDays },
-    { label: "Alertes Suivi", value: String(familyStats.alertsCount), sub: "Membres à risque", trend: "down", color: "var(--red)", icon: AlertTriangle },
-  ];
-
-  // Pre-fill from saved info
-  const savedInfo = typeof window !== "undefined" ? (() => { try { const s = localStorage.getItem("poimen_saved_info"); return s ? JSON.parse(s) : null; } catch { return null; } })() : null;
-  const [registration, setRegistration] = useState({
-    email: savedInfo?.email ?? "",
-    code: savedInfo?.code ?? "",
-    role: savedInfo?.role ?? "Responsable"
-  });
-
-
-
-  useEffect(() => {
-    if (isCreating || selectedForJoin) {
-      document.documentElement.classList.add("no-scroll");
-      document.body.classList.add("no-scroll");
-    } else {
-      document.documentElement.classList.remove("no-scroll");
-      document.body.classList.remove("no-scroll");
-    }
-    return () => { 
-      document.documentElement.classList.remove("no-scroll");
-      document.body.classList.remove("no-scroll");
-    };
-  }, [isCreating, selectedForJoin]);
-
-  const init = async () => {
+  async function init() {
     const savedChurch = localStorage.getItem("selected_church");
     if (!savedChurch) {
       window.location.href = "/";
@@ -501,7 +434,64 @@ export default function DashboardPage() {
     if (savedUserInfo) setUserInfo(JSON.parse(savedUserInfo));
 
     setLoading(false);
-  };
+  }
+
+  useEffect(() => {
+    setTimeout(() => {
+      setDateStr(new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
+      
+      const info = localStorage.getItem("poimen_user_info");
+      if (info) {
+        try { setUserInfo(JSON.parse(info)); } catch (e) { console.error("Error parsing user info", e); }
+      }
+      const fam = localStorage.getItem("selected_family");
+      if (fam) {
+        try { setMyBergerie(JSON.parse(fam)); } catch (e) { console.error("Error parsing family info", e); }
+      }
+
+      init();
+    }, 0);
+  }, []);
+
+  useEffect(() => {
+    const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
+    if (myBergerie || isIntegration) {
+      setTimeout(() => {
+        fetchCounts();
+      }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myBergerie, userInfo]);
+
+  useEffect(() => {
+    if (isCreating || selectedForJoin) {
+      document.documentElement.classList.add("no-scroll");
+      document.body.classList.add("no-scroll");
+    } else {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    }
+    return () => { 
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    };
+  }, [isCreating, selectedForJoin]);
+
+  const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
+  const userRoleVal = (userInfo?.role || "").toLowerCase().trim();
+  const isOnlyResponsable = userRoleVal.includes("responsable") || userRoleVal === "integration_conseiller";
+
+  const DYNAMIC_STATS = isIntegration ? [
+    { label: "Équipe", value: String(familyStats.membersCount), sub: "Membres actifs", trend: "up", color: "var(--gold-light)", icon: Users },
+    { label: "Invités", value: String(familyStats.invitesCount), sub: isOnlyResponsable ? "Mes affectations" : "En cours d'intégration", trend: "up", color: "var(--sky)", icon: UserPlus },
+    { label: "Activités", value: String(familyStats.activitiesCount), sub: "Ce mois", trend: "up", color: "var(--purple)", icon: CalendarDays },
+    { label: "Suivis Requis", value: String(familyStats.alertsCount), sub: "Appels en attente", trend: "down", color: "var(--red)", icon: AlertTriangle },
+  ] : [
+    { label: "Membres", value: String(familyStats.membersCount), sub: isOnlyResponsable ? "Mes affectations" : "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
+    { label: "Invités", value: String(familyStats.invitesCount), sub: isOnlyResponsable ? "Mes affectations" : "Nouveaux", trend: "up", color: "var(--sky)", icon: UserPlus },
+    { label: "Activités", value: String(familyStats.activitiesCount), sub: "Ce mois", trend: "up", color: "var(--purple)", icon: CalendarDays },
+    { label: "Alertes Suivi", value: String(familyStats.alertsCount), sub: "Membres à risque", trend: "down", color: "var(--red)", icon: AlertTriangle },
+  ];
 
   const handleCreateRequest = async () => {
     if (!church) return;
@@ -572,110 +562,101 @@ export default function DashboardPage() {
 
     setLoading(true);
     const email = registration.email.toLowerCase().trim();
+    const password = registration.code;
 
-    // 1. Check if family code is correct
-    const { data: family, error: famErr } = await supabase
-      .from("bergeries")
-      .select("*")
-      .eq("id", selectedForJoin.id)
-      .eq("access_code", registration.code)
-      .maybeSingle();
+    try {
+      // 1. Authenticate with Supabase Auth using email and family access code as password
+      let sessionData = null;
+      let authError = null;
 
-    if (famErr || !family) {
-      alert("Code d'accès incorrect pour cette famille.");
-      setLoading(false);
-      return;
-    }
-
-    // 2. Identify the user and their role
-    let finalRole = "";
-    let finalInfo = null;
-
-    if (family.creator_email?.toLowerCase() === email) {
-      // It's the creator — also check if they are a conseiller
-      const { data: creatorMember } = await supabase
-        .from("members")
-        .select("is_conseiller")
-        .eq("bergerie_id", family.id)
-        .eq("email", email)
-        .maybeSingle();
-
-      finalRole = family.creator_role;
-      finalInfo = {
-        civility: family.creator_civility,
-        firstName: family.creator_first_name,
-        lastName: family.creator_last_name,
-        email: family.creator_email,
-        role: family.creator_role,
-        isConseiller: creatorMember?.is_conseiller === true
-      };
-    } else {
-      // Check if it's an authorized leader in the members table
-      const { data: member, error: memErr } = await supabase
-        .from("members")
-        .select("*")
-        .eq("bergerie_id", family.id)
-        .eq("email", email)
-        .maybeSingle();
-
-      if (memErr || !member) {
-        alert("Accès refusé : vous n'êtes pas enregistré comme leader dans cette famille.");
-        setLoading(false);
-        return;
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        sessionData = data;
+        authError = error;
+      } catch {
+        // Ignore client-side error and try fallback signup
       }
 
-      // If the user is a conseiller, they get the 'Conseiller' role (unless they are already a leader)
-      const allowedRoles = ["Berger", "Second", "Responsable"];
-      const isConseiller = member.is_conseiller === true;
+      // If sign-in failed, attempt dynamic sign-up/recovery via Server Action
+      if (authError || !sessionData?.user) {
+        const res = await adminSignUp(email, password);
+        if (!res.success) {
+          alert(`Erreur d'accès : ${res.error}`);
+          setLoading(false);
+          return;
+        }
 
-      if (!allowedRoles.includes(member.status) && !isConseiller) {
-        alert("Accès refusé : seul les leaders et conseillers peuvent se connecter.");
-        setLoading(false);
-        return;
+        // Try signing in again now that the auth user exists
+        const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (retryErr || !retryData?.user) {
+          alert(`Erreur de connexion : ${retryErr?.message || "Échec d'authentification."}`);
+          setLoading(false);
+          return;
+        }
+        sessionData = retryData;
       }
 
-      // If they are a leader (Berger/Second/Responsable), keep that role. 
-      // Otherwise, if they are a conseiller, give them the 'Conseiller' role.
-      finalRole = allowedRoles.includes(member.status) ? member.status : (isConseiller ? "Conseiller" : member.status);
-      
-      finalInfo = {
-        civility: member.civility,
-        firstName: member.first_name,
-        lastName: member.last_name,
-        email: member.email,
-        role: finalRole,
-        isConseiller: isConseiller
-      };
-    }
-
-    // 3. Update Profile & Local State
-    const { data: authUser } = await supabase.auth.getUser();
-    if (authUser?.user) {
-      await supabase
+      // 2. Fetch the newly established profile to populate user state
+      const { data: profile, error: profErr } = await supabase
         .from("profiles")
-        .update({ 
-          bergerie_id: family.id, 
-          role: finalRole 
-        })
-        .eq("id", authUser.user.id);
-    }
+        .select("*")
+        .eq("id", sessionData.user.id)
+        .single();
 
-    if (rememberMe) {
-      localStorage.setItem("poimen_saved_info", JSON.stringify({ email, code: registration.code, role: finalRole }));
-    } else {
-      localStorage.removeItem("poimen_saved_info");
-    }
+      if (profErr || !profile) {
+        alert("Erreur de profil : Impossible de charger votre profil de leader.");
+        setLoading(false);
+        return;
+      }
 
-    localStorage.setItem("poimen_user_info", JSON.stringify(finalInfo));
-    localStorage.setItem("selected_family", JSON.stringify(family));
-    
-    setMyBergerie(family);
-    setUserInfo(finalInfo);
-    window.dispatchEvent(new Event("storage"));
-    setSelectedForJoin(null);
-    setLoading(false);
-    
-    alert(`Bienvenue ${finalInfo.firstName} ! Connexion réussie en tant que ${finalRole}.`);
+      // 3. Set family details in profiles if not set or mismatched
+      if (profile.bergerie_id !== selectedForJoin.id) {
+        await supabase
+          .from("profiles")
+          .update({ 
+            bergerie_id: selectedForJoin.id,
+            role: profile.role || "Responsable"
+          })
+          .eq("id", sessionData.user.id);
+      }
+
+      const finalInfo = {
+        id: profile.id,
+        civility: "M.",
+        firstName: profile.display_name?.split(' ')[0] || '',
+        lastName: profile.display_name?.split(' ').slice(1).join(' ') || '',
+        email: profile.email,
+        role: profile.role,
+        isConseiller: (profile.role || "").toLowerCase().includes("conseiller") || false
+      };
+
+      if (rememberMe) {
+        localStorage.setItem("poimen_saved_info", JSON.stringify({ email, code: registration.code, role: profile.role }));
+      } else {
+        localStorage.removeItem("poimen_saved_info");
+      }
+
+      localStorage.setItem("poimen_user_info", JSON.stringify(finalInfo));
+      localStorage.setItem("selected_family", JSON.stringify(selectedForJoin));
+      
+      setMyBergerie(selectedForJoin);
+      setUserInfo(finalInfo);
+      window.dispatchEvent(new Event("storage"));
+      setSelectedForJoin(null);
+      setLoading(false);
+      
+      alert(`Bienvenue ${finalInfo.firstName} ! Connexion réussie en tant que ${profile.role}.`);
+    } catch (e: any) {
+      alert(`Erreur inattendue : ${e.message}`);
+      setLoading(false);
+    }
   };
 
   const filteredBergeries = bergeries.filter(b => 
@@ -1158,7 +1139,7 @@ export default function DashboardPage() {
           <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(10, 6, 22, 0.3)" }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités de Réunion</span>
             {isLeader && (
-              <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => window.location.href = "/dashboard/bergerie"}>
+              <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => window.location.href = "/dashboard/activities"}>
                 <ChevronRight size={12} /> Faire l'appel
               </button>
             )}

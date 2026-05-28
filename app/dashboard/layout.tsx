@@ -25,75 +25,78 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return;
       }
 
-      // 2. Check local storage for super admin or regular user info
-      const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
-      let superAdminDetected = isLocalSuperAdmin;
-      let superAdminProfile = isLocalSuperAdmin ? { role: 'super_admin', email: 'minkojunior400@gmail.com' } : null;
+      // 2. Fetch the active session from Supabase to prevent localStorage spoofing
+      // Wait a brief moment to let Supabase Auth restore the session from localStorage on page refresh
+      let session = null;
+      for (let i = 0; i < 8; i++) {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (currentSession) {
+          session = currentSession;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
+      let superAdminDetected = false;
+      let regularUserFound = false;
+      let isIntegrationUser = false;
+      let superAdminProfile = null;
+      let profileData = null;
 
-      const user = localStorage.getItem("poimen_user");
-      if (user) {
-        try {
-          const profile = JSON.parse(user);
-          if (profile.role === 'super_admin' || profile.email === 'minkojunior400@gmail.com') {
+      if (session?.user) {
+        // Fetch real profile from the database
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (profile) {
+          profileData = profile;
+          if (profile.role === "super_admin" || session.user.email?.toLowerCase().trim() === "minkojunior400@gmail.com") {
             superAdminDetected = true;
             superAdminProfile = profile;
-          }
-        } catch (e) {}
-      }
-
-      const info = localStorage.getItem("poimen_user_info");
-      let isIntegrationUser = false;
-      let regularUserFound = false;
-
-      if (info) {
-        try {
-          const parsedInfo = JSON.parse(info);
-          if (parsedInfo.role === 'super_admin' || parsedInfo.email === 'minkojunior400@gmail.com') {
-            superAdminDetected = true;
-            superAdminProfile = parsedInfo;
-          } else if (parsedInfo.id) {
-            regularUserFound = true;
-          }
-          isIntegrationUser = !!parsedInfo?.role?.toLowerCase().startsWith("integration_");
-        } catch (e) {}
-      }
-
-      // 3. If no session info is found in localStorage, try to recover from active Supabase session
-      if (!superAdminDetected && !regularUserFound) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          // Fetch their profile from database
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", session.user.id)
-            .maybeSingle();
-
-          if (profile) {
-            const infoObj = {
-              id: profile.id,
-              email: profile.email,
-              role: profile.role,
-              firstName: profile.display_name?.split(' ')[0] || '',
-              lastName: profile.display_name?.split(' ').slice(1).join(' ') || '',
-              church_id: profile.church_id,
-              bergerie_id: profile.bergerie_id
-            };
-            localStorage.setItem("poimen_user_info", JSON.stringify(infoObj));
-            if (profile.bergerie_id) {
-              // Also recover selected_family
-              const { data: family } = await supabase
-                .from("bergeries")
-                .select("*")
-                .eq("id", profile.bergerie_id)
-                .maybeSingle();
-              if (family) {
-                localStorage.setItem("selected_family", JSON.stringify(family));
-              }
-            }
+          } else {
             regularUserFound = true;
             isIntegrationUser = !!profile.role?.toLowerCase().startsWith("integration_");
-            setHasFamily(!!profile.bergerie_id);
+          }
+        }
+      }
+
+      // 3. Clear spoofed super admin flag if backend session is invalid or not super_admin
+      const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
+      if (isLocalSuperAdmin && !superAdminDetected) {
+        localStorage.removeItem("is_super_admin");
+        window.location.href = "/login";
+        return;
+      }
+
+      // Synchronize poimen_user_info if logged in
+      if (session?.user && profileData) {
+        const infoObj = {
+          id: profileData.id,
+          email: profileData.email,
+          role: profileData.role,
+          firstName: profileData.display_name?.split(' ')[0] || '',
+          lastName: profileData.display_name?.split(' ').slice(1).join(' ') || '',
+          church_id: profileData.church_id,
+          bergerie_id: profileData.bergerie_id
+        };
+        localStorage.setItem("poimen_user_info", JSON.stringify(infoObj));
+
+        if (superAdminDetected) {
+          localStorage.setItem("is_super_admin", "true");
+        }
+
+        if (profileData.bergerie_id && !localStorage.getItem("selected_family")) {
+          // Recover selected_family
+          const { data: family } = await supabase
+            .from("bergeries")
+            .select("*")
+            .eq("id", profileData.bergerie_id)
+            .maybeSingle();
+          if (family) {
+            localStorage.setItem("selected_family", JSON.stringify(family));
           }
         }
       }

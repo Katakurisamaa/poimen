@@ -2,25 +2,57 @@
 
 import { useState } from "react";
 import { Eye, EyeOff, LogIn, ShieldCheck } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
-
   const [error, setError] = useState("");
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    
-    if (email === "minkojunior400@gmail.com" && password === "Richesse19") {
-      setLoading(true);
+    setLoading(true);
+
+    try {
+      const cleanEmail = email.toLowerCase().trim();
+      const { data, error: authErr } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: password,
+      });
+
+      if (authErr) {
+        throw authErr;
+      }
+
+      // Check if user is Super Admin in Profiles table
+      const { data: profile, error: profErr } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", data.user.id)
+        .maybeSingle();
+
+      if (profErr || !profile || (profile.role !== "super_admin" && cleanEmail !== "minkojunior400@gmail.com")) {
+        await supabase.auth.signOut();
+        throw new Error("Accès refusé. Cette console est réservée aux Super Administrateurs.");
+      }
+
       localStorage.setItem("is_super_admin", "true");
-      setTimeout(() => { window.location.href = "/dashboard/admin"; }, 800);
-    } else {
-      setError("Identifiants incorrects. Accès réservé au Super Admin.");
+      localStorage.setItem("poimen_user_info", JSON.stringify({
+        id: profile.id,
+        email: cleanEmail,
+        role: "super_admin",
+        firstName: profile.display_name?.split(' ')[0] || "Super",
+        lastName: profile.display_name?.split(' ').slice(1).join(' ') || "Admin",
+      }));
+
+      window.location.href = "/dashboard/admin";
+    } catch (err: any) {
+      setError(err.message || "Identifiants incorrects. Accès réservé au Super Admin.");
+      setLoading(false);
     }
   };
 
@@ -63,7 +95,7 @@ export default function AdminLoginPage() {
             <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: "100%", padding: "12px 0", fontSize: 13, justifyContent: "center", marginTop: 4, opacity: loading ? 0.7 : 1 }}>
               {loading ? <span className="spinner" /> : <><LogIn size={16} /> Authentification</>}
             </button>
-            <a href="/" style={{ textAlign: "center", fontSize: 11, color: "var(--muted)", textDecoration: "none", marginTop: 12 }}>Retour à l'accueil</a>
+            <Link href="/" style={{ textAlign: "center", fontSize: 11, color: "var(--muted)", textDecoration: "none", marginTop: 12 }}>Retour à l'accueil</Link>
           </form>
         </div>
       </div>

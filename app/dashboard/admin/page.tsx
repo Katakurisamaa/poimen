@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Plus, MapPin, Key, Trash2, Edit2, Globe, ShieldCheck, Users, Link as LinkIcon, Check, Copy, X, CheckCircle2, XCircle, Church } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { createChurchInvitation } from "@/app/actions/church";
 
 export default function SuperAdminDashboard() {
   return (
@@ -81,11 +82,19 @@ function AdminContent() {
     integration_last_name: ""
   });
 
-  const generateInvite = () => {
-    const token = Math.random().toString(36).substring(7);
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://poimen.org";
-    setInviteLink(`${origin}/setup-church?token=${token}`);
-    setIsInviting(true);
+  const generateInvite = async () => {
+    try {
+      const res = await createChurchInvitation();
+      if (!res.success || !res.token) {
+        alert("Erreur lors de la création de l'invitation: " + (res.error || "Inconnue"));
+        return;
+      }
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://poimen.org";
+      setInviteLink(`${origin}/setup-church?token=${res.token}`);
+      setIsInviting(true);
+    } catch (err: any) {
+      alert("Erreur: " + err.message);
+    }
   };
 
   const copyLink = () => {

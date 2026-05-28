@@ -5,6 +5,7 @@ import { Eye, EyeOff, LogIn, MapPin, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { adminSignUp } from "@/app/actions/auth";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,14 +17,22 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [church, setChurch] = useState<{ name: string; city: string } | null>(null);
 
+  // Safely initialize state after mount to avoid server/client mismatch and effect warnings
   useEffect(() => {
     const savedChurch = localStorage.getItem("selected_church");
-    if (savedChurch) setChurch(JSON.parse(savedChurch));
+    if (savedChurch) {
+      try {
+        const parsed = JSON.parse(savedChurch);
+        setTimeout(() => setChurch(parsed), 0);
+      } catch (e) {}
+    }
 
     const savedEmail = localStorage.getItem("poimen_remember_email");
     if (savedEmail) {
-      setEmail(savedEmail);
-      setRememberMe(true);
+      setTimeout(() => {
+        setEmail(savedEmail);
+        setRememberMe(true);
+      }, 0);
     }
   }, []);
 
@@ -162,7 +171,7 @@ export default function LoginPage() {
               id: data.user.id,
               email: cleanEmail,
               display_name: displayName,
-              role: "integration_conseiller",
+              role: "integration_counselor",
               church_id: defaultChurchId
             })
             .select()
@@ -205,190 +214,44 @@ export default function LoginPage() {
       // Intercept credentials error to see if they are a first-time integration user
       if (err.message === "Invalid login credentials") {
         try {
-          // 1. Check if they are the Integration Responsable for a church
-          const { data: churchData, error: chErr } = await supabase
-            .from("churches")
-            .select("*")
-            .eq("integration_email", cleanEmail)
-            .eq("integration_access_code", password)
-            .maybeSingle();
-
-          if (!chErr && churchData) {
-            // Yes! Sign them up dynamically on server-side with auto-confirmed email
-            const res = await adminSignUp(cleanEmail, password);
-            if (!res.success) throw new Error(res.error);
-
-            const signUpUser = res.user;
-            if (signUpUser) {
-              const displayName = (churchData.integration_first_name && churchData.integration_last_name)
-                ? `${churchData.integration_first_name} ${churchData.integration_last_name}`
-                : "Responsable Intégration";
-
-              // Create profile
-              const { error: profError } = await supabase.from("profiles").insert({
-                id: signUpUser.id,
-                email: cleanEmail,
-                display_name: displayName,
-                role: "integration_responsable",
-                church_id: churchData.id
-              });
-
-              if (profError) throw profError;
-
-              // Sign in client-side to establish token session
-              const { error: signInErr } = await supabase.auth.signInWithPassword({
-                email: cleanEmail,
-                password,
-              });
-              if (signInErr) throw signInErr;
-
-              // Store session locals
-              localStorage.setItem("poimen_user_info", JSON.stringify({
-                id: signUpUser.id,
-                email: cleanEmail,
-                role: "integration_responsable",
-                firstName: churchData.integration_first_name || "Responsable",
-                lastName: churchData.integration_last_name || "Intégration",
-                church_id: churchData.id
-              }));
-
-              // Save church to local storage to bypass community selection
-              localStorage.setItem("selected_church", JSON.stringify(churchData));
-
-              router.push("/dashboard");
-              return;
-            }
+          const res = await adminSignUp(cleanEmail, password);
+          if (!res.success) {
+            throw new Error(res.error);
           }
 
-          // 2. Check if they are a pending counselor or second
-          const { data: pendingCounselor, error: pcErr } = await supabase
-            .from("pending_counselors")
-            .select("*")
-            .eq("email", cleanEmail)
-            .eq("access_code", password)
-            .maybeSingle();
+          const signUpUser = res.user;
+          if (signUpUser) {
+            // Sign in client-side to establish token session
+            const { error: signInErr } = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password,
+            });
+            if (signInErr) throw signInErr;
 
-          if (!pcErr && pendingCounselor) {
-            // Yes! Sign them up dynamically on server-side with auto-confirmed email
-            const res = await adminSignUp(cleanEmail, password);
-            if (!res.success) throw new Error(res.error);
+            // Store session locals
+            localStorage.setItem("poimen_user_info", JSON.stringify({
+              id: signUpUser.id,
+              email: cleanEmail,
+              role: res.role,
+              firstName: res.displayName?.split(' ')[0] || "",
+              lastName: res.displayName?.split(' ').slice(1).join(' ') || "",
+              church_id: res.churchId,
+              bergerie_id: res.bergerieId
+            }));
 
-            const signUpUser = res.user;
-            if (signUpUser) {
-              const displayName = `${pendingCounselor.first_name} ${pendingCounselor.last_name}`;
-              // Create profile
-              const { error: profError } = await supabase.from("profiles").insert({
-                id: signUpUser.id,
-                email: cleanEmail,
-                display_name: displayName,
-                role: pendingCounselor.role,
-                church_id: pendingCounselor.church_id
-              });
-
-              if (profError) throw profError;
-
-              // Sign in client-side to establish token session
-              const { error: signInErr } = await supabase.auth.signInWithPassword({
-                email: cleanEmail,
-                password,
-              });
-              if (signInErr) throw signInErr;
-
-              // Delete pending counselor record
-              await supabase.from("pending_counselors").delete().eq("id", pendingCounselor.id);
-
-              // Load church info to store in localstorage
-              const { data: chInfo } = await supabase
-                .from("churches")
-                .select("*")
-                .eq("id", pendingCounselor.church_id)
-                .single();
-
-              if (chInfo) {
-                localStorage.setItem("selected_church", JSON.stringify(chInfo));
-              }
-
-              // Store session locals
-              localStorage.setItem("poimen_user_info", JSON.stringify({
-                id: signUpUser.id,
-                email: cleanEmail,
-                role: pendingCounselor.role,
-                firstName: pendingCounselor.first_name,
-                lastName: pendingCounselor.last_name,
-                church_id: pendingCounselor.church_id
-              }));
-
-              router.push("/dashboard");
-              return;
+            if (res.churchData) {
+              localStorage.setItem("selected_church", JSON.stringify(res.churchData));
             }
-          }
-
-          // 3. Check if they are a member of a family (Berger, Second, Responsable) trying to connect for the first time
-          const { data: member, error: memErr } = await supabase
-            .from("members")
-            .select("*, bergeries(*)")
-            .eq("email", cleanEmail)
-            .maybeSingle();
-
-          if (!memErr && member) {
-            const familyCode = member.bergeries?.access_code;
-            if (familyCode && password === familyCode) {
-              // Yes! Sign them up dynamically on server-side with auto-confirmed email
-              const res = await adminSignUp(cleanEmail, password);
-              if (!res.success) throw new Error(res.error);
-
-              const signUpUser = res.user;
-              if (signUpUser) {
-                const displayName = `${member.first_name} ${member.last_name}`;
-                const dbRole = member.status ? (
-                  member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
-                  member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
-                  member.status.toLowerCase().trim()
-                ) : "membre";
-                
-                // Create profile
-                const { error: profError } = await supabase.from("profiles").insert({
-                  id: signUpUser.id,
-                  email: cleanEmail,
-                  display_name: displayName,
-                  role: dbRole,
-                  bergerie_id: member.bergerie_id,
-                  church_id: member.bergeries?.church_id
-                });
-
-                if (profError) throw profError;
-
-                // Sign in client-side to establish token session
-                const { error: signInErr } = await supabase.auth.signInWithPassword({
-                  email: cleanEmail,
-                  password,
-                });
-                if (signInErr) throw signInErr;
-
-                // Store session locals
-                localStorage.setItem("poimen_user_info", JSON.stringify({
-                  id: signUpUser.id,
-                  email: cleanEmail,
-                  role: dbRole,
-                  firstName: member.first_name,
-                  lastName: member.last_name,
-                  church_id: member.bergeries?.church_id
-                }));
-
-                // Load church info to store in localstorage
-                if (member.bergeries) {
-                  localStorage.setItem("selected_church", JSON.stringify(member.bergeries));
-                  localStorage.setItem("selected_family", JSON.stringify(member.bergeries));
-                }
-
-                router.push("/dashboard");
-                return;
-              }
+            if (res.familyData) {
+              localStorage.setItem("selected_family", JSON.stringify(res.familyData));
             }
+
+            router.push("/dashboard");
+            return;
           }
         } catch (innerErr: any) {
           console.error("Dynamic signup error:", innerErr);
-          setError(innerErr.message);
+          setError(innerErr.message || "Email ou mot de passe incorrect");
           setLoading(false);
           return;
         }
@@ -425,7 +288,7 @@ export default function LoginPage() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 20, padding: "8px 12px", background: "var(--gold-glow)", borderRadius: 8, border: "1px solid rgba(212,160,60,0.1)" }}>
               <MapPin size={14} style={{ color: "var(--gold)" }} />
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--gold-light)" }}>{church.name}</span>
-              <a href="/" style={{ fontSize: 11, color: "var(--muted)", marginLeft: 8, textDecoration: "underline" }}>Changer</a>
+              <Link href="/" style={{ fontSize: 11, color: "var(--muted)", marginLeft: 8, textDecoration: "underline" }}>Changer</Link>
             </div>
           )}
           
@@ -452,7 +315,7 @@ export default function LoginPage() {
                   style={{ accentColor: "var(--gold)" }} 
                 /> Se souvenir de moi
               </label>
-              <a href="/forgot" style={{ fontSize: 12, color: "var(--gold)", textDecoration: "none" }}>Mot de passe oublié ?</a>
+              <Link href="/forgot" style={{ fontSize: 12, color: "var(--gold)", textDecoration: "none" }}>Mot de passe oublié ?</Link>
             </div>
             <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: "100%", padding: "12px 0", fontSize: 13, justifyContent: "center", marginTop: 4, opacity: loading ? 0.7 : 1 }}>
               {loading ? <span className="spinner" /> : <><LogIn size={16} /> Se connecter</>}

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Church, MapPin, Key, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { setupChurch } from "@/app/actions/church";
 
 function SetupChurchContent() {
   const searchParams = useSearchParams();
@@ -20,14 +20,6 @@ function SetupChurchContent() {
     access_code: "",
   });
 
-  const generateAccessCode = () => {
-    // Génère un code basé sur les 3 premières lettres de la ville + année
-    const prefix = (church.city || "XXX").slice(0, 3).toUpperCase();
-    const year = new Date().getFullYear();
-    const random = Math.random().toString(36).substring(2, 4).toUpperCase();
-    return `${prefix}${year}${random}`;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -41,28 +33,22 @@ function SetupChurchContent() {
       return;
     }
 
-    const finalCode = church.access_code || generateAccessCode();
-
     setLoading(true);
-    const { data, error: dbError } = await supabase
-      .from("churches")
-      .insert({
-        name: church.name.trim(),
-        city: church.city.trim(),
-        country: church.country.trim() || "Belgique",
-        access_code: finalCode,
-      })
-      .select()
-      .single();
+    
+    const res = await setupChurch(token || "", {
+      name: church.name,
+      city: church.city,
+      country: church.country,
+      access_code: church.access_code || undefined
+    });
 
-    if (dbError) {
-      console.error("Erreur création église:", dbError);
-      setError("Erreur : " + dbError.message);
+    if (!res.success || !res.church) {
+      setError("Erreur : " + (res.error || "Impossible de configurer l'église."));
       setLoading(false);
       return;
     }
 
-    setChurch(prev => ({ ...prev, access_code: finalCode }));
+    setChurch(prev => ({ ...prev, access_code: res.church.access_code }));
     setStep("success");
     setLoading(false);
   };

@@ -67,67 +67,13 @@ export default function ProfilePage() {
   };
 
 
-  const SPECIAL_ROLES = ["Berger", "Second", "Responsable", "Conseiller", "Super Admin"];
-  const isSpecial = memberData && SPECIAL_ROLES.includes(memberData.status);
-  const isIntegration = userInfo?.role?.toLowerCase().startsWith("integration_");
-
-  useEffect(() => {
-    const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
-    if (isLocalSuperAdmin) {
-      const mockAdmin = {
-        firstName: "Junior",
-        lastName: "Super Admin",
-        email: "minkojunior400@gmail.com",
-        role: "super_admin",
-        status: "Super Admin",
-        civility: "M.",
-        phone: "+33 6 00 00 00 00",
-        age: "31-35 ans"
-      };
-      setUserInfo(mockAdmin);
-      setMemberData(mockAdmin);
-      setLoading(false);
-      return;
-    }
-
-    const info = localStorage.getItem("poimen_user_info");
-    if (info) {
-      const parsed = JSON.parse(info);
-      setUserInfo(parsed);
-      fetchMemberData(parsed.email, parsed.role, parsed.id);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (
-      [46, 8, 9, 27, 13].includes(e.keyCode) ||
-      (e.keyCode === 65 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+A
-      (e.keyCode === 67 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+C
-      (e.keyCode === 86 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+V
-      (e.keyCode === 88 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+X
-      (e.keyCode >= 35 && e.keyCode <= 39) // Fin, Début, Flèches
-    ) {
-      return;
-    }
-    const allowedChars = /[0-9+\-\s()]/;
-    if (!allowedChars.test(e.key)) {
-      e.preventDefault();
-    }
-  };
-
-  const handlePhoneChange = (val: string) => {
-    return val.replace(/[^0-9+\-\s()]/g, "");
-  };
-
-  const fetchMemberData = async (email: string, role?: string, userId?: string) => {
+  async function fetchMemberData(email: string, role?: string, userId?: string) {
     try {
       const isUserIntegration = role?.toLowerCase().startsWith("integration_");
 
       if (isUserIntegration) {
         // Query profiles table
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", userId || "")
@@ -154,7 +100,7 @@ export default function ProfilePage() {
         }
       } else {
         // Query members table
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("members")
           .select("*")
           .eq("email", email)
@@ -173,7 +119,65 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  useEffect(() => {
+    const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
+    if (isLocalSuperAdmin) {
+      const mockAdmin = {
+        firstName: "Junior",
+        lastName: "Super Admin",
+        email: "minkojunior400@gmail.com",
+        role: "super_admin",
+        status: "Super Admin",
+        civility: "M.",
+        phone: "+33 6 00 00 00 00",
+        age: "31-35 ans"
+      };
+      setTimeout(() => {
+        setUserInfo(mockAdmin);
+        setMemberData(mockAdmin);
+        setLoading(false);
+      }, 0);
+      return;
+    }
+
+    const info = localStorage.getItem("poimen_user_info");
+    if (info) {
+      const parsed = JSON.parse(info);
+      setTimeout(() => {
+        setUserInfo(parsed);
+        fetchMemberData(parsed.email, parsed.role, parsed.id);
+      }, 0);
+    } else {
+      setTimeout(() => setLoading(false), 0);
+    }
+  }, []);
+
+  const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (
+      [46, 8, 9, 27, 13].includes(e.keyCode) ||
+      (e.keyCode === 65 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+A
+      (e.keyCode === 67 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+C
+      (e.keyCode === 86 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+V
+      (e.keyCode === 88 && (e.ctrlKey === true || e.metaKey === true)) || // Ctrl+X
+      (e.keyCode >= 35 && e.keyCode <= 39) // Fin, Début, Flèches
+    ) {
+      return;
+    }
+    const allowedChars = /[0-9+\-\s()]/;
+    if (!allowedChars.test(e.key)) {
+      e.preventDefault();
+    }
   };
+
+  const handlePhoneChange = (val: string) => {
+    return val.replace(/[^0-9+\-\s()]/g, "");
+  };
+
+  const SPECIAL_ROLES = ["Berger", "Second", "Responsable", "Conseiller", "Super Admin"];
+  const isSpecial = memberData && SPECIAL_ROLES.includes(memberData.status);
+  const isIntegration = userInfo?.role?.toLowerCase().startsWith("integration_");
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
