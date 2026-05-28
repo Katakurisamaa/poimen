@@ -899,13 +899,13 @@ export default function EvangelisationPage() {
         <div className="evang-filter-row" style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
           {/* Search bar */}
           <div className="evang-search-field" style={{ position: "relative", flex: "2 1 300px" }}>
-            <Search size={14} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+            <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.35)" }} />
             <input 
-              className="input" 
+              className="input search-bar-premium" 
               placeholder="Rechercher par nom, description ou notes de rencontre..." 
               value={search} 
               onChange={(e) => setSearch(e.target.value)} 
-              style={{ paddingLeft: 38, width: "100%" }} 
+              style={{ paddingLeft: 42, width: "100%" }} 
             />
           </div>
 

@@ -539,8 +539,8 @@ export default function ActivitiesPage() {
                 <div style={{ position: "relative" }}>
                   <label className="form-label" style={{ marginBottom: 8 }}>Rechercher un membre</label>
                   <div className="relative">
-                    <Search size={14} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-                    <input className="input w-full" placeholder="Filtrer la liste..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 38, height: 42 }} />
+                    <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.35)" }} />
+                    <input className="input w-full search-bar-premium" placeholder="Filtrer la liste..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
                   </div>
                 </div>
               </div>
@@ -633,8 +633,8 @@ export default function ActivitiesPage() {
               {/* Controls */}
               <div className="glass-compact" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 15, flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
-              <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-              <input className="input" placeholder="Rechercher un membre..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+              <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.35)" }} />
+              <input className="input search-bar-premium" placeholder="Rechercher un membre..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
             </div>
           </div>
 
