@@ -1,0 +1,23 @@
+-- Poimén Patch v3.8 - Saisie des Notes & Motifs d'Absence dans l'onglet Activités
+--
+-- REMARQUE DE CONCEPTION :
+-- Pour garantir 100% de rétrocompatibilité et éviter tout risque d'erreurs de requêtes RLS ou d'autorisations DDL
+-- lors du déploiement, nous utilisons la flexibilité de la colonne JSONB existante `attendance` de la table `members`.
+-- 
+-- Les commentaires par membre, activité et date sont stockés de manière isolée sous la clé réservée `_comments`
+-- dans l'objet JSON `attendance` :
+--
+-- {
+--   "culte": {
+--     "2026-05-24": true,
+--     "2026-05-31": false
+--   },
+--   "_comments": {
+--     "culte": {
+--       "2026-05-31": "Malade (grippe)"
+--     }
+--   }
+-- }
+--
+-- Cette conception assure un déploiement instantané et fonctionnel sans aucune modification du schéma de la table !
+-- Aucune commande ALTER TABLE n'est donc nécessaire.
