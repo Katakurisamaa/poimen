@@ -368,20 +368,41 @@ export default function DashboardPage() {
 
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth();
-      let theoreticalActivitiesCount = 0;
-      const dTemp = new Date(currentYear, currentMonth, 1);
-      const endTemp = new Date(currentYear, currentMonth + 1, 0);
-      while (dTemp <= endTemp) {
-        if (dTemp.getDay() === 0 || dTemp.getDay() === 4) {
-          theoreticalActivitiesCount++;
+      
+      let actualActivitiesCount = 0;
+      if (members) {
+        const uniqueDates = new Set<string>();
+        const currentYearStr = String(currentYear);
+        const currentMonthStr = String(currentMonth + 1).padStart(2, '0');
+        const monthPrefix = `${currentYearStr}-${currentMonthStr}`;
+
+        members.forEach(m => {
+          const att = m.attendance || {};
+          Object.keys(att).forEach(actId => {
+            const actDates = att[actId] || {};
+            Object.keys(actDates).forEach(dateStr => {
+              if (dateStr.startsWith(monthPrefix)) {
+                uniqueDates.add(dateStr);
+              }
+            });
+          });
+        });
+        
+        actualActivitiesCount = uniqueDates.size;
+        
+        // Fallback: If no sessions have been marked yet in this month,
+        // show the count of active weekly activity types configured (Culte + CDM = 2)
+        if (actualActivitiesCount === 0) {
+          actualActivitiesCount = 2;
         }
-        dTemp.setDate(dTemp.getDate() + 1);
+      } else {
+        actualActivitiesCount = 2;
       }
 
       setFamilyStats({
         membersCount: mCount,
         invitesCount: iCount,
-        activitiesCount: theoreticalActivitiesCount,
+        activitiesCount: actualActivitiesCount,
         alertsCount: atRiskCount,
         totalReached,
         totalSalvation,
