@@ -227,6 +227,27 @@ export default function ActivitiesPage() {
     return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
   };
 
+  const getClosestDate = (dates: string[]) => {
+    if (dates.length === 0) return "";
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const nowTime = now.getTime();
+    
+    let closestDate = dates[0];
+    let minDiff = Infinity;
+    
+    dates.forEach(dStr => {
+      const [y, m, day] = dStr.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, day);
+      const diff = Math.abs(dateObj.getTime() - nowTime);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestDate = dStr;
+      }
+    });
+    return closestDate;
+  };
+
   const activityDates = useMemo(() => {
     const map: Record<string, string[]> = {};
     activities.forEach(act => {
@@ -238,12 +259,10 @@ export default function ActivitiesPage() {
   // Handle default date for By Activity mode
   useEffect(() => {
     if (selectedActivityId && activityDates[selectedActivityId]?.length > 0) {
-      // If current selectedDate is not in the new dates list, pick the first one
-      if (!activityDates[selectedActivityId].includes(selectedDate)) {
-        setSelectedDate(activityDates[selectedActivityId][0]);
-      }
+      const closest = getClosestDate(activityDates[selectedActivityId]);
+      setSelectedDate(closest);
     }
-  }, [selectedActivityId, activityDates, selectedDate]);
+  }, [selectedActivityId, activityDates]);
 
   const toggleAttendance = async (memberId: string, activityId: string, date: string) => {
     const member = members.find(m => m.id === memberId);
@@ -430,15 +449,18 @@ export default function ActivitiesPage() {
     const searchLower = search.toLowerCase();
     const list = members.filter(m => `${m.firstName} ${m.lastName}`.toLowerCase().includes(searchLower));
     
+    // Sort alphabetically by firstName (A-Z) by default
+    const sortedList = [...list].sort((a, b) => a.firstName.localeCompare(b.firstName, "fr", { sensitivity: "base" }));
+
     // Privacy: Non-leaders only see themselves
     if (!isLeader && currentUserEmail) {
-      return list; 
+      return sortedList; 
     }
-    return list;
+    return sortedList;
   }, [members, search, isLeader, currentUserEmail]);
 
   const displayedMembers = useMemo(() => {
-    return filteredMembers.filter(m => {
+    const list = filteredMembers.filter(m => {
       // Privacy check
       if (!isLeader && currentUserFullName) {
         const mFullName = `${m.lastName} ${m.firstName}`.toLowerCase();
@@ -449,6 +471,18 @@ export default function ActivitiesPage() {
       if (presenceFilter === "present") return isPresent;
       if (presenceFilter === "absent") return !isPresent;
       return true;
+    });
+
+    // Sort: presents first (A-Z by firstName), then absents (A-Z by firstName)
+    return list.sort((a, b) => {
+      const aPresent = !!a.attendance[selectedActivityId || ""]?.[selectedDate];
+      const bPresent = !!b.attendance[selectedActivityId || ""]?.[selectedDate];
+      
+      if (aPresent !== bPresent) {
+        return aPresent ? -1 : 1;
+      }
+      
+      return a.firstName.localeCompare(b.firstName, "fr", { sensitivity: "base" });
     });
   }, [filteredMembers, selectedActivityId, selectedDate, presenceFilter, isLeader, currentUserFullName]);
 
