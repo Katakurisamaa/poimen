@@ -642,8 +642,12 @@ export default function ActivitiesPage() {
               {/* Stats & Actions */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px", flexWrap: "wrap", gap: 12 }}>
                 <div style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>
-                  Présences : <span className="text-[var(--green)]" style={{ fontWeight: 800 }}>
-                    {members.filter(m => m.attendance[selectedActivityId || ""]?.[selectedDate]).length}
+                  {presenceFilter === "absent" ? "Absents : " : "Présences : "}
+                  <span className={presenceFilter === "absent" ? "text-[var(--red)]" : "text-[var(--green)]"} style={{ fontWeight: 800 }}>
+                    {presenceFilter === "absent" 
+                      ? members.filter(m => !m.attendance[selectedActivityId || ""]?.[selectedDate]).length
+                      : members.filter(m => m.attendance[selectedActivityId || ""]?.[selectedDate]).length
+                    }
                   </span> sur <span style={{ color: "var(--cream)" }}>{members.length}</span> fidèles
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
