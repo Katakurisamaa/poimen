@@ -315,8 +315,11 @@ export default function ActivitiesPage() {
   const handleBatchAttendance = async (present: boolean) => {
     if (!selectedActivityId || !selectedDate) return;
     
+    const targetIds = new Set(displayedMembers.map(m => m.id));
+    
     // 1. Optimistic local update
     const updatedMembers = members.map(m => {
+      if (!targetIds.has(m.id)) return m;
       const actAtt = m.attendance[selectedActivityId] || {};
       return {
         ...m,
@@ -331,6 +334,7 @@ export default function ActivitiesPage() {
     // 2. Async updates to Supabase (Promise.all is faster than sequential)
     try {
       await Promise.all(updatedMembers.map(async (m) => {
+        if (!targetIds.has(m.id)) return;
         // Only update if state actually changed for this member
         const wasPresent = members.find(old => old.id === m.id)?.attendance[selectedActivityId]?.[selectedDate];
         if (wasPresent !== present) {
@@ -642,7 +646,7 @@ export default function ActivitiesPage() {
               {/* Stats & Actions */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px", flexWrap: "wrap", gap: 12 }}>
                 <div style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>
-                  {presenceFilter === "absent" ? "Absents : " : "Présences : "}
+                  {presenceFilter === "absent" ? "Absences : " : "Présences : "}
                   <span className={presenceFilter === "absent" ? "text-[var(--red)]" : "text-[var(--green)]"} style={{ fontWeight: 800 }}>
                     {presenceFilter === "absent" 
                       ? members.filter(m => !m.attendance[selectedActivityId || ""]?.[selectedDate]).length
