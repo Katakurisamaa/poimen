@@ -167,7 +167,7 @@ CREATE POLICY "invites_manage_policy" ON invites FOR ALL
   );
 
 -- 5. AUTOMATION: Sync leaders to members table
-CREATE UNIQUE INDEX IF NOT EXISTS members_email_bergerie_idx ON public.members (email, bergerie_id);
+CREATE UNIQUE INDEX IF NOT EXISTS members_email_bergerie_idx ON public.members (email, bergerie_id) WHERE (email IS NOT NULL AND email <> '' AND archived = false);
 
 CREATE OR REPLACE FUNCTION public.sync_profile_to_member()
 RETURNS TRIGGER AS $$
@@ -189,7 +189,7 @@ BEGIN
       END,
       NEW.role ILIKE '%conseiller%'
     )
-    ON CONFLICT (email, bergerie_id) DO UPDATE 
+    ON CONFLICT (email, bergerie_id) WHERE (email IS NOT NULL AND email <> '' AND archived = false) DO UPDATE 
     SET status = EXCLUDED.status,
         is_conseiller = EXCLUDED.is_conseiller;
   END IF;
