@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Users, CalendarCheck, AlertTriangle, Target, TrendingUp, TrendingDown, Calendar, Clock, MessageSquare, ChevronRight, Plus, MapPin, Shield, Loader2, CheckCircle2, Clock3, Search, User, Phone, X, UserPlus, CalendarDays } from "lucide-react";
+import { Users, CalendarCheck, AlertTriangle, Target, TrendingUp, TrendingDown, Calendar, Clock, MessageSquare, ChevronRight, Plus, MapPin, Shield, Loader2, CheckCircle2, Clock3, Search, User, Phone, X, UserPlus, CalendarDays, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<any>(null);
   const [dateStr, setDateStr] = useState("");
+  const [showJoinCode, setShowJoinCode] = useState(false);
   const [newBergerie, setNewBergerie] = useState({
     name: "",
     creator_role: "Responsable",
@@ -836,7 +837,12 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <label className="form-label">Code d'accès secret</label>
-                  <input className="input" type="password" placeholder="••••••" value={registration.code} onChange={e => setRegistration({...registration, code: e.target.value})} style={{ height: 42, letterSpacing: 3 }} />
+                  <div style={{ position: "relative" }}>
+                    <input className="input" type={showJoinCode ? "text" : "password"} placeholder="••••••" value={registration.code} onChange={e => setRegistration({...registration, code: e.target.value})} style={{ height: 42, letterSpacing: showJoinCode ? "normal" : 3, paddingRight: 40 }} />
+                    <button type="button" onClick={() => setShowJoinCode(!showJoinCode)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>
+                      {showJoinCode ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
                 
                 <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--muted)", padding: "2px 0 6px" }}>
