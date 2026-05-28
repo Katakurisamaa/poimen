@@ -1285,7 +1285,7 @@ export default function AffectationPage() {
 
                   {isExpanded && (
                     <div style={{ borderTop: "1px solid var(--border)", background: "rgba(0, 0, 0, 0.25)" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, padding: 24 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 24, padding: 24 }}>
                         {/* Info Column */}
                         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                           <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4, fontFamily: "var(--font-body)", fontWeight: 700 }}>Informations Générales</h4>
@@ -1476,7 +1476,7 @@ export default function AffectationPage() {
                         </div>
 
                         {/* PCNC & Service */}
-                        <div className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", gridColumn: "span 2", border: "1px solid rgba(212,175,55,0.08)" }}>
+                        <div className="glass glass-compact col-span-2" style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(212,175,55,0.08)" }}>
                           <h4 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12, fontFamily: "var(--font-body)", fontWeight: 700 }}>PCNC & Engagement spirituel</h4>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
                             <SuiviToggle label="PCNC 001" checked={guest.pcnc} onChange={() => toggleSuivi(guest.id, 'pcnc')} disabled={isRestricted} />
@@ -1517,7 +1517,7 @@ export default function AffectationPage() {
 
                         {/* Dynamic Assignment Control for Leaders */}
                         {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
-                          <div className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", gridColumn: "span 2", border: "1px solid rgba(212,175,55,0.15)" }}>
+                          <div className="glass glass-compact col-span-2" style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(212,175,55,0.15)" }}>
                             <h4 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, fontFamily: "var(--font-body)", fontWeight: 700 }}>Affectation Administrative</h4>
                             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                               <div style={{ flex: 1 }}>

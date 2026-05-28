@@ -1542,7 +1542,7 @@ export default function InvitesPage() {
 
               {isExpanded && (
                 <div className="invite-expanded" style={{ padding: "0 20px 20px", borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.1)" }}>
-                  <div className="invite-expanded-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, paddingTop: 20 }}>
+                  <div className="invite-expanded-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 20, paddingTop: 20 }}>
                     {/* Column 1: Info */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 4 }}>Informations</h4>
@@ -1743,7 +1743,7 @@ export default function InvitesPage() {
                         </div>
 
                         {/* Column 4: Detailed Follow-up */}
-                        <div className="invite-followup-block" style={{ display: "flex", flexDirection: "column", gap: 15, gridColumn: "span 2" }}>
+                        <div className="invite-followup-block col-span-2" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 15 }}>
                             <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
                               <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Premier Contact</h5>
