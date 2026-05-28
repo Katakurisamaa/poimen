@@ -888,7 +888,7 @@ export default function DashboardPage() {
                 <div>
                   <label className="form-label">Civilité du leader</label>
                   <div style={{ display: "flex", gap: 8 }}>
-                    {["M.", "Mme"].map(c => (
+                    {["M.", "Mme."].map(c => (
                       <button key={c} type="button" className={`btn btn-sm ${newBergerie.civility === c ? "btn-primary" : "btn-subtle"}`} onClick={() => setNewBergerie({...newBergerie, civility: c})} style={{ flex: 1, height: 36 }}>{c}</button>
                     ))}
                   </div>

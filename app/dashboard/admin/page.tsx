@@ -241,11 +241,21 @@ function AdminContent() {
                      pendingBg.creator_role === "Responsable de brebi" ? "Responsable" : 
                      pendingBg.creator_role || "Berger";
 
+      let civilityVal = pendingBg.creator_civility || "M.";
+      // Normalize to match database CHECK constraint ('M.', 'Mme.', 'Mlle.')
+      if (civilityVal.includes("Mme")) {
+        civilityVal = "Mme.";
+      } else if (civilityVal.includes("Mlle")) {
+        civilityVal = "Mlle.";
+      } else {
+        civilityVal = "M.";
+      }
+
       const { error: memError } = await supabase.from("members").insert({
         bergerie_id: id,
         first_name: pendingBg.creator_first_name || "Nom",
         last_name: pendingBg.creator_last_name || "Prénom",
-        civility: pendingBg.creator_civility || "M.",
+        civility: civilityVal,
         age: "26-30 ans",
         email: pendingBg.creator_email.toLowerCase().trim(),
         status: dbRole,
