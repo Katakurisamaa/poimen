@@ -7,7 +7,7 @@ import {
   Plus, Calendar, Clock, MapPin, ChevronRight, XCircle, 
   Search, CheckCircle2, List, Grid3X3, Users, BarChart3,
   ChevronDown, ChevronUp, MoreHorizontal, Trash2,
-  AlertTriangle, TrendingUp
+  AlertTriangle, TrendingUp, Pencil
 } from "lucide-react";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import type { ActivityType } from "@/types";
@@ -207,19 +207,24 @@ export default function ActivitiesPage() {
 
   const [selectedDays, setSelectedDays] = useState<number[]>([0]);
   const [noFixedHours, setNoFixedHours] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAddModalOpen) {
-      setSelectedDays([0]);
-      setNoFixedHours(false);
-      setNewActivity({
-        name: "",
-        location: "Salles Annexes",
-        startTime: "18:00",
-        endTime: "20:00"
-      });
+      if (!editingActivityId) {
+        setSelectedDays([0]);
+        setNoFixedHours(false);
+        setNewActivity({
+          name: "",
+          location: "Salles Annexes",
+          startTime: "18:00",
+          endTime: "20:00"
+        });
+      }
+    } else {
+      setEditingActivityId(null);
     }
-  }, [isAddModalOpen]);
+  }, [isAddModalOpen, editingActivityId]);
 
   // Helpers
   const getDaysOfMonth = (year: number, month: number, dayOfWeek: number) => {
@@ -407,20 +412,42 @@ export default function ActivitiesPage() {
     }
   };
 
-  const handleAddActivity = async (e: React.FormEvent) => {
+  const handleSaveActivity = async (e: React.FormEvent) => {
     e.preventDefault();
-    const act: Activity = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newActivity.name || "Nouvelle Activité",
-      day: selectedDays[0],
-      days: selectedDays,
-      startTime: noFixedHours ? "" : (newActivity.startTime || "18:00"),
-      endTime: noFixedHours ? "" : (newActivity.endTime || "20:00"),
-      noFixedHours: noFixedHours,
-      location: newActivity.location || "Salle"
-    };
-    await saveActivities([...activities, act]);
+    
+    if (editingActivityId) {
+      // Edit mode
+      const updatedActs = activities.map(act => {
+        if (act.id !== editingActivityId) return act;
+        return {
+          ...act,
+          name: newActivity.name || "Activité",
+          day: selectedDays[0],
+          days: selectedDays,
+          startTime: noFixedHours ? "" : (newActivity.startTime || "18:00"),
+          endTime: noFixedHours ? "" : (newActivity.endTime || "20:00"),
+          noFixedHours: noFixedHours,
+          location: newActivity.location || "Salle"
+        };
+      });
+      await saveActivities(updatedActs);
+    } else {
+      // Add mode
+      const act: Activity = {
+        id: Math.random().toString(36).substr(2, 9),
+        name: newActivity.name || "Nouvelle Activité",
+        day: selectedDays[0],
+        days: selectedDays,
+        startTime: noFixedHours ? "" : (newActivity.startTime || "18:00"),
+        endTime: noFixedHours ? "" : (newActivity.endTime || "20:00"),
+        noFixedHours: noFixedHours,
+        location: newActivity.location || "Salle"
+      };
+      await saveActivities([...activities, act]);
+    }
+    
     setIsAddModalOpen(false);
+    setEditingActivityId(null);
     setNewActivity({ name: "", day: 0, startTime: "18:00", endTime: "20:00", location: "Salles Annexes" });
   };
 
@@ -1004,9 +1031,28 @@ export default function ActivitiesPage() {
                   <div>
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)" }}>{act.name}</h3>
                   </div>
-                  <button className="btn-icon" onClick={() => saveActivities(activities.filter(a => a.id !== act.id))}>
-                    <Trash2 size={14} style={{ color: "var(--red)" }} />
-                  </button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button 
+                      className="btn-icon" 
+                      onClick={() => {
+                        setEditingActivityId(act.id);
+                        setNewActivity({
+                          name: act.name,
+                          location: act.location,
+                          startTime: act.startTime,
+                          endTime: act.endTime
+                        });
+                        setSelectedDays(act.days && act.days.length > 0 ? act.days : [act.day]);
+                        setNoFixedHours(!!act.noFixedHours);
+                        setIsAddModalOpen(true);
+                      }}
+                    >
+                      <Pencil size={14} style={{ color: "var(--gold-light)" }} />
+                    </button>
+                    <button className="btn-icon" onClick={() => saveActivities(activities.filter(a => a.id !== act.id))}>
+                      <Trash2 size={14} style={{ color: "var(--red)" }} />
+                    </button>
+                  </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--muted)" }}>
@@ -1101,11 +1147,13 @@ export default function ActivitiesPage() {
         <div className="modal-overlay">
           <div className="custom-modal fade-in">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 25 }}>
-              <h2 style={{ fontSize: "clamp(16px, 2.5vw, 20px)", color: "var(--gold)" }}>Nouvelle Activité</h2>
+              <h2 style={{ fontSize: "clamp(16px, 2.5vw, 20px)", color: "var(--gold)" }}>
+                {editingActivityId ? "Modifier l'Activité" : "Nouvelle Activité"}
+              </h2>
               <button onClick={() => setIsAddModalOpen(false)} className="btn-icon"><XCircle size={20} /></button>
             </div>
             
-            <form onSubmit={handleAddActivity} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <form onSubmit={handleSaveActivity} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div>
                 <label className="label">NOM DE L'ACTIVITÉ (Texte)</label>
                 <input className="input" required value={newActivity.name} onChange={e => setNewActivity({...newActivity, name: e.target.value})} placeholder="Réunion de prière, Séminaire..." />
@@ -1182,7 +1230,9 @@ export default function ActivitiesPage() {
 
               <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
                 <button type="button" className="btn btn-outline" onClick={() => setIsAddModalOpen(false)}>Annuler</button>
-                <button type="submit" className="btn btn-primary">Enregistrer l'activité</button>
+                <button type="submit" className="btn btn-primary">
+                  {editingActivityId ? "Enregistrer les modifications" : "Enregistrer l'activité"}
+                </button>
               </div>
             </form>
           </div>
