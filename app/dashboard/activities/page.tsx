@@ -29,6 +29,7 @@ interface Member {
   civility: string;
   status: string;
   isInvite?: boolean;
+  archived?: boolean;
   attendance: Record<string, Record<string, any>>; // activityId -> dateString -> present / _comments
 }
 
@@ -150,6 +151,7 @@ export default function ActivitiesPage() {
           civility: m.civility,
           status: m.status || "Brebi",
           isInvite: false,
+          archived: m.archived || false,
           attendance: m.attendance || {}
         }));
 
@@ -442,22 +444,37 @@ export default function ActivitiesPage() {
   const isLeader = useMemo(() => {
     if (!userRole) return false;
     const role = userRole.toLowerCase().trim();
-    return role === "berger" || role.includes("second") || role === "super_admin" || role === "coordonnateur";
+    return (
+      role.includes("berger") || 
+      role.includes("second") || 
+      role.includes("responsable") || 
+      role.includes("admin") || 
+      role.includes("coordonnateur")
+    );
   }, [userRole]);
 
   const filteredMembers = useMemo(() => {
     const searchLower = search.toLowerCase();
-    const list = members.filter(m => `${m.firstName} ${m.lastName}`.toLowerCase().includes(searchLower));
-    
-    // Sort alphabetically by firstName (A-Z) by default
-    const sortedList = [...list].sort((a, b) => a.firstName.localeCompare(b.firstName, "fr", { sensitivity: "base" }));
+    let list = members.filter(m => !m.archived);
 
     // Privacy: Non-leaders only see themselves
-    if (!isLeader && currentUserEmail) {
-      return sortedList; 
+    if (!isLeader && currentUserFullName) {
+      list = list.filter(m => {
+        const mFullName = `${m.lastName} ${m.firstName}`.toLowerCase();
+        return mFullName === currentUserFullName.toLowerCase();
+      });
     }
-    return sortedList;
-  }, [members, search, isLeader, currentUserEmail]);
+
+    // Filter by search query (bi-directional name matching)
+    list = list.filter(m => {
+      const fullName1 = `${m.firstName} ${m.lastName}`.toLowerCase();
+      const fullName2 = `${m.lastName} ${m.firstName}`.toLowerCase();
+      return fullName1.includes(searchLower) || fullName2.includes(searchLower);
+    });
+    
+    // Sort alphabetically by firstName (A-Z) by default
+    return [...list].sort((a, b) => a.firstName.localeCompare(b.firstName, "fr", { sensitivity: "base" }));
+  }, [members, search, isLeader, currentUserFullName]);
 
   const displayedMembers = useMemo(() => {
     const list = filteredMembers.filter(m => {
