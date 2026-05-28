@@ -17,9 +17,11 @@ interface Activity {
   id: string;
   name: string;
   day: number; // 0 for Sunday, 4 for Thursday, etc.
+  days?: number[];
   startTime: string;
   endTime: string;
   location: string;
+  noFixedHours?: boolean;
 }
 
 interface Member {
@@ -203,6 +205,22 @@ export default function ActivitiesPage() {
     location: "Salles Annexes"
   });
 
+  const [selectedDays, setSelectedDays] = useState<number[]>([0]);
+  const [noFixedHours, setNoFixedHours] = useState(false);
+
+  useEffect(() => {
+    if (isAddModalOpen) {
+      setSelectedDays([0]);
+      setNoFixedHours(false);
+      setNewActivity({
+        name: "",
+        location: "Salles Annexes",
+        startTime: "18:00",
+        endTime: "20:00"
+      });
+    }
+  }, [isAddModalOpen]);
+
   // Helpers
   const getDaysOfMonth = (year: number, month: number, dayOfWeek: number) => {
     const dates = [];
@@ -250,10 +268,32 @@ export default function ActivitiesPage() {
     return closestDate;
   };
 
+  const getDaysOfMonthForActivity = (year: number, month: number, act: Activity) => {
+    const days = act.days && act.days.length > 0 ? act.days : [act.day ?? 0];
+    const allDates: string[] = [];
+    
+    days.forEach(dayOfWeek => {
+      const dates = getDaysOfMonth(year, month, dayOfWeek);
+      allDates.push(...dates);
+    });
+    
+    return allDates.sort();
+  };
+
+  const getDaysLabel = (act: Activity) => {
+    const dayNamesPlural = ["Dimanches", "Lundis", "Mardis", "Mercredis", "Jeudis", "Vendredis", "Samedis"];
+    const days = act.days && act.days.length > 0 ? act.days : [act.day ?? 0];
+    const sortedDays = [...days].sort((a, b) => a - b);
+    if (sortedDays.length === 1) {
+      return `Tous les ${dayNamesPlural[sortedDays[0]]}`;
+    }
+    return `Tous les ${sortedDays.map(d => dayNamesPlural[d]).join(", ")}`;
+  };
+
   const activityDates = useMemo(() => {
     const map: Record<string, string[]> = {};
     activities.forEach(act => {
-      map[act.id] = getDaysOfMonth(selectedYear, selectedMonth, act.day);
+      map[act.id] = getDaysOfMonthForActivity(selectedYear, selectedMonth, act);
     });
     return map;
   }, [activities, selectedMonth, selectedYear]);
@@ -372,9 +412,11 @@ export default function ActivitiesPage() {
     const act: Activity = {
       id: Math.random().toString(36).substr(2, 9),
       name: newActivity.name || "Nouvelle Activité",
-      day: Number(newActivity.day),
-      startTime: newActivity.startTime || "18:00",
-      endTime: newActivity.endTime || "20:00",
+      day: selectedDays[0],
+      days: selectedDays,
+      startTime: noFixedHours ? "" : (newActivity.startTime || "18:00"),
+      endTime: noFixedHours ? "" : (newActivity.endTime || "20:00"),
+      noFixedHours: noFixedHours,
       location: newActivity.location || "Salle"
     };
     await saveActivities([...activities, act]);
@@ -886,7 +928,12 @@ export default function ActivitiesPage() {
                                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)" }}>{act.name}</div>
                                     <div style={{ fontSize: 10, fontWeight: 800, color: rateColor, padding: "2px 6px", background: "rgba(0,0,0,0.2)", borderRadius: 4 }}>{rate}%</div>
                                   </div>
-                                  <div style={{ fontSize: 10, color: "var(--muted)" }}>{act.startTime} - {act.endTime} · {act.location}</div>
+                                  <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                                    {act.noFixedHours 
+                                      ? `Horaires variables · ${act.location}` 
+                                      : `${act.startTime} - ${act.endTime} · ${act.location}`
+                                    }
+                                  </div>
                                 </div>
                               </div>
                               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -964,11 +1011,11 @@ export default function ActivitiesPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--muted)" }}>
                     <Calendar size={14} style={{ color: "var(--gold)" }} />
-                    <span>Tous les {["Dimanches", "Lundis", "Mardis", "Mercredis", "Jeudis", "Vendredis", "Samedis"][act.day]}</span>
+                    <span>{getDaysLabel(act)}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--muted)" }}>
                     <Clock size={14} style={{ color: "var(--gold)" }} />
-                    <span>{act.startTime} - {act.endTime}</span>
+                    <span>{act.noFixedHours ? "Horaires variables / Sans heure fixe" : `${act.startTime} - ${act.endTime}`}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--muted)" }}>
                     <MapPin size={14} style={{ color: "var(--gold)" }} />
@@ -1064,27 +1111,69 @@ export default function ActivitiesPage() {
                 <input className="input" required value={newActivity.name} onChange={e => setNewActivity({...newActivity, name: e.target.value})} placeholder="Réunion de prière, Séminaire..." />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 15 }}>
-                <div>
-                  <label className="label">JOUR DE LA SEMAINE</label>
-                  <select className="input" value={newActivity.day} onChange={e => setNewActivity({...newActivity, day: parseInt(e.target.value)})}>
-                    {["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"].map((d, i) => (
-                      <option key={i} value={i}>{d}</option>
-                    ))}
-                  </select>
+              <div>
+                <label className="label">Jours de la semaine</label>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                  {["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"].map((d, i) => {
+                    const isSelected = selectedDays.includes(i);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          if (selectedDays.includes(i)) {
+                            if (selectedDays.length > 1) {
+                              setSelectedDays(selectedDays.filter(day => day !== i));
+                            }
+                          } else {
+                            setSelectedDays([...selectedDays, i]);
+                          }
+                        }}
+                        style={{
+                          height: 38,
+                          padding: "0 12px",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                          background: isSelected ? "var(--gold)" : "rgba(255,255,255,0.05)",
+                          color: isSelected ? "var(--bg)" : "var(--muted)",
+                          border: `1px solid ${isSelected ? "transparent" : "rgba(212,175,55,0.15)"}`
+                        }}
+                      >
+                        {d}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="form-grid-2">
-                <div>
-                  <label className="label">HEURE DE DÉBUT</label>
-                  <input className="input" type="time" value={newActivity.startTime} onChange={e => setNewActivity({...newActivity, startTime: e.target.value})} />
-                </div>
-                <div>
-                  <label className="label">HEURE DE FIN</label>
-                  <input className="input" type="time" value={newActivity.endTime} onChange={e => setNewActivity({...newActivity, endTime: e.target.value})} />
-                </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+                <input 
+                  type="checkbox" 
+                  id="noFixedHours" 
+                  checked={noFixedHours} 
+                  onChange={e => setNoFixedHours(e.target.checked)} 
+                  style={{ width: 16, height: 16, cursor: "pointer", accentColor: "var(--gold)" }}
+                />
+                <label htmlFor="noFixedHours" style={{ fontSize: 12, color: "var(--cream-dim)", cursor: "pointer", userSelect: "none" }}>
+                  Sans horaire fixe (heures variables)
+                </label>
               </div>
+
+              {!noFixedHours && (
+                <div className="form-grid-2">
+                  <div>
+                    <label className="label">Heure de début</label>
+                    <input className="input" type="time" value={newActivity.startTime} onChange={e => setNewActivity({...newActivity, startTime: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="label">Heure de fin</label>
+                    <input className="input" type="time" value={newActivity.endTime} onChange={e => setNewActivity({...newActivity, endTime: e.target.value})} />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="label">LIEU</label>
