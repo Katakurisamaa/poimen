@@ -219,16 +219,46 @@ function AdminContent() {
   };
 
   const approveBergerie = async (id: string) => {
-    const { error } = await supabase.from("bergeries").update({ status: "active" }).eq("id", id);
-    if (!error) {
-      fetchData(); // Refresh to get the nested structure updated
-    } else {
-      console.error("Error approving bergerie:", error);
+    const pendingBg = pendingBergeries.find(b => b.id === id);
+    if (!pendingBg) {
+      alert("Demande introuvable.");
+      return;
+    }
+
+    const { error: bgError } = await supabase.from("bergeries").update({ status: "active" }).eq("id", id);
+    if (bgError) {
+      console.error("Error approving bergerie:", bgError);
       alert(
-        `Erreur lors de l'approbation de la Famille : ${error.message}\n\n` +
+        `Erreur lors de l'approbation de la Famille : ${bgError.message}\n\n` +
         "Assurez-vous que le patch SQL v1.9 a bien été appliqué dans votre éditeur Supabase pour autoriser cette action."
       );
+      return;
     }
+
+    // Automatically provision the family creator inside the members table so everything is functional
+    if (pendingBg.creator_email) {
+      const dbRole = pendingBg.creator_role === "Second du berger" ? "Second" : 
+                     pendingBg.creator_role === "Responsable de brebi" ? "Responsable" : 
+                     pendingBg.creator_role || "Berger";
+
+      const { error: memError } = await supabase.from("members").insert({
+        bergerie_id: id,
+        first_name: pendingBg.creator_first_name || "Nom",
+        last_name: pendingBg.creator_last_name || "Prénom",
+        civility: pendingBg.creator_civility || "M.",
+        age: "26-30 ans",
+        email: pendingBg.creator_email.toLowerCase().trim(),
+        status: dbRole,
+        is_conseiller: false,
+        attendance: {}
+      });
+
+      if (memError) {
+        console.warn("Could not insert creator into members table during approval:", memError);
+      }
+    }
+
+    fetchData(); // Refresh to get the nested structure updated
   };
 
   if (loading) {
