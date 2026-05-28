@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { 
   Search, Plus, UserPlus, Filter, CheckCircle2, XCircle, X, 
   Calendar, MapPin, Mail, Phone, User as UserIcon,
-  ChevronDown, ChevronUp, MoreHorizontal, Loader2
+  ChevronDown, ChevronUp, MoreHorizontal, Loader2, ListChecks, BarChart3
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
@@ -825,7 +825,7 @@ export default function AffectationPage() {
       </div>
 
       {/* View Switcher Tabs */}
-      <div className="fade-in" style={{ display: "flex", gap: 10, background: "rgba(10, 6, 22, 0.5)", border: "1px solid var(--border)", padding: 5, borderRadius: "14px", width: "fit-content" }}>
+      <div className="invite-view-switcher">
         <button 
           onClick={() => {
             setCurrentView('list');
@@ -833,17 +833,23 @@ export default function AffectationPage() {
               setSelectedMonth(new Date().getMonth());
             }
           }}
-          className={`pill ${currentView === 'list' ? 'pill-active' : 'pill-inactive'}`}
-          style={{ border: "none" }}
+          className={`invite-view-option ${currentView === 'list' ? 'active' : ''}`}
         >
-          Liste ({filtered.length})
+          <span className="invite-view-icon"><ListChecks size={18} /></span>
+          <span className="invite-view-copy">
+            <span className="invite-view-title">Liste</span>
+            <span className="invite-view-subtitle">{filtered.length} brebis affectée{filtered.length > 1 ? "s" : ""}</span>
+          </span>
         </button>
         <button 
           onClick={() => setCurrentView('stats')}
-          className={`pill ${currentView === 'stats' ? 'pill-active' : 'pill-inactive'}`}
-          style={{ border: "none" }}
+          className={`invite-view-option ${currentView === 'stats' ? 'active' : ''}`}
         >
-          Statistiques
+          <span className="invite-view-icon"><BarChart3 size={18} /></span>
+          <span className="invite-view-copy">
+            <span className="invite-view-title">Statistiques</span>
+            <span className="invite-view-subtitle">Suivi, présences et progression</span>
+          </span>
         </button>
       </div>
 
