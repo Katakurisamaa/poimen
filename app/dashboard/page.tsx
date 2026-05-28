@@ -24,6 +24,11 @@ const ENGAGEMENT = [
 
 const ACTIVITIES: { title: string; type: ActivityType; date: string; time: string; upcoming: boolean; attendance?: number }[] = [];
 
+const DEFAULT_ACTIVITIES = [
+  { id: "culte", name: "Culte du Dimanche", day: 0, startTime: "10:00", endTime: "12:30", location: "Sanctuaire Principal" },
+  { id: "cdm", name: "CDM (Cellule Alpha)", day: 4, startTime: "19:00", endTime: "20:30", location: "Salles Annexes" },
+];
+
 const AT_RISK: any[] = [];
 
 const CHALLENGES: any[] = [];
@@ -82,6 +87,18 @@ export default function DashboardPage() {
       const userNameStr = `${userInfo?.firstName} ${userInfo?.lastName}`;
       const currentChurchId = church?.id || userInfo?.church_id;
 
+      let configuredActivities = DEFAULT_ACTIVITIES;
+      if (!isIntegration && myBergerie?.id) {
+        const { data: bgData } = await supabase
+          .from("bergeries")
+          .select("activities")
+          .eq("id", myBergerie.id)
+          .single();
+        if (bgData?.activities && Array.isArray(bgData.activities) && bgData.activities.length > 0) {
+          configuredActivities = bgData.activities as any[];
+        }
+      }
+
       const getDaysOfPeriod = (year: number, month: number, dayOfWeek: number) => {
         const dates = [];
         const start = new Date(year, month, 1);
@@ -99,46 +116,63 @@ export default function DashboardPage() {
         return dates;
       };
 
-      const getRecentActivityDates = () => {
+      const getRecentActivityDates = (configuredActs: any[]) => {
         const dates: { id: string; name: string; date: string; day: number; time: string; actId: string }[] = [];
         const today = new Date();
         for (let i = 0; i < 21; i++) {
           const d = new Date();
           d.setDate(today.getDate() - i);
           const dayOfWeek = d.getDay();
-          const yyyy = d.getFullYear();
-          const mm = String(d.getMonth() + 1).padStart(2, '0');
-          const dd = String(d.getDate()).padStart(2, '0');
-          const dateStr = `${yyyy}-${mm}-${dd}`;
-          const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-          if (dayOfWeek === 0 && dates.filter(x => x.actId === "culte").length < 2) {
-            dates.push({ id: `culte-${dateStr}`, name: `Culte du Dimanche`, date: dateFormatted, day: 0, time: "10:00", actId: "culte" });
-          } else if (dayOfWeek === 4 && dates.filter(x => x.actId === "cdm").length < 2) {
-            dates.push({ id: `cdm-${dateStr}`, name: `CDM (Cellule Alpha)`, date: dateFormatted, day: 4, time: "19:00", actId: "cdm" });
-          }
+          
+          configuredActs.forEach(act => {
+            if (Number(act.day) === dayOfWeek) {
+              const yyyy = d.getFullYear();
+              const mm = String(d.getMonth() + 1).padStart(2, '0');
+              const dd = String(d.getDate()).padStart(2, '0');
+              const dateStr = `${yyyy}-${mm}-${dd}`;
+              const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+              dates.push({
+                id: `${act.id}-${dateStr}`,
+                name: act.name,
+                date: dateFormatted,
+                day: dayOfWeek,
+                time: act.startTime || "10:00",
+                actId: act.id
+              });
+            }
+          });
         }
         return dates.sort((a, b) => b.id.localeCompare(a.id));
       };
 
-      const getUpcomingActivityDates = () => {
+      const getUpcomingActivityDates = (configuredActs: any[]) => {
         const dates: { id: string; name: string; date: string; day: number; time: string; actId: string; upcoming: boolean }[] = [];
         const today = new Date();
         for (let i = 1; i <= 7; i++) {
           const d = new Date();
           d.setDate(today.getDate() + i);
           const dayOfWeek = d.getDay();
-          const yyyy = d.getFullYear();
-          const mm = String(d.getMonth() + 1).padStart(2, '0');
-          const dd = String(d.getDate()).padStart(2, '0');
-          const dateStr = `${yyyy}-${mm}-${dd}`;
-          const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-          if (dayOfWeek === 0) {
-            dates.push({ id: `culte-${dateStr}`, name: `Culte du Dimanche`, date: dateFormatted, day: 0, time: "10:00", actId: "culte", upcoming: true });
-          } else if (dayOfWeek === 4) {
-            dates.push({ id: `cdm-${dateStr}`, name: `CDM (Cellule Alpha)`, date: dateFormatted, day: 4, time: "19:00", actId: "cdm", upcoming: true });
-          }
+          
+          configuredActs.forEach(act => {
+            if (Number(act.day) === dayOfWeek) {
+              const yyyy = d.getFullYear();
+              const mm = String(d.getMonth() + 1).padStart(2, '0');
+              const dd = String(d.getDate()).padStart(2, '0');
+              const dateStr = `${yyyy}-${mm}-${dd}`;
+              const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+              dates.push({
+                id: `${act.id}-${dateStr}`,
+                name: act.name,
+                date: dateFormatted,
+                day: dayOfWeek,
+                time: act.startTime || "10:00",
+                actId: act.id,
+                upcoming: true
+              });
+            }
+          });
         }
-        return dates;
+        return dates.sort((a, b) => a.id.localeCompare(b.id));
       };
 
       let mQuery;
@@ -214,8 +248,8 @@ export default function DashboardPage() {
           setAtRiskList(calculatedAtRisk.slice(0, 4));
         }
 
-        const recentDates = getRecentActivityDates();
-        const upcomingDates = getUpcomingActivityDates();
+        const recentDates = getRecentActivityDates(configuredActivities);
+        const upcomingDates = getUpcomingActivityDates(configuredActivities);
 
         recentDates.forEach(r => {
           const seed = r.id.charCodeAt(r.id.length - 1) + r.id.charCodeAt(r.id.length - 2);
@@ -247,10 +281,10 @@ export default function DashboardPage() {
           const familyHasAttendance = members.some(m => Object.keys(m.attendance || {}).length > 0);
           const currentYear = new Date().getFullYear();
           const currentMonth = new Date().getMonth();
-          const activeTypes = [
-            { id: "culte", day: 0 },
-            { id: "cdm", day: 4 }
-          ];
+          const activeTypes = configuredActivities.map(act => ({
+            id: act.id,
+            day: Number(act.day)
+          }));
 
           members.forEach(m => {
             let eng = 0;
@@ -310,20 +344,28 @@ export default function DashboardPage() {
           calculatedAtRisk.sort((a, b) => a.score - b.score);
           setAtRiskList(calculatedAtRisk.slice(0, 4));
 
-          const recentDates = getRecentActivityDates();
-          const upcomingDates = getUpcomingActivityDates();
+          const recentDates = getRecentActivityDates(configuredActivities);
+          const upcomingDates = getUpcomingActivityDates(configuredActivities);
 
           recentDates.forEach(r => {
             let attendancePct = 0;
+            let evaluatedCount = 0;
             if (familyHasAttendance) {
               let presentCount = 0;
               members.forEach(m => {
-                if (m.attendance?.[r.actId]?.[r.id.split("-").slice(1).join("-")] === true) {
+                const dateKey = r.id.split("-").slice(1).join("-");
+                const attObj = m.attendance || {};
+                const actAtt = attObj[r.actId] || {};
+                if (actAtt[dateKey] === true) {
                   presentCount++;
+                  evaluatedCount++;
+                } else if (actAtt[dateKey] === false) {
+                  evaluatedCount++;
                 }
               });
-              attendancePct = mCount > 0 ? Math.round((presentCount / mCount) * 100) : 0;
-            } else {
+              attendancePct = evaluatedCount > 0 ? Math.round((presentCount / evaluatedCount) * 100) : 0;
+            }
+            if (!familyHasAttendance || evaluatedCount === 0) {
               const seed = r.id.charCodeAt(r.id.length - 1) + r.id.charCodeAt(r.id.length - 2);
               attendancePct = 60 + (seed % 30);
             }
