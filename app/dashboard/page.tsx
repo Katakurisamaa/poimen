@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Users, CalendarCheck, AlertTriangle, Target, TrendingUp, TrendingDown, Calendar, Clock, MessageSquare, ChevronRight, Plus, MapPin, Shield, Loader2, CheckCircle2, Clock3, Search, User, Phone, X, UserPlus, CalendarDays, Eye, EyeOff } from "lucide-react";
+import { Users, CalendarCheck, AlertTriangle, Target, TrendingUp, TrendingDown, Calendar, Clock, MessageSquare, ChevronRight, Plus, MapPin, Shield, Loader2, CheckCircle2, Clock3, Search, User, Phone, X, UserPlus, CalendarDays, Eye, EyeOff, Home } from "lucide-react";
 import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
@@ -695,22 +695,44 @@ export default function DashboardPage() {
             <p style={{ color: "var(--cream-dim)", maxWidth: 620, margin: "16px auto 0", fontSize: "14px", lineHeight: "1.6" }}>
               Rejoignez une Famille de Disciples existante ou demandez la création d&apos;une nouvelle bergerie pour guider le troupeau.
             </p>
+            <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
+              <button 
+                onClick={() => window.location.href = "/"}
+                className="btn btn-outline"
+                style={{ 
+                  borderColor: "rgba(212, 175, 55, 0.35)", 
+                  color: "var(--gold)", 
+                  fontSize: 13, 
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  height: 42,
+                  borderRadius: 12,
+                  padding: "0 24px",
+                  cursor: "pointer"
+                }}
+              >
+                <Home size={15} />
+                Retour à l'accueil
+              </button>
+            </div>
           </div>
 
           <div className="bento bento-2-1">
             <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.2)" }}>
               {/* Header */}
-              <div style={{ padding: "24px 28px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(10, 6, 22, 0.55)", gap: 20 }}>
+              <div className="community-filters-header" style={{ padding: "24px 28px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(10, 6, 22, 0.55)", gap: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
                   <div style={{ color: "var(--gold)" }}><Users size={18} /></div>
                   <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--cream)", letterSpacing: "0.01em" }}>Familles de Disciples</h3>
                 </div>
-                <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, maxWidth: 500 }}>
+                <div className="community-filters-actions" style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, maxWidth: 500 }}>
                   <div style={{ position: "relative", flex: 1 }}>
-                    <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-                    <input type="text" placeholder="Rechercher une famille..." className="input" style={{ paddingLeft: 34, height: 38, fontSize: 12, background: "rgba(10,6,22,0.4)" }} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                    <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.35)" }} />
+                    <input type="text" placeholder="Rechercher une famille..." className="input search-bar-premium" style={{ paddingLeft: 42, background: "rgba(10,6,22,0.4)" }} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                   </div>
-                  <button className="btn btn-primary btn-sm" style={{ height: 38, whiteSpace: "nowrap" }} onClick={() => setIsCreating(true)}>
+                  <button className="btn btn-primary btn-sm" style={{ height: 42, whiteSpace: "nowrap" }} onClick={() => setIsCreating(true)}>
                     <Plus size={16} /> <span className="hide-mobile">Nouvelle Famille</span>
                   </button>
                 </div>

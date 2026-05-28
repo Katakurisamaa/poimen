@@ -3608,6 +3608,16 @@ select.input option { background: var(--bg-deep); color: var(--cream); }
   .desktop-only {
     display: none !important;
   }
+  .community-filters-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 16px !important;
+    padding: 18px 16px !important;
+  }
+  .community-filters-actions {
+    width: 100% !important;
+    max-width: unset !important;
+  }
 }
 @media (max-width: 480px) {
   .search-bar-premium {
