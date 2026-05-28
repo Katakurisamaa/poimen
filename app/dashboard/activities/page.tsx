@@ -29,7 +29,7 @@ interface Member {
   civility: string;
   status: string;
   isInvite?: boolean;
-  attendance: Record<string, Record<string, boolean>>; // activityId -> dateString -> present
+  attendance: Record<string, Record<string, any>>; // activityId -> dateString -> present / _comments
 }
 
 // Mock Data (Empty for production)
@@ -265,6 +265,49 @@ export default function ActivitiesPage() {
       await supabase.from("members").update({ attendance: newAttendance }).eq("id", memberId);
     } catch (err) {
       console.error("Attendance update error:", err);
+    }
+  };
+
+  const saveAttendanceComment = async (memberId: string, activityId: string, date: string, comment: string) => {
+    // 1. Optimistic local state update
+    setMembers(prev => prev.map(m => {
+      if (m.id !== memberId) return m;
+      const attObj = m.attendance || {};
+      const commentsObj = attObj["_comments"] || {};
+      const actComments = commentsObj[activityId] || {};
+      const newAttendance = {
+        ...attObj,
+        "_comments": {
+          ...commentsObj,
+          [activityId]: {
+            ...actComments,
+            [date]: comment
+          }
+        }
+      };
+      return { ...m, attendance: newAttendance };
+    }));
+
+    // 2. Async save to Supabase
+    try {
+      const member = members.find(m => m.id === memberId);
+      if (!member) return;
+      const attObj = member.attendance || {};
+      const commentsObj = attObj["_comments"] || {};
+      const actComments = commentsObj[activityId] || {};
+      const newAttendance = {
+        ...attObj,
+        "_comments": {
+          ...commentsObj,
+          [activityId]: {
+            ...actComments,
+            [date]: comment
+          }
+        }
+      };
+      await supabase.from("members").update({ attendance: newAttendance }).eq("id", memberId);
+    } catch (err) {
+      console.error("Error saving attendance comment:", err);
     }
   };
 
@@ -602,47 +645,88 @@ export default function ActivitiesPage() {
                   }
                   
                   const isPresent = m.attendance[selectedActivityId || ""]?.[selectedDate] || false;
+                  const comment = m.attendance["_comments"]?.[selectedActivityId || ""]?.[selectedDate] || "";
                   return (
                     <div 
                       key={m.id} 
                       className={`arch-card glass ${isPresent ? "hover-glow" : ""}`}
                       onClick={() => toggleAttendance(m.id, selectedActivityId!, selectedDate)}
                       style={{ 
-                        padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", 
+                        padding: "18px 24px", display: "flex", flexDirection: "column", gap: 12, 
                         cursor: "pointer", transition: "all 0.3s ease",
                         border: isPresent ? "1px solid rgba(0, 255, 136, 0.35)" : "1px solid rgba(212, 175, 55, 0.15)",
                         background: isPresent ? "rgba(0, 255, 136, 0.04)" : "rgba(10, 6, 22, 0.25)",
                         boxShadow: isPresent ? "0 0 20px rgba(0, 255, 136, 0.08)" : "none"
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                        <div className="avatar" style={{ 
-                          width: 36, height: 36, fontSize: 12, fontWeight: 700,
-                          background: isPresent ? "rgba(0, 255, 136, 0.1)" : "rgba(255,255,255,0.05)",
-                          border: `1px solid ${isPresent ? "var(--green)" : "rgba(212,175,55,0.2)"}`,
-                          color: isPresent ? "var(--green)" : "var(--gold-light)"
-                        }}>
-                          {m.firstName[0]}{m.lastName[0]}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: isPresent ? "var(--cream)" : "var(--cream-dim)" }}>{m.lastName} {m.firstName}</div>
-                          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                            Assiduité: <span style={{ color: "var(--gold-light)", fontWeight: 700 }}>{calculateEngagement(m)}%</span>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          <div className="avatar" style={{ 
+                            width: 36, height: 36, fontSize: 12, fontWeight: 700,
+                            background: isPresent ? "rgba(0, 255, 136, 0.1)" : "rgba(255,255,255,0.05)",
+                            border: `1px solid ${isPresent ? "var(--green)" : "rgba(212,175,55,0.2)"}`,
+                            color: isPresent ? "var(--green)" : "var(--gold-light)"
+                          }}>
+                            {m.firstName[0]}{m.lastName[0]}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: isPresent ? "var(--cream)" : "var(--cream-dim)" }}>{m.lastName} {m.firstName}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                              Assiduité: <span style={{ color: "var(--gold-light)", fontWeight: 700 }}>{calculateEngagement(m)}%</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div style={{ 
-                        width: 46, height: 22, borderRadius: 11, position: "relative",
-                        background: isPresent ? "var(--green)" : "rgba(255,255,255,0.08)",
-                        transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-                        border: `1px solid ${isPresent ? "transparent" : "rgba(212,175,55,0.15)"}`
-                      }}>
                         <div style={{ 
-                          position: "absolute", top: 2, left: isPresent ? 26 : 2,
-                          width: 16, height: 16, borderRadius: "50%", background: "white",
-                          boxShadow: "0 2px 5px rgba(0,0,0,0.4)", transition: "all 0.25s"
-                        }} />
+                          width: 46, height: 22, borderRadius: 11, position: "relative",
+                          background: isPresent ? "var(--green)" : "rgba(255,255,255,0.08)",
+                          transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                          border: `1px solid ${isPresent ? "transparent" : "rgba(212,175,55,0.15)"}`
+                        }}>
+                          <div style={{ 
+                            position: "absolute", top: 2, left: isPresent ? 26 : 2,
+                            width: 16, height: 16, borderRadius: "50%", background: "white",
+                            boxShadow: "0 2px 5px rgba(0,0,0,0.4)", transition: "all 0.25s"
+                          }} />
+                        </div>
                       </div>
+
+                      {/* Comment section (only shown if absent, or if a comment already exists) */}
+                      {(!isPresent || comment) && (
+                        <div 
+                          onClick={(e) => e.stopPropagation()} 
+                          style={{ 
+                            marginTop: 4, 
+                            borderTop: "1px dashed rgba(212, 175, 55, 0.12)", 
+                            paddingTop: 10,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 6,
+                            width: "100%"
+                          }}
+                        >
+                          <label style={{ fontSize: 9, color: "var(--gold-light)", letterSpacing: "0.5px", textTransform: "uppercase", fontWeight: 600 }}>
+                            {isPresent ? "Note / Remarque" : "Motif d'absence / Note"}
+                          </label>
+                          <input 
+                            type="text" 
+                            placeholder={isPresent ? "Ajouter une note..." : "Renseigner le motif d'absence..."} 
+                            value={comment} 
+                            onChange={(e) => saveAttendanceComment(m.id, selectedActivityId!, selectedDate, e.target.value)}
+                            style={{ 
+                              height: 30, 
+                              fontSize: 11, 
+                              background: "rgba(0,0,0,0.25)", 
+                              border: "1px solid rgba(212, 175, 55, 0.2)", 
+                              borderRadius: 8,
+                              padding: "4px 10px",
+                              width: "100%",
+                              color: "var(--cream)",
+                              outline: "none",
+                              transition: "border-color 0.2s"
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -725,7 +809,11 @@ export default function ActivitiesPage() {
                                 </div>
                               </div>
                               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {dates.map(date => (
+                                {dates.map(date => {
+                                  const isPresent = m.attendance[act.id]?.[date];
+                                  const comment = m.attendance["_comments"]?.[act.id]?.[date] || "";
+
+                                  return (
                                     <div 
                                       key={date}
                                       onClick={() => toggleAttendance(m.id, act.id, date)}
@@ -733,15 +821,26 @@ export default function ActivitiesPage() {
                                         width: 28, height: 28, borderRadius: 6, fontSize: 9,
                                         display: "flex", alignItems: "center", justifyContent: "center",
                                         cursor: "pointer", transition: "all 0.2s",
-                                        background: m.attendance[act.id]?.[date] ? "var(--green-glow)" : "rgba(255,255,255,0.05)",
-                                        border: `1px solid ${m.attendance[act.id]?.[date] ? "var(--green)" : "var(--border)"}`,
-                                        color: m.attendance[act.id]?.[date] ? "var(--green)" : "var(--muted)"
+                                        background: isPresent ? "var(--green-glow)" : "rgba(255,255,255,0.05)",
+                                        border: comment 
+                                          ? "1.5px solid var(--gold)" 
+                                          : `1px solid ${isPresent ? "var(--green)" : "var(--border)"}`,
+                                        color: isPresent ? "var(--green)" : (comment ? "var(--gold-light)" : "var(--muted)"),
+                                        position: "relative"
                                       }}
-                                      title={date}
+                                      title={`${date}${comment ? `\nNote : ${comment}` : ""}`}
                                     >
                                       {date.split('-')[2]}
+                                      {comment && (
+                                        <span style={{ 
+                                          position: "absolute", top: 2, right: 2, 
+                                          width: 4, height: 4, borderRadius: "50%", 
+                                          background: "var(--gold)" 
+                                        }} />
+                                      )}
                                     </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           );
