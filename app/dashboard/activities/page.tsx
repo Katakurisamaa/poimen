@@ -109,18 +109,31 @@ export default function ActivitiesPage() {
         setUserBergerieId(bergerieId);
         setUserRole(profile.status);
 
-        // 2. Load Activities (Priority to DB if we implement it later, but for now localStorage)
-        const savedActivities = localStorage.getItem("local_activities");
+        // 2. Load Activities from Supabase bergeries table
+        const { data: bergerieData } = await supabase
+          .from("bergeries")
+          .select("activities")
+          .eq("id", bergerieId)
+          .single();
+
         let loadedActivities: Activity[] = [];
-        if (savedActivities) {
-          try {
-            loadedActivities = JSON.parse(savedActivities);
-          } catch (e) {
-            console.error("Local activities parse error", e);
+        if (bergerieData?.activities) {
+          loadedActivities = bergerieData.activities as Activity[];
+        }
+        
+        // Backward compatibility: fallback to localStorage if DB is empty
+        if (loadedActivities.length === 0) {
+          const savedActivities = localStorage.getItem("local_activities");
+          if (savedActivities) {
+            try {
+              loadedActivities = JSON.parse(savedActivities);
+            } catch (e) {
+              console.error("Local activities parse error", e);
+            }
           }
         }
         
-        // If no activities, use defaults
+        // If still no activities, use defaults
         if (loadedActivities.length === 0) {
           loadedActivities = DEFAULT_ACTIVITIES;
         }
@@ -157,11 +170,20 @@ export default function ActivitiesPage() {
     init();
   }, []);
 
-  useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem("local_activities", JSON.stringify(activities));
+  const saveActivities = async (newActs: Activity[]) => {
+    setActivities(newActs);
+    localStorage.setItem("local_activities", JSON.stringify(newActs));
+    if (userBergerieId) {
+      try {
+        await supabase
+          .from("bergeries")
+          .update({ activities: newActs })
+          .eq("id", userBergerieId);
+      } catch (err) {
+        console.error("Error saving activities to database:", err);
+      }
     }
-  }, [activities, isMounted]);
+  };
 
   // Ensure selectedActivityId is initialized if activities exist
   useEffect(() => {
@@ -276,7 +298,7 @@ export default function ActivitiesPage() {
     }
   };
 
-  const handleAddActivity = (e: React.FormEvent) => {
+  const handleAddActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     const act: Activity = {
       id: Math.random().toString(36).substr(2, 9),
@@ -286,7 +308,7 @@ export default function ActivitiesPage() {
       endTime: newActivity.endTime || "20:00",
       location: newActivity.location || "Salle"
     };
-    setActivities([...activities, act]);
+    await saveActivities([...activities, act]);
     setIsAddModalOpen(false);
     setNewActivity({ name: "", day: 0, startTime: "18:00", endTime: "20:00", location: "Salles Annexes" });
   };
@@ -755,7 +777,7 @@ export default function ActivitiesPage() {
                   <div>
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)" }}>{act.name}</h3>
                   </div>
-                  <button className="btn-icon" onClick={() => setActivities(activities.filter(a => a.id !== act.id))}>
+                  <button className="btn-icon" onClick={() => saveActivities(activities.filter(a => a.id !== act.id))}>
                     <Trash2 size={14} style={{ color: "var(--red)" }} />
                   </button>
                 </div>

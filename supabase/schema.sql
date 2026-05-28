@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS bergeries (
   name TEXT NOT NULL,
   berger_id UUID,
   coordonnateur_id UUID,
+  activities JSONB DEFAULT '[{"id": "culte", "name": "Culte du Dimanche", "day": 0, "startTime": "10:00", "endTime": "12:30", "location": "Sanctuaire Principal"}, {"id": "cdm", "name": "CDM (Cellule Alpha)", "day": 4, "startTime": "19:00", "endTime": "20:30", "location": "Salles Annexes"}]'::jsonb,
   archived BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
