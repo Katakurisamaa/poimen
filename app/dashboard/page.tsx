@@ -254,10 +254,12 @@ export default function DashboardPage() {
 
           members.forEach(m => {
             let eng = 0;
-            if (familyHasAttendance) {
+            const attObj = m.attendance || {};
+            const hasAtt = Object.keys(attObj).some(k => attObj[k] && Object.keys(attObj[k]).length > 0);
+
+            if (familyHasAttendance && hasAtt) {
               let totalPossible = 0;
               let totalPresent = 0;
-              const attObj = m.attendance || {};
 
               activeTypes.forEach(act => {
                 const dates = getDaysOfPeriod(currentYear, currentMonth, act.day);
