@@ -1,8 +1,9 @@
 "use client";
 
-import { Menu, Plus, CalendarPlus } from "lucide-react";
+import { Menu, Plus, CalendarPlus, Home } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 interface HeaderProps {
   bergerieName?: string;
@@ -66,10 +67,32 @@ export default function Header({ bergerieName = "Famille Alpha", onMenuClick }: 
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(14px, 2vw, 19px)", fontWeight: 700, color: "var(--cream)", margin: 0, letterSpacing: "0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {headerTitle}
           </h1>
-        </div>
       </div>
-
-
+    </div>
+      
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto", flexShrink: 0 }}>
+        <Link 
+          href="/" 
+          className="btn btn-outline btn-sm" 
+          style={{ 
+            borderColor: "rgba(212, 175, 55, 0.3)", 
+            color: "var(--gold)", 
+            display: "flex", 
+            alignItems: "center", 
+            gap: 6,
+            height: 32,
+            padding: "0 12px",
+            fontSize: 11,
+            fontWeight: 600,
+            textDecoration: "none",
+            borderRadius: 8,
+            cursor: "pointer"
+          }}
+        >
+          <Home size={13} />
+          <span className="desktop-only">Quitter l'espace</span>
+        </Link>
+      </div>
     </header>
   );
 }

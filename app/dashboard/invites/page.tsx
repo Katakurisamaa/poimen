@@ -1394,10 +1394,10 @@ export default function InvitesPage() {
       )}
 
       {/* Search & Filters */}
-      <div className="glass-compact" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+      <div className="glass-compact affectations-filters" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: 2, minWidth: 200 }}>
-          <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-          <input className="input" placeholder="Rechercher par nom..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 36 }} />
+          <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.35)" }} />
+          <input className="input search-bar-premium" placeholder="Rechercher par nom..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
         </div>
 
         {!isConseiller && (

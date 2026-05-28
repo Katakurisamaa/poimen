@@ -99,18 +99,21 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
         {/* Logo */}
         <div style={{ padding: "26px 22px 20px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ 
-              fontFamily: "var(--font-display)", 
-              fontSize: 26, 
-              fontWeight: 800, 
-              background: "linear-gradient(135deg, #FFF6D6 0%, #D4AF37 60%, #AA771C 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              letterSpacing: "-0.01em" 
-            }}>
-              Poimén
-            </div>
+            <Link href="/" style={{ textDecoration: "none" }}>
+              <div style={{ 
+                fontFamily: "var(--font-display)", 
+                fontSize: 26, 
+                fontWeight: 800, 
+                background: "linear-gradient(135deg, #FFF6D6 0%, #D4AF37 60%, #AA771C 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                letterSpacing: "-0.01em",
+                cursor: "pointer"
+              }}>
+                Poimén
+              </div>
+            </Link>
             <div style={{ fontSize: 9, color: "var(--gold-light)", letterSpacing: 2.5, marginTop: 4, textTransform: "uppercase", fontWeight: 700, opacity: 0.8 }}>
               {isAdmin ? "ADMINISTRATION" : churchName}
             </div>
