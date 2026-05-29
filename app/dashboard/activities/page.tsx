@@ -541,9 +541,18 @@ export default function ActivitiesPage() {
       return fullName1.includes(searchLower) || fullName2.includes(searchLower);
     });
     
-    // Sort alphabetically by firstName (A-Z) by default
-    return [...list].sort((a, b) => a.firstName.localeCompare(b.firstName, "fr", { sensitivity: "base" }));
-  }, [members, search, isLeader, currentUserFullName]);
+    // Sort by engagement descending (highest first). If equal, sort alphabetically by firstName (A-Z)
+    return [...list].sort((a, b) => {
+      const aEngagement = calculateEngagement(a);
+      const bEngagement = calculateEngagement(b);
+      
+      if (bEngagement !== aEngagement) {
+        return bEngagement - aEngagement;
+      }
+      
+      return a.firstName.localeCompare(b.firstName, "fr", { sensitivity: "base" });
+    });
+  }, [members, search, isLeader, currentUserFullName, activities, activityDates]);
 
   const displayedMembers = useMemo(() => {
     const list = filteredMembers.filter(m => {
