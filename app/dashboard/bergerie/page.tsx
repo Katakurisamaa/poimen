@@ -1036,7 +1036,7 @@ export default function BergeriePage() {
                 </div>
                 <div>
                   <label className="label">Adresse de résidence</label>
-                  <input className="input" value={newMember.adresse || ""} onChange={e => setNewMember({...newMember, adresse: e.target.value})} placeholder="Ex: Bruxelles, Belgique" />
+                  <input className="input" value={newMember.adresse || ""} onChange={e => setNewMember({...newMember, adresse: e.target.value})} placeholder="12 rue de l'industrie 6040 jumet" />
                 </div>
               </div>
 
@@ -1112,7 +1112,7 @@ export default function BergeriePage() {
 
               <div className="form-grid-2">
                 <div>
-                  <label className="label">Date d'entrée (intégration)</label>
+                  <label className="label">Date d'entrée</label>
                   <input 
                     className="input" 
                     type="date" 
@@ -1128,17 +1128,6 @@ export default function BergeriePage() {
                 </div>
               </div>
 
-              {newMember.status === "Brebi" && (
-                <div>
-                  <label className="label">Responsable Assigné</label>
-                  <select className="input" value={newMember.responsible || ""} onChange={e => setNewMember({...newMember, responsible: e.target.value})}>
-                    <option value="">-- Aucun --</option>
-                    {data.filter(m => m.status === "Responsable").map(r => (
-                      <option key={r.id} value={`${r.firstName} ${r.lastName}`}>{r.firstName} {r.lastName}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               <div className="form-grid-2" style={{ alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, height: 42 }}>
@@ -1156,7 +1145,7 @@ export default function BergeriePage() {
               </div>
 
               <div>
-                <label className="label">Formations suivies (ICC)</label>
+                <label className="label">P.C.N.C</label>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
                   {["001", "101", "201", "301"].map(f => {
                     const currentFormations = newMember.formations || [];
@@ -1232,7 +1221,7 @@ export default function BergeriePage() {
                       style={{ width: 18, height: 18, accentColor: "var(--gold)", cursor: "pointer" }}
                     />
                     <label htmlFor="estCdm" style={{ fontSize: 12, color: "var(--cream-dim)", cursor: "pointer", userSelect: "none" }}>
-                      Fait la C.D.M (Cellule)
+                      Est dans une C.D.M
                     </label>
                   </div>
                   {newMember.est_cdm && (

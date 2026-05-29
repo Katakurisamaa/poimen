@@ -72,7 +72,11 @@ export default function Header({ bergerieName = "Famille Alpha", onMenuClick }: 
       
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto", flexShrink: 0 }}>
         <Link 
-          href="/" 
+          href="/dashboard" 
+          onClick={() => {
+            localStorage.removeItem("selected_family");
+            window.dispatchEvent(new Event("storage"));
+          }}
           className="btn btn-outline btn-sm" 
           style={{ 
             borderColor: "rgba(212, 175, 55, 0.3)", 
