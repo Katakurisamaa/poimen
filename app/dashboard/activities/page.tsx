@@ -22,6 +22,7 @@ interface Activity {
   endTime: string;
   location: string;
   noFixedHours?: boolean;
+  startDate?: string;
 }
 
 interface Member {
@@ -202,7 +203,8 @@ export default function ActivitiesPage() {
     day: 0,
     startTime: "18:00",
     endTime: "20:00",
-    location: "Salles Annexes"
+    location: "Salles Annexes",
+    startDate: "2026-03-29"
   });
 
   const [selectedDays, setSelectedDays] = useState<number[]>([0]);
@@ -218,7 +220,8 @@ export default function ActivitiesPage() {
           name: "",
           location: "Salles Annexes",
           startTime: "18:00",
-          endTime: "20:00"
+          endTime: "20:00",
+          startDate: "2026-03-29"
         });
       }
     } else {
@@ -282,7 +285,8 @@ export default function ActivitiesPage() {
       allDates.push(...dates);
     });
     
-    return allDates.sort();
+    const limitDate = act.startDate || "2026-03-29";
+    return allDates.filter(d => d >= limitDate).sort();
   };
 
   const getDaysLabel = (act: Activity) => {
@@ -427,7 +431,8 @@ export default function ActivitiesPage() {
           startTime: noFixedHours ? "" : (newActivity.startTime || "18:00"),
           endTime: noFixedHours ? "" : (newActivity.endTime || "20:00"),
           noFixedHours: noFixedHours,
-          location: newActivity.location || "Salle"
+          location: newActivity.location || "Salle",
+          startDate: newActivity.startDate || "2026-03-29"
         };
       });
       await saveActivities(updatedActs);
@@ -441,14 +446,15 @@ export default function ActivitiesPage() {
         startTime: noFixedHours ? "" : (newActivity.startTime || "18:00"),
         endTime: noFixedHours ? "" : (newActivity.endTime || "20:00"),
         noFixedHours: noFixedHours,
-        location: newActivity.location || "Salle"
+        location: newActivity.location || "Salle",
+        startDate: newActivity.startDate || "2026-03-29"
       };
       await saveActivities([...activities, act]);
     }
     
     setIsAddModalOpen(false);
     setEditingActivityId(null);
-    setNewActivity({ name: "", day: 0, startTime: "18:00", endTime: "20:00", location: "Salles Annexes" });
+    setNewActivity({ name: "", day: 0, startTime: "18:00", endTime: "20:00", location: "Salles Annexes", startDate: "2026-03-29" });
   };
 
   const calculateEngagement = (member: Member) => {
@@ -1049,7 +1055,8 @@ export default function ActivitiesPage() {
                           name: act.name,
                           location: act.location,
                           startTime: act.startTime,
-                          endTime: act.endTime
+                          endTime: act.endTime,
+                          startDate: act.startDate || "2026-03-29"
                         });
                         setSelectedDays(act.days && act.days.length > 0 ? act.days : [act.day]);
                         setNoFixedHours(!!act.noFixedHours);
@@ -1235,6 +1242,16 @@ export default function ActivitiesPage() {
               <div>
                 <label className="label">LIEU</label>
                 <input className="input" value={newActivity.location} onChange={e => setNewActivity({...newActivity, location: e.target.value})} placeholder="Temple, Salle A..." />
+              </div>
+
+              <div>
+                <label className="label">Date de début de l'activité</label>
+                <input 
+                  className="input" 
+                  type="date" 
+                  value={newActivity.startDate || "2026-03-29"} 
+                  onChange={e => setNewActivity({...newActivity, startDate: e.target.value})} 
+                />
               </div>
 
               <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
