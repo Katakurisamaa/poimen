@@ -299,6 +299,55 @@ export default function ActivitiesPage() {
     return `Tous les ${sortedDays.map(d => dayNamesPlural[d]).join(", ")}`;
   };
 
+  const activeActivity = useMemo(() => {
+    return activities.find(a => a.id === selectedActivityId) || null;
+  }, [activities, selectedActivityId]);
+
+  const yearsRange = useMemo(() => {
+    const startY = activeActivity?.startDate ? Number(activeActivity.startDate.split("-")[0]) : 2026;
+    const currentYear = new Date().getFullYear();
+    const range = [];
+    for (let y = startY; y <= Math.max(currentYear, startY) + 1; y++) {
+      range.push(y);
+    }
+    return range;
+  }, [activeActivity]);
+
+  const displayedMonths = useMemo(() => {
+    const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+    const startY = activeActivity?.startDate ? Number(activeActivity.startDate.split("-")[0]) : 2026;
+    if (selectedYear === startY) {
+      const startM = activeActivity?.startDate ? Number(activeActivity.startDate.split("-")[1]) - 1 : 2;
+      return monthNames.map((m, i) => ({ name: m, index: i })).filter(m => m.index >= startM);
+    }
+    return monthNames.map((m, i) => ({ name: m, index: i }));
+  }, [activeActivity, selectedYear]);
+
+  // Shift month/year selection if it is prior to the activity start date
+  useEffect(() => {
+    if (activeActivity) {
+      const startY = activeActivity.startDate ? Number(activeActivity.startDate.split("-")[0]) : 2026;
+      const startM = activeActivity.startDate ? Number(activeActivity.startDate.split("-")[1]) - 1 : 2;
+      
+      let nextYear = selectedYear;
+      let nextMonth = selectedMonth;
+      
+      if (selectedYear < startY) {
+        nextYear = startY;
+        nextMonth = startM;
+      } else if (selectedYear === startY && selectedMonth < startM) {
+        nextMonth = startM;
+      }
+      
+      if (nextYear !== selectedYear) {
+        setSelectedYear(nextYear);
+      }
+      if (nextMonth !== selectedMonth) {
+        setSelectedMonth(nextMonth);
+      }
+    }
+  }, [activeActivity, selectedYear, selectedMonth]);
+
   const activityDates = useMemo(() => {
     const map: Record<string, string[]> = {};
     activities.forEach(act => {
@@ -669,12 +718,14 @@ export default function ActivitiesPage() {
         <div className="glass activity-period-picker" style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 16px", borderRadius: 12, border: "1px solid rgba(212, 175, 55, 0.15)" }}>
           <Calendar size={14} className="text-[var(--gold)]" />
           <select className="input-minimal" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))}>
-            {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-              <option key={i} value={i} style={{ background: "var(--bg)", color: "var(--cream)" }}>{m}</option>
+            {displayedMonths.map(m => (
+              <option key={m.index} value={m.index} style={{ background: "var(--bg)", color: "var(--cream)" }}>{m.name}</option>
             ))}
           </select>
           <select className="input-minimal" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
-            {[2024, 2025, 2026].map(y => <option key={y} value={y} style={{ background: "var(--bg)", color: "var(--cream)" }}>{y}</option>)}
+            {yearsRange.map(y => (
+              <option key={y} value={y} style={{ background: "var(--bg)", color: "var(--cream)" }}>{y}</option>
+            ))}
           </select>
         </div>
       </div>
