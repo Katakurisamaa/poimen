@@ -17,9 +17,10 @@ const STATS = [
 ];
 
 const ENGAGEMENT = [
-  { label: "Fidélisés (>75%)", pct: 0, color: "var(--green)", count: 0 },
-  { label: "En cours (45-75%)", pct: 0, color: "var(--orange)", count: 0 },
-  { label: "À risque (<45%)", pct: 0, color: "var(--red)", count: 0 },
+  { label: "Élevé (70-100%)", pct: 0, color: "var(--green)", count: 0 },
+  { label: "Stable (50-70%)", pct: 0, color: "var(--gold)", count: 0 },
+  { label: "En cours (20-50%)", pct: 0, color: "var(--orange)", count: 0 },
+  { label: "Faible (0-20%)", pct: 0, color: "var(--red)", count: 0 },
 ];
 
 const ACTIVITIES: { title: string; type: ActivityType; date: string; time: string; upcoming: boolean; attendance?: number }[] = [];
@@ -65,11 +66,14 @@ export default function DashboardPage() {
     alertsCount: 0,
     totalReached: 0,
     totalSalvation: 0,
-    totalInvitations: 0
+    totalInvitations: 0,
+    totalContacted: 0,
+    totalAttended: 0
   });
   const [activitiesList, setActivitiesList] = useState<any[]>([]);
   const [atRiskList, setAtRiskList] = useState<any[]>([]);
   const [engagementStats, setEngagementStats] = useState(ENGAGEMENT);
+  const [upcomingBirthdays, setUpcomingBirthdays] = useState<any[]>([]);
 
   const savedInfo = typeof window !== "undefined" ? (() => { try { const s = localStorage.getItem("poimen_saved_info"); return s ? JSON.parse(s) : null; } catch { return null; } })() : null;
   const [registration, setRegistration] = useState({
@@ -286,10 +290,17 @@ export default function DashboardPage() {
             day: Number(act.day)
           }));
 
+          let fidelised = 0;   // Élevé
+          let stable = 0;      // Stable
+          let ongoing = 0;     // En cours
+          let atRiskCount = 0; // Faible
+          const calculatedAtRisk: any[] = [];
+          const calculatedActivities: any[] = [];
+
           members.forEach(m => {
             let eng = 0;
             const attObj = m.attendance || {};
-            const hasAtt = Object.keys(attObj).some(k => attObj[k] && Object.keys(attObj[k]).length > 0);
+            const hasAtt = Object.keys(attObj).some(k => k !== "_comments" && attObj[k] && Object.keys(attObj[k]).length > 0);
 
             if (familyHasAttendance && hasAtt) {
               let totalPossible = 0;
@@ -297,9 +308,11 @@ export default function DashboardPage() {
 
               activeTypes.forEach(act => {
                 const dates = getDaysOfPeriod(currentYear, currentMonth, act.day);
-                totalPossible += dates.length;
+                // Filter dates to only include those at or after m.date_entree
+                const validDates = dates.filter(d => !m.date_entree || d >= m.date_entree);
+                totalPossible += validDates.length;
                 const actAtt = attObj[act.id] || {};
-                dates.forEach(d => {
+                validDates.forEach(d => {
                   if (actAtt[d] === true) {
                     totalPresent++;
                   }
@@ -320,15 +333,22 @@ export default function DashboardPage() {
               if (eng < 0) eng = 0;
             }
 
-            if (eng >= 75) fidelised++;
-            else if (eng >= 45) ongoing++;
+            let level: "high" | "stable" | "medium" | "low" = "low";
+            if (eng >= 70) level = "high";
+            else if (eng >= 50) level = "stable";
+            else if (eng >= 20) level = "medium";
+            else level = "low";
+
+            if (level === "high") fidelised++;
+            else if (level === "stable") stable++;
+            else if (level === "medium") ongoing++;
             else {
               atRiskCount++;
               calculatedAtRisk.push({
                 id: m.id,
                 name: `${m.first_name} ${m.last_name}`,
                 initials: `${m.first_name[0] || ""}${m.last_name[0] || ""}`,
-                issue: `Baisse d'engagement (${eng}%) · Suivi recommandé`,
+                issue: `Faible engagement (${eng}%) · Suivi urgent`,
                 score: eng
               });
             }
@@ -336,9 +356,10 @@ export default function DashboardPage() {
 
           const total = mCount || 1;
           setEngagementStats([
-            { label: "Fidélisés (>75%)", pct: Math.round((fidelised/total)*100), color: "var(--green)", count: fidelised },
-            { label: "En cours (45-75%)", pct: Math.round((ongoing/total)*100), color: "var(--orange)", count: ongoing },
-            { label: "À risque (<45%)", pct: Math.round((atRiskCount/total)*100), color: "var(--red)", count: atRiskCount },
+            { label: "Élevé (70-100%)", pct: Math.round((fidelised/total)*100), color: "var(--green)", count: fidelised },
+            { label: "Stable (50-70%)", pct: Math.round((stable/total)*100), color: "var(--gold)", count: stable },
+            { label: "En cours (20-50%)", pct: Math.round((ongoing/total)*100), color: "var(--orange)", count: ongoing },
+            { label: "Faible (0-20%)", pct: Math.round((atRiskCount/total)*100), color: "var(--red)", count: atRiskCount },
           ]);
 
           calculatedAtRisk.sort((a, b) => a.score - b.score);
@@ -354,6 +375,8 @@ export default function DashboardPage() {
               let presentCount = 0;
               members.forEach(m => {
                 const dateKey = r.id.split("-").slice(1).join("-");
+                if (m.date_entree && dateKey < m.date_entree) return;
+
                 const attObj = m.attendance || {};
                 const actAtt = attObj[r.actId] || {};
                 if (actAtt[dateKey] === true) {
@@ -394,23 +417,38 @@ export default function DashboardPage() {
         }
       }
 
-      let totalReached = 0;
-      let totalSalvation = 0;
-      let totalInvitations = 0;
+      let totalReached = 0;      // Âme(s) évangélisée(s)
+      let totalSalvation = 0;    // Appel au salut
+      let totalInvitations = 0;  // Invitation donnée
+      let totalContacted = 0;    // Âme(s) Contactée(s)
+      let totalAttended = 0;     // Ame(s) venue(s) au culte par évangélisation
+
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth();
+      const currentYearStr = String(currentYear);
+      const currentMonthStr = String(currentMonth + 1).padStart(2, '0');
+      const monthPrefix = `${currentYearStr}-${currentMonthStr}`;
 
       if (evangs) {
         evangs.forEach(e => {
+          // Filter strictly for current month
+          const dateStr = e.evangelisation_date || "";
+          if (!dateStr.startsWith(monthPrefix)) return;
+
           totalReached += (e.people_count || 0);
           if (e.prayer_salvation) {
             totalSalvation += (e.people_count || 1);
           }
           totalInvitations += (e.invitations_count || 0);
+          if (e.is_contacted) {
+            totalContacted += (e.people_count || 1);
+          }
+          if (e.attended_service) {
+            totalAttended += (e.people_count || 1);
+          }
         });
       }
 
-      const currentYear = new Date().getFullYear();
-      const currentMonth = new Date().getMonth();
-      
       let calculatedVal = 0;
       if (isIntegration) {
         // Calculate contact rate: (integrated + contacted) / total * 100
@@ -425,25 +463,23 @@ export default function DashboardPage() {
         }
         calculatedVal = totalGuests > 0 ? Math.round((contactedGuests / totalGuests) * 100) : 0;
       } else {
-        // Calculate average participation rate
+        // Calculate average participation rate - all-time based on member date_entree
         let totalPossiblePoints = 0;
         let totalPresentPoints = 0;
 
         if (members && mCount > 0) {
-          const currentYearStr = String(currentYear);
-          const currentMonthStr = String(currentMonth + 1).padStart(2, '0');
-          const monthPrefix = `${currentYearStr}-${currentMonthStr}`;
-
           members.forEach(m => {
             const att = m.attendance || {};
             Object.keys(att).forEach(actId => {
+              if (actId === "_comments") return;
               const actDates = att[actId] || {};
               Object.keys(actDates).forEach(dateStr => {
-                if (dateStr.startsWith(monthPrefix)) {
-                  totalPossiblePoints++;
-                  if (actDates[dateStr] === true) {
-                    totalPresentPoints++;
-                  }
+                // Ignore dates prior to integration date
+                if (m.date_entree && dateStr < m.date_entree) return;
+
+                totalPossiblePoints++;
+                if (actDates[dateStr] === true) {
+                  totalPresentPoints++;
                 }
               });
             });
@@ -470,6 +506,55 @@ export default function DashboardPage() {
         }
       }
 
+      // Calculate close birthdays
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayTime = today.getTime();
+      const upcomingBdays: any[] = [];
+      
+      if (members) {
+        members.forEach((m: any) => {
+          if (!m.date_anniversaire) return;
+          const parts = m.date_anniversaire.split("/");
+          if (parts.length !== 2) return;
+          const bDay = Number(parts[0]);
+          const bMonth = Number(parts[1]) - 1;
+          if (isNaN(bDay) || isNaN(bMonth)) return;
+          
+          const currentYear = today.getFullYear();
+          let closestDiff = Infinity;
+          let closestDateText = "";
+          
+          [currentYear - 1, currentYear, currentYear + 1].forEach(yr => {
+            const bDate = new Date(yr, bMonth, bDay);
+            bDate.setHours(0, 0, 0, 0);
+            const diff = Math.round((bDate.getTime() - todayTime) / (1000 * 60 * 60 * 24));
+            if (Math.abs(diff) < Math.abs(closestDiff)) {
+              closestDiff = diff;
+              closestDateText = bDate.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+            }
+          });
+          
+          if (closestDiff >= -2 && closestDiff <= 2) {
+            let relativeText = "";
+            if (closestDiff === 0) relativeText = "Aujourd'hui 🎉";
+            else if (closestDiff === 1) relativeText = "Demain 🎂";
+            else if (closestDiff === 2) relativeText = "Dans 2 jours 🎁";
+            else if (closestDiff === -1) relativeText = "Hier 🍰";
+            else if (closestDiff === -2) relativeText = "Il y a 2 jours 🎈";
+            
+            upcomingBdays.push({
+              name: `${m.first_name} ${m.last_name}`,
+              date: closestDateText,
+              relativeText,
+              diff: closestDiff
+            });
+          }
+        });
+      }
+      upcomingBdays.sort((a, b) => a.diff - b.diff);
+      setUpcomingBirthdays(upcomingBdays);
+
       setFamilyStats({
         membersCount: mCount,
         invitesCount: iCount,
@@ -477,7 +562,9 @@ export default function DashboardPage() {
         alertsCount: atRiskCount,
         totalReached,
         totalSalvation,
-        totalInvitations
+        totalInvitations,
+        totalContacted,
+        totalAttended
       });
       setCounts({ members: mCount, invites: iCount });
 
@@ -1139,7 +1226,7 @@ export default function DashboardPage() {
       <div className="glass d2" style={{ border: "1px solid rgba(212, 175, 55, 0.18)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>
-            {isIntegration ? "Statut de l'Intégration" : "Fidélisation & Engagement Global"}
+            {isIntegration ? "Statut de l'Intégration" : "Engagement Global"}
           </span>
           <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>
             {isIntegration ? `${familyStats.invitesCount} invités` : (isOnlyResponsable ? `${familyStats.membersCount} membres sous ma responsabilité` : `${familyStats.membersCount} membres actifs`)}
@@ -1174,10 +1261,10 @@ export default function DashboardPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--purple-light)" }}>
-              {isIntegration ? "🔥 Impact Évangélisation & Suivi" : "🔥 Impact Évangélisation & Moisson FDD"}
+              {isIntegration ? "🔥 Sortie d'évangélisation & Suivi" : "🔥 Sortie d'évangélisation"}
             </span>
             <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-              {isOnlyResponsable ? "Résumé de mes activités et conquêtes d'âmes" : (isIntegration ? "Bilan spirituel et rapports du Département d'Intégration" : "Bilan spirituel et moisson de notre Famille de Disciples")}
+              Données mensuelles des actions d'évangélisation et conquêtes d'âmes
             </p>
           </div>
           
@@ -1198,58 +1285,94 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
-          {/* Reached souls card */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+          {/* Card 1: Âme(s) évangélisée(s) */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ 
-              width: 44, height: 44, borderRadius: 10, 
+              width: 40, height: 40, borderRadius: 10, 
               background: "rgba(212,175,55,0.1)", 
               border: "1px solid rgba(212,175,55,0.2)",
               display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center",
-              color: "var(--gold)"
+              color: "var(--gold)", flexShrink: 0
             }}>
-              <Users size={20} />
+              <Users size={18} />
             </div>
             <div>
-              <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Âmes Impactées</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--cream)", marginTop: 2 }}>{familyStats.totalReached}</div>
-              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>Rejointes avec l'Évangile</div>
+              <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Âme(s) évangélisée(s)</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--cream)", marginTop: 2 }}>{familyStats.totalReached}</div>
+              <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>Ce mois</div>
             </div>
           </div>
 
-          {/* Decisions for Christ card */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 16 }}>
+          {/* Card 2: Appel au salut */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ 
-              width: 44, height: 44, borderRadius: 10, 
+              width: 40, height: 40, borderRadius: 10, 
               background: "rgba(16,185,129,0.1)", 
               border: "1px solid rgba(16,185,129,0.2)",
               display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center",
-              color: "var(--green)"
+              color: "var(--green)", flexShrink: 0
             }}>
-              <Target size={20} className="animate-pulse" />
+              <Target size={18} className="animate-pulse" />
             </div>
             <div>
-              <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Décisions pour Christ</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--green)", marginTop: 2 }}>{familyStats.totalSalvation}</div>
-              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>Prières de salut prononcées</div>
+              <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Appel au salut</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--green)", marginTop: 2 }}>{familyStats.totalSalvation}</div>
+              <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>Ce mois</div>
             </div>
           </div>
 
-          {/* Invitations card */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 16 }}>
+          {/* Card 3: Invitation donnée */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ 
-              width: 44, height: 44, borderRadius: 10, 
+              width: 40, height: 40, borderRadius: 10, 
               background: "rgba(139,92,246,0.1)", 
               border: "1px solid rgba(139,92,246,0.2)",
               display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center",
-              color: "var(--purple-light)"
+              color: "var(--purple-light)", flexShrink: 0
             }}>
-              <CalendarCheck size={20} />
+              <CalendarCheck size={18} />
             </div>
             <div>
-              <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Invitations Remises</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--purple-light)", marginTop: 2 }}>{familyStats.totalInvitations}</div>
-              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>Vers le Culte/la CDM</div>
+              <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Invitation donnée</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--purple-light)", marginTop: 2 }}>{familyStats.totalInvitations}</div>
+              <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>Ce mois</div>
+            </div>
+          </div>
+
+          {/* Card 4: Âme(s) Contactée(s) */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ 
+              width: 40, height: 40, borderRadius: 10, 
+              background: "rgba(56,189,248,0.1)", 
+              border: "1px solid rgba(56,189,248,0.2)",
+              display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center",
+              color: "var(--sky)", flexShrink: 0
+            }}>
+              <Phone size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Âme(s) Contactée(s)</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--sky)", marginTop: 2 }}>{familyStats.totalContacted}</div>
+              <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>Ce mois</div>
+            </div>
+          </div>
+
+          {/* Card 5: Ame(s) venue(s) au culte par évangélisation */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ 
+              width: 40, height: 40, borderRadius: 10, 
+              background: "rgba(16,185,129,0.1)", 
+              border: "1px solid rgba(16,185,129,0.2)",
+              display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center",
+              color: "var(--green)", flexShrink: 0
+            }}>
+              <CheckCircle2 size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Ame(s) venue(s) au culte</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--green)", marginTop: 2 }}>{familyStats.totalAttended}</div>
+              <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>Ce mois</div>
             </div>
           </div>
         </div>
@@ -1259,7 +1382,7 @@ export default function DashboardPage() {
       <div className="bento bento-2-1 d3">
         <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
           <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(10, 6, 22, 0.3)" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités de Réunion</span>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités & Événements</span>
             {isLeader && (
               <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => window.location.href = "/dashboard/activities"}>
                 <ChevronRight size={12} /> Faire l'appel
@@ -1268,7 +1391,7 @@ export default function DashboardPage() {
           </div>
           <div style={{ padding: "4px 0" }}>
             {activitiesList.length > 0 ? activitiesList.map((a, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: i < activitiesList.length - 1 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: i < activitiesList.length - 1 || upcomingBirthdays.length > 0 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
                 <div className="color-bar" style={{ background: "linear-gradient(180deg, var(--gold), var(--gold-light))", height: 38, width: 3, borderRadius: 2 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{a.title}</div>
@@ -1290,6 +1413,29 @@ export default function DashboardPage() {
               <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>Aucune activité pastorale enregistrée</div>
             )}
           </div>
+
+          {/* Upcoming Birthdays Section */}
+          {upcomingBirthdays.length > 0 && (
+            <div style={{ borderTop: "1px solid rgba(212, 175, 55, 0.15)", padding: "18px 24px", background: "rgba(212, 175, 55, 0.02)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <span>🎂 Anniversaires Proches</span>
+                <span className="badge badge-gold animate-bounce" style={{ fontSize: 9, padding: "2px 6px" }}>{upcomingBirthdays.length} proche(s)</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {upcomingBirthdays.map((b, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "10px 14px", borderRadius: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cream)" }}>{b.name}</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, color: "var(--muted)" }}>{b.date}</span>
+                      <span className="badge badge-gold" style={{ fontSize: 9, padding: "2px 8px" }}>{b.relativeText}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
