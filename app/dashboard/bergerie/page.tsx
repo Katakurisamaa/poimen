@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { 
   Search, Plus, Grid3X3, List, UserMinus, UserPlus, 
@@ -97,9 +97,14 @@ export default function BergeriePage() {
   const [isConseillerModalOpen, setIsConseillerModalOpen] = useState(false);
   const [conseillerSource, setConseillerSource] = useState<"existing" | "new">("existing");
   const [selectedConseillerId, setSelectedConseillerId] = useState<string>("");
-  const [periodType, setPeriodType] = useState<"mensuel" | "annuel">("mensuel");
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [filterBaptise, setFilterBaptise] = useState<string>("all");
+  const [filterPCNC, setFilterPCNC] = useState<string>("all");
+  const [filterEntreeMois, setFilterEntreeMois] = useState<string>("all");
+  const [filterAnnivMois, setFilterAnnivMois] = useState<string>("all");
+  const [filterStar, setFilterStar] = useState<string>("all");
+  const [filterCDM, setFilterCDM] = useState<string>("all");
+  const [filterProfession, setFilterProfession] = useState<string>("all");
+  const [showFiltersPanel, setShowFiltersPanel] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -285,21 +290,49 @@ export default function BergeriePage() {
   const calculateEngagement = (member: M) => {
     let totalPossible = 0;
     let totalPresent = 0;
+    const now = new Date();
     
     activities.forEach(act => {
-      const dates = getDaysOfPeriod(selectedYear, periodType === "mensuel" ? selectedMonth : null, act.day);
+      const dates = getDaysOfPeriod(now.getFullYear(), now.getMonth(), act.day);
       totalPossible += dates.length;
       totalPresent += dates.filter(d => member.attendance[act.id]?.[d]).length;
     });
     
     return totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
   };
-
-
   // Separate active members, archived (corbeille), and external conseillers
   const activeMembers = data.filter(m => !m.archived && m.status !== "Externe");
   const archivedMembers = data.filter(m => m.archived);
   const externalConseiller = data.find(m => m.status === "Externe" && m.is_conseiller && !m.archived);
+
+  const uniqueProfessions = useMemo<string[]>(() => {
+    const profs = activeMembers
+      .map(m => m.profession?.trim())
+      .filter((p): p is string => !!p);
+    return Array.from(new Set(profs)).sort();
+  }, [activeMembers]);
+
+  const hasActiveFilters = 
+    filterBaptise !== "all" ||
+    filterPCNC !== "all" ||
+    filterEntreeMois !== "all" ||
+    filterAnnivMois !== "all" ||
+    filterStar !== "all" ||
+    filterCDM !== "all" ||
+    filterProfession !== "all";
+
+  const activeFiltersCount = [
+    filterBaptise !== "all",
+    filterPCNC !== "all",
+    filterEntreeMois !== "all",
+    filterAnnivMois !== "all",
+    filterStar !== "all",
+    filterCDM !== "all",
+    filterProfession !== "all"
+  ].filter(Boolean).length;
+
+
+
 
   const filtered = (showCorbeille ? archivedMembers : activeMembers).filter((m) => {
     // Recherche textuelle d'abord
@@ -324,6 +357,45 @@ export default function BergeriePage() {
         return m.status === "Berger" || m.status === "Second" || (m.firstName + " " + m.lastName) === userNameStr;
       }
     }
+
+    // 3. Baptisé
+    if (filterBaptise === "yes" && !m.est_baptise) return false;
+    if (filterBaptise === "no" && m.est_baptise) return false;
+
+    // 4. P.C.N.C (formations)
+    if (filterPCNC !== "all") {
+      const formations = m.formations || [];
+      if (filterPCNC === "none") {
+        if (formations.length > 0) return false;
+      } else {
+        if (!formations.includes(filterPCNC)) return false;
+      }
+    }
+
+    // 5. Date d'entrée (juste le mois)
+    if (filterEntreeMois !== "all") {
+      if (!m.date_entree) return false;
+      const month = m.date_entree.split("-")[1]; // format YYYY-MM-DD
+      if (month !== filterEntreeMois) return false;
+    }
+
+    // 6. Anniversaire (juste le mois)
+    if (filterAnnivMois !== "all") {
+      if (!m.date_anniversaire) return false;
+      const month = m.date_anniversaire.split("/")[1]; // format DD/MM
+      if (month !== filterAnnivMois) return false;
+    }
+
+    // 7. S.T.A.R
+    if (filterStar === "yes" && !m.est_star) return false;
+    if (filterStar === "no" && m.est_star) return false;
+
+    // 8. C.D.M
+    if (filterCDM === "yes" && !m.est_cdm) return false;
+    if (filterCDM === "no" && m.est_cdm) return false;
+
+    // 9. Profession
+    if (filterProfession !== "all" && m.profession?.trim() !== filterProfession) return false;
 
     return true;
   }).sort((a, b) => {
@@ -690,7 +762,9 @@ export default function BergeriePage() {
           <p style={{ fontSize:12, color:"var(--muted)", marginTop:4 }}>
             {showCorbeille 
               ? `${archivedMembers.length} membre(s) archivé(s)`
-              : `${activeMembers.length} membres actifs dans la bergerie`
+              : hasActiveFilters || search
+                ? `${filtered.length} membre(s) trouvé(s) sur ${activeMembers.length} fidèles`
+                : `${activeMembers.length} membres actifs dans la bergerie`
             }
           </p>
         </div>
@@ -746,32 +820,43 @@ export default function BergeriePage() {
         <div style={{ display:"flex", gap:10, alignItems:"center", flex: 1, minWidth: 0 }}>
           <div style={{ position:"relative", flex: 1, minWidth: 0 }}>
             <Search size={18} style={{ position:"absolute", left: 14, top:"50%", transform:"translateY(-50%)", color:"rgba(255,255,255,0.35)" }} />
-            <input className="input search-bar-premium" placeholder="Rechercher..." value={search} onChange={(e)=>setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
+            <input className="input search-bar-premium" placeholder="Rechercher par nom/prénom..." value={search} onChange={(e)=>setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
           </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 6, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 8px", borderRadius: 8, flexWrap: "wrap" }}>
-          <select 
-            className="input" 
-            value={periodType} 
-            onChange={(e) => setPeriodType(e.target.value as "mensuel" | "annuel")}
-            style={{ width: 90, fontSize: 11, padding: "4px 6px" }}
+          <button 
+            type="button"
+            onClick={() => setShowFiltersPanel(!showFiltersPanel)} 
+            className="btn btn-outline"
+            style={{ 
+              height: 42, 
+              padding: "0 16px", 
+              fontSize: 12, 
+              display: "flex", 
+              alignItems: "center", 
+              gap: 8,
+              borderColor: showFiltersPanel || hasActiveFilters ? "var(--gold)" : "rgba(212,175,55,0.25)",
+              background: showFiltersPanel ? "var(--gold-glow)" : "transparent",
+              color: showFiltersPanel || hasActiveFilters ? "var(--gold)" : "var(--muted)",
+            }}
           >
-            <option value="mensuel">Mensuel</option>
-            <option value="annuel">Annuel</option>
-          </select>
-
-          {periodType === "mensuel" && (
-            <select className="input" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} style={{ width: 95, fontSize: 11, padding: "4px 6px" }}>
-              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                <option key={i} value={i}>{m}</option>
-              ))}
-            </select>
-          )}
-
-          <select className="input" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} style={{ width: 70, fontSize: 11, padding: "4px 6px" }}>
-            {[2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+            <Search size={13} />
+            <span>Filtres</span>
+            {hasActiveFilters && (
+              <span style={{ 
+                background: "var(--gold)", 
+                color: "var(--bg)", 
+                borderRadius: "50%", 
+                width: 18, 
+                height: 18, 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                fontSize: 10, 
+                fontWeight: 700 
+              }}>
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
         </div>
         
         <div style={{ display:"flex", border:"1px solid var(--border)", borderRadius:6, overflow:"hidden" }}>
@@ -779,6 +864,112 @@ export default function BergeriePage() {
           <button onClick={()=>setView("grid")} className="btn-icon" style={{ padding:"6px 10px", background:view==="grid"?"var(--gold-glow)":"transparent", border:"none", color:view==="grid"?"var(--gold)":"var(--muted)", cursor:"pointer" }}><Grid3X3 size={14} /></button>
         </div>
       </div>
+
+      {showFiltersPanel && (
+        <div className="glass-compact fade-in" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16, border: "1px solid rgba(212,175,55,0.15)", marginTop: -8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, margin: 0 }}>
+              Filtres démographiques & engagement
+            </h4>
+            {hasActiveFilters && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setFilterBaptise("all");
+                  setFilterPCNC("all");
+                  setFilterEntreeMois("all");
+                  setFilterAnnivMois("all");
+                  setFilterStar("all");
+                  setFilterCDM("all");
+                  setFilterProfession("all");
+                }}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, padding: "2px 8px", color: "var(--red)", border: "1px solid rgba(239,68,68,0.2)" }}
+              >
+                Réinitialiser les filtres
+              </button>
+            )}
+          </div>
+          
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(160px, 100%), 1fr))", gap: 12 }}>
+            {/* 1. Baptisé */}
+            <div>
+              <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Baptisé(e)</label>
+              <select className="input" value={filterBaptise} onChange={e => setFilterBaptise(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
+                <option value="all">Tous</option>
+                <option value="yes">Oui</option>
+                <option value="no">Non</option>
+              </select>
+            </div>
+
+            {/* 2. P.C.N.C (formations) */}
+            <div>
+              <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>P.C.N.C</label>
+              <select className="input" value={filterPCNC} onChange={e => setFilterPCNC(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
+                <option value="all">Toutes</option>
+                <option value="001">Classe 001</option>
+                <option value="101">Classe 101</option>
+                <option value="201">Classe 201</option>
+                <option value="301">Classe 301</option>
+                <option value="none">Aucune</option>
+              </select>
+            </div>
+
+            {/* 3. Date d'entrée (juste le mois) */}
+            <div>
+              <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Mois d'entrée</label>
+              <select className="input" value={filterEntreeMois} onChange={e => setFilterEntreeMois(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
+                <option value="all">Tous</option>
+                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                  <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 4. Anniversaire (juste le mois) */}
+            <div>
+              <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Mois d'anniv.</label>
+              <select className="input" value={filterAnnivMois} onChange={e => setFilterAnnivMois(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
+                <option value="all">Tous</option>
+                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                  <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 5. S.T.A.R */}
+            <div>
+              <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>S.T.A.R</label>
+              <select className="input" value={filterStar} onChange={e => setFilterStar(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
+                <option value="all">Tous</option>
+                <option value="yes">Oui</option>
+                <option value="no">Non</option>
+              </select>
+            </div>
+
+            {/* 6. C.D.M */}
+            <div>
+              <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Est dans une C.D.M</label>
+              <select className="input" value={filterCDM} onChange={e => setFilterCDM(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
+                <option value="all">Tous</option>
+                <option value="yes">Oui</option>
+                <option value="no">Non</option>
+              </select>
+            </div>
+
+            {/* 7. Profession */}
+            <div>
+              <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Profession</label>
+              <select className="input" value={filterProfession} onChange={e => setFilterProfession(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
+                <option value="all">Toutes</option>
+                {uniqueProfessions.map((p: string) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {view === "list" ? (
         <div className="glass-flush">
@@ -962,7 +1153,7 @@ export default function BergeriePage() {
                   <div className="progress-fill" style={{ width:`${engagement}%`, background:color }} />
                 </div>
                 <div style={{ display:"flex", justifyContent:"center", alignItems:"center" }}>
-                  <span style={{ fontSize:10, color:color, fontWeight:600 }}>Engagement ({periodType}) : {engagement}%</span>
+                  <span style={{ fontSize:10, color:color, fontWeight:600 }}>Engagement (Ce mois) : {engagement}%</span>
                 </div>
               </div>
             );
