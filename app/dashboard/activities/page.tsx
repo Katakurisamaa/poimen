@@ -34,6 +34,7 @@ interface Member {
   isInvite?: boolean;
   archived?: boolean;
   attendance: Record<string, Record<string, any>>; // activityId -> dateString -> present / _comments
+  dateEntree?: string;
 }
 
 // Mock Data (Empty for production)
@@ -155,7 +156,8 @@ export default function ActivitiesPage() {
           status: m.status || "Brebi",
           isInvite: false,
           archived: m.archived || false,
-          attendance: m.attendance || {}
+          attendance: m.attendance || {},
+          dateEntree: m.date_entree || ""
         }));
 
         setMembers(allPeople);
@@ -512,8 +514,9 @@ export default function ActivitiesPage() {
     
     activities.forEach(act => {
       const dates = activityDates[act.id] || [];
-      totalPossible += dates.length;
-      totalPresent += dates.filter(d => member.attendance[act.id]?.[d]).length;
+      const validDates = dates.filter(d => !member.dateEntree || d >= member.dateEntree);
+      totalPossible += validDates.length;
+      totalPresent += validDates.filter(d => member.attendance[act.id]?.[d]).length;
     });
     
     return totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
@@ -531,7 +534,11 @@ export default function ActivitiesPage() {
       const dates = activityDates[act.id] || [];
       
       members.forEach(member => {
+        if (member.archived) return;
+        
         dates.forEach(date => {
+          if (member.dateEntree && date < member.dateEntree) return;
+          
           totalPoints++;
           activityStats[act.id].total++;
           if (member.attendance[act.id]?.[date]) {
@@ -609,14 +616,15 @@ export default function ActivitiesPage() {
     });
   }, [members, search, isLeader, currentUserFullName, activities, activityDates]);
 
+  const activeMembersOnDate = useMemo(() => {
+    return filteredMembers.filter(m => {
+      if (m.dateEntree && selectedDate && selectedDate < m.dateEntree) return false;
+      return true;
+    });
+  }, [filteredMembers, selectedDate]);
+
   const displayedMembers = useMemo(() => {
-    const list = filteredMembers.filter(m => {
-      // Privacy check
-      if (!isLeader && currentUserFullName) {
-        const mFullName = `${m.lastName} ${m.firstName}`.toLowerCase();
-        if (mFullName !== currentUserFullName.toLowerCase()) return false;
-      }
-      
+    const list = activeMembersOnDate.filter(m => {
       const isPresent = m.attendance[selectedActivityId || ""]?.[selectedDate] || false;
       if (presenceFilter === "present") return isPresent;
       if (presenceFilter === "absent") return !isPresent;
@@ -634,7 +642,7 @@ export default function ActivitiesPage() {
       
       return a.firstName.localeCompare(b.firstName, "fr", { sensitivity: "base" });
     });
-  }, [filteredMembers, selectedActivityId, selectedDate, presenceFilter, isLeader, currentUserFullName]);
+  }, [activeMembersOnDate, selectedActivityId, selectedDate, presenceFilter]);
 
   if (!isMounted || isLoading) {
     return (
@@ -835,10 +843,10 @@ export default function ActivitiesPage() {
                   {presenceFilter === "absent" ? "Absences : " : "Présences : "}
                   <span className={presenceFilter === "absent" ? "text-[var(--red)]" : "text-[var(--green)]"} style={{ fontWeight: 800 }}>
                     {presenceFilter === "absent" 
-                      ? members.filter(m => !m.attendance[selectedActivityId || ""]?.[selectedDate]).length
-                      : members.filter(m => m.attendance[selectedActivityId || ""]?.[selectedDate]).length
+                      ? activeMembersOnDate.filter(m => !m.attendance[selectedActivityId || ""]?.[selectedDate]).length
+                      : activeMembersOnDate.filter(m => m.attendance[selectedActivityId || ""]?.[selectedDate]).length
                     }
-                  </span> sur <span style={{ color: "var(--cream)" }}>{members.length}</span> fidèles
+                  </span> sur <span style={{ color: "var(--cream)" }}>{activeMembersOnDate.length}</span> fidèles
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <button 
@@ -1030,7 +1038,7 @@ export default function ActivitiesPage() {
                                 </div>
                               </div>
                               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {dates.map(date => {
+                                {dates.filter(d => !m.dateEntree || d >= m.dateEntree).map(date => {
                                   const isPresent = m.attendance[act.id]?.[date];
                                   const comment = m.attendance["_comments"]?.[act.id]?.[date] || "";
 
