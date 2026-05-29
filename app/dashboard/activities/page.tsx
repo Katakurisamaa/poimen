@@ -95,7 +95,7 @@ export default function ActivitiesPage() {
         
         const userInfo = JSON.parse(userInfoStr);
         setCurrentUserEmail(userInfo.email);
-        setCurrentUserFullName(`${userInfo.lastName || ""} ${userInfo.firstName || ""}`.trim());
+        setCurrentUserFullName(`${userInfo.firstName || ""} ${userInfo.lastName || ""}`.trim());
 
         // 1. Fetch Profile and Role
         const { data: profile, error: profError } = await supabase
@@ -591,7 +591,7 @@ export default function ActivitiesPage() {
     // Privacy: Non-leaders only see themselves
     if (!isLeader && currentUserFullName) {
       list = list.filter(m => {
-        const mFullName = `${m.lastName} ${m.firstName}`.toLowerCase();
+        const mFullName = `${m.firstName} ${m.lastName}`.toLowerCase();
         return mFullName === currentUserFullName.toLowerCase();
       });
     }
@@ -894,7 +894,7 @@ export default function ActivitiesPage() {
                             {m.firstName[0]}{m.lastName[0]}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: isPresent ? "var(--cream)" : "var(--cream-dim)" }}>{m.lastName} {m.firstName}</div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: isPresent ? "var(--cream)" : "var(--cream-dim)" }}>{m.firstName} {m.lastName}</div>
                             <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
                               Assiduité: <span style={{ color: "var(--gold-light)", fontWeight: 700 }}>{calculateEngagement(m)}%</span>
                             </div>
@@ -984,7 +984,7 @@ export default function ActivitiesPage() {
               // Final check for non-leaders: can only see themselves
               // Final check for non-leaders: can only see themselves
               if (!isLeader && currentUserFullName) {
-                const mFullName = `${m.lastName} ${m.firstName}`.toLowerCase();
+                const mFullName = `${m.firstName} ${m.lastName}`.toLowerCase();
                 if (mFullName !== currentUserFullName.toLowerCase()) return null;
               }
               
@@ -1003,7 +1003,7 @@ export default function ActivitiesPage() {
                         {m.firstName[0]}{m.lastName[0]}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{m.lastName} {m.firstName}</div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{m.firstName} {m.lastName}</div>
                         <div style={{ fontSize: 11, color: "var(--muted)" }}>{m.status} · Engagement: <span style={{ color: color, fontWeight: 700 }}>{engagement}%</span></div>
                       </div>
                     </div>

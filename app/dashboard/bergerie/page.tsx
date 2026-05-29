@@ -1019,7 +1019,7 @@ export default function BergeriePage() {
                     <tr key={m.id} className={isMainLeader ? "leader-row" : ""}>
                       <td style={{ color:"var(--muted)", fontSize:12 }}>{m.civility}</td>
                       <td>
-                        <div style={{ fontWeight:600 }}>{m.lastName} {m.firstName}</div>
+                        <div style={{ fontWeight:600 }}>{m.firstName} {m.lastName}</div>
                       </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1167,7 +1167,7 @@ export default function BergeriePage() {
                 </div>
                 <div style={{ marginBottom:12 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ fontWeight:700, fontSize:15 }}>{m.lastName} {m.firstName}</div>
+                    <div style={{ fontWeight:700, fontSize:15 }}>{m.firstName} {m.lastName}</div>
                     <span className="badge badge-sky" style={{ fontSize: 9 }}>{m.status.toUpperCase()}</span>
                   </div>
                   <div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{m.civility} · {m.age} · {m.phone}</div>
