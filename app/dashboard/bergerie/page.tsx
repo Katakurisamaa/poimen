@@ -46,8 +46,11 @@ interface Activity {
   id: string;
   name: string;
   day: number;
+  days?: number[];
   startTime: string;
   endTime: string;
+  noFixedHours?: boolean;
+  startDate?: string;
 }
 
 const INITIAL_ACTIVITIES: Activity[] = [
@@ -86,7 +89,7 @@ export default function BergeriePage() {
   };
 
   const [data, setData] = useState<M[]>(INITIAL_DATA);
-  const [activities] = useState<Activity[]>(INITIAL_ACTIVITIES);
+  const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES);
   const [mounted, setMounted] = useState(false);
   
   const [search, setSearch] = useState("");
@@ -163,6 +166,20 @@ export default function BergeriePage() {
 
   const fetchMembers = async () => {
     setLoading(true);
+
+    try {
+      const { data: bergerieData } = await supabase
+        .from("bergeries")
+        .select("activities")
+        .eq("id", familyId)
+        .single();
+      if (bergerieData?.activities) {
+        setActivities(bergerieData.activities as Activity[]);
+      }
+    } catch (e) {
+      console.error("Error loading activities in Bergerie:", e);
+    }
+
     const { data: dbMembers, error } = await supabase
       .from("members")
       .select("*")
@@ -269,22 +286,27 @@ export default function BergeriePage() {
   });
 
   // Helpers for calculation
-  const getDaysOfPeriod = (year: number, month: number | null, dayOfWeek: number) => {
-    const dates = [];
-    let start = new Date(year, month !== null ? month : 0, 1);
-    let end = new Date(year, month !== null ? month + 1 : 12, 0);
+  const getDaysOfPeriodForActivity = (year: number, month: number, act: Activity) => {
+    const days = act.days && act.days.length > 0 ? act.days : [act.day ?? 0];
+    const allDates: string[] = [];
     
-    let d = new Date(start);
-    while (d <= end) {
-      if (d.getDay() === dayOfWeek) {
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        dates.push(`${yyyy}-${mm}-${dd}`);
+    days.forEach(dayOfWeek => {
+      const dates = [];
+      let d = new Date(year, month, 1);
+      while (d.getMonth() === month) {
+        if (d.getDay() === Number(dayOfWeek)) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          dates.push(`${yyyy}-${mm}-${dd}`);
+        }
+        d.setDate(d.getDate() + 1);
       }
-      d.setDate(d.getDate() + 1);
-    }
-    return dates;
+      allDates.push(...dates);
+    });
+    
+    const limitDate = act.startDate || "2026-03-29";
+    return allDates.filter(d => d >= limitDate).sort();
   };
 
   const calculateEngagement = (member: M) => {
@@ -293,9 +315,10 @@ export default function BergeriePage() {
     const now = new Date();
     
     activities.forEach(act => {
-      const dates = getDaysOfPeriod(now.getFullYear(), now.getMonth(), act.day);
-      totalPossible += dates.length;
-      totalPresent += dates.filter(d => member.attendance[act.id]?.[d]).length;
+      const dates = getDaysOfPeriodForActivity(now.getFullYear(), now.getMonth(), act);
+      const validDates = dates.filter(d => !member.date_entree || d >= member.date_entree);
+      totalPossible += validDates.length;
+      totalPresent += validDates.filter(d => member.attendance[act.id]?.[d]).length;
     });
     
     return totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
