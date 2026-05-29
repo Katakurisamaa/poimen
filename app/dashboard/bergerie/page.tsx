@@ -26,6 +26,20 @@ interface M {
   is_conseiller?: boolean;
   archived?: boolean;
   attendance: Record<string, Record<string, boolean>>;
+  // New detailed fields
+  date_entree?: string;
+  date_anniversaire?: string;
+  adresse?: string;
+  profession?: string;
+  etat_civil?: string;
+  a_enfants?: boolean;
+  nombre_enfants?: number;
+  est_baptise?: boolean;
+  formations?: string[];
+  est_star?: boolean;
+  departement_star?: string;
+  est_cdm?: boolean;
+  pilote_cdm?: string;
 }
 
 interface Activity {
@@ -166,7 +180,21 @@ export default function BergeriePage() {
         responsible: m.responsible,
         is_conseiller: m.is_conseiller || false,
         archived: m.archived || false,
-        attendance: m.attendance || {}
+        attendance: m.attendance || {},
+        // New detailed fields
+        date_entree: m.date_entree || "",
+        date_anniversaire: m.date_anniversaire || "",
+        adresse: m.adresse || "",
+        profession: m.profession || "",
+        etat_civil: m.etat_civil || "Célibataire",
+        a_enfants: m.a_enfants || false,
+        nombre_enfants: m.nombre_enfants || 0,
+        est_baptise: m.est_baptise || false,
+        formations: m.formations || [],
+        est_star: m.est_star || false,
+        departement_star: m.departement_star || "",
+        est_cdm: m.est_cdm || false,
+        pilote_cdm: m.pilote_cdm || ""
       }));
       
       // AUTO-ADD LEADER SAFETY NET
@@ -219,7 +247,20 @@ export default function BergeriePage() {
     phone: "",
     status: "Brebi",
     email: "",
-    attendance: {}
+    attendance: {},
+    date_entree: new Date().toISOString().split('T')[0],
+    date_anniversaire: "",
+    adresse: "",
+    profession: "",
+    etat_civil: "Célibataire",
+    a_enfants: false,
+    nombre_enfants: 0,
+    est_baptise: false,
+    formations: [],
+    est_star: false,
+    departement_star: "",
+    est_cdm: false,
+    pilote_cdm: ""
   });
 
   // Helpers for calculation
@@ -342,6 +383,20 @@ export default function BergeriePage() {
           email: newMember.email,
           responsible: newMember.responsible,
           is_conseiller: isConseillerChecked,
+          // New detailed fields
+          date_entree: newMember.date_entree || new Date().toISOString().split('T')[0],
+          date_anniversaire: newMember.date_anniversaire,
+          adresse: newMember.adresse,
+          profession: newMember.profession,
+          etat_civil: newMember.etat_civil,
+          a_enfants: newMember.a_enfants,
+          nombre_enfants: newMember.a_enfants ? Number(newMember.nombre_enfants) : 0,
+          est_baptise: newMember.est_baptise,
+          formations: newMember.formations || [],
+          est_star: newMember.est_star,
+          departement_star: newMember.est_star ? newMember.departement_star : "",
+          est_cdm: newMember.est_cdm,
+          pilote_cdm: newMember.est_cdm ? newMember.pilote_cdm : ""
         })
         .eq("id", newMember.id)
         .select()
@@ -360,7 +415,21 @@ export default function BergeriePage() {
           email: newMember.email,
           responsible: newMember.responsible,
           is_conseiller: isConseillerChecked,
-          attendance: {}
+          attendance: {},
+          // New detailed fields
+          date_entree: newMember.date_entree || new Date().toISOString().split('T')[0],
+          date_anniversaire: newMember.date_anniversaire,
+          adresse: newMember.adresse,
+          profession: newMember.profession,
+          etat_civil: newMember.etat_civil || "Célibataire",
+          a_enfants: newMember.a_enfants || false,
+          nombre_enfants: newMember.a_enfants ? Number(newMember.nombre_enfants) : 0,
+          est_baptise: newMember.est_baptise || false,
+          formations: newMember.formations || [],
+          est_star: newMember.est_star || false,
+          departement_star: newMember.est_star ? newMember.departement_star : "",
+          est_cdm: newMember.est_cdm || false,
+          pilote_cdm: newMember.est_cdm ? newMember.pilote_cdm : ""
         })
         .select()
         .single();
@@ -383,7 +452,21 @@ export default function BergeriePage() {
         responsible: inserted.responsible,
         is_conseiller: inserted.is_conseiller || false,
         archived: inserted.archived || false,
-        attendance: inserted.attendance || {}
+        attendance: inserted.attendance || {},
+        // New detailed fields
+        date_entree: inserted.date_entree || "",
+        date_anniversaire: inserted.date_anniversaire || "",
+        adresse: inserted.adresse || "",
+        profession: inserted.profession || "",
+        etat_civil: inserted.etat_civil || "Célibataire",
+        a_enfants: inserted.a_enfants || false,
+        nombre_enfants: inserted.nombre_enfants || 0,
+        est_baptise: inserted.est_baptise || false,
+        formations: inserted.formations || [],
+        est_star: inserted.est_star || false,
+        departement_star: inserted.departement_star || "",
+        est_cdm: inserted.est_cdm || false,
+        pilote_cdm: inserted.pilote_cdm || ""
       };
       
       if (isEditing) {
@@ -394,7 +477,29 @@ export default function BergeriePage() {
       
       setIsAddModalOpen(false);
       setIsConseillerChecked(false);
-      setNewMember({ civility: "M.", firstName: "", lastName: "", age: "26-30 ans", phone: "", status: "Brebi", email: "", attendance: {} });
+      setNewMember({
+        civility: "M.",
+        firstName: "",
+        lastName: "",
+        age: "26-30 ans",
+        phone: "",
+        status: "Brebi",
+        email: "",
+        attendance: {},
+        date_entree: new Date().toISOString().split('T')[0],
+        date_anniversaire: "",
+        adresse: "",
+        profession: "",
+        etat_civil: "Célibataire",
+        a_enfants: false,
+        nombre_enfants: 0,
+        est_baptise: false,
+        formations: [],
+        est_star: false,
+        departement_star: "",
+        est_cdm: false,
+        pilote_cdm: ""
+      });
     }
   };
 
@@ -875,27 +980,32 @@ export default function BergeriePage() {
             </div>
             
             <form onSubmit={handleSaveMember} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ borderBottom: "1px dashed rgba(212,175,55,0.15)", paddingBottom: 12, marginBottom: 4 }}>
+                <h4 style={{ fontSize: 12, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700 }}>1. Informations Personnelles</h4>
+              </div>
+
               <div className="form-grid-3">
                 <div>
-                  <label className="label">CIV.</label>
+                  <label className="label">Civilité</label>
                   <select className="input" value={newMember.civility} onChange={e => setNewMember({...newMember, civility: e.target.value})}>
                     <option value="M.">M.</option>
                     <option value="Mme.">Mme.</option>
+                    <option value="Mlle.">Mlle.</option>
                   </select>
                 </div>
                 <div>
-                  <label className="label">PRÉNOM</label>
+                  <label className="label">Prénom</label>
                   <input className="input" required value={newMember.firstName} onChange={e => setNewMember({...newMember, firstName: e.target.value})} placeholder="Prénom" />
                 </div>
                 <div>
-                  <label className="label">NOM</label>
+                  <label className="label">Nom</label>
                   <input className="input" required value={newMember.lastName} onChange={e => setNewMember({...newMember, lastName: e.target.value})} placeholder="Nom" />
                 </div>
               </div>
 
               <div className="form-grid-2">
                 <div>
-                  <label className="label">TÉLÉPHONE</label>
+                  <label className="label">Téléphone</label>
                   <input 
                     className="input" 
                     value={newMember.phone} 
@@ -905,7 +1015,7 @@ export default function BergeriePage() {
                   />
                 </div>
                 <div>
-                  <label className="label">ÂGE</label>
+                  <label className="label">Âge</label>
                   <select className="input" value={newMember.age} onChange={e => setNewMember({...newMember, age: e.target.value})}>
                     <option value="Moins de 18 ans">Moins de 18 ans</option>
                     <option value="18-25 ans">18-25 ans</option>
@@ -919,29 +1029,225 @@ export default function BergeriePage() {
                 </div>
               </div>
 
+              <div className="form-grid-2">
+                <div>
+                  <label className="label">Profession</label>
+                  <input className="input" value={newMember.profession || ""} onChange={e => setNewMember({...newMember, profession: e.target.value})} placeholder="Ex: Enseignant, Ingénieur..." />
+                </div>
+                <div>
+                  <label className="label">Adresse de résidence</label>
+                  <input className="input" value={newMember.adresse || ""} onChange={e => setNewMember({...newMember, adresse: e.target.value})} placeholder="Ex: Bruxelles, Belgique" />
+                </div>
+              </div>
+
               <div>
-                <label className="label">ADRESSE E-MAIL (POUR LA CONNEXION)</label>
+                <label className="label">Adresse E-mail (pour la connexion)</label>
                 <input className="input" type="email" value={newMember.email} onChange={e => setNewMember({...newMember, email: e.target.value})} placeholder="membre@email.com" />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 15 }}>
+              <div style={{ borderBottom: "1px dashed rgba(212,175,55,0.15)", paddingBottom: 12, marginTop: 10, marginBottom: 4 }}>
+                <h4 style={{ fontSize: 12, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700 }}>2. Vie de Famille & Profil Social</h4>
+              </div>
+
+              <div className="form-grid-2">
                 <div>
-                  <label className="label">STATUT</label>
+                  <label className="label">État Civil</label>
+                  <select className="input" value={newMember.etat_civil || "Célibataire"} onChange={e => setNewMember({...newMember, etat_civil: e.target.value})}>
+                    <option value="Célibataire">Célibataire</option>
+                    <option value="Marié(e)">Marié(e)</option>
+                    <option value="En couple">En couple</option>
+                    <option value="Séparé(e)">Séparé(e)</option>
+                    <option value="Veuf(ve)">Veuf(ve)</option>
+                    <option value="Divorcé(e)">Divorcé(e)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Anniversaire (JJ/MM)</label>
+                  <input 
+                    className="input" 
+                    value={newMember.date_anniversaire || ""} 
+                    onChange={e => {
+                      let val = e.target.value.replace(/[^0-9/]/g, "");
+                      if (val.length === 2 && !val.includes("/")) {
+                        val = val + "/";
+                      }
+                      if (val.length > 5) val = val.substring(0, 5);
+                      setNewMember({...newMember, date_anniversaire: val});
+                    }} 
+                    placeholder="25/12" 
+                  />
+                </div>
+              </div>
+
+              <div className="form-grid-2" style={{ alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, height: 42 }}>
+                  <input 
+                    type="checkbox" 
+                    id="aEnfants" 
+                    checked={!!newMember.a_enfants} 
+                    onChange={e => setNewMember({...newMember, a_enfants: e.target.checked})} 
+                    style={{ width: 18, height: 18, accentColor: "var(--gold)", cursor: "pointer" }}
+                  />
+                  <label htmlFor="aEnfants" style={{ fontSize: 12, color: "var(--cream-dim)", cursor: "pointer", userSelect: "none" }}>
+                    A des enfants
+                  </label>
+                </div>
+                {newMember.a_enfants && (
+                  <div>
+                    <label className="label">Nombre d'enfants</label>
+                    <input 
+                      className="input" 
+                      type="number" 
+                      min="0" 
+                      value={newMember.nombre_enfants || 0} 
+                      onChange={e => setNewMember({...newMember, nombre_enfants: parseInt(e.target.value) || 0})} 
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div style={{ borderBottom: "1px dashed rgba(212,175,55,0.15)", paddingBottom: 12, marginTop: 10, marginBottom: 4 }}>
+                <h4 style={{ fontSize: 12, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700 }}>3. Église & Engagement</h4>
+              </div>
+
+              <div className="form-grid-2">
+                <div>
+                  <label className="label">Date d'entrée (intégration)</label>
+                  <input 
+                    className="input" 
+                    type="date" 
+                    value={newMember.date_entree || new Date().toISOString().split('T')[0]} 
+                    onChange={e => setNewMember({...newMember, date_entree: e.target.value})} 
+                  />
+                </div>
+                <div>
+                  <label className="label">Statut</label>
                   <select className="input" value={newMember.status} onChange={e => setNewMember({...newMember, status: e.target.value})}>
                     {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
-                {newMember.status === "Brebi" && (
-                  <div>
-                    <label className="label">RESPONSABLE ASSIGNÉ</label>
-                    <select className="input" value={newMember.responsible || ""} onChange={e => setNewMember({...newMember, responsible: e.target.value})}>
-                      <option value="">-- Aucun --</option>
-                      {data.filter(m => m.status === "Responsable").map(r => (
-                        <option key={r.id} value={`${r.firstName} ${r.lastName}`}>{r.firstName} {r.lastName}</option>
-                      ))}
-                    </select>
+              </div>
+
+              {newMember.status === "Brebi" && (
+                <div>
+                  <label className="label">Responsable Assigné</label>
+                  <select className="input" value={newMember.responsible || ""} onChange={e => setNewMember({...newMember, responsible: e.target.value})}>
+                    <option value="">-- Aucun --</option>
+                    {data.filter(m => m.status === "Responsable").map(r => (
+                      <option key={r.id} value={`${r.firstName} ${r.lastName}`}>{r.firstName} {r.lastName}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="form-grid-2" style={{ alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, height: 42 }}>
+                  <input 
+                    type="checkbox" 
+                    id="estBaptise" 
+                    checked={!!newMember.est_baptise} 
+                    onChange={e => setNewMember({...newMember, est_baptise: e.target.checked})} 
+                    style={{ width: 18, height: 18, accentColor: "var(--gold)", cursor: "pointer" }}
+                  />
+                  <label htmlFor="estBaptise" style={{ fontSize: 12, color: "var(--cream-dim)", cursor: "pointer", userSelect: "none" }}>
+                    Est baptisé(e) d'eau
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Formations suivies (ICC)</label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                  {["001", "101", "201", "301"].map(f => {
+                    const currentFormations = newMember.formations || [];
+                    const isSelected = currentFormations.includes(f);
+                    return (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setNewMember({...newMember, formations: currentFormations.filter(x => x !== f)});
+                          } else {
+                            setNewMember({...newMember, formations: [...currentFormations, f]});
+                          }
+                        }}
+                        style={{
+                          height: 32,
+                          padding: "0 14px",
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                          background: isSelected ? "var(--gold)" : "rgba(255,255,255,0.05)",
+                          color: isSelected ? "var(--bg)" : "var(--muted)",
+                          border: `1px solid ${isSelected ? "transparent" : "rgba(212,175,55,0.15)"}`
+                        }}
+                      >
+                        Classe {f}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ background: "rgba(255,255,255,0.02)", padding: 12, borderRadius: 10, border: "1px solid rgba(212,175,55,0.1)", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="form-grid-2" style={{ alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, height: 42 }}>
+                    <input 
+                      type="checkbox" 
+                      id="estStar" 
+                      checked={!!newMember.est_star} 
+                      onChange={e => setNewMember({...newMember, est_star: e.target.checked})} 
+                      style={{ width: 18, height: 18, accentColor: "var(--gold)", cursor: "pointer" }}
+                    />
+                    <label htmlFor="estStar" style={{ fontSize: 12, color: "var(--cream-dim)", cursor: "pointer", userSelect: "none" }}>
+                      Est S.T.A.R
+                    </label>
                   </div>
-                )}
+                  {newMember.est_star && (
+                    <div>
+                      <label className="label">Département STAR</label>
+                      <input 
+                        className="input" 
+                        required
+                        value={newMember.departement_star || ""} 
+                        onChange={e => setNewMember({...newMember, departement_star: e.target.value})} 
+                        placeholder="Ex: Accueil, Multimédia..." 
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ background: "rgba(255,255,255,0.02)", padding: 12, borderRadius: 10, border: "1px solid rgba(212,175,55,0.1)", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="form-grid-2" style={{ alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, height: 42 }}>
+                    <input 
+                      type="checkbox" 
+                      id="estCdm" 
+                      checked={!!newMember.est_cdm} 
+                      onChange={e => setNewMember({...newMember, est_cdm: e.target.checked})} 
+                      style={{ width: 18, height: 18, accentColor: "var(--gold)", cursor: "pointer" }}
+                    />
+                    <label htmlFor="estCdm" style={{ fontSize: 12, color: "var(--cream-dim)", cursor: "pointer", userSelect: "none" }}>
+                      Fait la C.D.M (Cellule)
+                    </label>
+                  </div>
+                  {newMember.est_cdm && (
+                    <div>
+                      <label className="label">Nom du pilote C.D.M</label>
+                      <input 
+                        className="input" 
+                        required
+                        value={newMember.pilote_cdm || ""} 
+                        onChange={e => setNewMember({...newMember, pilote_cdm: e.target.value})} 
+                        placeholder="Nom du pilote" 
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div style={{ marginTop: 8, display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
