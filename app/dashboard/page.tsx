@@ -26,8 +26,8 @@ const ENGAGEMENT = [
 const ACTIVITIES: { title: string; type: ActivityType; date: string; time: string; upcoming: boolean; attendance?: number }[] = [];
 
 const DEFAULT_ACTIVITIES = [
-  { id: "culte", name: "Culte du Dimanche", day: 0, startTime: "10:00", endTime: "12:30", location: "Sanctuaire Principal" },
-  { id: "cdm", name: "CDM (Cellule Alpha)", day: 4, startTime: "19:00", endTime: "20:30", location: "Salles Annexes" },
+  { id: "culte", name: "Culte du Dimanche", day: 0, days: [0], startTime: "10:00", endTime: "12:30", location: "Sanctuaire Principal", startDate: "2026-03-29" },
+  { id: "cdm", name: "CDM (Cellule Alpha)", day: 4, days: [4], startTime: "19:00", endTime: "20:30", location: "Salles Annexes", startDate: "2026-03-29" },
 ];
 
 const AT_RISK: any[] = [];
@@ -127,23 +127,26 @@ export default function DashboardPage() {
           const d = new Date();
           d.setDate(today.getDate() - i);
           const dayOfWeek = d.getDay();
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          const dateStr = `${yyyy}-${mm}-${dd}`;
           
           configuredActs.forEach(act => {
-            if (Number(act.day) === dayOfWeek) {
-              const yyyy = d.getFullYear();
-              const mm = String(d.getMonth() + 1).padStart(2, '0');
-              const dd = String(d.getDate()).padStart(2, '0');
-              const dateStr = `${yyyy}-${mm}-${dd}`;
-              const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-              dates.push({
-                id: `${act.id}-${dateStr}`,
-                name: act.name,
-                date: dateFormatted,
-                day: dayOfWeek,
-                time: act.startTime || "10:00",
-                actId: act.id
-              });
-            }
+            const actDays = act.days && act.days.length > 0 ? act.days : [act.day ?? 0];
+            const limitDate = act.startDate || "2026-03-29";
+            if (dateStr < limitDate) return;
+            if (!actDays.includes(dayOfWeek)) return;
+
+            const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+            dates.push({
+              id: `${act.id}-${dateStr}`,
+              name: act.name,
+              date: dateFormatted,
+              day: dayOfWeek,
+              time: act.startTime || "10:00",
+              actId: act.id
+            });
           });
         }
         return dates.sort((a, b) => b.id.localeCompare(a.id));
@@ -156,24 +159,27 @@ export default function DashboardPage() {
           const d = new Date();
           d.setDate(today.getDate() + i);
           const dayOfWeek = d.getDay();
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          const dateStr = `${yyyy}-${mm}-${dd}`;
           
           configuredActs.forEach(act => {
-            if (Number(act.day) === dayOfWeek) {
-              const yyyy = d.getFullYear();
-              const mm = String(d.getMonth() + 1).padStart(2, '0');
-              const dd = String(d.getDate()).padStart(2, '0');
-              const dateStr = `${yyyy}-${mm}-${dd}`;
-              const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-              dates.push({
-                id: `${act.id}-${dateStr}`,
-                name: act.name,
-                date: dateFormatted,
-                day: dayOfWeek,
-                time: act.startTime || "10:00",
-                actId: act.id,
-                upcoming: true
-              });
-            }
+            const actDays = act.days && act.days.length > 0 ? act.days : [act.day ?? 0];
+            const limitDate = act.startDate || "2026-03-29";
+            if (dateStr < limitDate) return;
+            if (!actDays.includes(dayOfWeek)) return;
+
+            const dateFormatted = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+            dates.push({
+              id: `${act.id}-${dateStr}`,
+              name: act.name,
+              date: dateFormatted,
+              day: dayOfWeek,
+              time: act.startTime || "10:00",
+              actId: act.id,
+              upcoming: true
+            });
           });
         }
         return dates.sort((a, b) => a.id.localeCompare(b.id));
@@ -287,7 +293,8 @@ export default function DashboardPage() {
           const currentMonth = new Date().getMonth();
           const activeTypes = configuredActivities.map(act => ({
             id: act.id,
-            day: Number(act.day)
+            days: act.days && act.days.length > 0 ? act.days.map(Number) : [Number(act.day ?? 0)],
+            startDate: act.startDate || "2026-03-29"
           }));
 
           let fidelised = 0;   // Élevé
@@ -307,15 +314,21 @@ export default function DashboardPage() {
               let totalPresent = 0;
 
               activeTypes.forEach(act => {
-                const dates = getDaysOfPeriod(currentYear, currentMonth, act.day);
-                // Filter dates to only include those at or after m.date_entree
-                const validDates = dates.filter(d => !m.date_entree || d >= m.date_entree);
-                totalPossible += validDates.length;
-                const actAtt = attObj[act.id] || {};
-                validDates.forEach(d => {
-                  if (actAtt[d] === true) {
-                    totalPresent++;
-                  }
+                act.days.forEach((dayNum: number) => {
+                  const dates = getDaysOfPeriod(currentYear, currentMonth, dayNum);
+                  // Filter dates to only include those at or after m.date_entree AND activity startDate
+                  const validDates = dates.filter(d => {
+                    if (d < act.startDate) return false;
+                    if (m.date_entree && d < m.date_entree) return false;
+                    return true;
+                  });
+                  totalPossible += validDates.length;
+                  const actAtt = attObj[act.id] || {};
+                  validDates.forEach(d => {
+                    if (actAtt[d] === true) {
+                      totalPresent++;
+                    }
+                  });
                 });
               });
               eng = totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
