@@ -424,8 +424,18 @@ export default function BergeriePage() {
 
     return true;
   }).sort((a, b) => {
-    const roles = { "Berger": 1, "Second": 2, "Responsable": 3, "Brebi": 4 };
-    return (roles[a.status as keyof typeof roles] || 9) - (roles[b.status as keyof typeof roles] || 9);
+    const isAPriority = a.status === "Berger" || a.status === "Second";
+    const isBPriority = b.status === "Berger" || b.status === "Second";
+
+    if (isAPriority && isBPriority) {
+      const roles = { "Berger": 1, "Second": 2 };
+      return (roles[a.status as keyof typeof roles] || 9) - (roles[b.status as keyof typeof roles] || 9);
+    }
+    if (isAPriority) return -1;
+    if (isBPriority) return 1;
+
+    // Ordre alphabétique suivant les prénoms (A à Z)
+    return (a.firstName || "").localeCompare(b.firstName || "", "fr", { sensitivity: "base" });
   });
 
   const updateStatus = async (id: string, newStatus: string) => {
