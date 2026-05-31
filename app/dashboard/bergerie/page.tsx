@@ -51,6 +51,7 @@ interface Activity {
   endTime: string;
   noFixedHours?: boolean;
   startDate?: string;
+  cancelledDates?: string[];
 }
 
 const INITIAL_ACTIVITIES: Activity[] = [
@@ -317,8 +318,9 @@ export default function BergeriePage() {
     activities.forEach(act => {
       const dates = getDaysOfPeriodForActivity(now.getFullYear(), now.getMonth(), act);
       const validDates = dates.filter(d => !member.date_entree || d >= member.date_entree);
-      totalPossible += validDates.length;
-      totalPresent += validDates.filter(d => member.attendance[act.id]?.[d]).length;
+      const nonCancelledDates = validDates.filter(d => !act.cancelledDates?.includes(d));
+      totalPossible += nonCancelledDates.length;
+      totalPresent += nonCancelledDates.filter(d => member.attendance[act.id]?.[d]).length;
     });
     
     return totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);

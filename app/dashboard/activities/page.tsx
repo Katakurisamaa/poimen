@@ -23,6 +23,7 @@ interface Activity {
   location: string;
   noFixedHours?: boolean;
   startDate?: string;
+  cancelledDates?: string[];
 }
 
 interface Member {
@@ -515,8 +516,9 @@ export default function ActivitiesPage() {
     activities.forEach(act => {
       const dates = activityDates[act.id] || [];
       const validDates = dates.filter(d => !member.dateEntree || d >= member.dateEntree);
-      totalPossible += validDates.length;
-      totalPresent += validDates.filter(d => member.attendance[act.id]?.[d]).length;
+      const nonCancelledDates = validDates.filter(d => !act.cancelledDates?.includes(d));
+      totalPossible += nonCancelledDates.length;
+      totalPresent += nonCancelledDates.filter(d => member.attendance[act.id]?.[d]).length;
     });
     
     return totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
@@ -538,6 +540,7 @@ export default function ActivitiesPage() {
         
         dates.forEach(date => {
           if (member.dateEntree && date < member.dateEntree) return;
+          if (act.cancelledDates?.includes(date)) return;
           
           totalPoints++;
           activityStats[act.id].total++;
@@ -803,16 +806,67 @@ export default function ActivitiesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="form-label" style={{ marginBottom: 8 }}>Date de la séance</label>
+                  <label className="form-label" style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Date de la séance</span>
+                    {isLeader && selectedDate && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!selectedActivityId || !activeActivity) return;
+                          const currentCancelled = activeActivity.cancelledDates || [];
+                          const isAlreadyCancelled = currentCancelled.includes(selectedDate);
+                          
+                          let newCancelled: string[];
+                          if (isAlreadyCancelled) {
+                            newCancelled = currentCancelled.filter(d => d !== selectedDate);
+                          } else {
+                            if (!window.confirm(`Voulez-vous vraiment annuler la séance du ${formatDate(selectedDate)} ?`)) return;
+                            newCancelled = [...currentCancelled, selectedDate];
+                          }
+                          
+                          const updatedActs = activities.map(act => {
+                            if (act.id !== selectedActivityId) return act;
+                            return { ...act, cancelledDates: newCancelled };
+                          });
+                          
+                          await saveActivities(updatedActs);
+                        }}
+                        style={{
+                          fontSize: 10,
+                          background: activeActivity?.cancelledDates?.includes(selectedDate) ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)",
+                          color: activeActivity?.cancelledDates?.includes(selectedDate) ? "var(--green)" : "var(--red)",
+                          border: `1px solid ${activeActivity?.cancelledDates?.includes(selectedDate) ? "var(--green)" : "var(--red)"}`,
+                          padding: "2px 8px",
+                          borderRadius: 4,
+                          cursor: "pointer",
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4
+                        }}
+                      >
+                        {activeActivity?.cancelledDates?.includes(selectedDate) ? "Réactiver la séance" : "Annuler cette date"}
+                      </button>
+                    )}
+                  </label>
                   <select 
                     className="input w-full" 
                     value={selectedDate} 
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    style={{ height: 42 }}
+                    style={{ 
+                      height: 42,
+                      borderColor: activeActivity?.cancelledDates?.includes(selectedDate) ? "rgba(239, 68, 68, 0.4)" : "var(--border)",
+                      color: activeActivity?.cancelledDates?.includes(selectedDate) ? "var(--red)" : "var(--cream)"
+                    }}
                   >
-                    {(activityDates[selectedActivityId || ""] || []).map(d => (
-                      <option key={d} value={d} style={{ background: "var(--bg)", color: "var(--cream)" }}>{formatDate(d)}</option>
-                    ))}
+                    {(activityDates[selectedActivityId || ""] || []).map(d => {
+                      const isCancelled = activeActivity?.cancelledDates?.includes(d);
+                      return (
+                        <option key={d} value={d} style={{ background: "var(--bg)", color: isCancelled ? "var(--red)" : "var(--cream)" }}>
+                          {formatDate(d)}{isCancelled ? " ⚠️ (ANNULÉ)" : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div style={{ position: "relative" }}>
@@ -837,124 +891,141 @@ export default function ActivitiesPage() {
                 </div>
               </div>
 
-              {/* Stats & Actions */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px", flexWrap: "wrap", gap: 12 }}>
-                <div style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>
-                  {presenceFilter === "absent" ? "Absences : " : "Présences : "}
-                  <span className={presenceFilter === "absent" ? "text-[var(--red)]" : "text-[var(--green)]"} style={{ fontWeight: 800 }}>
-                    {presenceFilter === "absent" 
-                      ? activeMembersOnDate.filter(m => !m.attendance[selectedActivityId || ""]?.[selectedDate]).length
-                      : activeMembersOnDate.filter(m => m.attendance[selectedActivityId || ""]?.[selectedDate]).length
-                    }
-                  </span> sur <span style={{ color: "var(--cream)" }}>{activeMembersOnDate.length}</span> fidèles
-                </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button 
-                    className="btn btn-subtle btn-sm" 
-                    style={{ fontSize: 11, height: 32 }}
-                    onClick={() => handleBatchAttendance(true)}
-                  >
-                    <CheckCircle2 size={12} className="text-[var(--green)]" /> Tous Présents
-                  </button>
-                  <button 
-                    className="btn btn-subtle btn-sm" 
-                    style={{ fontSize: 11, height: 32, border: "1px solid rgba(255, 100, 100, 0.15)", color: "var(--red)" }}
-                    onClick={() => handleBatchAttendance(false)}
-                  >
-                    <XCircle size={12} className="text-[var(--red)]" /> Tout effacer
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-                {displayedMembers.map(m => {
-                  const isPresent = m.attendance[selectedActivityId || ""]?.[selectedDate] || false;
-                  const comment = m.attendance["_comments"]?.[selectedActivityId || ""]?.[selectedDate] || "";
-                  return (
-                    <div 
-                      key={m.id} 
-                      className={`arch-card glass ${isPresent ? "hover-glow" : ""}`}
-                      onClick={() => toggleAttendance(m.id, selectedActivityId!, selectedDate)}
-                      style={{ 
-                        padding: "18px 24px", display: "flex", flexDirection: "column", gap: 12, 
-                        cursor: "pointer", transition: "all 0.3s ease",
-                        border: isPresent ? "1px solid rgba(0, 255, 136, 0.35)" : "1px solid rgba(212, 175, 55, 0.15)",
-                        background: isPresent ? "rgba(0, 255, 136, 0.04)" : "rgba(10, 6, 22, 0.25)",
-                        boxShadow: isPresent ? "0 0 20px rgba(0, 255, 136, 0.08)" : "none"
+              {activeActivity?.cancelledDates?.includes(selectedDate) ? (
+                <div className="glass" style={{ padding: "48px 24px", textAlign: "center", border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.02)" }}>
+                  <AlertTriangle size={48} className="text-[var(--red)]" style={{ margin: "0 auto 16px" }} />
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--red)", marginBottom: 8 }}>Séance Annulée</h3>
+                  <p style={{ color: "var(--muted)", maxWidth: 460, margin: "0 auto 20px", fontSize: 13, lineHeight: 1.6 }}>
+                    Cette séance a été annulée pour le <strong>{formatDate(selectedDate)}</strong>. Elle est exclue de tous les calculs d'assiduité et d'engagement des membres.
+                  </p>
+                  {isLeader && (
+                    <button 
+                      className="btn btn-outline btn-sm" 
+                      style={{ color: "var(--green)", borderColor: "rgba(16,185,129,0.3)", background: "rgba(16,185,129,0.05)", margin: "0 auto" }}
+                      onClick={async () => {
+                        if (!selectedActivityId || !activeActivity) return;
+                        const currentCancelled = activeActivity.cancelledDates || [];
+                        const updatedActs = activities.map(act => {
+                          if (act.id !== selectedActivityId) return act;
+                          return { ...act, cancelledDates: currentCancelled.filter(d => d !== selectedDate) };
+                        });
+                        await saveActivities(updatedActs);
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                          <div className="avatar" style={{ 
-                            width: 36, height: 36, fontSize: 12, fontWeight: 700,
-                            background: isPresent ? "rgba(0, 255, 136, 0.1)" : "rgba(255,255,255,0.05)",
-                            border: `1px solid ${isPresent ? "var(--green)" : "rgba(212,175,55,0.2)"}`,
-                            color: isPresent ? "var(--green)" : "var(--gold-light)"
-                          }}>
-                            {m.firstName[0]}{m.lastName[0]}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: isPresent ? "var(--cream)" : "var(--cream-dim)" }}>{m.firstName} {m.lastName}</div>
-                            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                              Assiduité: <span style={{ color: "var(--gold-light)", fontWeight: 700 }}>{calculateEngagement(m)}%</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ 
-                          width: 46, height: 22, borderRadius: 11, position: "relative",
-                          background: isPresent ? "var(--green)" : "rgba(255,255,255,0.08)",
-                          transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-                          border: `1px solid ${isPresent ? "transparent" : "rgba(212,175,55,0.15)"}`
-                        }}>
-                          <div style={{ 
-                            position: "absolute", top: 2, left: isPresent ? 26 : 2,
-                            width: 16, height: 16, borderRadius: "50%", background: "white",
-                            boxShadow: "0 2px 5px rgba(0,0,0,0.4)", transition: "all 0.25s"
-                          }} />
-                        </div>
-                      </div>
+                      <CheckCircle2 size={12} className="text-[var(--green)]" /> Réactiver cette Séance
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Stats & Actions */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px", flexWrap: "wrap", gap: 12 }}>
+                    <div style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>
+                      {presenceFilter === "absent" ? "Absences : " : "Présences : "}
+                      <span className={presenceFilter === "absent" ? "text-[var(--red)]" : "text-[var(--green)]"} style={{ fontWeight: 800 }}>
+                        {presenceFilter === "absent" 
+                          ? activeMembersOnDate.filter(m => !m.attendance[selectedActivityId || ""]?.[selectedDate]).length
+                          : activeMembersOnDate.filter(m => m.attendance[selectedActivityId || ""]?.[selectedDate]).length
+                        }
+                      </span> sur <span style={{ color: "var(--cream)" }}>{activeMembersOnDate.length}</span> fidèles
+                    </div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button 
+                        className="btn btn-subtle btn-sm" 
+                        style={{ fontSize: 11, height: 32 }}
+                        onClick={() => handleBatchAttendance(true)}
+                      >
+                        <CheckCircle2 size={12} className="text-[var(--green)]" /> Tous Présents
+                      </button>
+                      <button 
+                        className="btn btn-subtle btn-sm" 
+                        style={{ fontSize: 11, height: 32, border: "1px solid rgba(255, 100, 100, 0.15)", color: "var(--red)" }}
+                        onClick={() => handleBatchAttendance(false)}
+                      >
+                        <XCircle size={12} className="text-[var(--red)]" /> Tout effacer
+                      </button>
+                    </div>
+                  </div>
 
-                      {/* Comment section (only shown if absent, or if a comment already exists) */}
-                      {(!isPresent || comment) && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+                    {displayedMembers.map(m => {
+                      const isPresent = m.attendance[selectedActivityId || ""]?.[selectedDate] || false;
+                      const comment = m.attendance["_comments"]?.[selectedActivityId || ""]?.[selectedDate] || "";
+                      return (
                         <div 
-                          onClick={(e) => e.stopPropagation()} 
+                          key={m.id} 
+                          className={`arch-card glass ${isPresent ? "hover-glow" : ""}`}
+                          onClick={() => toggleAttendance(m.id, selectedActivityId!, selectedDate)}
                           style={{ 
-                            marginTop: 4, 
-                            borderTop: "1px dashed rgba(212, 175, 55, 0.12)", 
-                            paddingTop: 10,
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 6,
-                            width: "100%"
+                            padding: "18px 24px", display: "flex", flexDirection: "column", gap: 12, 
+                            cursor: "pointer", transition: "all 0.3s ease",
+                            border: isPresent ? "1px solid rgba(0, 255, 136, 0.35)" : "1px solid rgba(212, 175, 55, 0.15)",
+                            background: isPresent ? "rgba(0, 255, 136, 0.04)" : "rgba(10, 6, 22, 0.25)",
+                            boxShadow: isPresent ? "0 0 20px rgba(0, 255, 136, 0.08)" : "none"
                           }}
                         >
-                          <label style={{ fontSize: 9, color: "var(--gold-light)", letterSpacing: "0.5px", textTransform: "uppercase", fontWeight: 600 }}>
-                            {isPresent ? "Note / Remarque" : "Motif d'absence / Note"}
-                          </label>
-                          <input 
-                            type="text" 
-                            placeholder={isPresent ? "Ajouter une note..." : "Renseigner le motif d'absence..."} 
-                            value={comment} 
-                            onChange={(e) => saveAttendanceComment(m.id, selectedActivityId!, selectedDate, e.target.value)}
-                            style={{ 
-                              height: 30, 
-                              fontSize: 11, 
-                              background: "rgba(0,0,0,0.25)", 
-                              border: "1px solid rgba(212, 175, 55, 0.2)", 
-                              borderRadius: 8,
-                              padding: "4px 10px",
-                              width: "100%",
-                              color: "var(--cream)",
-                              outline: "none",
-                              transition: "border-color 0.2s"
-                            }}
-                          />
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                              <div className="avatar" style={{ 
+                                width: 36, height: 36, fontSize: 12, fontWeight: 700,
+                                background: isPresent ? "rgba(0, 255, 136, 0.1)" : "rgba(255,255,255,0.05)",
+                                border: `1px solid ${isPresent ? "var(--green)" : "rgba(212,175,55,0.2)"}`,
+                                color: isPresent ? "var(--green)" : "var(--gold-light)"
+                              }}>
+                                {m.firstName[0]}{m.lastName[0]}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: isPresent ? "var(--cream)" : "var(--cream-dim)" }}>{m.firstName} {m.lastName}</div>
+                                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                                  Assiduité: <span style={{ color: "var(--gold-light)", fontWeight: 700 }}>{calculateEngagement(m)}%</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ 
+                              width: 46, height: 22, borderRadius: 11, position: "relative",
+                              background: isPresent ? "var(--green)" : "rgba(255,255,255,0.08)",
+                              transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                              border: `1px solid ${isPresent ? "transparent" : "rgba(212,175,55,0.15)"}`
+                            }}>
+                              <div style={{ 
+                                position: "absolute", top: 2, left: isPresent ? 26 : 2,
+                                width: 16, height: 16, borderRadius: "50%",
+                                background: isPresent ? "var(--bg)" : "var(--gold-light)",
+                                boxShadow: "0 2px 5px rgba(0,0,0,0.3)",
+                                transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
+                              }} />
+                            </div>
+                          </div>
+
+                          {/* Comment section */}
+                          {isPresent && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }} onClick={e => e.stopPropagation()}>
+                              <div style={{ fontSize: 10, color: "var(--gold-light)", fontWeight: 600 }}>Note / Remarque (ex: Retard, Motif de prière)</div>
+                              <input 
+                                className="input"
+                                value={comment}
+                                onChange={e => saveAttendanceComment(m.id, selectedActivityId!, selectedDate, e.target.value)}
+                                placeholder="Écrire une note..."
+                                style={{ 
+                                  height: 32, 
+                                  fontSize: 11,
+                                  background: "rgba(10, 6, 22, 0.4)",
+                                  borderColor: "rgba(212, 175, 55, 0.15)",
+                                  padding: "4px 10px",
+                                  width: "100%",
+                                  color: "var(--cream)",
+                                  outline: "none",
+                                  transition: "border-color 0.2s"
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           )
         ) : (
@@ -1017,8 +1088,9 @@ export default function ActivitiesPage() {
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 15 }}>
                         {activities.map(act => {
                           const dates = activityDates[act.id] || [];
-                          const presentCount = dates.filter(d => m.attendance[act.id]?.[d]).length;
-                          const rate = dates.length === 0 ? 0 : Math.round((presentCount / dates.length) * 100);
+                          const nonCancelledDates = dates.filter(d => !act.cancelledDates?.includes(d));
+                          const presentCount = nonCancelledDates.filter(d => m.attendance[act.id]?.[d]).length;
+                          const rate = nonCancelledDates.length === 0 ? 0 : Math.round((presentCount / nonCancelledDates.length) * 100);
                           const rateColor = rate >= 75 ? "var(--green)" : rate >= 45 ? "var(--gold)" : "var(--red)";
 
                           return (
@@ -1038,7 +1110,7 @@ export default function ActivitiesPage() {
                                 </div>
                               </div>
                               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {dates.filter(d => !m.dateEntree || d >= m.dateEntree).map(date => {
+                                {nonCancelledDates.filter(d => !m.dateEntree || d >= m.dateEntree).map(date => {
                                   const isPresent = m.attendance[act.id]?.[date];
                                   const comment = m.attendance["_comments"]?.[act.id]?.[date] || "";
 
