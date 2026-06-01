@@ -998,14 +998,14 @@ export default function ActivitiesPage() {
                           </div>
 
                           {/* Comment section */}
-                          {isPresent && (
+                          {!isPresent && (
                             <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }} onClick={e => e.stopPropagation()}>
-                              <div style={{ fontSize: 10, color: "var(--gold-light)", fontWeight: 600 }}>Note / Remarque (ex: Retard, Motif de prière)</div>
+                              <div style={{ fontSize: 10, color: "var(--gold-light)", fontWeight: 600 }}>Motif d'absence (ex: Maladie, Voyage, Travail)</div>
                               <input 
                                 className="input"
                                 value={comment}
                                 onChange={e => saveAttendanceComment(m.id, selectedActivityId!, selectedDate, e.target.value)}
-                                placeholder="Écrire une note..."
+                                placeholder="Renseigner le motif d'absence..."
                                 style={{ 
                                   height: 32, 
                                   fontSize: 11,
