@@ -61,6 +61,13 @@ export default function ActivitiesPage() {
   const [presenceFilter, setPresenceFilter] = useState<"all" | "present" | "absent">("all");
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const activeActivitiesForPeriod = useMemo(() => {
+    const periodStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+    return activities.filter(act => {
+      if (!act.startDate) return true;
+      return act.startDate.substring(0, 7) <= periodStr;
+    });
+  }, [activities, selectedMonth, selectedYear]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -194,12 +201,17 @@ export default function ActivitiesPage() {
     }
   };
 
-  // Ensure selectedActivityId is initialized if activities exist
+  // Ensure selectedActivityId is initialized to an active activity
   useEffect(() => {
-    if (activities.length > 0 && !selectedActivityId) {
-      setSelectedActivityId(activities[0].id);
+    if (activeActivitiesForPeriod.length > 0) {
+      const isSelectedActive = activeActivitiesForPeriod.some(a => a.id === selectedActivityId);
+      if (!isSelectedActive) {
+        setSelectedActivityId(activeActivitiesForPeriod[0].id);
+      }
+    } else {
+      setSelectedActivityId(null);
     }
-  }, [activities, selectedActivityId]);
+  }, [activeActivitiesForPeriod, selectedActivityId]);
 
   const [newActivity, setNewActivity] = useState<Partial<Activity>>({
     name: "",
@@ -513,7 +525,7 @@ export default function ActivitiesPage() {
     let totalPossible = 0;
     let totalPresent = 0;
     
-    activities.forEach(act => {
+    activeActivitiesForPeriod.forEach(act => {
       const dates = activityDates[act.id] || [];
       const validDates = dates.filter(d => !member.dateEntree || d >= member.dateEntree);
       const nonCancelledDates = validDates.filter(d => !act.cancelledDates?.includes(d));
@@ -525,13 +537,13 @@ export default function ActivitiesPage() {
   };
 
   const stats = useMemo(() => {
-    if (members.length === 0 || activities.length === 0) return null;
+    if (members.length === 0 || activeActivitiesForPeriod.length === 0) return null;
 
     let totalPoints = 0;
     let presentPoints = 0;
     const activityStats: Record<string, { present: number; total: number }> = {};
 
-    activities.forEach(act => {
+    activeActivitiesForPeriod.forEach(act => {
       activityStats[act.id] = { present: 0, total: 0 };
       const dates = activityDates[act.id] || [];
       
@@ -554,7 +566,7 @@ export default function ActivitiesPage() {
 
     const globalRate = totalPoints === 0 ? 0 : Math.round((presentPoints / totalPoints) * 100);
     
-    const activityRates = activities.map(act => ({
+    const activityRates = activeActivitiesForPeriod.map(act => ({
       name: act.name,
       rate: activityStats[act.id].total === 0 ? 0 : Math.round((activityStats[act.id].present / activityStats[act.id].total) * 100)
     })).sort((a, b) => b.rate - a.rate);
@@ -776,34 +788,42 @@ export default function ActivitiesPage() {
 
           {attendanceViewMode === "by-activity" ? (
             /* BY ACTIVITY ROLL CALL VIEW */
-            activities.length === 0 ? (
+            activeActivitiesForPeriod.length === 0 ? (
               <div className="glass" style={{ padding: 60, textAlign: "center", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
                 <Calendar size={48} className="text-[var(--gold)]" style={{ opacity: 0.2, margin: "0 auto 20px" }} />
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>Aucune activité configurée</h3>
-                <p style={{ color: "var(--muted)", marginBottom: 20 }}>Vous devez d'abord créer une activité (ex: Réunion de Bergerie) dans l'onglet Calendrier.</p>
-                <button className="btn btn-primary mx-auto" onClick={() => setActiveTab("schedule")}>
-                  <Calendar size={14} /> Aller au Calendrier
-                </button>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>
+                  {activities.length === 0 ? "Aucune activité configurée" : "Aucune activité active"}
+                </h3>
+                <p style={{ color: "var(--muted)", marginBottom: 20 }}>
+                  {activities.length === 0 
+                    ? "Vous devez d'abord créer une activité (ex: Réunion de Bergerie) dans l'onglet Calendrier."
+                    : "Toutes les activités configurées commencent à une date ultérieure à ce mois."}
+                </p>
+                {activities.length === 0 && (
+                  <button className="btn btn-primary mx-auto" onClick={() => setActiveTab("schedule")}>
+                    <Calendar size={14} /> Aller au Calendrier
+                  </button>
+                )}
               </div>
             ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div className="glass" style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, alignItems: "end", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
                 <div>
-                  <label className="form-label" style={{ marginBottom: 8 }}>Activité</label>
-                  <select 
-                    className="input w-full" 
-                    value={selectedActivityId || ""} 
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      setSelectedActivityId(id);
-                      if (activityDates[id]?.length > 0) {
-                        setSelectedDate(activityDates[id][0]);
-                      }
-                    }}
-                    style={{ height: 42 }}
-                  >
-                    {activities.map(a => <option key={a.id} value={a.id} style={{ background: "var(--bg)", color: "var(--cream)" }}>{a.name}</option>)}
-                  </select>
+                   <label className="form-label" style={{ marginBottom: 8 }}>Activité</label>
+                   <select 
+                     className="input w-full" 
+                     value={selectedActivityId || ""} 
+                     onChange={(e) => {
+                       const id = e.target.value;
+                       setSelectedActivityId(id);
+                       if (activityDates[id]?.length > 0) {
+                         setSelectedDate(activityDates[id][0]);
+                       }
+                     }}
+                     style={{ height: 42 }}
+                   >
+                     {activeActivitiesForPeriod.map(a => <option key={a.id} value={a.id} style={{ background: "var(--bg)", color: "var(--cream)" }}>{a.name}</option>)}
+                   </select>
                 </div>
                 <div>
                   <label className="form-label" style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1046,9 +1066,11 @@ export default function ActivitiesPage() {
                 Aucun membre trouvé dans cette bergerie.
               </div>
             )}
-            {activities.length === 0 && members.length > 0 && (
+            {activeActivitiesForPeriod.length === 0 && members.length > 0 && (
               <div className="glass" style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>
-                Créez d'abord une activité dans l'onglet Calendrier pour gérer les présences.
+                {activities.length === 0 
+                  ? "Créez d'abord une activité dans l'onglet Calendrier pour gérer les présences." 
+                  : "Aucune activité n'est active pour le mois sélectionné."}
               </div>
             )}
             {filteredMembers.map(m => {
@@ -1086,7 +1108,7 @@ export default function ActivitiesPage() {
                   {isExpanded && (
                     <div style={{ padding: "20px", borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.15)" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 15 }}>
-                        {activities.map(act => {
+                        {activeActivitiesForPeriod.map(act => {
                           const dates = activityDates[act.id] || [];
                           const nonCancelledDates = dates.filter(d => !act.cancelledDates?.includes(d));
                           const presentCount = nonCancelledDates.filter(d => m.attendance[act.id]?.[d]).length;
