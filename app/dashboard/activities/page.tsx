@@ -106,22 +106,41 @@ export default function ActivitiesPage() {
         setCurrentUserFullName(`${userInfo.firstName || ""} ${userInfo.lastName || ""}`.trim());
 
         // 1. Fetch Profile and Role
-        const { data: profile, error: profError } = await supabase
+        let bergerieId = "";
+        let status = "";
+
+        const { data: member } = await supabase
           .from("members")
           .select("bergerie_id, status")
           .eq("email", userInfo.email)
-          .single();
+          .maybeSingle();
 
-        if (profError || !profile?.bergerie_id) {
+        if (member?.bergerie_id) {
+          bergerieId = member.bergerie_id;
+          status = member.status;
+        } else {
+          // Fallback to profiles table
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("bergerie_id, role")
+            .eq("email", userInfo.email)
+            .maybeSingle();
+
+          if (profile?.bergerie_id) {
+            bergerieId = profile.bergerie_id;
+            status = profile.role === "super_admin" ? "Super Admin" : (profile.role || "Membre");
+          }
+        }
+
+        if (!bergerieId) {
           setError("Vous n'êtes affecté à aucune bergerie.");
           setIsLoading(false);
           setIsMounted(true);
           return;
         }
         
-        const bergerieId = profile.bergerie_id;
         setUserBergerieId(bergerieId);
-        setUserRole(profile.status);
+        setUserRole(status);
 
         // 2. Load Activities from Supabase bergeries table
         const { data: bergerieData } = await supabase

@@ -100,11 +100,11 @@ export default function ProfilePage() {
         }
       } else {
         // Query members table
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("members")
           .select("*")
           .eq("email", email)
-          .single();
+          .maybeSingle();
 
         if (data) {
           setMemberData({
@@ -112,6 +112,27 @@ export default function ProfilePage() {
             firstName: data.first_name,
             lastName: data.last_name
           });
+        } else {
+          // Fallback to profiles table if not found in members
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("email", email)
+            .maybeSingle();
+            
+          if (profile) {
+            setMemberData({
+              id: profile.id,
+              firstName: profile.display_name?.split(' ')[0] || "",
+              lastName: profile.display_name?.split(' ').slice(1).join(' ') || "",
+              email: profile.email,
+              role: profile.role,
+              status: profile.role === "super_admin" ? "Super Admin" : (profile.role || "Membre"),
+              civility: profile.civility || "M.",
+              age: profile.age || "",
+              phone: profile.phone || ""
+            });
+          }
         }
       }
     } catch (err) {
