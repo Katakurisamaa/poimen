@@ -974,7 +974,7 @@ export default function ActivitiesPage() {
                       return (
                         <div 
                           key={m.id} 
-                          className={`arch-card glass ${isPresent ? "hover-glow" : ""}`}
+                          className={`arch-card glass activity-attendance-card ${isPresent ? "is-present hover-glow" : "is-absent"}`}
                           onClick={() => toggleAttendance(m.id, selectedActivityId!, selectedDate)}
                           style={{ 
                             padding: "18px 24px", display: "flex", flexDirection: "column", gap: 12, 
@@ -1001,13 +1001,13 @@ export default function ActivitiesPage() {
                                 </div>
                               </div>
                             </div>
-                            <div style={{ 
+                            <div className={`attendance-switch ${isPresent ? "is-on" : ""}`} style={{ 
                               width: 46, height: 22, borderRadius: 11, position: "relative",
                               background: isPresent ? "var(--green)" : "rgba(255,255,255,0.08)",
                               transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                               border: `1px solid ${isPresent ? "transparent" : "rgba(212,175,55,0.15)"}`
                             }}>
-                              <div style={{ 
+                              <div className="attendance-switch-knob" style={{ 
                                 position: "absolute", top: 2, left: isPresent ? 26 : 2,
                                 width: 16, height: 16, borderRadius: "50%",
                                 background: isPresent ? "var(--bg)" : "var(--gold-light)",
@@ -1425,12 +1425,12 @@ export default function ActivitiesPage() {
           text-transform: uppercase; letter-spacing: 0.5px;
         }
         .input-minimal {
-          background: transparent; border: none; color: var(--cream);
+          background: transparent; border: none; color: var(--on-light);
           font-size: 13px; font-weight: 600; cursor: pointer; outline: none;
           padding: 2px 4px; border-radius: 4px;
         }
-        .input-minimal:hover { background: rgba(255,255,255,0.05); }
-        .input-minimal option { background: #1a1a1a; color: white; }
+        .input-minimal:hover { background: rgba(35, 29, 25, 0.06); }
+        .input-minimal option { background: #fffaf4; color: var(--on-light); }
       `}</style>
     </div>
   );

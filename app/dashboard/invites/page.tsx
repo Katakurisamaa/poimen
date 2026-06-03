@@ -1573,8 +1573,9 @@ export default function InvitesPage() {
                               {thursdays.map(day => {
                                 const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
                                 return (
-                                  <div 
-                                    key={day} 
+                                  <div
+                                    key={day}
+                                    className={`attendance-day ${isBeforeArrival ? "attendance-day--not-applicable" : ""} ${isAttendanceBlocked ? "attendance-day--readonly" : ""}`}
                                     title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day}
                                     onClick={() => !isAttendanceBlocked && !isBeforeArrival && toggleAttendance(guest.id, day)} 
                                     style={{ 
@@ -1583,8 +1584,7 @@ export default function InvitesPage() {
                                       border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`, 
                                       display: "flex", alignItems: "center", justifyContent: "center", 
                                       color: guest.attendance[day] ? "var(--green)" : "var(--muted)", 
-                                      cursor: isBeforeArrival ? "not-allowed" : (isAttendanceBlocked ? "default" : "pointer"), 
-                                      opacity: isBeforeArrival ? 0.12 : (isAttendanceBlocked ? 0.4 : 1) 
+                                      cursor: isBeforeArrival ? "not-allowed" : (isAttendanceBlocked ? "default" : "pointer")
                                     }}>
                                     <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
                                   </div>
@@ -1598,8 +1598,9 @@ export default function InvitesPage() {
                               {sundays.map(day => {
                                 const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
                                 return (
-                                  <div 
-                                    key={day} 
+                                  <div
+                                    key={day}
+                                    className={`attendance-day ${isBeforeArrival ? "attendance-day--not-applicable" : ""} ${isAttendanceBlocked ? "attendance-day--readonly" : ""}`}
                                     title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day}
                                     onClick={() => !isAttendanceBlocked && !isBeforeArrival && toggleAttendance(guest.id, day)} 
                                     style={{ 
@@ -1608,8 +1609,7 @@ export default function InvitesPage() {
                                       border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`, 
                                       display: "flex", alignItems: "center", justifyContent: "center", 
                                       color: guest.attendance[day] ? "var(--green)" : "var(--muted)", 
-                                      cursor: isBeforeArrival ? "not-allowed" : (isAttendanceBlocked ? "default" : "pointer"), 
-                                      opacity: isBeforeArrival ? 0.12 : (isAttendanceBlocked ? 0.4 : 1) 
+                                      cursor: isBeforeArrival ? "not-allowed" : (isAttendanceBlocked ? "default" : "pointer")
                                     }}>
                                     <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
                                   </div>

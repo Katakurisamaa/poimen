@@ -1234,18 +1234,19 @@ export default function AffectationPage() {
 
               return (
                 <div key={guest.id} className="glass glass-flush" style={{ borderLeft: fidelised ? "4px solid var(--gold)" : "1px solid var(--border)", transition: "all 0.3s ease" }}>
-                  <div 
+                  <div
+                    className="affectation-card-header"
                     onClick={() => setExpandedId(isExpanded ? null : guest.id)}
                     style={{ 
                       padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
                       cursor: "pointer", background: isExpanded ? "rgba(212, 175, 55, 0.03)" : "transparent"
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 16, flex: 1 }}>
+                    <div className="affectation-card-person" style={{ display: "flex", alignItems: "center", gap: 16, flex: 1 }}>
                       <div className={`avatar ${fidelised ? "avatar-gradient avatar-effect-aura" : "avatar-gradient"}`} style={{ width: 42, height: 42, fontSize: 12 }}>
                         {guest.firstName[0]}{guest.lastName[0]}
                       </div>
-                      <div style={{ flex: 1 }}>
+                      <div className="affectation-card-identity" style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cream)" }}>{guest.firstName} {guest.lastName}</h3>
                           {fidelised && <span className="badge badge-gold" style={{ fontSize: 8 }}>Fidélisé</span>}
@@ -1260,7 +1261,7 @@ export default function AffectationPage() {
                             </button>
                           )}
                         </div>
-                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                        <div className="affectation-card-meta" style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
                           {guest.civility} · {guest.age} ans · {isIntegrationOrCounselor ? (
                             <>Conseiller: <span style={{ color: "var(--gold-light)" }}>{guest.assigned_to === userId ? (userName || "Moi") : (counselors.find(c => c.id === guest.assigned_to)?.display_name || "Non assigné")}</span></>
                           ) : (
@@ -1270,12 +1271,12 @@ export default function AffectationPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-                      <div style={{ textAlign: "right", minWidth: 60 }}>
+                    <div className="affectation-card-stats" style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                      <div className="affectation-card-stat" style={{ textAlign: "right", minWidth: 60 }}>
                         <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>CDM (Jeudi)</div>
                         <div style={{ fontSize: 13, fontWeight: 800, color: rateCDM >= 45 ? "var(--green)" : "var(--red)", marginTop: 2 }}>{rateCDM}%</div>
                       </div>
-                      <div style={{ textAlign: "right", minWidth: 60 }}>
+                      <div className="affectation-card-stat" style={{ textAlign: "right", minWidth: 60 }}>
                         <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Culte (Dim)</div>
                         <div style={{ fontSize: 13, fontWeight: 800, color: rateCulte >= 45 ? "var(--green)" : "var(--red)", marginTop: 2 }}>{rateCulte}%</div>
                       </div>
@@ -1365,8 +1366,9 @@ export default function AffectationPage() {
                               {thursdays.map((day) => {
                                 const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
                                 return (
-                                  <div 
-                                    key={day} 
+                                  <div
+                                    key={day}
+                                    className={`attendance-day ${isBeforeArrival ? "attendance-day--not-applicable" : ""} ${isRestricted ? "attendance-day--readonly" : ""}`}
                                     title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day} 
                                     onClick={() => !isRestricted && !isBeforeArrival && toggleAttendance(guest.id, day)}
                                     style={{ 
@@ -1375,9 +1377,8 @@ export default function AffectationPage() {
                                       border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
                                       display: "flex", alignItems: "center", justifyContent: "center",
                                       color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
-                                      cursor: isBeforeArrival ? "not-allowed" : (isRestricted ? "default" : "pointer"), 
-                                      transition: "all 0.2s",
-                                      opacity: isBeforeArrival ? 0.12 : (isRestricted ? 0.4 : 1)
+                                      cursor: isBeforeArrival ? "not-allowed" : (isRestricted ? "default" : "pointer"),
+                                      transition: "all 0.2s"
                                     }}>
                                     <span style={{ fontSize: 10, fontWeight: 700 }}>{parseInt(day.split('-')[2], 10)}</span>
                                   </div>
@@ -1392,8 +1393,9 @@ export default function AffectationPage() {
                               {sundays.map((day) => {
                                 const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
                                 return (
-                                  <div 
-                                    key={day} 
+                                  <div
+                                    key={day}
+                                    className={`attendance-day ${isBeforeArrival ? "attendance-day--not-applicable" : ""} ${isRestricted ? "attendance-day--readonly" : ""}`}
                                     title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day} 
                                     onClick={() => !isRestricted && !isBeforeArrival && toggleAttendance(guest.id, day)}
                                     style={{ 
@@ -1402,9 +1404,8 @@ export default function AffectationPage() {
                                       border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`,
                                       display: "flex", alignItems: "center", justifyContent: "center",
                                       color: guest.attendance[day] ? "var(--green)" : "var(--muted)",
-                                      cursor: isBeforeArrival ? "not-allowed" : (isRestricted ? "default" : "pointer"), 
-                                      transition: "all 0.2s",
-                                      opacity: isBeforeArrival ? 0.12 : (isRestricted ? 0.4 : 1)
+                                      cursor: isBeforeArrival ? "not-allowed" : (isRestricted ? "default" : "pointer"),
+                                      transition: "all 0.2s"
                                     }}>
                                     <span style={{ fontSize: 10, fontWeight: 700 }}>{parseInt(day.split('-')[2], 10)}</span>
                                   </div>
@@ -1619,7 +1620,7 @@ function SuiviToggle({ label, checked, onChange, disabled }: { label: string; ch
   return (
     <div 
       onClick={!disabled ? onChange : undefined}
-      className="suivi-toggle-row"
+      className={`suivi-toggle-row ${disabled ? "suivi-toggle-row--readonly" : ""}`}
       style={{ 
         display: "flex", 
         alignItems: "center", 
@@ -1628,7 +1629,6 @@ function SuiviToggle({ label, checked, onChange, disabled }: { label: string; ch
         background: "rgba(10, 6, 22, 0.4)",
         borderRadius: "8px",
         cursor: (onChange && !disabled) ? "pointer" : "default",
-        opacity: disabled ? 0.5 : 1,
         transition: "all 0.2s ease",
         border: "1px solid rgba(255, 255, 255, 0.02)"
       }}
