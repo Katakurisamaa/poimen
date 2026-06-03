@@ -4221,6 +4221,7 @@ select.input option {
 .avatar-gradient {
   background: linear-gradient(135deg, #171412, #4d443d) !important;
   color: #fffaf4 !important;
+  -webkit-text-fill-color: #fffaf4 !important;
   border-color: rgba(23, 20, 18, 0.12) !important;
   box-shadow: 0 14px 30px rgba(23, 20, 18, 0.16) !important;
 }
