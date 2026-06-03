@@ -26,15 +26,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
 
       // 2. Fetch the active session from Supabase to prevent localStorage spoofing
-      // Wait a brief moment to let Supabase Auth restore the session from localStorage on page refresh
+      // Wait up to 2s for Supabase Auth to restore the session from its own storage on page refresh
       let session = null;
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 20; i++) {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (currentSession) {
           session = currentSession;
           break;
         }
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       
       const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
@@ -123,24 +123,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       }
 
-      // 4. Redirect if definitely not logged in and trying to access private sub-pages
+      // 4. Redirect only if there is truly no active session
       const isPublicDashboard = window.location.pathname === "/dashboard" || window.location.pathname === "/dashboard/";
       const hasSelectedFamily = !!localStorage.getItem("selected_family");
-
-      // If the user has an active session, they are authenticated — never redirect them to /login
-      // regardless of whether their profile role was resolved. A missing profile is a data issue,
-      // not an auth issue, and should not log them out.
       const hasActiveSession = !!session?.user;
 
-      if (!isPublicDashboard && !hasActiveSession && !superAdminDetected) {
-        // No session at all and trying to access a private page → send to login
-        // But send family members to the dashboard root (not /login which is the integration page)
-        if (hasSelectedFamily) {
-          window.location.href = "/dashboard";
-        } else {
-          window.location.href = "/login";
+      if (!hasActiveSession && !superAdminDetected) {
+        if (!isPublicDashboard) {
+          // User has no session and is trying to access a private sub-page.
+          // Redirect to /dashboard (family selection) if they had a family, else /login.
+          // Note: only do this if we are SURE there is no session (after 2s of retrying).
+          if (hasSelectedFamily) {
+            window.location.href = "/dashboard";
+          } else {
+            window.location.href = "/login";
+          }
+          return;
         }
-        return;
       }
 
       // 5. Update local states

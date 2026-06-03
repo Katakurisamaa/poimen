@@ -1007,9 +1007,10 @@ export default function ActivitiesPage() {
                             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                               <div className="avatar" style={{ 
                                 width: 36, height: 36, fontSize: 12, fontWeight: 700,
-                                background: isPresent ? "rgba(0, 255, 136, 0.1)" : "var(--bg-deep)",
+                                background: isPresent ? "rgba(0, 200, 100, 0.18)" : "linear-gradient(135deg, #171412, #4d443d)",
                                 border: `1px solid ${isPresent ? "var(--green)" : "rgba(212,175,55,0.2)"}`,
-                                color: isPresent ? "var(--green)" : "var(--gold-light)"
+                                color: "#fffaf4",
+                                WebkitTextFillColor: "#fffaf4"
                               }}>
                                 {m.firstName[0]}{m.lastName[0]}
                               </div>
@@ -1111,7 +1112,7 @@ export default function ActivitiesPage() {
                     style={{ padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-                      <div className="avatar" style={{ width: 36, height: 36, background: color.replace(')', '-glow)'), border: `1px solid ${color}`, color: color }}>
+                      <div className="avatar" style={{ width: 36, height: 36, background: "linear-gradient(135deg, #171412, #4d443d)", border: `1px solid ${color}`, color: "#fffaf4", WebkitTextFillColor: "#fffaf4" }}>
                         {m.firstName[0]}{m.lastName[0]}
                       </div>
                       <div>
