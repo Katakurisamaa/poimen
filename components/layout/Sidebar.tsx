@@ -58,13 +58,13 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
       setHasFamily(!!savedFamily);
 
       const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
-      let superAdminDetected = isLocalSuperAdmin;
+      let superAdminDetected = false;
 
       const user = localStorage.getItem("poimen_user");
       if (user) {
         try {
           const profile = JSON.parse(user);
-          if (profile.role === 'super_admin' || profile.email === 'minkojunior400@gmail.com') {
+          if ((profile.role === 'super_admin' || profile.email === 'minkojunior400@gmail.com') && isLocalSuperAdmin) {
             superAdminDetected = true;
           }
         } catch (e) {}
@@ -75,7 +75,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
         try {
           const parsedInfo = JSON.parse(info);
           setUserInfo(parsedInfo);
-          if (parsedInfo.role === 'super_admin' || parsedInfo.email === 'minkojunior400@gmail.com') {
+          if ((parsedInfo.role === 'super_admin' || parsedInfo.email === 'minkojunior400@gmail.com') && isLocalSuperAdmin) {
             superAdminDetected = true;
           }
         } catch (e) {}

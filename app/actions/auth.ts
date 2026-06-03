@@ -114,6 +114,22 @@ export async function adminSignUp(email: string, accessCode: string) {
         if (!listErr && usersData?.users) {
           const existingUser = usersData.users.find(u => u.email?.toLowerCase().trim() === cleanEmail);
           if (existingUser) {
+            // Check if this existing user is a super admin
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("role")
+              .eq("id", existingUser.id)
+              .maybeSingle();
+
+            const isExistingSuperAdmin = profile?.role === "super_admin" || cleanEmail === "minkojunior400@gmail.com";
+            
+            if (isExistingSuperAdmin) {
+              return { 
+                success: false, 
+                error: "Cet e-mail est associé à un compte administrateur. Veuillez utiliser votre mot de passe administrateur principal pour vous connecter sur la page de connexion." 
+              };
+            }
+
             const { data: updateData, error: updateErr } = await supabase.auth.admin.updateUserById(
               existingUser.id,
               { password: accessCode }

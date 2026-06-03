@@ -186,13 +186,37 @@ export default function LoginPage() {
       }
 
       if (activeProfile) {
+        let finalRole = activeProfile.role;
+        let isConseiller = false;
+
+        if (activeProfile.role === "super_admin" && activeProfile.bergerie_id) {
+          const { data: member } = await supabase
+            .from("members")
+            .select("*")
+            .eq("email", activeProfile.email)
+            .eq("bergerie_id", activeProfile.bergerie_id)
+            .maybeSingle();
+          if (member) {
+            finalRole = member.status ? (
+              member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
+              member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
+              member.status.toLowerCase().trim()
+            ) : "membre";
+            isConseiller = member.is_conseiller;
+          }
+        } else {
+          isConseiller = (activeProfile.role || "").toLowerCase().includes("conseiller");
+        }
+
         localStorage.setItem("poimen_user_info", JSON.stringify({
           id: activeProfile.id,
           email: activeProfile.email,
-          role: activeProfile.role,
+          role: finalRole,
+          isConseiller: isConseiller,
           firstName: activeProfile.display_name?.split(' ')[0] || '',
           lastName: activeProfile.display_name?.split(' ').slice(1).join(' ') || '',
-          church_id: activeProfile.church_id
+          church_id: activeProfile.church_id,
+          bergerie_id: activeProfile.bergerie_id
         }));
 
         // Load and save church details for integration roles

@@ -37,6 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         await new Promise(resolve => setTimeout(resolve, 50));
       }
       
+      const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
       let superAdminDetected = false;
       let regularUserFound = false;
       let isIntegrationUser = false;
@@ -53,7 +54,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         if (profile) {
           profileData = profile;
-          if (profile.role === "super_admin" || session.user.email?.toLowerCase().trim() === "minkojunior400@gmail.com") {
+          const isEmailAdmin = session.user.email?.toLowerCase().trim() === "minkojunior400@gmail.com";
+          if ((profile.role === "super_admin" || isEmailAdmin) && isLocalSuperAdmin) {
             superAdminDetected = true;
             superAdminProfile = profile;
           } else {
@@ -64,7 +66,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
 
       // 3. Clear spoofed super admin flag if backend session is invalid or not super_admin
-      const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
       if (isLocalSuperAdmin && !superAdminDetected) {
         localStorage.removeItem("is_super_admin");
         window.location.href = "/login";
@@ -73,10 +74,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       // Synchronize poimen_user_info if logged in
       if (session?.user && profileData) {
+        let userRoleForUI = profileData.role;
+        let isConseillerForUI = !!profileData.role?.toLowerCase().startsWith("integration_");
+
+        if (profileData.role === "super_admin" && !isLocalSuperAdmin && profileData.bergerie_id) {
+          const { data: member } = await supabase
+            .from("members")
+            .select("*")
+            .eq("email", profileData.email)
+            .eq("bergerie_id", profileData.bergerie_id)
+            .maybeSingle();
+          if (member) {
+            userRoleForUI = member.status ? (
+              member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
+              member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
+              member.status.toLowerCase().trim()
+            ) : "membre";
+            isConseillerForUI = member.is_conseiller;
+          }
+        }
+
         const infoObj = {
           id: profileData.id,
           email: profileData.email,
-          role: profileData.role,
+          role: userRoleForUI,
+          isConseiller: isConseillerForUI,
           firstName: profileData.display_name?.split(' ')[0] || '',
           lastName: profileData.display_name?.split(' ').slice(1).join(' ') || '',
           church_id: profileData.church_id,

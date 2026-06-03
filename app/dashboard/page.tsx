@@ -595,13 +595,25 @@ export default function DashboardPage() {
     const churchObj = JSON.parse(savedChurch);
     setChurch(churchObj);
 
+    const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
     const userStr = localStorage.getItem("poimen_user");
     if (userStr) {
       const user = JSON.parse(userStr);
-      if (user.role === 'super_admin' || user.email === 'minkojunior400@gmail.com') {
+      if ((user.role === 'super_admin' || user.email === 'minkojunior400@gmail.com') && isLocalSuperAdmin) {
         window.location.href = "/dashboard/admin";
         return;
       }
+    }
+
+    const localUserInfo = localStorage.getItem("poimen_user_info");
+    if (localUserInfo) {
+      try {
+        const userInfoObj = JSON.parse(localUserInfo);
+        if ((userInfoObj.role === 'super_admin' || userInfoObj.email === 'minkojunior400@gmail.com') && isLocalSuperAdmin) {
+          window.location.href = "/dashboard/admin";
+          return;
+        }
+      } catch (e) {}
     }
 
     const { data: activeBgs } = await supabase
@@ -760,42 +772,56 @@ export default function DashboardPage() {
     const password = registration.code;
 
     try {
-      // 1. Authenticate with Supabase Auth using email and family access code as password
+      // 1. Check if user is already authenticated as the entered email
       let sessionData = null;
       let authError = null;
 
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        sessionData = data;
-        authError = error;
-      } catch {
-        // Ignore client-side error and try fallback signup
-      }
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const isAlreadyLoggedIn = currentUser && currentUser.email?.toLowerCase().trim() === email;
 
-      // If sign-in failed, attempt dynamic sign-up/recovery via Server Action
-      if (authError || !sessionData?.user) {
-        const res = await adminSignUp(email, password);
-        if (!res.success) {
-          alert(`Erreur d'accès : ${res.error}`);
+      if (isAlreadyLoggedIn) {
+        // Direct validation client-side by checking the code against selectedForJoin access code
+        if (registration.code !== selectedForJoin.access_code) {
+          alert("Code d'accès de la famille invalide. Veuillez réessayer.");
           setLoading(false);
           return;
         }
-
-        // Try signing in again now that the auth user exists
-        const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-
-        if (retryErr || !retryData?.user) {
-          alert(`Erreur de connexion : ${retryErr?.message || "Échec d'authentification."}`);
-          setLoading(false);
-          return;
+        sessionData = { user: currentUser };
+      } else {
+        // Authenticate with Supabase Auth using email and family access code as password
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          sessionData = data;
+          authError = error;
+        } catch {
+          // Ignore client-side error and try fallback signup
         }
-        sessionData = retryData;
+
+        // If sign-in failed, attempt dynamic sign-up/recovery via Server Action
+        if (authError || !sessionData?.user) {
+          const res = await adminSignUp(email, password);
+          if (!res.success) {
+            alert(`Erreur d'accès : ${res.error}`);
+            setLoading(false);
+            return;
+          }
+
+          // Try signing in again now that the auth user exists
+          const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+
+          if (retryErr || !retryData?.user) {
+            alert(`Erreur de connexion : ${retryErr?.message || "Échec d'authentification."}`);
+            setLoading(false);
+            return;
+          }
+          sessionData = retryData;
+        }
       }
 
       // 2. Fetch the newly established profile to populate user state
@@ -812,14 +838,49 @@ export default function DashboardPage() {
       }
 
       // 3. Set family details in profiles if not set or mismatched
-      if (profile.bergerie_id !== selectedForJoin.id) {
-        await supabase
-          .from("profiles")
-          .update({ 
-            bergerie_id: selectedForJoin.id,
-            role: profile.role || "Responsable"
-          })
-          .eq("id", sessionData.user.id);
+      // If the user's role is 'super_admin', we DO NOT overwrite it.
+      if (profile.role === "super_admin") {
+        if (profile.bergerie_id !== selectedForJoin.id) {
+          await supabase
+            .from("profiles")
+            .update({ 
+              bergerie_id: selectedForJoin.id
+            })
+            .eq("id", sessionData.user.id);
+        }
+      } else {
+        if (profile.bergerie_id !== selectedForJoin.id) {
+          await supabase
+            .from("profiles")
+            .update({ 
+              bergerie_id: selectedForJoin.id,
+              role: profile.role || "Responsable"
+            })
+            .eq("id", sessionData.user.id);
+        }
+      }
+
+      let userRoleForUI = profile.role;
+      let isConseillerForUI = false;
+
+      if (profile.role === "super_admin") {
+        // Fetch their role inside the family from the members table
+        const { data: member } = await supabase
+          .from("members")
+          .select("*")
+          .eq("email", profile.email)
+          .eq("bergerie_id", selectedForJoin.id)
+          .maybeSingle();
+        if (member) {
+          userRoleForUI = member.status ? (
+            member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
+            member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
+            member.status.toLowerCase().trim()
+          ) : "membre";
+          isConseillerForUI = member.is_conseiller;
+        }
+      } else {
+        isConseillerForUI = (profile.role || "").toLowerCase().includes("conseiller");
       }
 
       const finalInfo = {
@@ -828,8 +889,8 @@ export default function DashboardPage() {
         firstName: profile.display_name?.split(' ')[0] || '',
         lastName: profile.display_name?.split(' ').slice(1).join(' ') || '',
         email: profile.email,
-        role: profile.role,
-        isConseiller: (profile.role || "").toLowerCase().includes("conseiller") || false
+        role: userRoleForUI,
+        isConseiller: isConseillerForUI
       };
 
       if (rememberMe) {
@@ -847,7 +908,7 @@ export default function DashboardPage() {
       setSelectedForJoin(null);
       setLoading(false);
       
-      alert(`Bienvenue ${finalInfo.firstName} ! Connexion réussie en tant que ${profile.role}.`);
+      alert(`Bienvenue ${finalInfo.firstName} ! Connexion réussie en tant que ${userRoleForUI}.`);
     } catch (e: any) {
       alert(`Erreur inattendue : ${e.message}`);
       setLoading(false);
