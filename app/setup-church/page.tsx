@@ -55,7 +55,7 @@ function SetupChurchContent() {
 
   if (!token) {
     return (
-      <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--cream)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <div className="glass" style={{ maxWidth: 450, padding: 40, textAlign: "center" }}>
           <AlertTriangle size={48} style={{ color: "var(--orange)", margin: "0 auto 20px" }} />
           <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>Lien invalide</h2>
@@ -72,7 +72,7 @@ function SetupChurchContent() {
 
   if (step === "success") {
     return (
-      <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--cream)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         {/* Background Decor */}
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, pointerEvents: "none" }}>
           <div style={{ position: "absolute", top: "-10%", right: "-10%", width: "60vw", height: "60vw", background: "radial-gradient(circle, rgba(61,191,140,0.05) 0%, transparent 70%)" }} />
@@ -88,7 +88,7 @@ function SetupChurchContent() {
             <strong style={{ color: "var(--gold-light)" }}>{church.name}</strong> a été ajoutée avec succès à la plateforme Poimén.
           </p>
 
-          <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 12, padding: 24, marginBottom: 32, border: "1px solid var(--border)" }}>
+          <div style={{ background: "var(--bg-deep)", borderRadius: 12, padding: 24, marginBottom: 32, border: "1px solid var(--border)" }}>
             <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)", fontWeight: 700, marginBottom: 12 }}>Code d'accès de votre église</p>
             <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: 6, color: "var(--gold)", fontFamily: "monospace" }}>
               {church.access_code}
@@ -123,7 +123,7 @@ function SetupChurchContent() {
   }
 
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--cream)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       {/* Background Decor */}
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, pointerEvents: "none" }}>
         <div style={{ position: "absolute", top: "-10%", right: "-10%", width: "60vw", height: "60vw", background: "radial-gradient(circle, rgba(212,160,60,0.04) 0%, transparent 70%)" }} />
@@ -240,7 +240,7 @@ function SetupChurchContent() {
 export default function SetupChurchPage() {
   return (
     <Suspense fallback={
-      <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--cream)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Loader2 className="animate-spin" size={32} style={{ color: "var(--gold)" }} />
       </div>
     }>

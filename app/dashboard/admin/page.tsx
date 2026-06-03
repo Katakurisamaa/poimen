@@ -401,7 +401,7 @@ function AdminContent() {
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
                     {church.bergeries.map((b: any) => (
-                      <div key={b.id} className="glass glass-compact" style={{ background: "rgba(10, 6, 22, 0.4)", display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid rgba(212, 175, 55, 0.1)", borderRadius: "12px", transition: "all 0.25s ease" }}>
+                      <div key={b.id} className="glass glass-compact" style={{ background: "var(--surface)", display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid rgba(212, 175, 55, 0.1)", borderRadius: "12px", transition: "all 0.25s ease" }}>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cream-dim)" }}>{b.name}</div>
                           <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>

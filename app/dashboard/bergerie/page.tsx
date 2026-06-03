@@ -1407,7 +1407,7 @@ export default function BergeriePage() {
                 </div>
               </div>
 
-              <div style={{ background: "rgba(255,255,255,0.02)", padding: 12, borderRadius: 10, border: "1px solid rgba(212,175,55,0.1)", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ background: "var(--surface)", padding: 12, borderRadius: 10, border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
                 <div className="form-grid-2" style={{ alignItems: "center" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, height: 42 }}>
                     <input 
@@ -1436,7 +1436,7 @@ export default function BergeriePage() {
                 </div>
               </div>
 
-              <div style={{ background: "rgba(255,255,255,0.02)", padding: 12, borderRadius: 10, border: "1px solid rgba(212,175,55,0.1)", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ background: "var(--surface)", padding: 12, borderRadius: 10, border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
                 <div className="form-grid-2" style={{ alignItems: "center" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, height: 42 }}>
                     <input 

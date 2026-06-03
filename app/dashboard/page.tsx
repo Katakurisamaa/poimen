@@ -977,15 +977,15 @@ export default function DashboardPage() {
           <div className="bento bento-2-1">
             <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.2)" }}>
               {/* Header */}
-              <div className="community-filters-header" style={{ padding: "24px 28px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(10, 6, 22, 0.55)", gap: 20 }}>
+              <div className="community-filters-header" style={{ padding: "24px 28px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)", gap: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
                   <div style={{ color: "var(--gold)" }}><Users size={18} /></div>
                   <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--cream)", letterSpacing: "0.01em" }}>Familles de Disciples</h3>
                 </div>
                 <div className="community-filters-actions" style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, maxWidth: 500 }}>
                   <div style={{ position: "relative", flex: 1 }}>
-                    <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.35)" }} />
-                    <input type="text" placeholder="Rechercher une famille..." className="input search-bar-premium" style={{ paddingLeft: 42, background: "rgba(10,6,22,0.4)" }} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                    <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--cream-dim)" }} />
+                    <input type="text" placeholder="Rechercher une famille..." className="input search-bar-premium" style={{ paddingLeft: 42, background: "var(--bg-deep)" }} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                   </div>
                   <button className="btn btn-primary btn-sm" style={{ height: 42, whiteSpace: "nowrap" }} onClick={() => setIsCreating(true)}>
                     <Plus size={16} /> <span className="hide-mobile">Nouvelle Famille</span>
@@ -1225,7 +1225,13 @@ export default function DashboardPage() {
           <h2 className="page-title" style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 12 }}>
             Bonjour, {userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : "Utilisateur"}
             <span className="badge badge-gold" style={{ fontSize: 9, padding: "3px 10px", border: "1px solid rgba(212,175,55,0.3)" }}>
-              {userInfo?.role || "Membre"}
+              {(() => {
+                const r = (userInfo?.role || "").toLowerCase().trim();
+                if (r === "integration_responsable") return "Responsable";
+                if (r === "integration_second") return "Second";
+                if (r === "integration_conseiller") return "Conseiller";
+                return userInfo?.role || "Membre";
+              })()}
             </span>
           </h2>
         </div>
@@ -1324,13 +1330,13 @@ export default function DashboardPage() {
       {/* Outreach & Soul Winning Impact Section */}
       <div className="glass d2" style={{ 
         border: "1px solid rgba(139, 92, 246, 0.2)", 
-        background: "linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(10, 6, 22, 0.7) 100%)",
+        background: "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, var(--surface) 100%)",
         boxShadow: "0 8px 32px rgba(139, 92, 246, 0.05)",
         position: "relative",
         overflow: "hidden"
       }}>
         {/* Glow behind section */}
-        <div style={{ position: "absolute", top: "-20%", right: "-10%", width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: "-20%", right: "-10%", width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.1) 0%, pointer-events 70%)", pointerEvents: "none" }} />
         
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div>
@@ -1361,7 +1367,7 @@ export default function DashboardPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
           {/* Card 1: Âme(s) évangélisée(s) */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ 
               width: 40, height: 40, borderRadius: 10, 
               background: "rgba(212,175,55,0.1)", 
@@ -1379,7 +1385,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Card 2: Appel au salut */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ 
               width: 40, height: 40, borderRadius: 10, 
               background: "rgba(16,185,129,0.1)", 
@@ -1397,7 +1403,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Card 3: Invitation donnée */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ 
               width: 40, height: 40, borderRadius: 10, 
               background: "rgba(139,92,246,0.1)", 
@@ -1415,7 +1421,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Card 4: Âme(s) Contactée(s) */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ 
               width: 40, height: 40, borderRadius: 10, 
               background: "rgba(56,189,248,0.1)", 
@@ -1433,7 +1439,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Card 5: Ame(s) venue(s) au culte par évangélisation */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ 
               width: 40, height: 40, borderRadius: 10, 
               background: "rgba(16,185,129,0.1)", 
@@ -1455,7 +1461,7 @@ export default function DashboardPage() {
       {/* Activities + À risque */}
       <div className="bento bento-2-1 d3">
         <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(10, 6, 22, 0.3)" }}>
+          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)" }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités & Événements</span>
             {isLeader && (
               <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => window.location.href = "/dashboard/activities"}>
@@ -1513,7 +1519,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "rgba(10, 6, 22, 0.3)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "var(--surface)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--red)" }}>
               ● {isIntegration ? "Alertes de Suivi Intégration" : "Alertes de Suivi FDD"}
             </span>

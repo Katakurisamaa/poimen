@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Cormorant_Garamond } from "next/font/google";
+import ThemeToggle from "@/components/ThemeToggle";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -34,7 +35,17 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fr" suppressHydrationWarning className={`${jakarta.variable} ${cormorant.variable}`} data-scroll-behavior="smooth">
-      <body suppressHydrationWarning>{children}</body>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("poimen_theme")==="dark"?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;document.documentElement.classList.toggle("dark",t==="dark");document.addEventListener("DOMContentLoaded",function(){document.body.dataset.theme=t;document.body.style.colorScheme=t;document.body.classList.toggle("dark",t==="dark");});}catch(e){document.documentElement.dataset.theme="light";document.addEventListener("DOMContentLoaded",function(){document.body.dataset.theme="light";});}`,
+          }}
+        />
+      </head>
+      <body suppressHydrationWarning>
+        {children}
+        <ThemeToggle />
+      </body>
     </html>
   );
 }

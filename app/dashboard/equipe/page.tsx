@@ -237,19 +237,19 @@ export default function IntegrationTeamPage() {
       <div className="glass" style={{ border: "1px solid rgba(212, 175, 55, 0.15)", padding: 24 }}>
         <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 700, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 0.5 }}>Charge de Suivi de l'Équipe</h4>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(180px, 100%), 1fr))", gap: "clamp(10px, 2vw, 18px)" }}>
-          <div style={{ padding: 18, background: "rgba(10,6,22,0.4)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+          <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
             <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total Conseillers</div>
             <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--cream)", marginTop: 6 }}>{team.length}</div>
             <div style={{ fontSize: 10, color: "var(--gold-light)", marginTop: 4 }}>{team.filter(t => t.status === "active").length} actifs · {team.filter(t => t.status === "pending").length} en attente</div>
           </div>
-          <div style={{ padding: 18, background: "rgba(10,6,22,0.4)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+          <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
             <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total affectations actives</div>
             <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--sky)", marginTop: 6 }}>
               {team.reduce((acc, t) => acc + t.workload, 0)}
             </div>
             <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Invités pris en charge</div>
           </div>
-          <div style={{ padding: 18, background: "rgba(10,6,22,0.4)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+          <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
             <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Charge Moyenne</div>
             <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--purple-light)", marginTop: 6 }}>
               {team.length > 0 ? (team.reduce((acc, t) => acc + t.workload, 0) / team.filter(t => t.status === "active").length || 0).toFixed(1) : "0.0"}
@@ -261,7 +261,7 @@ export default function IntegrationTeamPage() {
 
       {/* Grid listing */}
       <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-        <div style={{ padding: "clamp(12px, 2vw, 18px) clamp(14px, 2.5vw, 24px)", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "rgba(10, 6, 22, 0.3)" }}>
+        <div style={{ padding: "clamp(12px, 2vw, 18px) clamp(14px, 2.5vw, 24px)", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "var(--surface)" }}>
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Membres de l'Équipe</span>
         </div>
         <div>
@@ -384,7 +384,7 @@ export default function IntegrationTeamPage() {
                   className="input" 
                   value={newCounselor.role} 
                   onChange={e => setNewCounselor({...newCounselor, role: e.target.value})} 
-                  style={{ height: 40, background: "rgba(10, 6, 22, 0.6)", color: "var(--cream)", border: "1px solid rgba(212, 175, 55, 0.25)" }}
+                  style={{ height: 40, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(212, 175, 55, 0.25)" }}
                 >
                   <option value="integration_conseiller">Conseiller Intégration</option>
                   <option value="integration_second">Second Intégration</option>

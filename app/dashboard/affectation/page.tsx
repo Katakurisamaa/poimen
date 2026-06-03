@@ -1164,7 +1164,7 @@ export default function AffectationPage() {
             </div>
             
             {/* Arrival Filters */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(10, 6, 22, 0.4)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
               <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.5px" }}>ARRIVÉE</span>
               <select className="input" value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)} style={{ width: 110, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}>
                 <option value="all">Tous les mois</option>
@@ -1181,7 +1181,7 @@ export default function AffectationPage() {
             </div>
 
             {/* Presence Display Filters */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(10, 6, 22, 0.4)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
               <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.5px" }}>PRÉSENCES</span>
               <select 
                 className="input" 
@@ -1206,7 +1206,7 @@ export default function AffectationPage() {
             </div>
 
             {/* Local Church Filter */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(10, 6, 22, 0.4)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
               <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.5px" }}>ÉGLISE LOCALE</span>
               <select 
                 className="input" 
@@ -1310,7 +1310,7 @@ export default function AffectationPage() {
 
                           <div style={{ marginTop: 10 }}>
                             <label className="form-label" style={{ fontSize: 9 }}>Commentaire d'arrivée</label>
-                            <div style={{ fontSize: 12, color: "var(--cream-dim)", background: "rgba(10, 6, 22, 0.4)", padding: 12, borderRadius: 10, border: "1px solid var(--border)", lineHeight: 1.5 }}>
+                            <div style={{ fontSize: 12, color: "var(--cream-dim)", background: "var(--surface)", padding: 12, borderRadius: 10, border: "1px solid var(--border)", lineHeight: 1.5 }}>
                               {guest.commentaire || <span style={{ fontStyle: "italic", color: "var(--muted)" }}>Aucun commentaire d'arrivée rédigé.</span>}
                             </div>
                           </div>
@@ -1447,7 +1447,7 @@ export default function AffectationPage() {
                                       width: "100%", 
                                       minHeight: 50,
                                       fontSize: 11, 
-                                      background: "rgba(0,0,0,0.3)", 
+                                      background: "var(--bg-deep)", 
                                       border: "1px solid var(--border)", 
                                       borderRadius: 6, 
                                       padding: "8px", 
@@ -1501,7 +1501,7 @@ export default function AffectationPage() {
                               style={{ 
                                 fontSize: 12, 
                                 resize: "vertical", 
-                                background: "rgba(0,0,0,0.3)",
+                                background: "var(--bg-deep)",
                                 minHeight: 70,
                                 padding: 12,
                                 opacity: isRestricted ? 0.5 : 1,
@@ -1626,11 +1626,11 @@ function SuiviToggle({ label, checked, onChange, disabled }: { label: string; ch
         alignItems: "center", 
         justifyContent: "space-between", 
         padding: "8px 12px",
-        background: "rgba(10, 6, 22, 0.4)",
+        background: "var(--bg-deep)",
         borderRadius: "8px",
         cursor: (onChange && !disabled) ? "pointer" : "default",
         transition: "all 0.2s ease",
-        border: "1px solid rgba(255, 255, 255, 0.02)"
+        border: "1px solid var(--border)"
       }}
     >
       <span style={{ fontSize: 11, fontWeight: 700, color: checked ? "var(--cream)" : "var(--muted)", transition: "color 0.2s" }}>{label}</span>

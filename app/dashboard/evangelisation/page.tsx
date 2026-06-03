@@ -876,7 +876,7 @@ export default function EvangelisationPage() {
 
       {/* Tab Switcher (Only visible to Leaders who have both Vue d'ensemble and Mes Saisies) */}
       {isLeader && (
-        <div className="evang-scope-switcher fade-in" style={{ display: "flex", gap: 10, background: "rgba(10, 6, 22, 0.5)", border: "1px solid var(--border)", padding: 5, borderRadius: "14px", width: "fit-content" }}>
+        <div className="evang-scope-switcher fade-in" style={{ display: "flex", gap: 10, background: "var(--surface)", border: "1px solid var(--border)", padding: 5, borderRadius: "14px", width: "fit-content" }}>
           <button 
             onClick={() => setActiveTab("mine")}
             className={`pill evang-scope-option ${activeTab === "mine" ? "pill-active active" : "pill-inactive"}`}
@@ -899,7 +899,7 @@ export default function EvangelisationPage() {
         <div className="evang-filter-row" style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
           {/* Search bar */}
           <div className="evang-search-field" style={{ position: "relative", flex: "2 1 300px" }}>
-            <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.35)" }} />
+            <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--cream-dim)" }} />
             <input 
               className="input search-bar-premium" 
               placeholder="Rechercher par nom, description ou notes de rencontre..." 
@@ -1022,7 +1022,7 @@ export default function EvangelisationPage() {
                 </div>
 
                 {isExpanded && (
-                  <div className="evang-expanded" style={{ borderTop: "1px solid var(--border)", background: "rgba(0, 0, 0, 0.25)", padding: 24 }}>
+                  <div className="evang-expanded" style={{ borderTop: "1px solid var(--border)", background: "var(--bg-deep)", padding: 24 }}>
                     <div className="evang-expanded-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24 }}>
                       
                       {/* Informations Column */}
@@ -1064,7 +1064,7 @@ export default function EvangelisationPage() {
                         </div>
                         
                         {e.prayer_other && e.prayer_other_details && (
-                          <div style={{ fontSize: 11, color: "var(--cream-dim)", background: "rgba(255,255,255,0.01)", padding: 8, borderRadius: 6, border: "1px dashed var(--border)" }}>
+                          <div style={{ fontSize: 11, color: "var(--cream-dim)", background: "var(--surface)", padding: 8, borderRadius: 6, border: "1px dashed var(--border)" }}>
                             <strong>Sujet de prière :</strong> {e.prayer_other_details}
                           </div>
                         )}
@@ -1074,7 +1074,7 @@ export default function EvangelisationPage() {
                       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                         <h4 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 700 }}>Notes & Suivi culte</h4>
                         
-                        <div style={{ fontSize: 12, color: "var(--cream-dim)", background: "rgba(10, 6, 22, 0.4)", padding: 12, borderRadius: 10, border: "1px solid var(--border)", lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 12, color: "var(--cream-dim)", background: "var(--surface)", padding: 12, borderRadius: 10, border: "1px solid var(--border)", lineHeight: 1.5 }}>
                           {e.comment || <span style={{ fontStyle: "italic", color: "var(--muted)" }}>Aucun commentaire ou note d'échange.</span>}
                         </div>
 
@@ -1083,7 +1083,7 @@ export default function EvangelisationPage() {
                             display: "flex", 
                             alignItems: "center", 
                             justifyContent: "space-between",
-                            background: "rgba(255, 255, 255, 0.02)", 
+                            background: "var(--surface)", 
                             padding: "10px 16px", 
                             borderRadius: "10px", 
                             border: "1px solid var(--border)"
@@ -1145,7 +1145,7 @@ export default function EvangelisationPage() {
                             display: "flex", 
                             flexDirection: "column",
                             gap: 12,
-                            background: "rgba(255, 255, 255, 0.02)", 
+                            background: "var(--surface)", 
                             padding: "16px", 
                             borderRadius: "10px", 
                             border: "1px solid var(--border)"
@@ -1376,7 +1376,7 @@ export default function EvangelisationPage() {
                     />
                   </div>
 
-                  <div className="evang-form-panel" style={{ background: "rgba(255,255,255,0.01)", padding: 16, borderRadius: 10, border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div className="evang-form-panel" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
                       <input 
                         type="checkbox" 
@@ -1415,7 +1415,7 @@ export default function EvangelisationPage() {
                   {/* Prayers Group */}
                   <div>
                     <label className="form-label" style={{ marginBottom: 10, display: "block" }}>PRIÈRES ACCOMPAGNÉES</label>
-                    <div className="evang-check-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 15 }}>
+                    <div className="evang-check-grid">
                       <label className="evang-check-card" style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
                         <input 
                           type="checkbox" 
@@ -1460,7 +1460,7 @@ export default function EvangelisationPage() {
                   )}
 
                   {/* Invitations */}
-                  <div className="evang-form-panel" style={{ background: "rgba(255,255,255,0.01)", padding: 12, borderRadius: 10, border: "1px solid var(--border)" }}>
+                  <div className="evang-form-panel" style={{ padding: 12 }}>
                     <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
                       <input 
                         type="checkbox" 
@@ -1486,7 +1486,6 @@ export default function EvangelisationPage() {
                   required 
                   value={formData.evangelisation_date || ""} 
                   onChange={e => setFormData({...formData, evangelisation_date: e.target.value})} 
-                  style={{ maxWidth: 220 }}
                 />
               </div>
 

@@ -1757,7 +1757,7 @@ export default function InvitesPage() {
                                     disabled={isEditBlocked}
                                     onChange={(e) => setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: e.target.value } : g))}
                                     onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id).then()}
-                                    style={{ width: "100%", minHeight: 60, fontSize: 11, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "10px", color: "var(--cream)", resize: "vertical", lineHeight: "1.5" }}
+                                    style={{ width: "100%", minHeight: 60, fontSize: 11, background: "var(--bg-deep)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px", color: "var(--cream)", resize: "vertical", lineHeight: "1.5" }}
                                   />
                                 </div>
                               )}
@@ -1791,7 +1791,7 @@ export default function InvitesPage() {
                             </div>
                             <div style={{ marginTop: 15 }}>
                               <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE SUIVI</label>
-                              <textarea className="input" rows={2} defaultValue={guest.commentaireSuivi} disabled={isEditBlocked} style={{ fontSize: 12, resize: "vertical", background: "rgba(0,0,0,0.2)", opacity: isEditBlocked ? 0.5 : 1 }} onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id)} />
+                              <textarea className="input" rows={2} defaultValue={guest.commentaireSuivi} disabled={isEditBlocked} style={{ fontSize: 12, resize: "vertical", background: "var(--bg-deep)", opacity: isEditBlocked ? 0.5 : 1 }} onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id)} />
                             </div>
                           </div>
                         </div>

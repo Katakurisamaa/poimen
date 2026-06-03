@@ -911,7 +911,7 @@ export default function ActivitiesPage() {
                 <div style={{ position: "relative" }}>
                   <label className="form-label" style={{ marginBottom: 8 }}>Rechercher un membre</label>
                   <div className="relative">
-                    <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.35)" }} />
+                    <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--cream-dim)" }} />
                     <input className="input w-full search-bar-premium" placeholder="Filtrer la liste..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
                   </div>
                 </div>
@@ -999,7 +999,7 @@ export default function ActivitiesPage() {
                             padding: "18px 24px", display: "flex", flexDirection: "column", gap: 12, 
                             cursor: "pointer", transition: "all 0.3s ease",
                             border: isPresent ? "1px solid rgba(0, 255, 136, 0.35)" : "1px solid rgba(212, 175, 55, 0.15)",
-                            background: isPresent ? "rgba(0, 255, 136, 0.04)" : "rgba(10, 6, 22, 0.25)",
+                            background: isPresent ? "rgba(0, 255, 136, 0.04)" : "var(--card)",
                             boxShadow: isPresent ? "0 0 20px rgba(0, 255, 136, 0.08)" : "none"
                           }}
                         >
@@ -1007,7 +1007,7 @@ export default function ActivitiesPage() {
                             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                               <div className="avatar" style={{ 
                                 width: 36, height: 36, fontSize: 12, fontWeight: 700,
-                                background: isPresent ? "rgba(0, 255, 136, 0.1)" : "rgba(255,255,255,0.05)",
+                                background: isPresent ? "rgba(0, 255, 136, 0.1)" : "var(--bg-deep)",
                                 border: `1px solid ${isPresent ? "var(--green)" : "rgba(212,175,55,0.2)"}`,
                                 color: isPresent ? "var(--green)" : "var(--gold-light)"
                               }}>
@@ -1022,7 +1022,7 @@ export default function ActivitiesPage() {
                             </div>
                             <div className={`attendance-switch ${isPresent ? "is-on" : ""}`} style={{ 
                               width: 46, height: 22, borderRadius: 11, position: "relative",
-                              background: isPresent ? "var(--green)" : "rgba(255,255,255,0.08)",
+                              background: isPresent ? "var(--green)" : "var(--bg-deep)",
                               transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                               border: `1px solid ${isPresent ? "transparent" : "rgba(212,175,55,0.15)"}`
                             }}>
@@ -1048,7 +1048,7 @@ export default function ActivitiesPage() {
                                 style={{ 
                                   height: 32, 
                                   fontSize: 11,
-                                  background: "rgba(10, 6, 22, 0.4)",
+                                  background: "var(--bg-deep)",
                                   borderColor: "rgba(212, 175, 55, 0.15)",
                                   padding: "4px 10px",
                                   width: "100%",
@@ -1073,7 +1073,7 @@ export default function ActivitiesPage() {
               {/* Controls */}
               <div className="glass-compact" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 15, flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
-              <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255, 255, 255, 0.35)" }} />
+              <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--cream-dim)" }} />
               <input className="input search-bar-premium" placeholder="Rechercher un membre..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
             </div>
           </div>
@@ -1125,7 +1125,7 @@ export default function ActivitiesPage() {
                   </div>
 
                   {isExpanded && (
-                    <div style={{ padding: "20px", borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.15)" }}>
+                    <div style={{ padding: "20px", borderTop: "1px solid var(--border)", background: "var(--bg-deep)" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 15 }}>
                         {activeActivitiesForPeriod.map(act => {
                           const dates = activityDates[act.id] || [];
@@ -1135,12 +1135,12 @@ export default function ActivitiesPage() {
                           const rateColor = rate >= 75 ? "var(--green)" : rate >= 45 ? "var(--gold)" : "var(--red)";
 
                           return (
-                            <div key={act.id} className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
+                            <div key={act.id} className="glass-compact" style={{ background: "var(--surface)" }}>
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                                 <div>
                                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)" }}>{act.name}</div>
-                                    <div style={{ fontSize: 10, fontWeight: 800, color: rateColor, padding: "2px 6px", background: "rgba(0,0,0,0.2)", borderRadius: 4 }}>{rate}%</div>
+                                    <div style={{ fontSize: 10, fontWeight: 800, color: rateColor, padding: "2px 6px", background: "var(--bg-deep)", borderRadius: 4 }}>{rate}%</div>
                                   </div>
                                   <div style={{ fontSize: 10, color: "var(--muted)" }}>
                                     {act.noFixedHours 
@@ -1163,7 +1163,7 @@ export default function ActivitiesPage() {
                                         width: 28, height: 28, borderRadius: 6, fontSize: 9,
                                         display: "flex", alignItems: "center", justifyContent: "center",
                                         cursor: "pointer", transition: "all 0.2s",
-                                        background: isPresent ? "var(--green-glow)" : "rgba(255,255,255,0.05)",
+                                        background: isPresent ? "var(--green-glow)" : "var(--bg-deep)",
                                         border: comment 
                                           ? "1.5px solid var(--gold)" 
                                           : `1px solid ${isPresent ? "var(--green)" : "var(--border)"}`,
@@ -1307,7 +1307,7 @@ export default function ActivitiesPage() {
                               <span style={{ color: "var(--cream)", fontWeight: 500 }}>{act.name}</span>
                               <span style={{ fontWeight: 700, color: rate > 70 ? "var(--green)" : rate > 40 ? "var(--gold)" : "var(--red)" }}>{Math.round(rate)}%</span>
                             </div>
-                            <div style={{ height: 8, background: "rgba(255,255,255,0.05)", borderRadius: 4, overflow: "hidden" }}>
+                            <div style={{ height: 8, background: "var(--bg-deep)", borderRadius: 4, overflow: "hidden" }}>
                               <div style={{ 
                                 height: "100%", 
                                 width: `${rate}%`, 
@@ -1373,7 +1373,7 @@ export default function ActivitiesPage() {
                           fontWeight: 700,
                           cursor: "pointer",
                           transition: "all 0.2s",
-                          background: isSelected ? "var(--gold)" : "rgba(255,255,255,0.05)",
+                          background: isSelected ? "var(--gold)" : "var(--bg-deep)",
                           color: isSelected ? "var(--bg)" : "var(--muted)",
                           border: `1px solid ${isSelected ? "transparent" : "rgba(212,175,55,0.15)"}`
                         }}

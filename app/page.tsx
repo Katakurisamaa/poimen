@@ -83,7 +83,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "white", padding: "60px 20px", overflowX: "hidden", position: "relative" }}>
+    <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--cream)", padding: "60px 20px", overflowX: "hidden", position: "relative" }}>
       {/* Background Decor - Divine Angelic Lights */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
         {/* Liturgical Violet Aura */}
@@ -212,7 +212,7 @@ export default function LandingPage() {
             padding: "10px 20px",
             borderRadius: "var(--radius-sm)",
             border: "1px solid rgba(212, 175, 55, 0.22)",
-            background: "rgba(10, 6, 22, 0.65)",
+            background: "var(--surface)",
             boxShadow: "0 8px 32px rgba(0,0,0,0.3)"
           }}
         >
@@ -292,7 +292,7 @@ export default function LandingPage() {
                 justifyContent: "space-between", 
                 alignItems: "center",
                 paddingTop: 16,
-                borderTop: "1px solid rgba(255,255,255,0.03)"
+                borderTop: "1px solid var(--border-light)"
               }}>
                 <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.5, opacity: 0.8 }}>Entrer</span>
                 <div style={{ 
@@ -430,7 +430,7 @@ export default function LandingPage() {
                       height: 64,
                       borderRadius: "var(--radius-sm)",
                       border: "1px solid rgba(212, 175, 55, 0.3)",
-                      background: "rgba(10, 6, 22, 0.7)",
+                      background: "var(--surface-solid)",
                       color: "var(--gold-light)",
                       fontWeight: 700
                     }}
