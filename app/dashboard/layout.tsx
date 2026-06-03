@@ -125,8 +125,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       // 4. Redirect if definitely not logged in and trying to access private sub-pages
       const isPublicDashboard = window.location.pathname === "/dashboard" || window.location.pathname === "/dashboard/";
-      if (!isPublicDashboard && !superAdminDetected && !regularUserFound) {
-        window.location.href = "/login";
+      const hasSelectedFamily = !!localStorage.getItem("selected_family");
+
+      // If the user has an active session, they are authenticated — never redirect them to /login
+      // regardless of whether their profile role was resolved. A missing profile is a data issue,
+      // not an auth issue, and should not log them out.
+      const hasActiveSession = !!session?.user;
+
+      if (!isPublicDashboard && !hasActiveSession && !superAdminDetected) {
+        // No session at all and trying to access a private page → send to login
+        // But send family members to the dashboard root (not /login which is the integration page)
+        if (hasSelectedFamily) {
+          window.location.href = "/dashboard";
+        } else {
+          window.location.href = "/login";
+        }
         return;
       }
 

@@ -890,7 +890,9 @@ export default function DashboardPage() {
         lastName: profile.display_name?.split(' ').slice(1).join(' ') || '',
         email: profile.email,
         role: userRoleForUI,
-        isConseiller: isConseillerForUI
+        isConseiller: isConseillerForUI,
+        bergerie_id: selectedForJoin.id,
+        church_id: profile.church_id || selectedForJoin.church_id
       };
 
       if (rememberMe) {
