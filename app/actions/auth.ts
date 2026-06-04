@@ -675,3 +675,26 @@ export async function updateIntegrationTeamMember(params: {
   return { success: true };
 }
 
+export async function getFamilyLeadersList(familyId: string) {
+  try {
+    const supabase = await getServiceSupabase();
+    const { data: members, error } = await supabase
+      .from("members")
+      .select("id, email, civility, first_name, last_name, status")
+      .eq("bergerie_id", familyId)
+      .eq("archived", false);
+
+    if (error) throw error;
+
+    const leaders = (members || []).filter((m: any) => {
+      const status = (m.status || "").toLowerCase().trim();
+      return status.includes("berger") || status.includes("second") || status.includes("responsable");
+    });
+
+    return { success: true, leaders };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+

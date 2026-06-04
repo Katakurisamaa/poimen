@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { adminSignUp, getIntegrationDropdownList } from "@/app/actions/auth";
+import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList } from "@/app/actions/auth";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 import { getActiveContext, getActiveSpaceType, getActiveUserInfo } from "@/lib/client-session";
 
@@ -83,21 +83,16 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchFamilyLeaders = async (familyId: string) => {
       try {
-        const { data, error } = await supabase
-          .from("members")
-          .select("*")
-          .eq("bergerie_id", familyId)
-          .eq("archived", false);
-
-        if (data) {
-          const leaders = data.filter(m => {
-            const status = (m.status || "").toLowerCase().trim();
-            return status.includes("berger") || status.includes("second") || status.includes("responsable");
-          });
-          setFamilyLeaders(leaders);
-          if (leaders.length > 0) {
-            setSelectedLeaderEmail(leaders[0].email);
+        const res = await getFamilyLeadersList(familyId);
+        if (res.success && res.leaders) {
+          setFamilyLeaders(res.leaders);
+          if (res.leaders.length > 0) {
+            setSelectedLeaderEmail(res.leaders[0].email);
           }
+        } else {
+          console.error("Error fetching family leaders:", res?.error);
+          setFamilyLeaders([]);
+          setSelectedLeaderEmail("");
         }
       } catch (err) {
         console.error("Error fetching family leaders:", err);
