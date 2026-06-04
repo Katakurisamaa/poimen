@@ -163,7 +163,7 @@ export async function listIntegrationTeam(churchId: string) {
     .eq("church_id", churchId)
     .eq("context_type", "integration")
     .eq("active", true)
-    .in("role", ["integration_conseiller", "integration_second"]);
+    .in("role", ["integration_conseiller", "integration_second", "integration_responsable"]);
 
   if (contextsError) {
     return { success: false, error: contextsError.message };
@@ -202,7 +202,7 @@ export async function listIntegrationTeam(churchId: string) {
         contextId: context.id,
         email: context.email || profile?.email,
         name: context.display_name || profile?.display_name || context.email,
-        role: context.role === "integration_second" ? "Second" : "Conseiller",
+        role: context.role === "integration_responsable" ? "Responsable" : context.role === "integration_second" ? "Second" : "Conseiller",
         status: "active",
         workload: workloadMap[context.user_id] || 0,
         createdAt: context.created_at || profile?.created_at
@@ -601,5 +601,77 @@ export async function getIntegrationDropdownList(churchId: string) {
   } catch (err: any) {
     return { success: false, error: err.message };
   }
+}
+
+export async function updateIntegrationTeamMember(params: {
+  churchId: string;
+  userId: string;
+  contextId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  accessCode?: string;
+  role: string;
+}) {
+  const permission = await assertCanManageIntegrationTeam(params.churchId);
+  if (!permission.ok) return { success: false, error: permission.error };
+
+  const supabase = await getServiceSupabase();
+  const cleanEmail = params.email.toLowerCase().trim();
+  const displayName = `${params.firstName.trim()} ${params.lastName.trim()}`.trim();
+  const role = params.role === "integration_second" ? "integration_second" : params.role === "integration_responsable" ? "integration_responsable" : "integration_conseiller";
+
+  // 1. Update auth email & password if provided
+  const updatePayload: any = { email: cleanEmail };
+  if (params.accessCode) {
+    updatePayload.password = params.accessCode;
+  }
+
+  const { error: authError } = await supabase.auth.admin.updateUserById(params.userId, updatePayload);
+  if (authError) return { success: false, error: authError.message };
+
+  // 2. Update user_contexts
+  const { error: contextError } = await supabase
+    .from("user_contexts")
+    .update({
+      email: cleanEmail,
+      display_name: displayName,
+      role: role
+    })
+    .eq("id", params.contextId);
+
+  if (contextError) return { success: false, error: contextError.message };
+
+  // 3. Update profiles
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .update({
+      email: cleanEmail,
+      display_name: displayName
+    })
+    .eq("id", params.userId);
+
+  if (profileError) return { success: false, error: profileError.message };
+
+  // 4. Update church integration settings if role is integration_responsable
+  if (role === "integration_responsable") {
+    const updateChurchPayload: any = {
+      integration_email: cleanEmail,
+      integration_first_name: params.firstName.trim(),
+      integration_last_name: params.lastName.trim()
+    };
+    if (params.accessCode) {
+      updateChurchPayload.integration_access_code = params.accessCode;
+    }
+
+    const { error: churchError } = await supabase
+      .from("churches")
+      .update(updateChurchPayload)
+      .eq("id", params.churchId);
+
+    if (churchError) return { success: false, error: churchError.message };
+  }
+
+  return { success: true };
 }
 
