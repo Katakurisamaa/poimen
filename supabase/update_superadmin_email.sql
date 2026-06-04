@@ -2,34 +2,28 @@
 -- Poimén Helper - Mise à jour de l'e-mail du Super Administrateur
 -- =============================================================
 
--- 0. Nettoyer l'éventuel compte doublon temporaire 'iccintegration2025@gmail.com' s'il a déjà été créé
--- (Uniquement si son ID est différent du super admin d'origine pour ne pas supprimer le bon compte)
-DELETE FROM public.profiles 
-WHERE email = 'iccintegration2025@gmail.com' 
-  AND id NOT IN (SELECT id FROM public.profiles WHERE email = 'minkojunior400@gmail.com');
+-- 0. Nettoyer tout compte existant sous 'iccintegration2025@gmail.com' pour éviter les conflits
+DELETE FROM public.profiles WHERE email = 'iccintegration2025@gmail.com';
+DELETE FROM auth.users WHERE email = 'iccintegration2025@gmail.com';
 
-DELETE FROM auth.users 
-WHERE email = 'iccintegration2025@gmail.com' 
-  AND id NOT IN (SELECT id FROM public.profiles WHERE email = 'minkojunior400@gmail.com');
-
--- 1. Mettre à jour l'e-mail de l'utilisateur admin dans la table d'authentification Supabase
+-- 1. Renommer l'utilisateur 'minkojunior400@gmail.com' en 'iccintegration2025@gmail.com' dans auth.users
 UPDATE auth.users 
 SET email = 'iccintegration2025@gmail.com', 
     email_confirmed_at = now() 
 WHERE email = 'minkojunior400@gmail.com';
 
--- 2. Mettre à jour l'e-mail dans le profil public
+-- 2. Renommer dans public.profiles et forcer le rôle 'super_admin' et active 'true'
 UPDATE public.profiles 
-SET email = 'iccintegration2025@gmail.com' 
+SET email = 'iccintegration2025@gmail.com',
+    role = 'super_admin',
+    active = true
 WHERE email = 'minkojunior400@gmail.com';
 
--- 3. S'assurer que le profil existe et a le rôle 'super_admin'
-INSERT INTO public.profiles (id, email, display_name, role, active)
-SELECT id, email, 'Super Admin', 'super_admin', true
-FROM auth.users
-WHERE email = 'iccintegration2025@gmail.com'
-ON CONFLICT (id) DO UPDATE 
-SET role = 'super_admin', active = true, email = 'iccintegration2025@gmail.com';
+-- 3. Définir un mot de passe temporaire connu pour ce compte : 'IccIntegration2025!'
+-- Vous pourrez le modifier ultérieurement, mais cela garantit une connexion réussie.
+UPDATE auth.users 
+SET encrypted_password = crypt('IccIntegration2025!', gen_salt('bf')) 
+WHERE email = 'iccintegration2025@gmail.com';
 
 -- 3. Mettre à jour la fonction get_user_role() pour intégrer le nouvel email
 CREATE OR REPLACE FUNCTION get_user_role()
