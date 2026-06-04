@@ -251,13 +251,30 @@ export default function ProfilePage() {
         return;
       }
 
+      // Check if email is changing in Supabase Auth
+      const { data: { user: currentUser }, error: userErr } = await supabase.auth.getUser();
+      if (userErr) throw userErr;
+
+      let emailMessage = "";
+      if (currentUser && memberData.email.toLowerCase().trim() !== currentUser.email?.toLowerCase().trim()) {
+        const { data: authUpdate, error: authUpdateErr } = await supabase.auth.updateUser({
+          email: memberData.email.toLowerCase().trim()
+        });
+
+        if (authUpdateErr) throw authUpdateErr;
+
+        if (authUpdate.user?.new_email) {
+          emailMessage = " Un e-mail de confirmation a été envoyé à votre nouvelle adresse. Veuillez valider le lien reçu pour confirmer le changement.";
+        }
+      }
+
       if (userInfo?.role === "super_admin") {
         const displayName = `${memberData.firstName} ${memberData.lastName}`;
         const { error } = await supabase
           .from("profiles")
           .update({
             display_name: displayName,
-            email: memberData.email,
+            email: memberData.email.toLowerCase().trim(),
             phone: memberData.phone || null,
             age: memberData.age || null,
             civility: memberData.civility || "M."
@@ -271,7 +288,7 @@ export default function ProfilePage() {
           .from("profiles")
           .update({
             display_name: displayName,
-            email: memberData.email,
+            email: memberData.email.toLowerCase().trim(),
             phone: memberData.phone || null,
             age: memberData.age || null,
             civility: memberData.civility || "M."
@@ -289,7 +306,7 @@ export default function ProfilePage() {
               first_name: memberData.firstName,
               last_name: memberData.lastName,
               phone: memberData.phone,
-              email: memberData.email,
+              email: memberData.email.toLowerCase().trim(),
               age: memberData.age
             })
             .eq("id", memberData.id);
@@ -304,7 +321,7 @@ export default function ProfilePage() {
             .from("profiles")
             .update({
               display_name: displayName,
-              email: memberData.email,
+              email: memberData.email.toLowerCase().trim(),
               phone: memberData.phone || null,
               age: memberData.age || null,
               civility: memberData.civility || "M."
@@ -318,13 +335,13 @@ export default function ProfilePage() {
         ...userInfo,
         firstName: memberData.firstName,
         lastName: memberData.lastName,
-        email: memberData.email,
+        email: memberData.email.toLowerCase().trim(),
       };
       localStorage.setItem("poimen_user_info", JSON.stringify(newUserInfo));
       setUserInfo(newUserInfo);
       window.dispatchEvent(new Event("storage")); // Trigger sidebar update
 
-      setMessage({ type: "success", text: "Profil mis à jour avec succès !" });
+      setMessage({ type: "success", text: `Profil mis à jour avec succès !${emailMessage}` });
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "Erreur lors de la mise à jour." });
     } finally {
