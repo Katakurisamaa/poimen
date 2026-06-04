@@ -282,6 +282,15 @@ export default function ProfilePage() {
           .eq("id", userInfo.id);
 
         if (error) throw error;
+
+        // Proactively sync integration_email in churches table if this superadmin email was used as responsible
+        const oldEmail = currentUser?.email?.toLowerCase().trim();
+        if (oldEmail) {
+          await supabase
+            .from("churches")
+            .update({ integration_email: memberData.email.toLowerCase().trim() })
+            .eq("integration_email", oldEmail);
+        }
       } else if (isIntegration) {
         const displayName = `${memberData.firstName} ${memberData.lastName}`;
         const { error } = await supabase
@@ -296,6 +305,14 @@ export default function ProfilePage() {
           .eq("id", memberData.id);
 
         if (error) throw error;
+
+        // Proactively sync integration_email in churches table for this responsible
+        if (userInfo?.role === "integration_responsable" && userInfo.church_id) {
+          await supabase
+            .from("churches")
+            .update({ integration_email: memberData.email.toLowerCase().trim() })
+            .eq("id", userInfo.church_id);
+        }
       } else {
         if (isMemberRecord) {
           // Update members table
