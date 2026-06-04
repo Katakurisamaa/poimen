@@ -83,7 +83,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return;
       }
 
-      const spaceExited = localStorage.getItem("poimen_space_exited") === "true";
+      let spaceExited = localStorage.getItem("poimen_space_exited") === "true";
+
+      if (spaceExited) {
+        superAdminDetected = false;
+        isIntegrationUser = false;
+        regularUserFound = false;
+      }
 
       // Synchronize poimen_user_info if logged in
       const activeContextRaw = localStorage.getItem("poimen_active_context");
@@ -124,59 +130,69 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .eq("user_id", session.user.id)
           .eq("active", true);
 
+        const isPublicDashboard = window.location.pathname === "/dashboard" || window.location.pathname === "/dashboard/";
+
         if ((availableContexts?.length || 0) > 1) {
-          localStorage.removeItem("poimen_user_info");
-          localStorage.removeItem("selected_family");
-          localStorage.removeItem("is_super_admin");
-          window.location.href = "/login";
-          return;
-        }
-
-        let userRoleForUI = profileData.role;
-        let isConseillerForUI = !!profileData.role?.toLowerCase().startsWith("integration_");
-
-        if (profileData.role === "super_admin" && !isLocalSuperAdmin && profileData.bergerie_id) {
-          const { data: member } = await supabase
-            .from("members")
-            .select("*")
-            .eq("email", profileData.email)
-            .eq("bergerie_id", profileData.bergerie_id)
-            .maybeSingle();
-          if (member) {
-            userRoleForUI = member.status ? (
-              member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
-              member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
-              member.status.toLowerCase().trim()
-            ) : "membre";
-            isConseillerForUI = member.is_conseiller;
+          if (!isPublicDashboard) {
+            localStorage.removeItem("poimen_user_info");
+            localStorage.removeItem("selected_family");
+            localStorage.removeItem("is_super_admin");
+            window.location.href = "/login";
+            return;
+          } else {
+            localStorage.setItem("poimen_space_exited", "true");
+            spaceExited = true;
+            superAdminDetected = false;
+            isIntegrationUser = false;
+            regularUserFound = false;
           }
-        }
+        } else {
+          let userRoleForUI = profileData.role;
+          let isConseillerForUI = !!profileData.role?.toLowerCase().startsWith("integration_");
 
-        const infoObj = {
-          id: profileData.id,
-          email: profileData.email,
-          role: userRoleForUI,
-          isConseiller: isConseillerForUI,
-          firstName: profileData.display_name?.split(' ')[0] || '',
-          lastName: profileData.display_name?.split(' ').slice(1).join(' ') || '',
-          church_id: profileData.church_id,
-          bergerie_id: profileData.bergerie_id
-        };
-        localStorage.setItem("poimen_user_info", JSON.stringify(infoObj));
+          if (profileData.role === "super_admin" && !isLocalSuperAdmin && profileData.bergerie_id) {
+            const { data: member } = await supabase
+              .from("members")
+              .select("*")
+              .eq("email", profileData.email)
+              .eq("bergerie_id", profileData.bergerie_id)
+              .maybeSingle();
+            if (member) {
+              userRoleForUI = member.status ? (
+                member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
+                member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
+                member.status.toLowerCase().trim()
+              ) : "membre";
+              isConseillerForUI = member.is_conseiller;
+            }
+          }
 
-        if (superAdminDetected) {
-          localStorage.setItem("is_super_admin", "true");
-        }
+          const infoObj = {
+            id: profileData.id,
+            email: profileData.email,
+            role: userRoleForUI,
+            isConseiller: isConseillerForUI,
+            firstName: profileData.display_name?.split(' ')[0] || '',
+            lastName: profileData.display_name?.split(' ').slice(1).join(' ') || '',
+            church_id: profileData.church_id,
+            bergerie_id: profileData.bergerie_id
+          };
+          localStorage.setItem("poimen_user_info", JSON.stringify(infoObj));
 
-        if (profileData.bergerie_id && !localStorage.getItem("selected_family")) {
-          // Recover selected_family
-          const { data: family } = await supabase
-            .from("bergeries")
-            .select("*")
-            .eq("id", profileData.bergerie_id)
-            .maybeSingle();
-          if (family) {
-            localStorage.setItem("selected_family", JSON.stringify(family));
+          if (superAdminDetected) {
+            localStorage.setItem("is_super_admin", "true");
+          }
+
+          if (profileData.bergerie_id && !localStorage.getItem("selected_family")) {
+            // Recover selected_family
+            const { data: family } = await supabase
+              .from("bergeries")
+              .select("*")
+              .eq("id", profileData.bergerie_id)
+              .maybeSingle();
+            if (family) {
+              localStorage.setItem("selected_family", JSON.stringify(family));
+            }
           }
         }
       }
