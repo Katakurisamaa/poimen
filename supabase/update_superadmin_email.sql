@@ -3,8 +3,14 @@
 -- =============================================================
 
 -- 0. Nettoyer l'éventuel compte doublon temporaire 'iccintegration2025@gmail.com' s'il a déjà été créé
-DELETE FROM public.profiles WHERE email = 'iccintegration2025@gmail.com';
-DELETE FROM auth.users WHERE email = 'iccintegration2025@gmail.com';
+-- (Uniquement si son ID est différent du super admin d'origine pour ne pas supprimer le bon compte)
+DELETE FROM public.profiles 
+WHERE email = 'iccintegration2025@gmail.com' 
+  AND id NOT IN (SELECT id FROM public.profiles WHERE email = 'minkojunior400@gmail.com');
+
+DELETE FROM auth.users 
+WHERE email = 'iccintegration2025@gmail.com' 
+  AND id NOT IN (SELECT id FROM public.profiles WHERE email = 'minkojunior400@gmail.com');
 
 -- 1. Mettre à jour l'e-mail de l'utilisateur admin dans la table d'authentification Supabase
 UPDATE auth.users 
@@ -16,6 +22,14 @@ WHERE email = 'minkojunior400@gmail.com';
 UPDATE public.profiles 
 SET email = 'iccintegration2025@gmail.com' 
 WHERE email = 'minkojunior400@gmail.com';
+
+-- 3. S'assurer que le profil existe et a le rôle 'super_admin'
+INSERT INTO public.profiles (id, email, display_name, role, active)
+SELECT id, email, 'Super Admin', 'super_admin', true
+FROM auth.users
+WHERE email = 'iccintegration2025@gmail.com'
+ON CONFLICT (id) DO UPDATE 
+SET role = 'super_admin', active = true, email = 'iccintegration2025@gmail.com';
 
 -- 3. Mettre à jour la fonction get_user_role() pour intégrer le nouvel email
 CREATE OR REPLACE FUNCTION get_user_role()
