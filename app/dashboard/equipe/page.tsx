@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Users, UserPlus, Trash2, Mail, ShieldAlert, Loader2, CheckCircle2, Clock3, Plus, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { createIntegrationTeamMember, deactivateIntegrationTeamMember, listIntegrationTeam } from "@/app/actions/auth";
 
 export default function IntegrationTeamPage() {
   const [userInfo, setUserInfo] = useState<any>(null);
@@ -74,55 +75,9 @@ export default function IntegrationTeamPage() {
 
   const fetchTeam = async (churchId: string) => {
     try {
-      // 1. Fetch active profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("church_id", churchId)
-        .in("role", ["integration_conseiller", "integration_second"]);
-
-      // 2. Fetch pending counselors
-      const { data: pending } = await supabase
-        .from("pending_counselors")
-        .select("*")
-        .eq("church_id", churchId);
-
-      // 3. Fetch invites to calculate workloads
-      const { data: invites } = await supabase
-        .from("invites")
-        .select("assigned_to, bergerie_id")
-        .eq("church_id", churchId);
-
-      const workloadMap: Record<string, number> = {};
-      if (invites) {
-        invites.forEach(inv => {
-          if (inv.assigned_to && !inv.bergerie_id) {
-            workloadMap[inv.assigned_to] = (workloadMap[inv.assigned_to] || 0) + 1;
-          }
-        });
-      }
-
-      const activeList = (profiles || []).map(p => ({
-        id: p.id,
-        email: p.email,
-        name: p.display_name,
-        role: p.role === "integration_second" ? "Second" : "Conseiller",
-        status: "active",
-        workload: workloadMap[p.id] || 0,
-        createdAt: p.created_at
-      }));
-
-      const pendingList = (pending || []).map(p => ({
-        id: p.id,
-        email: p.email,
-        name: `${p.first_name} ${p.last_name}`,
-        role: p.role === "integration_second" ? "Second" : "Conseiller",
-        status: "pending",
-        workload: 0,
-        createdAt: p.created_at
-      }));
-
-      setTeam([...activeList, ...pendingList]);
+      const res = await listIntegrationTeam(churchId);
+      if (!res.success) throw new Error(res.error);
+      setTeam(res.team || []);
     } catch (e) {
       console.error("Error fetching team:", e);
     }
@@ -145,19 +100,16 @@ export default function IntegrationTeamPage() {
         return;
       }
 
-      // Insert pending counselor
-      const { error } = await supabase
-        .from("pending_counselors")
-        .insert({
-          church_id: church.id,
-          email: newCounselor.email.toLowerCase().trim(),
-          first_name: newCounselor.firstName,
-          last_name: newCounselor.lastName,
-          access_code: newCounselor.accessCode,
-          role: newCounselor.role
-        });
+      const res = await createIntegrationTeamMember({
+        churchId: church.id,
+        firstName: newCounselor.firstName,
+        lastName: newCounselor.lastName,
+        email: newCounselor.email,
+        accessCode: newCounselor.accessCode,
+        role: newCounselor.role
+      });
 
-      if (error) throw error;
+      if (!res.success) throw new Error(res.error);
 
       alert("Membre de l'équipe pré-enregistré avec succès ! Il pourra se connecter immédiatement avec son adresse email et le code d'accès.");
       
@@ -181,6 +133,17 @@ export default function IntegrationTeamPage() {
 
     setLoading(true);
     try {
+      const deactivation = await deactivateIntegrationTeamMember({
+        churchId: church.id,
+        userId: member.id,
+        contextId: member.contextId
+      });
+      if (!deactivation.success) throw new Error(deactivation.error);
+
+      alert("Membre retire de l'equipe avec succes.");
+      await fetchTeam(church.id);
+      return;
+
       if (member.status === "pending") {
         const { error } = await supabase
           .from("pending_counselors")
