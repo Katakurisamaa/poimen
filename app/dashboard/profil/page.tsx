@@ -252,8 +252,8 @@ export default function ProfilePage() {
       }
 
       // Check if email is changing in Supabase Auth
-      const { data: { user: currentUser }, error: userErr } = await supabase.auth.getUser();
-      if (userErr) throw userErr;
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUser = session?.user;
 
       let emailMessage = "";
       if (currentUser && memberData.email.toLowerCase().trim() !== currentUser.email?.toLowerCase().trim()) {
