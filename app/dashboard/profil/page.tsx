@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
+import { getActiveUserInfo } from "@/lib/client-session";
 
 const AGE_RANGES = [
   "Moins de 18 ans",
@@ -68,13 +69,32 @@ export default function ProfilePage() {
   };
 
 
-  async function fetchMemberData(email: string, role?: string, userId?: string, bergerieId?: string | null) {
+  async function fetchMemberData(email: string, role?: string, userId?: string, bergerieId?: string | null, fallbackInfo?: any) {
     try {
       const isUserIntegration = role?.toLowerCase().startsWith("integration_");
       const isSuperAdmin = role === "super_admin";
 
       if (isUserIntegration) {
         setIsMemberRecord(false);
+        const parsedRole = role === "integration_responsable"
+          ? "Responsable Integration"
+          : role === "integration_second"
+          ? "Second Integration"
+          : "Conseiller Integration";
+
+        setMemberData({
+          id: userId,
+          firstName: fallbackInfo?.firstName || "",
+          lastName: fallbackInfo?.lastName || "",
+          email,
+          role,
+          status: parsedRole,
+          civility: fallbackInfo?.civility || "M.",
+          age: fallbackInfo?.age || "",
+          phone: fallbackInfo?.phone || ""
+        });
+        return;
+
         // Query profiles table
         const { data } = await supabase
           .from("profiles")
@@ -171,7 +191,8 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
-    const info = localStorage.getItem("poimen_user_info");
+    const activeUserInfo = getActiveUserInfo();
+    const info = activeUserInfo ? JSON.stringify(activeUserInfo) : localStorage.getItem("poimen_user_info");
     
     // Only use mock admin if we don't have real user info in localStorage
     if (isLocalSuperAdmin && (!info || JSON.parse(info).id?.includes("mock"))) {
@@ -197,7 +218,7 @@ export default function ProfilePage() {
       const parsed = JSON.parse(info);
       setTimeout(() => {
         setUserInfo(parsed);
-        fetchMemberData(parsed.email, parsed.role, parsed.id, parsed.bergerie_id);
+        fetchMemberData(parsed.email, parsed.role, parsed.id, parsed.bergerie_id, parsed);
       }, 0);
     } else {
       setTimeout(() => setLoading(false), 0);
@@ -438,6 +459,7 @@ export default function ProfilePage() {
                   localStorage.setItem("poimen_logging_out", "true");
                   localStorage.removeItem("poimen_active_context");
                   localStorage.removeItem("poimen_user_info");
+                  localStorage.removeItem("selected_family");
                   localStorage.removeItem("is_super_admin");
                   window.location.href = "/";
                 }}

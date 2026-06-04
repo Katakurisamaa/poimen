@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Users, UserPlus, Trash2, Mail, ShieldAlert, Loader2, CheckCircle2, Clock3, Plus, X, Pencil } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { createIntegrationTeamMember, deactivateIntegrationTeamMember, listIntegrationTeam, updateIntegrationTeamMember } from "@/app/actions/auth";
+import { getActiveUserInfo } from "@/lib/client-session";
 
 export default function IntegrationTeamPage() {
   const [userInfo, setUserInfo] = useState<any>(null);
@@ -108,7 +109,8 @@ export default function IntegrationTeamPage() {
       const churchObj = JSON.parse(savedChurch);
       setChurch(churchObj);
 
-      const savedUserInfo = localStorage.getItem("poimen_user_info");
+      const activeUserInfo = getActiveUserInfo();
+      const savedUserInfo = activeUserInfo ? JSON.stringify(activeUserInfo) : localStorage.getItem("poimen_user_info");
       if (savedUserInfo) {
         const info = JSON.parse(savedUserInfo);
         setUserInfo(info);

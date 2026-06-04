@@ -9,6 +9,7 @@ import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { adminSignUp, getIntegrationDropdownList } from "@/app/actions/auth";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
+import { getActiveContext, getActiveSpaceType, getActiveUserInfo } from "@/lib/client-session";
 
 const STATS = [
   { label: "Membres", value: "0", sub: "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
@@ -806,6 +807,45 @@ export default function DashboardPage() {
     const churchObj = JSON.parse(savedChurch);
     setChurch(churchObj);
 
+    const context = getActiveContext();
+    const contextSpace = getActiveSpaceType();
+    const contextUserInfo = getActiveUserInfo();
+    if (contextUserInfo) {
+      setUserInfo(contextUserInfo);
+    }
+
+    if (context?.context_type === "integration") {
+      setMyBergerie(null);
+      setActiveSpace("integration");
+      setLoading(false);
+      return;
+    }
+
+    if (context?.context_type === "family" && context.bergerie_id) {
+      const savedFamilyForContext = localStorage.getItem("selected_family");
+      if (savedFamilyForContext) {
+        try {
+          setMyBergerie(JSON.parse(savedFamilyForContext));
+          setActiveSpace("family");
+          setLoading(false);
+          return;
+        } catch {}
+      }
+
+      const { data: family } = await supabase
+        .from("bergeries")
+        .select("*")
+        .eq("id", context.bergerie_id)
+        .maybeSingle();
+      if (family) {
+        localStorage.setItem("selected_family", JSON.stringify(family));
+        setMyBergerie(family);
+        setActiveSpace("family");
+        setLoading(false);
+        return;
+      }
+    }
+
     const spaceExited = localStorage.getItem("poimen_space_exited") === "true";
     if (spaceExited) {
       setMyBergerie(null);
@@ -854,7 +894,7 @@ export default function DashboardPage() {
     
     if (pending) setPendingRequest(pending);
 
-    const savedFamily = localStorage.getItem("selected_family");
+    const savedFamily = contextSpace === "integration" ? null : localStorage.getItem("selected_family");
     if (savedFamily) {
       setMyBergerie(JSON.parse(savedFamily));
       setActiveSpace("family");
@@ -865,6 +905,7 @@ export default function DashboardPage() {
       const parsed = JSON.parse(savedUserInfo);
       setUserInfo(parsed);
       if (parsed.role?.toLowerCase().startsWith("integration_")) {
+        setMyBergerie(null);
         setActiveSpace("integration");
       } else if (savedFamily) {
         setActiveSpace("family");
@@ -882,7 +923,8 @@ export default function DashboardPage() {
       if (info) {
         try { setUserInfo(JSON.parse(info)); } catch (e) { console.error("Error parsing user info", e); }
       }
-      const fam = localStorage.getItem("selected_family");
+      const activeContext = getActiveContext();
+      const fam = activeContext?.context_type === "integration" ? null : localStorage.getItem("selected_family");
       if (fam) {
         try { setMyBergerie(JSON.parse(fam)); } catch (e) { console.error("Error parsing family info", e); }
       }
@@ -1702,6 +1744,9 @@ export default function DashboardPage() {
                 onClick={() => {
                   setMyBergerie(null);
                   localStorage.removeItem("selected_family");
+                  localStorage.removeItem("poimen_active_context");
+                  localStorage.removeItem("poimen_user_info");
+                  localStorage.setItem("poimen_space_exited", "true");
                   window.dispatchEvent(new Event("storage"));
                 }}
               >

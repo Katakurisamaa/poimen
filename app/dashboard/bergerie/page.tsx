@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
+import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 
 
 const STATUS_OPTIONS = ["Brebi", "Responsable", "Berger", "Second"];
@@ -121,17 +122,21 @@ export default function BergeriePage() {
   useEffect(() => {
     setMounted(true);
     if (typeof window !== "undefined") {
-      const userInfoStr = localStorage.getItem("poimen_user_info");
+      const activeContext = getActiveContext();
+      const activeUserInfo = getActiveUserInfo();
+      const userInfoStr = activeUserInfo ? JSON.stringify(activeUserInfo) : localStorage.getItem("poimen_user_info");
       if (userInfoStr) {
         const parsed = JSON.parse(userInfoStr);
         setUserRole(parsed.role);
         setUserName(`${parsed.firstName} ${parsed.lastName}`);
         setUserEmail(parsed.email?.toLowerCase());
       }
-      const fam = localStorage.getItem("selected_family");
+      const fam = activeContext?.context_type === "integration" ? null : localStorage.getItem("selected_family");
       if (fam) {
         const parsedFam = JSON.parse(fam);
         setFamilyId(parsedFam.id);
+      } else if (activeContext?.context_type === "family" && activeContext.bergerie_id) {
+        setFamilyId(activeContext.bergerie_id);
       }
     }
   }, []);
@@ -1666,4 +1671,3 @@ export default function BergeriePage() {
     </div>
   );
 }
-

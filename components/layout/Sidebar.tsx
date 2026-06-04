@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
+import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import {
   LayoutDashboard, Users, UserPlus, CalendarDays, Target,
   AlertTriangle, FileText, ChevronLeft, LogOut,
@@ -55,8 +56,9 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
         setChurchName(JSON.parse(savedChurch).name);
       }
       
-      const savedFamily = localStorage.getItem("selected_family");
-      setHasFamily(!!savedFamily);
+      const activeContext = getActiveContext();
+      const savedFamily = activeContext?.context_type === "integration" ? null : localStorage.getItem("selected_family");
+      setHasFamily(activeContext?.context_type === "family" || !!savedFamily);
 
       const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
       let superAdminDetected = false;
@@ -74,7 +76,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
       const info = localStorage.getItem("poimen_user_info");
       if (info) {
         try {
-          const parsedInfo = JSON.parse(info);
+          const parsedInfo = getActiveUserInfo() || JSON.parse(info);
           setUserInfo(parsedInfo);
           if ((parsedInfo.role === 'super_admin' || parsedInfo.email === SUPER_ADMIN_EMAIL) && isLocalSuperAdmin) {
             superAdminDetected = true;
@@ -258,6 +260,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
                 localStorage.setItem("poimen_logging_out", "true");
                 localStorage.removeItem("poimen_active_context");
                 localStorage.removeItem("poimen_user_info");
+                localStorage.removeItem("selected_family");
                 localStorage.removeItem("is_super_admin");
                 window.location.href = "/";
               }}

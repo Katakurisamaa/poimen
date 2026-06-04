@@ -9,6 +9,7 @@ import {
   Heart, Flame, UserPlus
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 
 interface Evangelisation {
   id: string;
@@ -101,7 +102,10 @@ export default function EvangelisationPage() {
   }, [isAddModalOpen]);
 
   useEffect(() => {
-    const userInfoLocal = localStorage.getItem("poimen_user_info");
+    const activeContext = getActiveContext();
+    const activeUserInfo = getActiveUserInfo();
+    const userInfoLocal = activeUserInfo ? JSON.stringify(activeUserInfo) : localStorage.getItem("poimen_user_info");
+    const isActiveIntegrationContext = activeContext?.context_type === "integration";
     let uId = "";
     let cId = "";
     let cleanRole = "";
@@ -135,7 +139,7 @@ export default function EvangelisationPage() {
     setUserId(uId);
     setChurchId(cId);
 
-    const fam = localStorage.getItem("selected_family");
+    const fam = isActiveIntegrationContext ? null : localStorage.getItem("selected_family");
     let activeFamilyId = "";
     if (fam) {
       try {
@@ -170,7 +174,7 @@ export default function EvangelisationPage() {
             resolvedUserId = p.id;
             resolvedChurchId = resolvedChurchId || p.church_id || "";
             resolvedRole = resolvedRole || (p.role || "").toLowerCase().trim();
-            if (p.bergerie_id) {
+            if (p.bergerie_id && !isActiveIntegrationContext) {
               resolvedFamilyId = p.bergerie_id;
               setFamilyId(p.bergerie_id);
             }
@@ -225,7 +229,7 @@ export default function EvangelisationPage() {
             if (!resolvedRole) {
               resolvedRole = (p.role || "").toLowerCase().trim();
             }
-            if (p.bergerie_id && !resolvedFamilyId) {
+            if (p.bergerie_id && !resolvedFamilyId && !isActiveIntegrationContext) {
               resolvedFamilyId = p.bergerie_id;
               setFamilyId(p.bergerie_id);
             }
@@ -283,7 +287,7 @@ export default function EvangelisationPage() {
             // ALWAYS sync role with DB for accuracy (covers role changes since last login)
             setUserRoleClean(resolvedRole || (rp.role || "").toLowerCase().trim());
 
-            if (rp.bergerie_id && !resolvedFamilyId) {
+            if (rp.bergerie_id && !resolvedFamilyId && !isActiveIntegrationContext) {
               resolvedFamilyId = rp.bergerie_id;
               setFamilyId(rp.bergerie_id);
             }
@@ -427,6 +431,9 @@ export default function EvangelisationPage() {
     try {
       // 1. Resolve auth user ID and email
       const { data: { session } } = await supabase.auth.getSession();
+      const activeContext = getActiveContext();
+      const activeUserInfo = getActiveUserInfo();
+      const isActiveIntegrationSubmit = activeContext?.context_type === "integration";
       let activeUid = session?.user?.id || userId;
       const authEmail = session?.user?.email;
 
@@ -437,7 +444,7 @@ export default function EvangelisationPage() {
       let storageRole = "";
       let storageUserId = "";
       
-      const userInfoLocal = localStorage.getItem("poimen_user_info");
+      const userInfoLocal = activeUserInfo ? JSON.stringify(activeUserInfo) : localStorage.getItem("poimen_user_info");
       if (userInfoLocal) {
         try {
           const parsed = JSON.parse(userInfoLocal);
@@ -504,7 +511,7 @@ export default function EvangelisationPage() {
         .single();
 
       const activeChurchId = profile?.church_id || storageChurchId || churchId;
-      const dbBergerieId = profile?.bergerie_id || storageFamilyId || familyId;
+      const dbBergerieId = isActiveIntegrationSubmit ? "" : (profile?.bergerie_id || storageFamilyId || familyId);
       
       // Prioritize simulated role for proper UI context mapping
       const effectiveRole = (storageRole || profile?.role || userRoleClean || "").toLowerCase().trim();

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
+import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 
 
 interface Guest {
@@ -142,7 +143,9 @@ export default function InvitesPage() {
   }, [isAddModalOpen, editingGuestId, confirmDeleteId]);
 
   useEffect(() => {
-    const userInfoStr = localStorage.getItem("poimen_user_info");
+    const activeContext = getActiveContext();
+    const activeUserInfo = getActiveUserInfo();
+    const userInfoStr = activeUserInfo ? JSON.stringify(activeUserInfo) : localStorage.getItem("poimen_user_info");
     if (userInfoStr) {
       try {
         const parsed = JSON.parse(userInfoStr);
@@ -164,7 +167,7 @@ export default function InvitesPage() {
         console.error("Error parsing user info", e);
       }
     }
-    const fam = localStorage.getItem("selected_family");
+    const fam = activeContext?.context_type === "integration" ? null : localStorage.getItem("selected_family");
     if (fam) {
       const parsedFam = JSON.parse(fam);
       setFamilyId(parsedFam.id);
@@ -197,9 +200,16 @@ export default function InvitesPage() {
   }, [familyId, userRole, churchId]);
 
   const syncUserRole = async () => {
-    const userInfo = JSON.parse(localStorage.getItem("poimen_user_info") || "{}");
+    const activeContext = getActiveContext();
+    const userInfo = getActiveUserInfo() || JSON.parse(localStorage.getItem("poimen_user_info") || "{}");
     const userEmail = userInfo.email?.toLowerCase();
     if (!userEmail) return;
+
+    if (activeContext) {
+      setUserRole(userInfo.role);
+      localStorage.setItem("poimen_user_info", JSON.stringify(userInfo));
+      return;
+    }
 
     // 1. Essayer de récupérer le rôle depuis la table profiles (officiel pour les connexions)
     const { data: profData, error: profErr } = await supabase
@@ -254,7 +264,7 @@ export default function InvitesPage() {
     
     if (!error && data) {
       // Auto-add safety net: check if current user is in members
-      const userInfo = JSON.parse(localStorage.getItem("poimen_user_info") || "{}");
+      const userInfo = getActiveUserInfo() || JSON.parse(localStorage.getItem("poimen_user_info") || "{}");
       const userEmail = userInfo.email?.toLowerCase();
       const userRoleVal = (userInfo.role || "").toLowerCase();
       const isLeader = userRoleVal.includes("berger") || userRoleVal.includes("second") || userRoleVal.includes("responsable");
@@ -288,7 +298,7 @@ export default function InvitesPage() {
 
       // If userName is still empty, try to find current user in the list to sync the name
       if (!userName) {
-        const userInfo = JSON.parse(localStorage.getItem("poimen_user_info") || "{}");
+          const userInfo = getActiveUserInfo() || JSON.parse(localStorage.getItem("poimen_user_info") || "{}");
         const userEmail = userInfo.email?.toLowerCase();
         const me = data.find(m => m.email?.toLowerCase() === userEmail);
         if (me) {

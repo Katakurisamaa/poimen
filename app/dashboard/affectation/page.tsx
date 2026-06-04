@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
+import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 
 
 interface Guest {
@@ -116,7 +117,9 @@ export default function AffectationPage() {
   }, [userRoleClean, isConseiller]);
 
   useEffect(() => {
-    const userInfo = localStorage.getItem("poimen_user_info");
+    const activeContext = getActiveContext();
+    const activeUserInfo = getActiveUserInfo();
+    const userInfo = activeUserInfo ? JSON.stringify(activeUserInfo) : localStorage.getItem("poimen_user_info");
     if (userInfo) {
       try {
         const parsed = JSON.parse(userInfo);
@@ -136,7 +139,7 @@ export default function AffectationPage() {
         console.error("Error parsing user info in affectation page", e);
       }
     }
-    const fam = localStorage.getItem("selected_family");
+    const fam = activeContext?.context_type === "integration" ? null : localStorage.getItem("selected_family");
     if (fam) {
       try {
         const parsedFam = JSON.parse(fam);
@@ -187,7 +190,7 @@ export default function AffectationPage() {
       .eq("bergerie_id", familyId);
     
     if (!error && data) {
-      const userInfo = JSON.parse(localStorage.getItem("poimen_user_info") || "{}");
+      const userInfo = getActiveUserInfo() || JSON.parse(localStorage.getItem("poimen_user_info") || "{}");
       const userEmail = userInfo.email?.toLowerCase();
       const userRoleVal = (userInfo.role || "").toLowerCase();
       const isLeader = userRoleVal.includes("berger") || userRoleVal.includes("second") || userRoleVal.includes("responsable");

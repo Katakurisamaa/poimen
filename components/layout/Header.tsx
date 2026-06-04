@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 
 interface HeaderProps {
   bergerieName?: string;
@@ -20,10 +21,17 @@ export default function Header({ bergerieName = "Famille Alpha", onMenuClick }: 
 
   useEffect(() => {
     const checkState = () => {
-      const savedFamily = localStorage.getItem("selected_family");
-      setHasFamily(!!savedFamily);
+      const activeContext = getActiveContext();
+      const savedFamily = activeContext?.context_type === "integration" ? null : localStorage.getItem("selected_family");
+      setHasFamily(activeContext?.context_type === "family" || !!savedFamily);
       if (savedFamily) {
         setCurrentFamilyName(JSON.parse(savedFamily).name);
+      }
+
+      const activeUserInfo = getActiveUserInfo();
+      if (activeUserInfo) {
+        setUserRole(activeUserInfo.role);
+        return;
       }
 
       const userInfo = localStorage.getItem("poimen_user_info");

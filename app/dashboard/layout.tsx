@@ -103,6 +103,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         isIntegrationUser = activeContext.context_type === "integration";
         superAdminDetected = activeContext.context_type === "super_admin" && isLocalSuperAdmin;
 
+        if (activeContext.context_type === "integration") {
+          localStorage.removeItem("selected_family");
+        }
+
         if (activeContext.bergerie_id && !localStorage.getItem("selected_family")) {
           const { data: family } = await supabase
             .from("bergeries")
@@ -179,7 +183,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       // 4. Redirect only if there is truly no active session
       const isPublicDashboard = window.location.pathname === "/dashboard" || window.location.pathname === "/dashboard/";
-      const hasSelectedFamily = !!localStorage.getItem("selected_family");
+      const hasSelectedFamily = activeContext?.context_type === "integration" ? false : !!localStorage.getItem("selected_family");
       const localUserInfo = localStorage.getItem("poimen_user_info");
       const hasLocalFamilySession = hasSelectedFamily && !!localUserInfo;
       const hasActiveSession = !!session?.user;
@@ -199,7 +203,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
 
       // 5. Update local states
-      setHasFamily(!!localStorage.getItem("selected_family"));
+      setHasFamily(activeContext?.context_type === "integration" ? false : !!localStorage.getItem("selected_family"));
       setIsSuperAdmin(superAdminDetected);
       setIsIntegration(isIntegrationUser);
 

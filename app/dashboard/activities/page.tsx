@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
+import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { 
   Plus, Calendar, Clock, MapPin, ChevronRight, XCircle, 
   Search, CheckCircle2, List, Grid3X3, Users, BarChart3,
@@ -93,7 +94,9 @@ export default function ActivitiesPage() {
   useEffect(() => {
     const init = async () => {
       try {
-        const userInfoStr = localStorage.getItem("poimen_user_info");
+        const activeContext = getActiveContext();
+        const activeUserInfo = getActiveUserInfo();
+        const userInfoStr = activeUserInfo ? JSON.stringify(activeUserInfo) : localStorage.getItem("poimen_user_info");
         if (!userInfoStr) {
           setError("Session expirée ou non connectée.");
           setIsLoading(false);
@@ -109,26 +112,40 @@ export default function ActivitiesPage() {
         let bergerieId = "";
         let status = "";
 
-        const { data: member } = await supabase
-          .from("members")
-          .select("bergerie_id, status")
-          .eq("email", userInfo.email)
-          .maybeSingle();
+        if (activeContext?.context_type === "integration") {
+          setError("Les activites sont disponibles depuis une casquette Famille de Disciples.");
+          setIsLoading(false);
+          setIsMounted(true);
+          return;
+        }
 
-        if (member?.bergerie_id) {
-          bergerieId = member.bergerie_id;
-          status = member.status;
-        } else {
-          // Fallback to profiles table
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("bergerie_id, role")
+        if (activeContext?.context_type === "family" && activeContext.bergerie_id) {
+          bergerieId = activeContext.bergerie_id;
+          status = activeContext.role;
+        }
+
+        if (!bergerieId) {
+          const { data: member } = await supabase
+            .from("members")
+            .select("bergerie_id, status")
             .eq("email", userInfo.email)
             .maybeSingle();
 
-          if (profile?.bergerie_id) {
-            bergerieId = profile.bergerie_id;
-            status = profile.role === "super_admin" ? "Super Admin" : (profile.role || "Membre");
+          if (member?.bergerie_id) {
+            bergerieId = member.bergerie_id;
+            status = member.status;
+          } else {
+            // Fallback to profiles table
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("bergerie_id, role")
+              .eq("email", userInfo.email)
+              .maybeSingle();
+
+            if (profile?.bergerie_id) {
+              bergerieId = profile.bergerie_id;
+              status = profile.role === "super_admin" ? "Super Admin" : (profile.role || "Membre");
+            }
           }
         }
 
