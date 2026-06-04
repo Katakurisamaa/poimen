@@ -21,6 +21,28 @@ export default function LoginPage() {
 
   // Safely initialize state after mount to avoid server/client mismatch and effect warnings
   useEffect(() => {
+    const checkActiveSession = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setLoading(true);
+          const cleanEmail = user.email?.toLowerCase().trim() || "";
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          const contexts = await loadContexts(user.id, cleanEmail, profile);
+          await continueWithContexts(contexts);
+        }
+      } catch (e) {
+        console.error("Error checking active session:", e);
+      }
+    };
+
+    checkActiveSession();
+
     const savedChurch = localStorage.getItem("selected_church");
     if (savedChurch) {
       try {

@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList } from "@/app/actions/auth";
+import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList, createFamilyUserContext } from "@/app/actions/auth";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 import { getActiveContext, getActiveSpaceType, getActiveUserInfo } from "@/lib/client-session";
 
@@ -1118,69 +1118,52 @@ export default function DashboardPage() {
         return;
       }
 
-      // 3. Set family details in profiles if not set or mismatched
-      // If the user's role is 'super_admin', we DO NOT overwrite it.
-      if (profile.role === "super_admin") {
-        if (profile.bergerie_id !== selectedForJoin.id) {
-          await supabase
-            .from("profiles")
-            .update({ 
-              bergerie_id: selectedForJoin.id
-            })
-            .eq("id", sessionData.user.id);
-        }
-      } else {
-        if (profile.bergerie_id !== selectedForJoin.id) {
-          await supabase
-            .from("profiles")
-            .update({ 
-              bergerie_id: selectedForJoin.id,
-              role: profile.role || "Responsable"
-            })
-            .eq("id", sessionData.user.id);
-        }
+      // 3. Fetch role inside the family from the members table
+      const { data: member } = await supabase
+        .from("members")
+        .select("*")
+        .eq("email", email)
+        .eq("bergerie_id", selectedForJoin.id)
+        .maybeSingle();
+
+      const familyRole = member?.status || "Responsable";
+      const isConseillerForUI = member?.is_conseiller || false;
+
+      // 4. Save family context in the database via Server Action
+      const res = await createFamilyUserContext({
+        userId: sessionData.user.id,
+        email,
+        familyId: selectedForJoin.id,
+        role: familyRole,
+        churchId: selectedForJoin.church_id,
+        displayName: profile.display_name || (member ? `${member.first_name} ${member.last_name}` : "Leader")
+      });
+
+      if (!res.success || !res.context) {
+        alert(`Erreur lors de la création de la casquette : ${res.error}`);
+        setLoading(false);
+        return;
       }
 
-      let userRoleForUI = profile.role;
-      let isConseillerForUI = false;
-
-      if (profile.role === "super_admin") {
-        // Fetch their role inside the family from the members table
-        const { data: member } = await supabase
-          .from("members")
-          .select("*")
-          .eq("email", profile.email)
-          .eq("bergerie_id", selectedForJoin.id)
-          .maybeSingle();
-        if (member) {
-          userRoleForUI = member.status ? (
-            member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
-            member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
-            member.status.toLowerCase().trim()
-          ) : "membre";
-          isConseillerForUI = member.is_conseiller;
-        }
-      } else {
-        isConseillerForUI = (profile.role || "").toLowerCase().includes("conseiller");
-      }
+      const userRoleForUI = res.context.role;
 
       const activeContext = {
-        id: `context-${sessionData.user.id}`,
+        id: res.context.id,
         user_id: sessionData.user.id,
         email: email,
-        context_type: "family",
+        context_type: "family" as const,
         role: userRoleForUI,
         church_id: profile.church_id || selectedForJoin.church_id,
         bergerie_id: selectedForJoin.id,
-        display_name: profile.display_name,
+        display_name: profile.display_name || (member ? `${member.first_name} ${member.last_name}` : "Leader"),
         active: true
       };
 
       const finalInfo = {
         id: profile.id,
         civility: "M.",
-        firstName: profile.display_name?.split(' ')[0] || '',
-        lastName: profile.display_name?.split(' ').slice(1).join(' ') || '',
+        firstName: activeContext.display_name?.split(' ')[0] || '',
+        lastName: activeContext.display_name?.split(' ').slice(1).join(' ') || '',
         email: profile.email,
         role: userRoleForUI,
         isConseiller: isConseillerForUI,

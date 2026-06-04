@@ -207,7 +207,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setIsSuperAdmin(superAdminDetected);
       setIsIntegration(isIntegrationUser);
 
-      if (superAdminDetected && superAdminProfile) {
+      if (superAdminDetected && superAdminProfile && !spaceExited) {
         if (window.location.pathname === "/dashboard") {
           window.location.href = "/dashboard/admin";
         }

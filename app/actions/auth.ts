@@ -697,4 +697,37 @@ export async function getFamilyLeadersList(familyId: string) {
   }
 }
 
+export async function createFamilyUserContext(params: {
+  userId: string;
+  email: string;
+  familyId: string;
+  role: string;
+  churchId: string;
+  displayName: string;
+}) {
+  try {
+    const supabase = await getServiceSupabase();
+    const cleanEmail = params.email.toLowerCase().trim();
+    
+    const access = {
+      role: normalizeFamilyRole(params.role),
+      churchId: params.churchId,
+      bergerieId: params.familyId,
+      displayName: params.displayName,
+      churchData: null,
+      familyData: null
+    };
+
+    const { data: context, error: contextError } = await upsertUserContext(supabase, params.userId, cleanEmail, access);
+    if (contextError) throw contextError;
+
+    const { error: profileError } = await createOrPreserveProfile(supabase, params.userId, cleanEmail, access);
+    if (profileError) throw profileError;
+
+    return { success: true, context };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 
