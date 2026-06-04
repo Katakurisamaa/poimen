@@ -114,6 +114,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }
         }
       } else if (session?.user && profileData && !spaceExited) {
+        const { data: availableContexts } = await supabase
+          .from("user_contexts")
+          .select("id")
+          .eq("user_id", session.user.id)
+          .eq("active", true);
+
+        if ((availableContexts?.length || 0) > 1) {
+          localStorage.removeItem("poimen_user_info");
+          localStorage.removeItem("selected_family");
+          localStorage.removeItem("is_super_admin");
+          window.location.href = "/login";
+          return;
+        }
+
         let userRoleForUI = profileData.role;
         let isConseillerForUI = !!profileData.role?.toLowerCase().startsWith("integration_");
 

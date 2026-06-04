@@ -114,6 +114,11 @@ export default function LoginPage() {
 
   const continueWithContexts = async (contexts: UserContextRecord[]) => {
     if (contexts.length > 1) {
+      localStorage.removeItem("poimen_active_context");
+      localStorage.removeItem("poimen_user_info");
+      localStorage.removeItem("selected_family");
+      localStorage.removeItem("is_super_admin");
+      localStorage.removeItem("poimen_space_exited");
       setAvailableContexts(contexts);
       setLoading(false);
       return;

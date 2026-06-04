@@ -225,19 +225,35 @@ export default function DashboardPage() {
         return;
       }
 
+      const selectedUserObj = integrationList.find(item => item.email === email);
+      const integrationRole = selectedUserObj?.role || "integration_conseiller";
+
+      const activeContext = {
+        id: `context-${sessionData.user.id}`,
+        user_id: sessionData.user.id,
+        email: email,
+        context_type: "integration",
+        role: integrationRole,
+        church_id: profile.church_id || church.id,
+        bergerie_id: null,
+        display_name: profile.display_name,
+        active: true
+      };
+
       const finalInfo = {
         id: profile.id,
         civility: "M.",
         firstName: profile.display_name?.split(' ')[0] || '',
         lastName: profile.display_name?.split(' ').slice(1).join(' ') || '',
         email: profile.email,
-        role: profile.role,
-        isConseiller: profile.role?.toLowerCase().includes("conseiller"),
+        role: integrationRole,
+        isConseiller: true,
         bergerie_id: null,
         church_id: profile.church_id || church.id
       };
 
       localStorage.removeItem("poimen_space_exited");
+      localStorage.setItem("poimen_active_context", JSON.stringify(activeContext));
       localStorage.setItem("poimen_user_info", JSON.stringify(finalInfo));
       localStorage.setItem("selected_church", JSON.stringify(church));
       
@@ -1111,6 +1127,18 @@ export default function DashboardPage() {
         isConseillerForUI = (profile.role || "").toLowerCase().includes("conseiller");
       }
 
+      const activeContext = {
+        id: `context-${sessionData.user.id}`,
+        user_id: sessionData.user.id,
+        email: email,
+        context_type: "family",
+        role: userRoleForUI,
+        church_id: profile.church_id || selectedForJoin.church_id,
+        bergerie_id: selectedForJoin.id,
+        display_name: profile.display_name,
+        active: true
+      };
+
       const finalInfo = {
         id: profile.id,
         civility: "M.",
@@ -1130,6 +1158,7 @@ export default function DashboardPage() {
       }
 
       localStorage.removeItem("poimen_space_exited");
+      localStorage.setItem("poimen_active_context", JSON.stringify(activeContext));
       localStorage.setItem("poimen_user_info", JSON.stringify(finalInfo));
       localStorage.setItem("selected_family", JSON.stringify(selectedForJoin));
       
