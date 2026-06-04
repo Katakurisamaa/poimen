@@ -43,6 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       let isIntegrationUser = false;
       let superAdminProfile = null;
       let profileData = null;
+      const localUserInfoForFallback = localStorage.getItem("poimen_user_info");
 
       if (session?.user) {
         // Fetch real profile from the database
@@ -65,6 +66,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       }
 
+      if (!session?.user && localUserInfoForFallback) {
+        try {
+          const localProfile = JSON.parse(localUserInfoForFallback);
+          regularUserFound = true;
+          isIntegrationUser = !!localProfile.role?.toLowerCase().startsWith("integration_");
+        } catch {}
+      }
+
       // 3. Clear spoofed super admin flag if backend session is invalid or not super_admin
       if (isLocalSuperAdmin && !superAdminDetected) {
         localStorage.removeItem("is_super_admin");
@@ -72,8 +81,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return;
       }
 
+      const spaceExited = localStorage.getItem("poimen_space_exited") === "true";
+
       // Synchronize poimen_user_info if logged in
-      if (session?.user && profileData) {
+      if (session?.user && profileData && !spaceExited) {
         let userRoleForUI = profileData.role;
         let isConseillerForUI = !!profileData.role?.toLowerCase().startsWith("integration_");
 
@@ -126,9 +137,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // 4. Redirect only if there is truly no active session
       const isPublicDashboard = window.location.pathname === "/dashboard" || window.location.pathname === "/dashboard/";
       const hasSelectedFamily = !!localStorage.getItem("selected_family");
+      const localUserInfo = localStorage.getItem("poimen_user_info");
+      const hasLocalFamilySession = hasSelectedFamily && !!localUserInfo;
       const hasActiveSession = !!session?.user;
 
-      if (!hasActiveSession && !superAdminDetected) {
+      if (!hasActiveSession && !superAdminDetected && !hasLocalFamilySession) {
         if (!isPublicDashboard) {
           // User has no session and is trying to access a private sub-page.
           // Redirect to /dashboard (family selection) if they had a family, else /login.

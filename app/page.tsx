@@ -12,6 +12,7 @@ export default function LandingPage() {
   const [churches, setChurches] = useState<any[]>([]);
   const [selectedChurch, setSelectedChurch] = useState<any | null>(null);
   const [code, setCode] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [validating, setValidating] = useState(false);
 
@@ -28,6 +29,7 @@ export default function LandingPage() {
       localStorage.removeItem("poimen_user_info");
       localStorage.removeItem("poimen_user");
       localStorage.removeItem("is_super_admin");
+      localStorage.removeItem("poimen_space_exited");
       localStorage.removeItem("poimen_logging_out");
       window.dispatchEvent(new Event("storage"));
     }
@@ -43,6 +45,16 @@ export default function LandingPage() {
 
   const handleValidateCode = async () => {
     if (!selectedChurch) return;
+    if (!email.trim()) {
+      setError("L'adresse e-mail est obligatoire.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError("Veuillez saisir une adresse e-mail valide.");
+      return;
+    }
+
     setValidating(true);
     setError("");
 
@@ -58,6 +70,13 @@ export default function LandingPage() {
           console.warn("verify_church_code RPC not found. Falling back to client-side verification. Please apply patch_v3.5 SQL.");
           if (code === selectedChurch.access_code) {
             localStorage.setItem("selected_church", JSON.stringify(selectedChurch));
+            localStorage.setItem("church_connected_email", email.toLowerCase().trim());
+            // Clear any active space or family from previous sessions to prevent conflicts
+            localStorage.removeItem("selected_family");
+            localStorage.removeItem("poimen_user_info");
+            localStorage.removeItem("is_super_admin");
+            localStorage.removeItem("poimen_space_exited");
+            window.dispatchEvent(new Event("storage"));
             router.push("/dashboard");
           } else {
             setError("Code d'accès invalide. Veuillez réessayer.");
@@ -70,6 +89,13 @@ export default function LandingPage() {
 
       if (isValid) {
         localStorage.setItem("selected_church", JSON.stringify(selectedChurch));
+        localStorage.setItem("church_connected_email", email.toLowerCase().trim());
+        // Clear active family/user info from previous sessions
+        localStorage.removeItem("selected_family");
+        localStorage.removeItem("poimen_user_info");
+        localStorage.removeItem("is_super_admin");
+        localStorage.removeItem("poimen_space_exited");
+        window.dispatchEvent(new Event("storage"));
         router.push("/dashboard");
       } else {
         setError("Code d'accès invalide. Veuillez réessayer.");
@@ -416,18 +442,40 @@ export default function LandingPage() {
                 </p>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                <div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "left" }}>
+                  <label className="form-label" style={{ color: "var(--cream-dim)", fontSize: 12, fontWeight: 600 }}>Adresse e-mail *</label>
+                  <input 
+                    type="email" 
+                    placeholder="votre@email.com" 
+                    className="input" 
+                    style={{ 
+                      height: 48,
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid rgba(212, 175, 55, 0.3)",
+                      background: "var(--surface-solid)",
+                      color: "var(--cream)",
+                      padding: "0 14px",
+                      fontSize: 14
+                    }}
+                    value={email}
+                    onChange={e => { setEmail(e.target.value); setError(""); }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "left" }}>
+                  <label className="form-label" style={{ color: "var(--cream-dim)", fontSize: 12, fontWeight: 600 }}>Code de l'église *</label>
                   <input 
                     type="text" 
-                    placeholder="CODE" 
+                    placeholder="CODE D'ACCÈS" 
                     className="input" 
                     style={{ 
                       textAlign: "center", 
-                      fontSize: 22, 
-                      letterSpacing: 6, 
+                      fontSize: 18, 
+                      letterSpacing: 4, 
                       textTransform: "uppercase", 
-                      height: 64,
+                      height: 48,
                       borderRadius: "var(--radius-sm)",
                       border: "1px solid rgba(212, 175, 55, 0.3)",
                       background: "var(--surface-solid)",
@@ -437,61 +485,18 @@ export default function LandingPage() {
                     value={code}
                     onChange={e => { setCode(e.target.value.toUpperCase()); setError(""); }}
                     onKeyDown={e => e.key === "Enter" && handleValidateCode()}
-                    autoFocus
+                    required
                   />
                   {error && <p style={{ color: "var(--red)", fontSize: 12, textAlign: "center", marginTop: 10, fontWeight: 500 }}>{error}</p>}
                 </div>
 
                 <button 
                   className="btn btn-primary" 
-                  style={{ width: "100%", height: 52, justifyContent: "center", borderRadius: "var(--radius-sm)" }}
+                  style={{ width: "100%", height: 52, justifyContent: "center", borderRadius: "var(--radius-sm)", marginTop: 8 }}
                   onClick={handleValidateCode}
-                  disabled={validating || !code}
+                  disabled={validating || !code || !email}
                 >
                   {validating ? <Loader2 className="animate-spin" /> : "Vérifier et entrer"}
-                </button>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0" }}>
-                  <div style={{ flex: 1, height: 1, background: "rgba(212, 175, 55, 0.15)" }} />
-                  <span style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 600 }}>ou</span>
-                  <div style={{ flex: 1, height: 1, background: "rgba(212, 175, 55, 0.15)" }} />
-                </div>
-
-                <button 
-                  type="button"
-                  className="btn"
-                  style={{ 
-                    width: "100%", 
-                    height: 48, 
-                    justifyContent: "center", 
-                    borderRadius: "var(--radius-sm)",
-                    background: "rgba(139, 92, 246, 0.12)",
-                    border: "1px solid rgba(139, 92, 246, 0.3)",
-                    color: "#c084fc",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    transition: "all 0.25s ease",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8
-                  }}
-                  onClick={() => {
-                    localStorage.setItem("selected_church", JSON.stringify(selectedChurch));
-                    router.push("/login");
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = "rgba(139, 92, 246, 0.2)";
-                    e.currentTarget.style.border = "1px solid rgba(139, 92, 246, 0.45)";
-                    e.currentTarget.style.boxShadow = "0 0 15px rgba(139, 92, 246, 0.15)";
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = "rgba(139, 92, 246, 0.12)";
-                    e.currentTarget.style.border = "1px solid rgba(139, 92, 246, 0.3)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                >
-                  Espace Intégration & Leaders
                 </button>
               </div>
             </motion.div>

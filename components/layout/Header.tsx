@@ -4,6 +4,7 @@ import { Menu, Plus, CalendarPlus, Home } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 interface HeaderProps {
   bergerieName?: string;
@@ -71,31 +72,42 @@ export default function Header({ bergerieName = "Famille Alpha", onMenuClick }: 
     </div>
       
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto", flexShrink: 0 }}>
-        <Link 
-          href="/dashboard" 
-          onClick={() => {
-            localStorage.removeItem("selected_family");
-            window.dispatchEvent(new Event("storage"));
-          }}
-          className="btn btn-outline btn-sm" 
-          style={{ 
-            borderColor: "rgba(212, 175, 55, 0.3)", 
-            color: "var(--gold)", 
-            display: "flex", 
-            alignItems: "center", 
-            gap: 6,
-            height: 32,
-            padding: "0 12px",
-            fontSize: 11,
-            fontWeight: 600,
-            textDecoration: "none",
-            borderRadius: 8,
-            cursor: "pointer"
-          }}
-        >
-          <Home size={13} />
-          <span className="desktop-only">Quitter l'espace</span>
-        </Link>
+        {!isSuperAdmin && !isAdmin && (
+          <a 
+            href="/dashboard" 
+            onClick={async (e) => {
+              e.preventDefault();
+              localStorage.setItem("poimen_space_exited", "true");
+              localStorage.removeItem("selected_family");
+              localStorage.removeItem("poimen_user_info");
+              window.dispatchEvent(new Event("storage"));
+              try {
+                await supabase.auth.signOut();
+              } catch (err) {
+                console.error("Error signing out from space:", err);
+              }
+              window.location.href = "/dashboard";
+            }}
+            className="btn btn-outline btn-sm" 
+            style={{ 
+              borderColor: "rgba(212, 175, 55, 0.3)", 
+              color: "var(--gold)", 
+              display: "flex", 
+              alignItems: "center", 
+              gap: 6,
+              height: 32,
+              padding: "0 12px",
+              fontSize: 11,
+              fontWeight: 600,
+              textDecoration: "none",
+              borderRadius: 8,
+              cursor: "pointer"
+            }}
+          >
+            <Home size={13} />
+            <span className="desktop-only">Quitter</span>
+          </a>
+        )}
       </div>
     </header>
   );

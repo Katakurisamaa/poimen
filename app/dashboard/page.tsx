@@ -57,6 +57,230 @@ export default function DashboardPage() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedForJoin, setSelectedForJoin] = useState<any>(null);
+
+  // New States for Authentication Restructuring
+  const [activeSpace, setActiveSpace] = useState<"hub" | "family" | "integration">("hub");
+  const [integrationList, setIntegrationList] = useState<any[]>([]);
+  const [selectedIntegrationUser, setSelectedIntegrationUser] = useState<string>("");
+  const [integrationCode, setIntegrationCode] = useState<string>("");
+  const [familyLeaders, setFamilyLeaders] = useState<any[]>([]);
+  const [selectedLeaderEmail, setSelectedLeaderEmail] = useState<string>("");
+
+  // Prefill new family email on creation
+  useEffect(() => {
+    if (isCreating) {
+      const churchConnectedEmail = localStorage.getItem("church_connected_email") || "";
+      setNewBergerie(prev => ({
+        ...prev,
+        email: churchConnectedEmail
+      }));
+    }
+  }, [isCreating]);
+
+  // Load family leaders when selectedForJoin changes
+  useEffect(() => {
+    const fetchFamilyLeaders = async (familyId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from("members")
+          .select("*")
+          .eq("bergerie_id", familyId)
+          .eq("archived", false);
+
+        if (data) {
+          const leaders = data.filter(m => {
+            const status = (m.status || "").toLowerCase().trim();
+            return status.includes("berger") || status.includes("second") || status.includes("responsable");
+          });
+          setFamilyLeaders(leaders);
+          if (leaders.length > 0) {
+            setSelectedLeaderEmail(leaders[0].email);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching family leaders:", err);
+      }
+    };
+
+    if (selectedForJoin) {
+      fetchFamilyLeaders(selectedForJoin.id);
+    } else {
+      setFamilyLeaders([]);
+      setSelectedLeaderEmail("");
+    }
+  }, [selectedForJoin]);
+
+  const fetchIntegrationList = async () => {
+    if (!church) return;
+    try {
+      const list: any[] = [];
+
+      // 1. Add department head from church
+      if (church.integration_email && church.integration_first_name) {
+        list.push({
+          email: church.integration_email.toLowerCase().trim(),
+          name: `${church.integration_first_name} ${church.integration_last_name}`,
+          role: "integration_responsable",
+          isHead: true,
+          code: church.integration_access_code
+        });
+      }
+
+      // 2. Fetch pending counselors
+      const { data: pending } = await supabase
+        .from("pending_counselors")
+        .select("*")
+        .eq("church_id", church.id);
+
+      if (pending) {
+        pending.forEach(p => {
+          list.push({
+            email: p.email.toLowerCase().trim(),
+            name: `${p.first_name} ${p.last_name}`,
+            role: p.role || "integration_counselor",
+            isPending: true,
+            code: p.access_code
+          });
+        });
+      }
+
+      // 3. Fetch active integration profiles
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("church_id", church.id)
+        .ilike("role", "integration_%");
+
+      if (profiles) {
+        profiles.forEach(p => {
+          list.push({
+            email: p.email.toLowerCase().trim(),
+            name: p.display_name,
+            role: p.role,
+            isProfile: true
+          });
+        });
+      }
+
+      // Remove duplicates by email
+      const uniqueList: any[] = [];
+      const emailsSeen = new Set<string>();
+      list.forEach(item => {
+        if (!emailsSeen.has(item.email)) {
+          emailsSeen.add(item.email);
+          uniqueList.push(item);
+        }
+      });
+
+      setIntegrationList(uniqueList);
+      if (uniqueList.length > 0) {
+        setSelectedIntegrationUser(uniqueList[0].email);
+      }
+    } catch (err) {
+      console.error("Error fetching integration list:", err);
+    }
+  };
+
+  const handleIntegrationLogin = async () => {
+    if (!selectedIntegrationUser || !integrationCode) {
+      alert("Veuillez sélectionner votre nom et saisir votre code.");
+      return;
+    }
+
+    setLoading(true);
+    const email = selectedIntegrationUser.toLowerCase().trim();
+    const password = integrationCode;
+    const churchConnectedEmail = localStorage.getItem("church_connected_email") || "";
+
+    if (email !== churchConnectedEmail.toLowerCase().trim()) {
+      alert("Erreur de sécurité : L'adresse e-mail avec laquelle vous êtes connecté à l'église ne correspond pas à celle enregistrée pour ce responsable.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      let sessionData = null;
+      let authError = null;
+
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const isAlreadyLoggedIn = currentUser && currentUser.email?.toLowerCase().trim() === email;
+
+      if (isAlreadyLoggedIn) {
+        const selectedUserObj = integrationList.find(item => item.email === email);
+        if (selectedUserObj?.isHead || selectedUserObj?.isPending) {
+          if (password !== selectedUserObj.code) {
+            alert("Code d'accès incorrect. Veuillez réessayer.");
+            setLoading(false);
+            return;
+          }
+        }
+        sessionData = { user: currentUser };
+      } else {
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          sessionData = data;
+          authError = error;
+        } catch {
+          // ignore
+        }
+
+        if (authError || !sessionData?.user) {
+          const res = await adminSignUp(email, password);
+          if (!res.success) {
+            alert(`Erreur d'accès : ${res.error}`);
+            setLoading(false);
+            return;
+          }
+
+          const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({ email, password });
+          if (retryErr || !retryData?.user) {
+            alert(`Erreur de connexion : ${retryErr?.message || "Échec d'authentification."}`);
+            setLoading(false);
+            return;
+          }
+          sessionData = retryData;
+        }
+      }
+
+      const { data: profile, error: profErr } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", sessionData.user.id)
+        .single();
+
+      if (profErr || !profile) {
+        alert("Erreur de profil : Impossible de charger votre profil d'intégration.");
+        setLoading(false);
+        return;
+      }
+
+      const finalInfo = {
+        id: profile.id,
+        civility: "M.",
+        firstName: profile.display_name?.split(' ')[0] || '',
+        lastName: profile.display_name?.split(' ').slice(1).join(' ') || '',
+        email: profile.email,
+        role: profile.role,
+        isConseiller: profile.role?.toLowerCase().includes("conseiller"),
+        bergerie_id: null,
+        church_id: profile.church_id || church.id
+      };
+
+      localStorage.removeItem("poimen_space_exited");
+      localStorage.setItem("poimen_user_info", JSON.stringify(finalInfo));
+      localStorage.setItem("selected_church", JSON.stringify(church));
+      
+      setUserInfo(finalInfo);
+      setActiveSpace("integration");
+      window.dispatchEvent(new Event("storage"));
+      setLoading(false);
+      
+      alert(`Bienvenue ${finalInfo.firstName} ! Connexion réussie au Département d'Intégration.`);
+    } catch (e: any) {
+      alert(`Erreur inattendue : ${e.message}`);
+      setLoading(false);
+    }
+  };
   const [rememberMe, setRememberMe] = useState(false);
   const [counts, setCounts] = useState({ members: 0, invites: 0 });
   const [familyStats, setFamilyStats] = useState({
@@ -595,6 +819,15 @@ export default function DashboardPage() {
     const churchObj = JSON.parse(savedChurch);
     setChurch(churchObj);
 
+    const spaceExited = localStorage.getItem("poimen_space_exited") === "true";
+    if (spaceExited) {
+      setMyBergerie(null);
+      setUserInfo(null);
+      setActiveSpace("hub");
+      setLoading(false);
+      return;
+    }
+
     const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
     const userStr = localStorage.getItem("poimen_user");
     if (userStr) {
@@ -635,10 +868,21 @@ export default function DashboardPage() {
     if (pending) setPendingRequest(pending);
 
     const savedFamily = localStorage.getItem("selected_family");
-    if (savedFamily) setMyBergerie(JSON.parse(savedFamily));
+    if (savedFamily) {
+      setMyBergerie(JSON.parse(savedFamily));
+      setActiveSpace("family");
+    }
 
     const savedUserInfo = localStorage.getItem("poimen_user_info");
-    if (savedUserInfo) setUserInfo(JSON.parse(savedUserInfo));
+    if (savedUserInfo) {
+      const parsed = JSON.parse(savedUserInfo);
+      setUserInfo(parsed);
+      if (parsed.role?.toLowerCase().startsWith("integration_")) {
+        setActiveSpace("integration");
+      } else if (savedFamily) {
+        setActiveSpace("family");
+      }
+    }
 
     setLoading(false);
   }
@@ -741,6 +985,7 @@ export default function DashboardPage() {
         }).eq("id", user.id);
       }
 
+      localStorage.removeItem("poimen_space_exited");
       const info = {
         civility: newBergerie.civility,
         firstName: newBergerie.firstName,
@@ -761,15 +1006,27 @@ export default function DashboardPage() {
   };
 
   const confirmJoin = async () => {
-    if (!registration.email || !registration.code) {
-      alert("Veuillez remplir votre e-mail et votre code d'accès.");
+    if (!selectedLeaderEmail) {
+      alert("Veuillez sélectionner votre nom.");
+      return;
+    }
+    if (!registration.code) {
+      alert("Veuillez saisir votre code d'accès.");
       return;
     }
     if (!selectedForJoin) return;
 
     setLoading(true);
-    const email = registration.email.toLowerCase().trim();
+    const email = selectedLeaderEmail.toLowerCase().trim();
     const password = registration.code;
+    const churchConnectedEmail = localStorage.getItem("church_connected_email") || "";
+
+    // Security check: email must match church connected email
+    if (email !== churchConnectedEmail.toLowerCase().trim()) {
+      alert("Erreur de sécurité : L'adresse e-mail avec laquelle vous êtes connecté à l'église ne correspond pas à celle enregistrée pour ce responsable.");
+      setLoading(false);
+      return;
+    }
 
     try {
       // 1. Check if user is already authenticated as the entered email
@@ -901,11 +1158,13 @@ export default function DashboardPage() {
         localStorage.removeItem("poimen_saved_info");
       }
 
+      localStorage.removeItem("poimen_space_exited");
       localStorage.setItem("poimen_user_info", JSON.stringify(finalInfo));
       localStorage.setItem("selected_family", JSON.stringify(selectedForJoin));
       
       setMyBergerie(selectedForJoin);
       setUserInfo(finalInfo);
+      setActiveSpace("family");
       window.dispatchEvent(new Event("storage"));
       setSelectedForJoin(null);
       setLoading(false);
@@ -929,7 +1188,160 @@ export default function DashboardPage() {
     );
   }
 
-  if (!myBergerie && !isIntegration) {
+  if (!myBergerie && !isIntegration && activeSpace === "hub") {
+    return (
+      <div style={{ minHeight: "80dvh", display: "flex", flexDirection: "column", justifyItems: "center", justifyContent: "center", alignItems: "center", padding: "40px 20px", position: "relative" }}>
+        {/* Ambient glows */}
+        <div style={{ position: "absolute", top: "10%", left: "20%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.05) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: "10%", right: "20%", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,160,60,0.04) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+        <div style={{ maxWidth: 800, width: "100%", textAlign: "center", zIndex: 1 }} className="fade-in">
+          <span style={{ fontSize: 11, color: "var(--gold)", letterSpacing: 3, textTransform: "uppercase", fontWeight: 700, marginBottom: 8, display: "block" }}>
+            {church?.name}
+          </span>
+          <h1 style={{ fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 800, margin: "0 0 10px 0", background: "linear-gradient(135deg, #FFF, var(--gold-light) 60%, var(--gold) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontFamily: "var(--font-display)" }}>
+            Choisissez votre Espace
+          </h1>
+          <p style={{ color: "var(--cream-dim)", fontSize: 15, maxWidth: 500, margin: "0 auto 40px auto", lineHeight: 1.6 }}>
+            Accédez à la gestion de votre Famille de Disciples ou connectez-vous au Département d'Intégration de votre église locale.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, width: "100%" }}>
+            {/* Card 1: Espace Communautaire */}
+            <motion.div 
+              whileHover={{ scale: 1.03, y: -4 }}
+              whileTap={{ scale: 0.98 }}
+              className="arch-card glass"
+              style={{ padding: "40px 30px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, border: "1px solid rgba(212, 175, 55, 0.25)" }}
+              onClick={() => setActiveSpace("family")}
+            >
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--gold-glow)", border: "1.5px solid rgba(212,175,55,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)" }}>
+                <Users size={28} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px 0", color: "var(--cream)", fontFamily: "var(--font-display)" }}>Espace Communautaire</h3>
+                <p style={{ fontSize: 13, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+                  Rejoignez votre Famille de Disciples (Berger, Second, Responsable) ou proposez la création d'une nouvelle bergerie.
+                </p>
+              </div>
+              <button className="btn btn-primary btn-sm" style={{ width: "100%", marginTop: "auto", height: 40, justifyContent: "center" }}>Accéder</button>
+            </motion.div>
+
+            {/* Card 2: Intégration */}
+            <motion.div 
+              whileHover={{ scale: 1.03, y: -4 }}
+              whileTap={{ scale: 0.98 }}
+              className="arch-card glass"
+              style={{ padding: "40px 30px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, border: "1px solid rgba(139, 92, 246, 0.25)" }}
+              onClick={() => {
+                setActiveSpace("integration");
+                fetchIntegrationList();
+              }}
+            >
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(139, 92, 246, 0.1)", border: "1.5px solid rgba(139,92,246,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "#c084fc" }}>
+                <UserPlus size={28} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px 0", color: "var(--cream)", fontFamily: "var(--font-display)" }}>Intégration & Suivi</h3>
+                <p style={{ fontSize: 13, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+                  Espace réservé à l'équipe d'intégration pour le suivi des nouveaux arrivants et la gestion des affectations.
+                </p>
+              </div>
+              <button className="btn btn-primary btn-sm" style={{ width: "100%", marginTop: "auto", height: 40, justifyContent: "center", background: "linear-gradient(135deg, var(--purple-light), var(--purple))", border: "none" }}>Accéder</button>
+            </motion.div>
+          </div>
+
+          <div style={{ marginTop: 40 }}>
+            <button 
+              onClick={() => window.location.href = "/"}
+              className="btn btn-outline btn-sm"
+              style={{ borderColor: "rgba(255,255,255,0.15)", color: "var(--muted)", borderRadius: 10 }}
+            >
+              Changer d'église
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!myBergerie && !isIntegration && activeSpace === "integration") {
+    return (
+      <div style={{ minHeight: "80dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px", position: "relative" }}>
+        {/* Ambient glows */}
+        <div style={{ position: "absolute", top: "10%", left: "20%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+        <div className="glass fade-in" style={{ width: "100%", maxWidth: 440, padding: "40px 36px", border: "1px solid rgba(139, 92, 246, 0.35)", boxShadow: "0 20px 50px rgba(0, 0, 0, 0.8)", position: "relative", zIndex: 1 }}>
+          <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(139, 92, 246, 0.1)", border: "1.5px solid rgba(139, 92, 246, 0.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "#c084fc", margin: "0 auto 16px" }}>
+              <Shield size={26} />
+            </div>
+            <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Espace Intégration</h2>
+            <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Authentification des responsables et conseillers</p>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div>
+              <label className="form-label" style={{ marginBottom: 6, display: "block" }}>Sélectionnez votre Nom + Prénom *</label>
+              {integrationList.length === 0 ? (
+                <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 12px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8 }}>
+                  Aucun membre de l'équipe enregistré. Contactez l'administrateur.
+                </div>
+              ) : (
+                <select 
+                  className="input" 
+                  value={selectedIntegrationUser} 
+                  onChange={e => setSelectedIntegrationUser(e.target.value)}
+                  style={{ height: 42, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(139, 92, 246, 0.25)" }}
+                >
+                  {integrationList.map(item => (
+                    <option key={item.email} value={item.email}>{item.name} ({item.role === "integration_responsable" ? "Responsable" : item.role === "integration_second" ? "Second" : "Conseiller"})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <label className="form-label" style={{ marginBottom: 6, display: "block" }}>Code d'accès secret *</label>
+              <div style={{ position: "relative" }}>
+                <input 
+                  className="input" 
+                  type={showJoinCode ? "text" : "password"} 
+                  placeholder="••••••" 
+                  value={integrationCode} 
+                  onChange={e => setIntegrationCode(e.target.value)} 
+                  style={{ height: 42, letterSpacing: showJoinCode ? "normal" : 3, paddingRight: 40, border: "1px solid rgba(139, 92, 246, 0.25)" }} 
+                />
+                <button type="button" onClick={() => setShowJoinCode(!showJoinCode)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>
+                  {showJoinCode ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+              <button 
+                className="btn btn-subtle" 
+                style={{ flex: 1, height: 44 }} 
+                onClick={() => setActiveSpace("hub")}
+              >
+                Retour
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ flex: 1, height: 44, justifyContent: "center", background: "linear-gradient(135deg, var(--purple-light), var(--purple))", border: "none" }} 
+                onClick={handleIntegrationLogin}
+                disabled={loading || !selectedIntegrationUser || !integrationCode}
+              >
+                {loading ? <Loader2 className="animate-spin" size={18} /> : "Se connecter"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!myBergerie && !isIntegration && activeSpace === "family") {
     return (
       <>
         {/* Background ambient sacred lights */}
@@ -952,9 +1364,9 @@ export default function DashboardPage() {
             <p style={{ color: "var(--cream-dim)", maxWidth: 620, margin: "16px auto 0", fontSize: "14px", lineHeight: "1.6" }}>
               Rejoignez une Famille de Disciples existante ou demandez la création d&apos;une nouvelle bergerie pour guider le troupeau.
             </p>
-            <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
+            <div style={{ marginTop: 20, display: "flex", justifyContent: "center", gap: 12 }}>
               <button 
-                onClick={() => window.location.href = "/"}
+                onClick={() => setActiveSpace("hub")}
                 className="btn btn-outline"
                 style={{ 
                   borderColor: "rgba(212, 175, 55, 0.35)", 
@@ -970,8 +1382,7 @@ export default function DashboardPage() {
                   cursor: "pointer"
                 }}
               >
-                <Home size={15} />
-                Retour à l'accueil
+                Retour aux espaces
               </button>
             </div>
           </div>
@@ -1091,7 +1502,7 @@ export default function DashboardPage() {
 
         {/* Modal: Access Code Connection */}
         {typeof window !== "undefined" && selectedForJoin && createPortal(
-          <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center", padding: "20px" }}>
             <div style={{ position: "absolute", inset: 0, background: "rgba(2,1,6,0.85)", backdropFilter: "blur(12px)" }} onClick={() => setSelectedForJoin(null)} />
             <div className="arch-card" style={{ width: "100%", maxWidth: 420, padding: "40px 36px", position: "relative", zIndex: 101, border: "1.5px solid rgba(212, 175, 55, 0.35)", boxShadow: "0 30px 70px rgba(0, 0, 0, 0.8), 0 0 40px rgba(139, 92, 246, 0.15)", display: "flex", flexDirection: "column" }}>
               <button onClick={() => setSelectedForJoin(null)} style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", transition: "color 0.2s ease" }} onMouseEnter={e => e.currentTarget.style.color = "var(--cream)"} onMouseLeave={e => e.currentTarget.style.color = "var(--muted)"}><X size={20} /></button>
@@ -1111,13 +1522,28 @@ export default function DashboardPage() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <label className="form-label">Adresse e-mail</label>
-                  <input className="input" type="email" placeholder="votre@email.com" value={registration.email} onChange={e => setRegistration({...registration, email: e.target.value})} style={{ height: 42 }} />
+                  <label className="form-label" style={{ marginBottom: 6, display: "block" }}>Sélectionnez votre Nom + Prénom *</label>
+                  {familyLeaders.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "var(--muted)", padding: "10px 12px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8 }}>
+                      Aucun responsable enregistré (Berger, Second ou Responsable de brebis) dans cette famille.
+                    </div>
+                  ) : (
+                    <select 
+                      className="input" 
+                      value={selectedLeaderEmail} 
+                      onChange={e => setSelectedLeaderEmail(e.target.value)}
+                      style={{ height: 42, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(212, 175, 55, 0.25)" }}
+                    >
+                      {familyLeaders.map(m => (
+                        <option key={m.id} value={m.email}>{m.civility} {m.first_name} {m.last_name} ({m.status})</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div>
-                  <label className="form-label">Code d'accès secret</label>
+                  <label className="form-label">Code d'accès secret de la famille</label>
                   <div style={{ position: "relative" }}>
-                    <input className="input" type={showJoinCode ? "text" : "password"} placeholder="••••••" value={registration.code} onChange={e => setRegistration({...registration, code: e.target.value})} style={{ height: 42, letterSpacing: showJoinCode ? "normal" : 3, paddingRight: 40 }} />
+                    <input className="input" type={showJoinCode ? "text" : "password"} placeholder="•••••" value={registration.code} onChange={e => setRegistration({...registration, code: e.target.value})} style={{ height: 42, letterSpacing: showJoinCode ? "normal" : 3, paddingRight: 40 }} />
                     <button type="button" onClick={() => setShowJoinCode(!showJoinCode)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>
                       {showJoinCode ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -1136,7 +1562,7 @@ export default function DashboardPage() {
 
                 <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
                   <button className="btn btn-subtle" style={{ flex: 1, height: 44 }} onClick={() => setSelectedForJoin(null)}>Annuler</button>
-                  <button className="btn btn-primary" style={{ flex: 1, height: 44, justifyContent: "center" }} onClick={confirmJoin}>S'authentifier</button>
+                  <button className="btn btn-primary" style={{ flex: 1, height: 44, justifyContent: "center" }} onClick={confirmJoin} disabled={familyLeaders.length === 0}>S'authentifier</button>
                 </div>
               </div>
             </div>
@@ -1146,7 +1572,7 @@ export default function DashboardPage() {
 
         {/* Modal: Propose New Family */}
         {typeof window !== "undefined" && isCreating && createPortal(
-          <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center", padding: "20px" }}>
             <div style={{ position: "absolute", inset: 0, background: "rgba(2,1,6,0.85)", backdropFilter: "blur(12px)" }} onClick={() => setIsCreating(false)} />
             <div className="arch-card" style={{ width: "100%", maxWidth: 440, padding: "40px 36px", position: "relative", zIndex: 101, border: "1.5px solid rgba(212, 175, 55, 0.35)", boxShadow: "0 30px 70px rgba(0, 0, 0, 0.8), 0 0 40px rgba(139, 92, 246, 0.15)", display: "flex", flexDirection: "column", maxHeight: "90vh", overflowY: "auto" }}>
               <button onClick={() => setIsCreating(false)} style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", transition: "color 0.2s ease" }} onMouseEnter={e => e.currentTarget.style.color = "var(--cream)"} onMouseLeave={e => e.currentTarget.style.color = "var(--muted)"}><X size={20} /></button>
@@ -1185,7 +1611,7 @@ export default function DashboardPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <label className="form-label">E-mail</label>
-                    <input className="input" type="email" placeholder="pierre@email.com" value={newBergerie.email} onChange={e => setNewBergerie({...newBergerie, email: e.target.value})} style={{ height: 40 }} />
+                    <input className="input" type="email" placeholder="pierre@email.com" value={newBergerie.email} disabled style={{ height: 40, opacity: 0.7, background: "rgba(255, 255, 255, 0.05)" }} />
                   </div>
                   <div>
                     <label className="form-label">Code d'accès secret</label>

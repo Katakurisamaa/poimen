@@ -23,6 +23,7 @@ const AGE_RANGES = [
 export default function ProfilePage() {
   const [userInfo, setUserInfo] = useState<any>(null);
   const [memberData, setMemberData] = useState<any>(null);
+  const [isMemberRecord, setIsMemberRecord] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -67,11 +68,13 @@ export default function ProfilePage() {
   };
 
 
-  async function fetchMemberData(email: string, role?: string, userId?: string) {
+  async function fetchMemberData(email: string, role?: string, userId?: string, bergerieId?: string | null) {
     try {
       const isUserIntegration = role?.toLowerCase().startsWith("integration_");
+      const isSuperAdmin = role === "super_admin";
 
       if (isUserIntegration) {
+        setIsMemberRecord(false);
         // Query profiles table
         const { data } = await supabase
           .from("profiles")
@@ -98,21 +101,45 @@ export default function ProfilePage() {
             phone: data.phone || ""
           });
         }
-      } else {
-        // Query members table
-        const { data, error } = await supabase
-          .from("members")
+      } else if (isSuperAdmin) {
+        setIsMemberRecord(false);
+        // Query profiles table directly
+        const { data: profile } = await supabase
+          .from("profiles")
           .select("*")
-          .eq("email", email)
+          .eq("id", userId || "")
           .maybeSingle();
 
+        if (profile) {
+          setMemberData({
+            id: profile.id,
+            firstName: profile.display_name?.split(' ')[0] || "",
+            lastName: profile.display_name?.split(' ').slice(1).join(' ') || "",
+            email: profile.email,
+            role: profile.role,
+            status: "Super Admin",
+            civility: profile.civility || "M.",
+            age: profile.age || "",
+            phone: profile.phone || ""
+          });
+        }
+      } else {
+        // Query members table with email and optional bergerie_id
+        let query = supabase.from("members").select("*").eq("email", email);
+        if (bergerieId) {
+          query = query.eq("bergerie_id", bergerieId);
+        }
+        const { data, error } = await query.maybeSingle();
+
         if (data) {
+          setIsMemberRecord(true);
           setMemberData({
             ...data,
             firstName: data.first_name,
             lastName: data.last_name
           });
         } else {
+          setIsMemberRecord(false);
           // Fallback to profiles table if not found in members
           const { data: profile } = await supabase
             .from("profiles")
@@ -144,7 +171,10 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
-    if (isLocalSuperAdmin) {
+    const info = localStorage.getItem("poimen_user_info");
+    
+    // Only use mock admin if we don't have real user info in localStorage
+    if (isLocalSuperAdmin && (!info || JSON.parse(info).id?.includes("mock"))) {
       const mockAdmin = {
         firstName: "Junior",
         lastName: "Super Admin",
@@ -163,12 +193,11 @@ export default function ProfilePage() {
       return;
     }
 
-    const info = localStorage.getItem("poimen_user_info");
     if (info) {
       const parsed = JSON.parse(info);
       setTimeout(() => {
         setUserInfo(parsed);
-        fetchMemberData(parsed.email, parsed.role, parsed.id);
+        fetchMemberData(parsed.email, parsed.role, parsed.id, parsed.bergerie_id);
       }, 0);
     } else {
       setTimeout(() => setLoading(false), 0);
@@ -206,7 +235,9 @@ export default function ProfilePage() {
     setMessage(null);
 
     try {
-      if (userInfo?.role === "super_admin") {
+      const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true" && (!userInfo?.id || String(userInfo.id).includes("mock"));
+
+      if (isLocalSuperAdmin) {
         const newUserInfo = {
           ...userInfo,
           firstName: memberData.firstName,
@@ -220,7 +251,21 @@ export default function ProfilePage() {
         return;
       }
 
-      if (isIntegration) {
+      if (userInfo?.role === "super_admin") {
+        const displayName = `${memberData.firstName} ${memberData.lastName}`;
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            display_name: displayName,
+            email: memberData.email,
+            phone: memberData.phone || null,
+            age: memberData.age || null,
+            civility: memberData.civility || "M."
+          })
+          .eq("id", userInfo.id);
+
+        if (error) throw error;
+      } else if (isIntegration) {
         const displayName = `${memberData.firstName} ${memberData.lastName}`;
         const { error } = await supabase
           .from("profiles")
@@ -235,20 +280,22 @@ export default function ProfilePage() {
 
         if (error) throw error;
       } else {
-        // Update members table
-        const { error } = await supabase
-          .from("members")
-          .update({
-            civility: memberData.civility,
-            first_name: memberData.firstName,
-            last_name: memberData.lastName,
-            phone: memberData.phone,
-            email: memberData.email,
-            age: memberData.age
-          })
-          .eq("id", memberData.id);
+        if (isMemberRecord) {
+          // Update members table
+          const { error } = await supabase
+            .from("members")
+            .update({
+              civility: memberData.civility,
+              first_name: memberData.firstName,
+              last_name: memberData.lastName,
+              phone: memberData.phone,
+              email: memberData.email,
+              age: memberData.age
+            })
+            .eq("id", memberData.id);
 
-        if (error) throw error;
+          if (error) throw error;
+        }
 
         // Sync with profiles table
         if (userInfo?.id) {
