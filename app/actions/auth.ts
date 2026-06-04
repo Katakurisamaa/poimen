@@ -526,3 +526,80 @@ export async function autoAddLeaderToMembers(params: {
 
   return { success: true, member: data };
 }
+
+export async function getIntegrationDropdownList(churchId: string) {
+  try {
+    const supabase = await getServiceSupabase();
+    const list: any[] = [];
+
+    // 1. Fetch pending counselors
+    const { data: pending, error: pendingErr } = await supabase
+      .from("pending_counselors")
+      .select("*")
+      .eq("church_id", churchId);
+
+    if (!pendingErr && pending) {
+      pending.forEach((p: any) => {
+        list.push({
+          email: p.email.toLowerCase().trim(),
+          name: `${p.first_name} ${p.last_name}`,
+          role: p.role || "integration_counselor",
+          isPending: true,
+          code: p.access_code
+        });
+      });
+    }
+
+    // 2. Fetch active integration profiles
+    const { data: profiles, error: profilesErr } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("church_id", churchId)
+      .ilike("role", "integration_%");
+
+    if (!profilesErr && profiles) {
+      profiles.forEach((p: any) => {
+        list.push({
+          email: p.email.toLowerCase().trim(),
+          name: p.display_name,
+          role: p.role,
+          isProfile: true
+        });
+      });
+    }
+
+    // 3. Fetch active integration contexts
+    const { data: contexts, error: contextsErr } = await supabase
+      .from("user_contexts")
+      .select("*")
+      .eq("church_id", churchId)
+      .eq("context_type", "integration")
+      .eq("active", true);
+
+    if (!contextsErr && contexts) {
+      contexts.forEach((c: any) => {
+        list.push({
+          email: c.email.toLowerCase().trim(),
+          name: c.display_name,
+          role: c.role,
+          isContext: true
+        });
+      });
+    }
+
+    // Remove duplicates by email
+    const uniqueList: any[] = [];
+    const emailsSeen = new Set<string>();
+    list.forEach(item => {
+      if (!emailsSeen.has(item.email)) {
+        emailsSeen.add(item.email);
+        uniqueList.push(item);
+      }
+    });
+
+    return { success: true, list: uniqueList };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+

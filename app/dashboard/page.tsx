@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { adminSignUp } from "@/app/actions/auth";
+import { adminSignUp, getIntegrationDropdownList } from "@/app/actions/auth";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 
 const STATS = [
@@ -127,40 +127,10 @@ export default function DashboardPage() {
         });
       }
 
-      // 2. Fetch pending counselors
-      const { data: pending } = await supabase
-        .from("pending_counselors")
-        .select("*")
-        .eq("church_id", church.id);
-
-      if (pending) {
-        pending.forEach(p => {
-          list.push({
-            email: p.email.toLowerCase().trim(),
-            name: `${p.first_name} ${p.last_name}`,
-            role: p.role || "integration_counselor",
-            isPending: true,
-            code: p.access_code
-          });
-        });
-      }
-
-      // 3. Fetch active integration profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("church_id", church.id)
-        .ilike("role", "integration_%");
-
-      if (profiles) {
-        profiles.forEach(p => {
-          list.push({
-            email: p.email.toLowerCase().trim(),
-            name: p.display_name,
-            role: p.role,
-            isProfile: true
-          });
-        });
+      // 2. Fetch the rest from server action
+      const res = await getIntegrationDropdownList(church.id);
+      if (res.success && res.list) {
+        list.push(...res.list);
       }
 
       // Remove duplicates by email
