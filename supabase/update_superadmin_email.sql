@@ -2,28 +2,56 @@
 -- Poimén Helper - Mise à jour de l'e-mail du Super Administrateur
 -- =============================================================
 
--- 0. Nettoyer tout compte existant sous 'iccintegration2025@gmail.com' pour éviter les conflits
-DELETE FROM public.profiles WHERE email = 'iccintegration2025@gmail.com';
-DELETE FROM auth.users WHERE email = 'iccintegration2025@gmail.com';
-
--- 1. Renommer l'utilisateur 'minkojunior400@gmail.com' en 'iccintegration2025@gmail.com' dans auth.users
+-- 1. RESTAURER 'minkojunior400@gmail.com' en tant que 'second du berger'
+-- (Au cas où il avait été modifié lors d'une exécution précédente)
 UPDATE auth.users 
-SET email = 'iccintegration2025@gmail.com', 
-    email_confirmed_at = now() 
-WHERE email = 'minkojunior400@gmail.com';
+SET email = 'minkojunior400@gmail.com'
+WHERE id = 'cbb7acf2-92de-45a2-923d-c0ab5cbf65d5';
 
--- 2. Renommer dans public.profiles et forcer le rôle 'super_admin' et active 'true'
 UPDATE public.profiles 
-SET email = 'iccintegration2025@gmail.com',
-    role = 'super_admin',
+SET email = 'minkojunior400@gmail.com',
+    role = 'second du berger',
     active = true
-WHERE email = 'minkojunior400@gmail.com';
+WHERE id = 'cbb7acf2-92de-45a2-923d-c0ab5cbf65d5';
 
--- 3. Définir un mot de passe temporaire connu pour ce compte : 'IccIntegration2025!'
--- Vous pourrez le modifier ultérieurement, mais cela garantit une connexion réussie.
-UPDATE auth.users 
-SET encrypted_password = crypt('IccIntegration2025!', gen_salt('bf')) 
-WHERE email = 'iccintegration2025@gmail.com';
+-- 2. CRÉER LE NOUVEAU COMPTE SUPER ADMIN INDÉPENDANT 'iccintegration2025@gmail.com'
+-- Insérer le nouvel utilisateur dans auth.users s'il n'existe pas déjà
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+SELECT 
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(),
+  'authenticated',
+  'authenticated',
+  'iccintegration2025@gmail.com',
+  crypt('IccIntegration2025!', gen_salt('bf')),
+  now(),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb,
+  now(),
+  now()
+WHERE NOT EXISTS (
+  SELECT 1 FROM auth.users WHERE email = 'iccintegration2025@gmail.com'
+);
+
+-- 3. Insérer/Mettre à jour le profil public de ce nouvel administrateur
+INSERT INTO public.profiles (id, email, display_name, role, active)
+SELECT id, email, 'Super Admin', 'super_admin', true
+FROM auth.users
+WHERE email = 'iccintegration2025@gmail.com'
+ON CONFLICT (id) DO UPDATE 
+SET role = 'super_admin', active = true, email = 'iccintegration2025@gmail.com';
 
 -- 3. Mettre à jour la fonction get_user_role() pour intégrer le nouvel email
 CREATE OR REPLACE FUNCTION get_user_role()
