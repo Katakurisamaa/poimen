@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, EyeOff, LogIn, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -35,12 +36,21 @@ export default function AdminLoginPage() {
         .eq("id", data.user.id)
         .maybeSingle();
 
-      if (profErr || !profile || (profile.role !== "super_admin" && cleanEmail !== "iccintegration2025@gmail.com")) {
+      if (profErr || !profile || (profile.role !== "super_admin" && cleanEmail !== SUPER_ADMIN_EMAIL)) {
         await supabase.auth.signOut();
         throw new Error("Accès refusé. Cette console est réservée aux Super Administrateurs.");
       }
 
       localStorage.setItem("is_super_admin", "true");
+      localStorage.setItem("poimen_active_context", JSON.stringify({
+        user_id: profile.id,
+        email: cleanEmail,
+        context_type: "super_admin",
+        role: "super_admin",
+        church_id: null,
+        bergerie_id: null,
+        display_name: profile.display_name
+      }));
       localStorage.setItem("poimen_user_info", JSON.stringify({
         id: profile.id,
         email: cleanEmail,

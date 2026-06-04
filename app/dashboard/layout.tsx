@@ -6,6 +6,7 @@ import Header from "@/components/layout/Header";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { SUPER_ADMIN_EMAIL, contextToUserInfo } from "@/lib/auth-contexts";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -18,9 +19,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     const verifyAuth = async () => {
-      // 1. Check if selected_church is set, if not, send to landing page
+      const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
+
+      // 1. Check if selected_church is set, unless the user is opening the admin console.
       const selectedChurch = localStorage.getItem("selected_church");
-      if (!selectedChurch) {
+      if (!selectedChurch && !isLocalSuperAdmin) {
         window.location.href = "/";
         return;
       }
@@ -37,7 +40,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
       let superAdminDetected = false;
       let regularUserFound = false;
       let isIntegrationUser = false;
@@ -55,7 +57,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         if (profile) {
           profileData = profile;
-          const isEmailAdmin = session.user.email?.toLowerCase().trim() === "iccintegration2025@gmail.com";
+          const isEmailAdmin = session.user.email?.toLowerCase().trim() === SUPER_ADMIN_EMAIL;
           if ((profile.role === "super_admin" || isEmailAdmin) && isLocalSuperAdmin) {
             superAdminDetected = true;
             superAdminProfile = profile;
@@ -84,7 +86,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const spaceExited = localStorage.getItem("poimen_space_exited") === "true";
 
       // Synchronize poimen_user_info if logged in
-      if (session?.user && profileData && !spaceExited) {
+      const activeContextRaw = localStorage.getItem("poimen_active_context");
+      let activeContext = null;
+      try {
+        activeContext = activeContextRaw ? JSON.parse(activeContextRaw) : null;
+      } catch {
+        localStorage.removeItem("poimen_active_context");
+      }
+      const activeContextMatchesSession = activeContext?.user_id === session?.user?.id;
+
+      if (session?.user && activeContextMatchesSession && !spaceExited) {
+        const infoObj = contextToUserInfo(activeContext);
+        localStorage.setItem("poimen_user_info", JSON.stringify(infoObj));
+
+        regularUserFound = activeContext.context_type !== "super_admin";
+        isIntegrationUser = activeContext.context_type === "integration";
+        superAdminDetected = activeContext.context_type === "super_admin" && isLocalSuperAdmin;
+
+        if (activeContext.bergerie_id && !localStorage.getItem("selected_family")) {
+          const { data: family } = await supabase
+            .from("bergeries")
+            .select("*")
+            .eq("id", activeContext.bergerie_id)
+            .maybeSingle();
+          if (family) {
+            localStorage.setItem("selected_family", JSON.stringify(family));
+          }
+        }
+      } else if (session?.user && profileData && !spaceExited) {
         let userRoleForUI = profileData.role;
         let isConseillerForUI = !!profileData.role?.toLowerCase().startsWith("integration_");
 

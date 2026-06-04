@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 import {
   LayoutDashboard, Users, UserPlus, CalendarDays, Target,
   AlertTriangle, FileText, ChevronLeft, LogOut,
@@ -64,7 +65,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
       if (user) {
         try {
           const profile = JSON.parse(user);
-          if ((profile.role === 'super_admin' || profile.email === 'iccintegration2025@gmail.com') && isLocalSuperAdmin) {
+          if ((profile.role === 'super_admin' || profile.email === SUPER_ADMIN_EMAIL) && isLocalSuperAdmin) {
             superAdminDetected = true;
           }
         } catch (e) {}
@@ -75,7 +76,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
         try {
           const parsedInfo = JSON.parse(info);
           setUserInfo(parsedInfo);
-          if ((parsedInfo.role === 'super_admin' || parsedInfo.email === 'iccintegration2025@gmail.com') && isLocalSuperAdmin) {
+          if ((parsedInfo.role === 'super_admin' || parsedInfo.email === SUPER_ADMIN_EMAIL) && isLocalSuperAdmin) {
             superAdminDetected = true;
           }
         } catch (e) {}
@@ -255,6 +256,9 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
                 
                 // Signal logout and redirect immediately to landing page "/" to bypass Layout RLS guards
                 localStorage.setItem("poimen_logging_out", "true");
+                localStorage.removeItem("poimen_active_context");
+                localStorage.removeItem("poimen_user_info");
+                localStorage.removeItem("is_super_admin");
                 window.location.href = "/";
               }}
               style={{ 

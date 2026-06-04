@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
+import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 
 // Standard validation helper for UUIDs
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,7 +22,7 @@ export async function createChurchInvitation() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const isSuperAdmin = profile?.role === "super_admin" || user.email?.toLowerCase().trim() === "iccintegration2025@gmail.com";
+  const isSuperAdmin = profile?.role === "super_admin" || user.email?.toLowerCase().trim() === SUPER_ADMIN_EMAIL;
   if (!isSuperAdmin) {
     return { success: false, error: "Non autorisé. Accès réservé au Super Administrateur." };
   }

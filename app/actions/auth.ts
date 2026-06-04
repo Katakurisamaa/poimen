@@ -2,6 +2,84 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
+import { SUPER_ADMIN_EMAIL, inferContextType, normalizeFamilyRole } from "@/lib/auth-contexts";
+
+type ResolvedAccess = {
+  role: string;
+  churchId: string;
+  bergerieId: string;
+  displayName: string;
+  churchData: any;
+  familyData: any;
+};
+
+function isDuplicateAuthUserError(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("already") || normalized.includes("registered") || normalized.includes("exists");
+}
+
+async function upsertUserContext(supabase: any, userId: string, email: string, access: ResolvedAccess) {
+  const contextType = inferContextType(access.role, access.bergerieId);
+
+  let query = supabase
+    .from("user_contexts")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("context_type", contextType)
+    .eq("role", access.role);
+
+  query = access.churchId ? query.eq("church_id", access.churchId) : query.is("church_id", null);
+  query = access.bergerieId ? query.eq("bergerie_id", access.bergerieId) : query.is("bergerie_id", null);
+
+  const { data: existing } = await query.maybeSingle();
+  const payload = {
+    user_id: userId,
+    email,
+    context_type: contextType,
+    role: access.role,
+    church_id: access.churchId || null,
+    bergerie_id: access.bergerieId || null,
+    display_name: access.displayName,
+    active: true
+  };
+
+  if (existing?.id) {
+    return supabase.from("user_contexts").update(payload).eq("id", existing.id).select().single();
+  }
+
+  return supabase.from("user_contexts").insert(payload).select().single();
+}
+
+async function createOrPreserveProfile(supabase: any, userId: string, email: string, access: ResolvedAccess) {
+  const { data: existingProfile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!existingProfile) {
+    return supabase.from("profiles").insert({
+      id: userId,
+      email,
+      display_name: access.displayName,
+      role: access.role,
+      church_id: access.churchId || null,
+      bergerie_id: access.bergerieId || null,
+      active: true
+    });
+  }
+
+  return supabase
+    .from("profiles")
+    .update({
+      email,
+      display_name: existingProfile.display_name || access.displayName,
+      church_id: existingProfile.church_id || access.churchId || null,
+      bergerie_id: existingProfile.bergerie_id || access.bergerieId || null,
+      active: true
+    })
+    .eq("id", userId);
+}
 
 export async function adminSignUp(email: string, accessCode: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -20,7 +98,6 @@ export async function adminSignUp(email: string, accessCode: string) {
 
   const cleanEmail = email.toLowerCase().trim();
 
-  // 1. Verify credentials against the database tables using service role
   let resolvedRole = "";
   let resolvedChurchId = "";
   let resolvedBergerieId = "";
@@ -29,7 +106,6 @@ export async function adminSignUp(email: string, accessCode: string) {
   let churchData: any = null;
   let familyData: any = null;
 
-  // Scenario 1: Church Integration Responsable
   const { data: church, error: chErr } = await supabase
     .from("churches")
     .select("*")
@@ -42,10 +118,9 @@ export async function adminSignUp(email: string, accessCode: string) {
     resolvedChurchId = church.id;
     resolvedDisplayName = (church.integration_first_name && church.integration_last_name)
       ? `${church.integration_first_name} ${church.integration_last_name}`
-      : "Responsable Intégration";
+      : "Responsable Integration";
     churchData = church;
   } else {
-    // Scenario 2: Pending Counselor
     const { data: pendingCounselor, error: pcErr } = await supabase
       .from("pending_counselors")
       .select("*")
@@ -59,7 +134,6 @@ export async function adminSignUp(email: string, accessCode: string) {
       resolvedDisplayName = `${pendingCounselor.first_name} ${pendingCounselor.last_name}`;
       pendingCounselorIdToDelete = pendingCounselor.id;
     } else {
-      // Scenario 3: Family member
       const { data: member, error: memErr } = await supabase
         .from("members")
         .select("*, bergeries(*)")
@@ -69,17 +143,12 @@ export async function adminSignUp(email: string, accessCode: string) {
       if (!memErr && member && member.bergeries) {
         const familyCode = member.bergeries.access_code;
         if (familyCode && accessCode === familyCode) {
-          resolvedRole = member.status ? (
-            member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
-            member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
-            member.status.toLowerCase().trim()
-          ) : "membre";
+          resolvedRole = normalizeFamilyRole(member.status);
           resolvedBergerieId = member.bergerie_id;
           resolvedChurchId = member.bergeries.church_id;
           resolvedDisplayName = `${member.first_name} ${member.last_name}`;
           familyData = member.bergeries;
-          
-          // Also fetch church info for family member
+
           const { data: chForFam } = await supabase
             .from("churches")
             .select("*")
@@ -94,95 +163,75 @@ export async function adminSignUp(email: string, accessCode: string) {
   }
 
   if (!resolvedRole) {
-    return { success: false, error: "Informations d'identification invalides. Veuillez vérifier vos accès." };
+    return { success: false, error: "Informations d'identification invalides. Veuillez verifier vos acces." };
   }
 
-  // Credentials are valid, now create or update the auth user
+  const resolvedAccess = {
+    role: resolvedRole,
+    churchId: resolvedChurchId,
+    bergerieId: resolvedBergerieId,
+    displayName: resolvedDisplayName,
+    churchData,
+    familyData
+  };
+
   const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
     email: cleanEmail,
     password: accessCode,
     email_confirm: true
   });
 
-  let targetUserId = "";
-  let targetUser = null;
+  let targetUserId = authData?.user?.id || "";
+  let targetUser: any = authData?.user || null;
+  let requiresPrimaryPassword = false;
 
   if (authErr) {
-    if (authErr.message.includes("already") || authErr.message.includes("registered") || authErr.message.includes("exists")) {
-      try {
-        const { data: usersData, error: listErr } = await supabase.auth.admin.listUsers();
-        if (!listErr && usersData?.users) {
-          const existingUser = usersData.users.find(u => u.email?.toLowerCase().trim() === cleanEmail);
-          if (existingUser) {
-            // Check if this existing user is a super admin
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("role")
-              .eq("id", existingUser.id)
-              .maybeSingle();
-
-            const isExistingSuperAdmin = profile?.role === "super_admin" || cleanEmail === "iccintegration2025@gmail.com";
-            
-            if (isExistingSuperAdmin) {
-              return { 
-                success: false, 
-                error: "Cet e-mail est associé à un compte administrateur. Veuillez utiliser votre mot de passe administrateur principal pour vous connecter sur la page de connexion." 
-              };
-            }
-
-            const { data: updateData, error: updateErr } = await supabase.auth.admin.updateUserById(
-              existingUser.id,
-              { password: accessCode }
-            );
-            if (updateErr) {
-              return { success: false, error: `Mise à jour du mot de passe échouée: ${updateErr.message}` };
-            }
-            targetUserId = existingUser.id;
-            targetUser = updateData.user;
-          }
-        }
-      } catch (err: any) {
-        return { success: false, error: `Erreur d'auto-récupération: ${err.message}` };
-      }
-    } else {
+    if (!isDuplicateAuthUserError(authErr.message)) {
       return { success: false, error: authErr.message };
     }
-  } else {
-    targetUserId = authData.user.id;
-    targetUser = authData.user;
+
+    const { data: usersData, error: listErr } = await supabase.auth.admin.listUsers();
+    if (listErr) {
+      return { success: false, error: `Recuperation du compte existant echouee: ${listErr.message}` };
+    }
+
+    const existingUser = usersData?.users?.find(u => u.email?.toLowerCase().trim() === cleanEmail);
+    if (!existingUser) {
+      return { success: false, error: "Compte existant introuvable." };
+    }
+
+    targetUserId = existingUser.id;
+    targetUser = existingUser;
+    requiresPrimaryPassword = true;
   }
 
   if (!targetUserId || !targetUser) {
-    return { success: false, error: "Échec de création ou mise à jour de l'utilisateur." };
+    return { success: false, error: "Echec de creation ou recuperation de l'utilisateur." };
   }
 
-  // Create or update their profile server-side under service_role
-  const { error: profError } = await supabase.from("profiles").upsert({
-    id: targetUserId,
-    email: cleanEmail,
-    display_name: resolvedDisplayName,
-    role: resolvedRole,
-    church_id: resolvedChurchId || null,
-    bergerie_id: resolvedBergerieId || null,
-    active: true
-  });
+  const { data: context, error: contextError } = await upsertUserContext(supabase, targetUserId, cleanEmail, resolvedAccess);
+  if (contextError) {
+    return { success: false, error: `Creation de la casquette utilisateur echouee: ${contextError.message}` };
+  }
 
+  const { error: profError } = await createOrPreserveProfile(supabase, targetUserId, cleanEmail, resolvedAccess);
   if (profError) {
-    return { success: false, error: `Création ou mise à jour du profil échouée: ${profError.message}` };
+    return { success: false, error: `Creation ou mise a jour du profil echouee: ${profError.message}` };
   }
 
-  // Delete pending counselor record if applicable
   if (pendingCounselorIdToDelete) {
     await supabase.from("pending_counselors").delete().eq("id", pendingCounselorIdToDelete);
   }
 
-  return { 
-    success: true, 
+  return {
+    success: true,
     user: targetUser,
     role: resolvedRole,
     displayName: resolvedDisplayName,
     churchId: resolvedChurchId,
     bergerieId: resolvedBergerieId,
+    context,
+    requiresPrimaryPassword,
     churchData,
     familyData
   };
@@ -201,24 +250,22 @@ export async function autoAddLeaderToMembers(params: {
   const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
 
   if (authErr || !user) {
-    return { success: false, error: "Non authentifié." };
+    return { success: false, error: "Non authentifie." };
   }
 
-  // Security check: only allow adding themselves, or if they are super_admin
   const { data: profile } = await serverSupabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
 
-  const isSuperAdmin = profile?.role === "super_admin" || user.email?.toLowerCase().trim() === "iccintegration2025@gmail.com";
+  const isSuperAdmin = profile?.role === "super_admin" || user.email?.toLowerCase().trim() === SUPER_ADMIN_EMAIL;
   const isSelf = user.email?.toLowerCase().trim() === params.email.toLowerCase().trim();
 
   if (!isSelf && !isSuperAdmin) {
-    return { success: false, error: "Non autorisé. Vous ne pouvez ajouter que votre propre profil de leader." };
+    return { success: false, error: "Non autorise. Vous ne pouvez ajouter que votre propre profil de leader." };
   }
 
-  // Proceed with inserting the member using the service role
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 

@@ -8,6 +8,7 @@ import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { adminSignUp } from "@/app/actions/auth";
+import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 
 const STATS = [
   { label: "Membres", value: "0", sub: "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
@@ -832,7 +833,7 @@ export default function DashboardPage() {
     const userStr = localStorage.getItem("poimen_user");
     if (userStr) {
       const user = JSON.parse(userStr);
-      if ((user.role === 'super_admin' || user.email === 'iccintegration2025@gmail.com') && isLocalSuperAdmin) {
+      if ((user.role === 'super_admin' || user.email === SUPER_ADMIN_EMAIL) && isLocalSuperAdmin) {
         window.location.href = "/dashboard/admin";
         return;
       }
@@ -842,7 +843,7 @@ export default function DashboardPage() {
     if (localUserInfo) {
       try {
         const userInfoObj = JSON.parse(localUserInfo);
-        if ((userInfoObj.role === 'super_admin' || userInfoObj.email === 'iccintegration2025@gmail.com') && isLocalSuperAdmin) {
+        if ((userInfoObj.role === 'super_admin' || userInfoObj.email === SUPER_ADMIN_EMAIL) && isLocalSuperAdmin) {
           window.location.href = "/dashboard/admin";
           return;
         }

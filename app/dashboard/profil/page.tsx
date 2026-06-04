@@ -178,7 +178,7 @@ export default function ProfilePage() {
       const mockAdmin = {
         firstName: "Junior",
         lastName: "Super Admin",
-        email: "iccintegration2025@gmail.com",
+        email: "minkojunior400@gmail.com",
         role: "super_admin",
         status: "Super Admin",
         civility: "M.",
@@ -436,6 +436,9 @@ export default function ProfilePage() {
                     console.error("Error signing out:", err);
                   }
                   localStorage.setItem("poimen_logging_out", "true");
+                  localStorage.removeItem("poimen_active_context");
+                  localStorage.removeItem("poimen_user_info");
+                  localStorage.removeItem("is_super_admin");
                   window.location.href = "/";
                 }}
                 className="btn btn-outline btn-sm"

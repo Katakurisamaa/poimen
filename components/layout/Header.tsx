@@ -80,6 +80,7 @@ export default function Header({ bergerieName = "Famille Alpha", onMenuClick }: 
               localStorage.setItem("poimen_space_exited", "true");
               localStorage.removeItem("selected_family");
               localStorage.removeItem("poimen_user_info");
+              localStorage.removeItem("poimen_active_context");
               window.dispatchEvent(new Event("storage"));
               try {
                 await supabase.auth.signOut();

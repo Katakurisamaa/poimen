@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, LogIn, MapPin, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, LogIn, MapPin, AlertCircle, ShieldCheck, Users, UserRoundCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { adminSignUp } from "@/app/actions/auth";
+import { contextLabel, contextToUserInfo, inferContextType, type UserContextRecord } from "@/lib/auth-contexts";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [church, setChurch] = useState<{ name: string; city: string } | null>(null);
+  const [availableContexts, setAvailableContexts] = useState<UserContextRecord[]>([]);
 
   // Safely initialize state after mount to avoid server/client mismatch and effect warnings
   useEffect(() => {
@@ -35,6 +37,95 @@ export default function LoginPage() {
       }, 0);
     }
   }, []);
+
+  const legacyProfileToContext = (profile: any, userId: string, cleanEmail: string): UserContextRecord => ({
+    id: `legacy-${userId}`,
+    user_id: userId,
+    email: profile?.email || cleanEmail,
+    context_type: inferContextType(profile?.role, profile?.bergerie_id),
+    role: profile?.role || "membre",
+    church_id: profile?.church_id || null,
+    bergerie_id: profile?.bergerie_id || null,
+    display_name: profile?.display_name || cleanEmail.split("@")[0],
+    active: true
+  });
+
+  const loadContexts = async (userId: string, cleanEmail: string, fallbackProfile?: any) => {
+    const { data: contexts, error: contextsError } = await supabase
+      .from("user_contexts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("active", true)
+      .order("context_type", { ascending: true });
+
+    if (!contextsError && contexts?.length) {
+      return contexts as UserContextRecord[];
+    }
+
+    if (fallbackProfile) {
+      return [legacyProfileToContext(fallbackProfile, userId, cleanEmail)];
+    }
+
+    return [];
+  };
+
+  const applyContext = async (context: UserContextRecord) => {
+    const userInfo = contextToUserInfo(context);
+
+    localStorage.setItem("poimen_active_context", JSON.stringify(context));
+    localStorage.setItem("poimen_user_info", JSON.stringify(userInfo));
+    localStorage.removeItem("poimen_space_exited");
+
+    if (context.context_type === "super_admin") {
+      localStorage.setItem("is_super_admin", "true");
+      localStorage.removeItem("selected_family");
+      router.push("/dashboard/admin");
+      return;
+    }
+
+    localStorage.removeItem("is_super_admin");
+
+    if (context.church_id) {
+      const { data: chInfo } = await supabase
+        .from("churches")
+        .select("*")
+        .eq("id", context.church_id)
+        .maybeSingle();
+      if (chInfo) {
+        localStorage.setItem("selected_church", JSON.stringify(chInfo));
+      }
+    }
+
+    if (context.bergerie_id) {
+      const { data: familyInfo } = await supabase
+        .from("bergeries")
+        .select("*")
+        .eq("id", context.bergerie_id)
+        .maybeSingle();
+      if (familyInfo) {
+        localStorage.setItem("selected_family", JSON.stringify(familyInfo));
+      }
+    } else {
+      localStorage.removeItem("selected_family");
+    }
+
+    router.push("/dashboard");
+  };
+
+  const continueWithContexts = async (contexts: UserContextRecord[]) => {
+    if (contexts.length > 1) {
+      setAvailableContexts(contexts);
+      setLoading(false);
+      return;
+    }
+
+    if (contexts.length === 1) {
+      await applyContext(contexts[0]);
+      return;
+    }
+
+    router.push("/dashboard");
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,55 +276,8 @@ export default function LoginPage() {
         }
       }
 
-      if (activeProfile) {
-        let finalRole = activeProfile.role;
-        let isConseiller = false;
-
-        if (activeProfile.role === "super_admin" && activeProfile.bergerie_id) {
-          const { data: member } = await supabase
-            .from("members")
-            .select("*")
-            .eq("email", activeProfile.email)
-            .eq("bergerie_id", activeProfile.bergerie_id)
-            .maybeSingle();
-          if (member) {
-            finalRole = member.status ? (
-              member.status.toLowerCase().trim() === "responsable" || member.status.toLowerCase().trim() === "responsable de brebis" ? "responsable de brebi" :
-              member.status.toLowerCase().trim() === "second" || member.status.toLowerCase().trim() === "second du berger" ? "second du berger" :
-              member.status.toLowerCase().trim()
-            ) : "membre";
-            isConseiller = member.is_conseiller;
-          }
-        } else {
-          isConseiller = (activeProfile.role || "").toLowerCase().includes("conseiller");
-        }
-
-        localStorage.setItem("poimen_user_info", JSON.stringify({
-          id: activeProfile.id,
-          email: activeProfile.email,
-          role: finalRole,
-          isConseiller: isConseiller,
-          firstName: activeProfile.display_name?.split(' ')[0] || '',
-          lastName: activeProfile.display_name?.split(' ').slice(1).join(' ') || '',
-          church_id: activeProfile.church_id,
-          bergerie_id: activeProfile.bergerie_id
-        }));
-
-        // Load and save church details for integration roles
-        if (activeProfile.church_id && activeProfile.role?.toLowerCase().startsWith("integration_")) {
-          const { data: chInfo } = await supabase
-            .from("churches")
-            .select("*")
-            .eq("id", activeProfile.church_id)
-            .single();
-
-          if (chInfo) {
-            localStorage.setItem("selected_church", JSON.stringify(chInfo));
-          }
-        }
-      }
-
-      router.push("/dashboard");
+      const contexts = await loadContexts(data.user.id, cleanEmail, activeProfile);
+      await continueWithContexts(contexts);
     } catch (err: any) {
       // Intercept credentials error to see if they are a first-time integration user
       if (err.message === "Invalid login credentials") {
@@ -241,6 +285,12 @@ export default function LoginPage() {
           const res = await adminSignUp(cleanEmail, password);
           if (!res.success) {
             throw new Error(res.error);
+          }
+
+          if (res.requiresPrimaryPassword) {
+            setError("Cette adresse existe deja. La casquette a ete ajoutee si le code est valide : reconnectez-vous avec votre mot de passe principal pour choisir l'espace.");
+            setLoading(false);
+            return;
           }
 
           const signUpUser = res.user;
@@ -252,25 +302,10 @@ export default function LoginPage() {
             });
             if (signInErr) throw signInErr;
 
-            // Store session locals
-            localStorage.setItem("poimen_user_info", JSON.stringify({
-              id: signUpUser.id,
-              email: cleanEmail,
-              role: res.role,
-              firstName: res.displayName?.split(' ')[0] || "",
-              lastName: res.displayName?.split(' ').slice(1).join(' ') || "",
-              church_id: res.churchId,
-              bergerie_id: res.bergerieId
-            }));
-
-            if (res.churchData) {
-              localStorage.setItem("selected_church", JSON.stringify(res.churchData));
-            }
-            if (res.familyData) {
-              localStorage.setItem("selected_family", JSON.stringify(res.familyData));
-            }
-
-            router.push("/dashboard");
+            const contexts = res.context
+              ? [res.context as UserContextRecord]
+              : await loadContexts(signUpUser.id, cleanEmail);
+            await continueWithContexts(contexts);
             return;
           }
         } catch (innerErr: any) {
@@ -317,6 +352,45 @@ export default function LoginPage() {
           )}
           
           <p style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginBottom: 28 }}>Accédez à votre espace Poimén</p>
+
+          {availableContexts.length > 1 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 22 }}>
+              <p style={{ margin: 0, color: "var(--text)", fontSize: 13, fontWeight: 700 }}>Choisissez votre espace</p>
+              {availableContexts.map((context) => {
+                const Icon = context.context_type === "super_admin" ? ShieldCheck : context.context_type === "integration" ? UserRoundCheck : Users;
+
+                return (
+                  <button
+                    key={context.id || `${context.context_type}-${context.role}-${context.bergerie_id || context.church_id}`}
+                    type="button"
+                    onClick={() => applyContext(context)}
+                    className="glass"
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "13px 14px",
+                      border: "1px solid var(--line)",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <span style={{ width: 38, height: 38, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--gold-glow)", color: "var(--gold)", flex: "0 0 auto" }}>
+                      <Icon size={18} />
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontWeight: 800, fontSize: 14 }}>{contextLabel(context)}</span>
+                      <span style={{ display: "block", color: "var(--muted)", fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {context.display_name || context.email} · {context.role}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <div>
