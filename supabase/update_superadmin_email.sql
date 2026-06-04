@@ -2,6 +2,10 @@
 -- Poimén Helper - Mise à jour de l'e-mail du Super Administrateur
 -- =============================================================
 
+-- 0. Nettoyer l'éventuel compte doublon temporaire 'iccintegration2025@gmail.com' s'il a déjà été créé
+DELETE FROM public.profiles WHERE email = 'iccintegration2025@gmail.com';
+DELETE FROM auth.users WHERE email = 'iccintegration2025@gmail.com';
+
 -- 1. Mettre à jour l'e-mail de l'utilisateur admin dans la table d'authentification Supabase
 UPDATE auth.users 
 SET email = 'iccintegration2025@gmail.com', 
