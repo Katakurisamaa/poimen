@@ -28,6 +28,7 @@ export default function LandingPage() {
     if (localStorage.getItem("poimen_logging_out") === "true") {
       localStorage.removeItem("selected_family");
       localStorage.removeItem("poimen_user_info");
+      localStorage.removeItem("poimen_active_context");
       localStorage.removeItem("poimen_user");
       localStorage.removeItem("is_super_admin");
       localStorage.removeItem("poimen_space_exited");
@@ -75,6 +76,7 @@ export default function LandingPage() {
             // Clear any active space or family from previous sessions to prevent conflicts
             localStorage.removeItem("selected_family");
             localStorage.removeItem("poimen_user_info");
+            localStorage.removeItem("poimen_active_context");
             localStorage.removeItem("is_super_admin");
             localStorage.removeItem("poimen_space_exited");
             window.dispatchEvent(new Event("storage"));
@@ -94,6 +96,7 @@ export default function LandingPage() {
         // Clear active family/user info from previous sessions
         localStorage.removeItem("selected_family");
         localStorage.removeItem("poimen_user_info");
+        localStorage.removeItem("poimen_active_context");
         localStorage.removeItem("is_super_admin");
         localStorage.removeItem("poimen_space_exited");
         window.dispatchEvent(new Event("storage"));
