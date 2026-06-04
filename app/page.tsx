@@ -15,6 +15,7 @@ export default function LandingPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [validating, setValidating] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const fetchChurches = async () => {
     const { data } = await supabase.from("churches").select("*").order("name");
@@ -234,28 +235,24 @@ export default function LandingPage() {
             margin: "0 auto 45px", 
             display: "flex", 
             alignItems: "center", 
-            gap: 12, 
-            padding: "10px 20px",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid rgba(212, 175, 55, 0.22)",
+            gap: 14, 
+            padding: "14px 24px",
+            borderRadius: "50px",
+            border: isSearchFocused ? "1px solid var(--gold)" : "1px solid rgba(212, 175, 55, 0.22)",
             background: "var(--surface)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.3)"
+            boxShadow: isSearchFocused ? "0 0 20px rgba(212, 175, 55, 0.2), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)",
+            transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
           }}
         >
-          <Search size={18} style={{ color: "var(--gold-light)", opacity: 0.8 }} />
+          <Search size={20} style={{ color: "var(--gold-light)", opacity: isSearchFocused ? 1 : 0.6, transition: "opacity 0.2s", flexShrink: 0 }} />
           <input 
             type="text" 
             placeholder="Rechercher une église..." 
-            className="input" 
-            style={{ 
-              background: "none", 
-              border: "none", 
-              padding: "6px 0", 
-              boxShadow: "none",
-              fontSize: "14px"
-            }}
+            className="landing-search-input"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
           />
         </div>
 
@@ -507,6 +504,31 @@ export default function LandingPage() {
       <style jsx global>{`
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        div.glass-compact input.landing-search-input {
+          background: transparent !important;
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          font-size: 15px !important;
+          color: var(--cream) !important;
+          width: 100% !important;
+          height: auto !important;
+          min-height: unset !important;
+          line-height: 1.5 !important;
+        }
+        div.glass-compact input.landing-search-input:focus {
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          outline: none !important;
+        }
+        div.glass-compact input.landing-search-input::placeholder {
+          color: var(--muted) !important;
+          opacity: 0.8 !important;
+        }
       `}</style>
     </div>
   );
