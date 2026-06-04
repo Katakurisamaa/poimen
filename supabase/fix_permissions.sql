@@ -6,7 +6,7 @@
 CREATE OR REPLACE FUNCTION get_user_role()
 RETURNS TEXT AS $$
   SELECT COALESCE(
-    CASE WHEN (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') THEN 'super_admin' END,
+    CASE WHEN (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') THEN 'super_admin' END,
     (
       SELECT LOWER(REPLACE(status, ' ', '_')) 
       FROM public.members 
@@ -30,7 +30,7 @@ $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 DROP POLICY IF EXISTS "invites_access_policy" ON public.invites;
 CREATE POLICY "invites_access_policy" ON public.invites FOR ALL
   USING (
-    (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+    (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
     (get_user_role() = 'super_admin') OR 
     (
       bergerie_id = get_user_bergerie() AND 
@@ -42,7 +42,7 @@ CREATE POLICY "invites_access_policy" ON public.invites FOR ALL
 DROP POLICY IF EXISTS "members_access_policy" ON public.members;
 CREATE POLICY "members_access_policy" ON public.members FOR ALL
   USING (
-    (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+    (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
     (get_user_role() = 'super_admin') OR 
     (
       bergerie_id = get_user_bergerie() AND 
@@ -53,7 +53,7 @@ CREATE POLICY "members_access_policy" ON public.members FOR ALL
 DROP POLICY IF EXISTS "activities_access_policy" ON public.activities;
 CREATE POLICY "activities_access_policy" ON public.activities FOR ALL
   USING (
-    (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+    (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
     (get_user_role() = 'super_admin') OR 
     (
       bergerie_id = get_user_bergerie() AND 

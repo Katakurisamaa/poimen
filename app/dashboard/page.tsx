@@ -832,7 +832,7 @@ export default function DashboardPage() {
     const userStr = localStorage.getItem("poimen_user");
     if (userStr) {
       const user = JSON.parse(userStr);
-      if ((user.role === 'super_admin' || user.email === 'minkojunior400@gmail.com') && isLocalSuperAdmin) {
+      if ((user.role === 'super_admin' || user.email === 'iccintegration2025@gmail.com') && isLocalSuperAdmin) {
         window.location.href = "/dashboard/admin";
         return;
       }
@@ -842,7 +842,7 @@ export default function DashboardPage() {
     if (localUserInfo) {
       try {
         const userInfoObj = JSON.parse(localUserInfo);
-        if ((userInfoObj.role === 'super_admin' || userInfoObj.email === 'minkojunior400@gmail.com') && isLocalSuperAdmin) {
+        if ((userInfoObj.role === 'super_admin' || userInfoObj.email === 'iccintegration2025@gmail.com') && isLocalSuperAdmin) {
           window.location.href = "/dashboard/admin";
           return;
         }

@@ -55,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         if (profile) {
           profileData = profile;
-          const isEmailAdmin = session.user.email?.toLowerCase().trim() === "minkojunior400@gmail.com";
+          const isEmailAdmin = session.user.email?.toLowerCase().trim() === "iccintegration2025@gmail.com";
           if ((profile.role === "super_admin" || isEmailAdmin) && isLocalSuperAdmin) {
             superAdminDetected = true;
             superAdminProfile = profile;

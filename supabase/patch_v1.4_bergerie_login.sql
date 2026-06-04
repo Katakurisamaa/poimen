@@ -29,18 +29,18 @@ FOR INSERT TO authenticated, anon
 WITH CHECK (status = 'pending');
 
 -- 3. RLS : GARDIR LE PLEIN ACCÈS POUR LE SUPER ADMIN
--- (Email : minkojunior400@gmail.com)
+-- (Email : iccintegration2025@gmail.com)
 DROP POLICY IF EXISTS "super_admin_all_churches" ON churches;
 CREATE POLICY "super_admin_all_churches_v2" ON churches
 FOR ALL TO authenticated, anon
-USING (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com')
-WITH CHECK (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com');
+USING (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com')
+WITH CHECK (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com');
 
 DROP POLICY IF EXISTS "super_admin_all_bergeries" ON bergeries;
 CREATE POLICY "super_admin_all_bergeries_v2" ON bergeries
 FOR ALL TO authenticated, anon
-USING (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com')
-WITH CHECK (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com');
+USING (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com')
+WITH CHECK (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com');
 
 -- 4. REFRESH
 NOTIFY pgrst, 'reload schema';

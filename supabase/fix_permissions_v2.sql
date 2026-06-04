@@ -35,7 +35,7 @@ FOR ALL
 TO authenticated
 USING (
   -- Super admin / Project owner bypass
-  (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com')
+  (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com')
   OR (get_user_role() = 'super_admin')
   -- Regional coordinators or higher roles
   OR (get_user_role() = 'Admin')
@@ -48,7 +48,7 @@ USING (
   )
 )
 WITH CHECK (
-  (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com')
+  (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com')
   OR (get_user_role() = 'super_admin')
   OR (get_user_role() = 'Admin')
   OR (

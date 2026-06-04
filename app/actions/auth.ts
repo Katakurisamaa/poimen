@@ -121,7 +121,7 @@ export async function adminSignUp(email: string, accessCode: string) {
               .eq("id", existingUser.id)
               .maybeSingle();
 
-            const isExistingSuperAdmin = profile?.role === "super_admin" || cleanEmail === "minkojunior400@gmail.com";
+            const isExistingSuperAdmin = profile?.role === "super_admin" || cleanEmail === "iccintegration2025@gmail.com";
             
             if (isExistingSuperAdmin) {
               return { 
@@ -211,7 +211,7 @@ export async function autoAddLeaderToMembers(params: {
     .eq("id", user.id)
     .maybeSingle();
 
-  const isSuperAdmin = profile?.role === "super_admin" || user.email?.toLowerCase().trim() === "minkojunior400@gmail.com";
+  const isSuperAdmin = profile?.role === "super_admin" || user.email?.toLowerCase().trim() === "iccintegration2025@gmail.com";
   const isSelf = user.email?.toLowerCase().trim() === params.email.toLowerCase().trim();
 
   if (!isSelf && !isSuperAdmin) {

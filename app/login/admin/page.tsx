@@ -35,7 +35,7 @@ export default function AdminLoginPage() {
         .eq("id", data.user.id)
         .maybeSingle();
 
-      if (profErr || !profile || (profile.role !== "super_admin" && cleanEmail !== "minkojunior400@gmail.com")) {
+      if (profErr || !profile || (profile.role !== "super_admin" && cleanEmail !== "iccintegration2025@gmail.com")) {
         await supabase.auth.signOut();
         throw new Error("Accès refusé. Cette console est réservée aux Super Administrateurs.");
       }

@@ -38,7 +38,7 @@ FOR ALL
 TO authenticated
 USING (
   -- Super admin / Project owner bypass
-  (LOWER(auth.jwt() ->> 'email') = 'minkojunior400@gmail.com')
+  (LOWER(auth.jwt() ->> 'email') = 'iccintegration2025@gmail.com')
   OR (LOWER(get_user_role()) = 'super_admin')
   -- Normal access: within the same bergerie and authorized role
   OR (
@@ -54,7 +54,7 @@ USING (
   OR (responsible = (SELECT display_name FROM profiles WHERE id = auth.uid()))
 )
 WITH CHECK (
-  (LOWER(auth.jwt() ->> 'email') = 'minkojunior400@gmail.com')
+  (LOWER(auth.jwt() ->> 'email') = 'iccintegration2025@gmail.com')
   OR (LOWER(get_user_role()) = 'super_admin')
   OR (
     bergerie_id = get_user_bergerie() 

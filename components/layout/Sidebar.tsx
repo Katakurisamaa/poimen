@@ -64,7 +64,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
       if (user) {
         try {
           const profile = JSON.parse(user);
-          if ((profile.role === 'super_admin' || profile.email === 'minkojunior400@gmail.com') && isLocalSuperAdmin) {
+          if ((profile.role === 'super_admin' || profile.email === 'iccintegration2025@gmail.com') && isLocalSuperAdmin) {
             superAdminDetected = true;
           }
         } catch (e) {}
@@ -75,7 +75,7 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
         try {
           const parsedInfo = JSON.parse(info);
           setUserInfo(parsedInfo);
-          if ((parsedInfo.role === 'super_admin' || parsedInfo.email === 'minkojunior400@gmail.com') && isLocalSuperAdmin) {
+          if ((parsedInfo.role === 'super_admin' || parsedInfo.email === 'iccintegration2025@gmail.com') && isLocalSuperAdmin) {
             superAdminDetected = true;
           }
         } catch (e) {}

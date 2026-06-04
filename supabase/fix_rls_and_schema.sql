@@ -32,11 +32,11 @@ DROP POLICY IF EXISTS "super_admin_all" ON bergeries;
 CREATE POLICY "super_admin_all_churches" ON churches
 FOR ALL TO authenticated, anon
 USING (
-  (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+  (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
   (get_user_role() = 'super_admin')
 )
 WITH CHECK (
-  (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+  (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
   (get_user_role() = 'super_admin')
 );
 
@@ -44,11 +44,11 @@ WITH CHECK (
 CREATE POLICY "super_admin_all_bergeries" ON bergeries
 FOR ALL TO authenticated, anon
 USING (
-  (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+  (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
   (get_user_role() = 'super_admin')
 )
 WITH CHECK (
-  (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+  (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
   (get_user_role() = 'super_admin')
 );
 

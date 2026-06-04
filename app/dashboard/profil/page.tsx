@@ -178,7 +178,7 @@ export default function ProfilePage() {
       const mockAdmin = {
         firstName: "Junior",
         lastName: "Super Admin",
-        email: "minkojunior400@gmail.com",
+        email: "iccintegration2025@gmail.com",
         role: "super_admin",
         status: "Super Admin",
         civility: "M.",

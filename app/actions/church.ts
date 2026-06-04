@@ -21,7 +21,7 @@ export async function createChurchInvitation() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const isSuperAdmin = profile?.role === "super_admin" || user.email?.toLowerCase().trim() === "minkojunior400@gmail.com";
+  const isSuperAdmin = profile?.role === "super_admin" || user.email?.toLowerCase().trim() === "iccintegration2025@gmail.com";
   if (!isSuperAdmin) {
     return { success: false, error: "Non autorisé. Accès réservé au Super Administrateur." };
   }

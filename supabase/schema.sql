@@ -91,7 +91,7 @@ CREATE OR REPLACE FUNCTION get_user_role()
 RETURNS TEXT AS $$
   -- Priorité absolue à l'email admin pour éviter tout blocage
   SELECT COALESCE(
-    CASE WHEN (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') THEN 'super_admin' END,
+    CASE WHEN (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') THEN 'super_admin' END,
     (SELECT LOWER(REPLACE(role, ' ', '_')) FROM profiles WHERE id = auth.uid())
   )
 $$ LANGUAGE SQL SECURITY DEFINER STABLE;
@@ -109,7 +109,7 @@ DROP POLICY IF EXISTS "profiles_read_own" ON profiles;
 CREATE POLICY "profiles_read_own" ON profiles FOR SELECT USING (id = auth.uid());
 DROP POLICY IF EXISTS "super_admin_all" ON profiles;
 CREATE POLICY "super_admin_all" ON profiles FOR ALL USING (
-  (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR (get_user_role() = 'super_admin') OR (id = auth.uid())
+  (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR (get_user_role() = 'super_admin') OR (id = auth.uid())
 );
 
 -- MEMBERS
@@ -120,7 +120,7 @@ DROP POLICY IF EXISTS "members_read_policy" ON members;
 -- Lecteurs (Tout le monde dans la bergerie)
 CREATE POLICY "members_read_policy" ON members FOR SELECT
   USING (
-    (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+    (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
     (get_user_role() = 'super_admin') OR 
     (bergerie_id = get_user_bergerie())
   );
@@ -128,7 +128,7 @@ CREATE POLICY "members_read_policy" ON members FOR SELECT
 -- Gestionnaires (Berger, Second, Responsable, etc.)
 CREATE POLICY "members_manage_policy" ON members FOR ALL
   USING (
-    (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+    (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
     (get_user_role() = 'super_admin') OR 
     (bergerie_id = get_user_bergerie() AND get_user_role() IN ('berger','second','responsable','coordonnateur','second_du_berger','responsable_de_brebi', 'conseiller'))
   );
@@ -138,14 +138,14 @@ ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "activities_access_policy" ON activities;
 CREATE POLICY "activities_read_policy" ON activities FOR SELECT
   USING (
-    (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+    (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
     (get_user_role() = 'super_admin') OR 
     (bergerie_id = get_user_bergerie())
   );
 
 CREATE POLICY "activities_manage_policy" ON activities FOR ALL
   USING (
-    (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+    (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
     (get_user_role() = 'super_admin') OR 
     (bergerie_id = get_user_bergerie() AND get_user_role() IN ('berger','second','responsable','coordonnateur','second_du_berger','responsable_de_brebi', 'conseiller'))
   );
@@ -155,14 +155,14 @@ ALTER TABLE invites ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "invites_access_policy" ON invites;
 CREATE POLICY "invites_read_policy" ON invites FOR SELECT
   USING (
-    (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+    (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
     (get_user_role() = 'super_admin') OR 
     (bergerie_id = get_user_bergerie())
   );
 
 CREATE POLICY "invites_manage_policy" ON invites FOR ALL
   USING (
-    (auth.jwt() ->> 'email' = 'minkojunior400@gmail.com') OR 
+    (auth.jwt() ->> 'email' = 'iccintegration2025@gmail.com') OR 
     (get_user_role() = 'super_admin') OR 
     (bergerie_id = get_user_bergerie() AND get_user_role() IN ('berger','second','responsable','coordonnateur','second_du_berger','responsable_de_brebi', 'conseiller'))
   );

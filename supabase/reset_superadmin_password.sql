@@ -2,7 +2,7 @@
 -- Poimén Helper - Reset Super Admin Password
 -- =============================================================
 -- Ce script permet de réinitialiser le mot de passe de l'administrateur
--- central (minkojunior400@gmail.com) directement dans Supabase.
+-- central (iccintegration2025@gmail.com) directement dans Supabase.
 --
 -- INSTRUCTIONS :
 -- 1. Copiez ce script SQL.
@@ -13,9 +13,9 @@
 
 UPDATE auth.users 
 SET encrypted_password = crypt('votre_nouveau_mot_de_passe', gen_salt('bf')) 
-WHERE email = 'minkojunior400@gmail.com';
+WHERE email = 'iccintegration2025@gmail.com';
 
 -- Optionnel : s'assurer que le profil est également à jour
 UPDATE public.profiles
 SET active = true, role = 'super_admin'
-WHERE email = 'minkojunior400@gmail.com';
+WHERE email = 'iccintegration2025@gmail.com';
