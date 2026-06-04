@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Users, UserPlus, Trash2, Mail, ShieldAlert, Loader2, CheckCircle2, Clock3, Plus, X } from "lucide-react";
+import { Users, UserPlus, Trash2, Mail, ShieldAlert, Loader2, CheckCircle2, Clock3, Plus, X, Pencil } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { createIntegrationTeamMember, deactivateIntegrationTeamMember, listIntegrationTeam } from "@/app/actions/auth";
+import { createIntegrationTeamMember, deactivateIntegrationTeamMember, listIntegrationTeam, updateIntegrationTeamMember } from "@/app/actions/auth";
 
 export default function IntegrationTeamPage() {
   const [userInfo, setUserInfo] = useState<any>(null);
@@ -12,7 +12,16 @@ export default function IntegrationTeamPage() {
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<any[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    accessCode: "",
+    role: "integration_conseiller"
+  });
   
   const [newCounselor, setNewCounselor] = useState({
     firstName: "",
@@ -27,7 +36,7 @@ export default function IntegrationTeamPage() {
   }, []);
 
   useEffect(() => {
-    if (isAdding) {
+    if (isAdding || isEditing) {
       document.documentElement.classList.add("no-scroll");
       document.body.classList.add("no-scroll");
     } else {
@@ -38,7 +47,56 @@ export default function IntegrationTeamPage() {
       document.documentElement.classList.remove("no-scroll");
       document.body.classList.remove("no-scroll");
     };
-  }, [isAdding]);
+  }, [isAdding, isEditing]);
+
+  const handleStartEdit = (member: any) => {
+    const names = (member.name || "").split(" ");
+    const firstName = names[0] || "";
+    const lastName = names.slice(1).join(" ") || "";
+    
+    setEditingMember(member);
+    setEditForm({
+      firstName,
+      lastName,
+      email: member.email,
+      accessCode: "",
+      role: member.role === "Responsable" ? "integration_responsable" : member.role === "Second" ? "integration_second" : "integration_conseiller"
+    });
+    setIsEditing(true);
+  };
+
+  const handleEditCounselor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm.firstName || !editForm.lastName || !editForm.email) {
+      alert("Veuillez remplir les champs obligatoires.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await updateIntegrationTeamMember({
+        churchId: church.id,
+        userId: editingMember.id,
+        contextId: editingMember.contextId,
+        firstName: editForm.firstName,
+        lastName: editForm.lastName,
+        email: editForm.email,
+        accessCode: editForm.accessCode || undefined,
+        role: editForm.role
+      });
+
+      if (!res.success) throw new Error(res.error);
+
+      alert("Informations du membre de l'équipe mises à jour avec succès !");
+      setIsEditing(false);
+      await fetchTeam(church.id);
+    } catch (err: any) {
+      console.error("Error editing counselor:", err);
+      alert("Erreur lors de la modification : " + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const init = async () => {
     try {
@@ -111,7 +169,7 @@ export default function IntegrationTeamPage() {
 
       if (!res.success) throw new Error(res.error);
 
-      alert("Membre de l'équipe pré-enregistré avec succès ! Il pourra se connecter immédiatement avec son adresse email et le code d'accès.");
+      alert("Membre de l'équipe enregistré avec succès ! Il peut se connecter immédiatement avec son adresse e-mail et son code d'accès.");
       
       setNewCounselor({ firstName: "", lastName: "", email: "", accessCode: "", role: "integration_conseiller" });
       setIsAdding(false);
@@ -287,7 +345,17 @@ export default function IntegrationTeamPage() {
                       <td style={{ padding: "16px 24px", fontSize: 12, color: "var(--muted)" }}>
                         {new Date(member.createdAt).toLocaleDateString("fr-FR")}
                       </td>
-                      <td style={{ padding: "16px 24px", textAlign: "right" }}>
+                      <td style={{ padding: "16px 24px", textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button 
+                          className="btn-icon" 
+                          onClick={() => handleStartEdit(member)}
+                          style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", transition: "color 0.2s ease", marginRight: 12 }}
+                          onMouseEnter={e => e.currentTarget.style.color = "var(--gold)"}
+                          onMouseLeave={e => e.currentTarget.style.color = "var(--muted)"}
+                          title="Modifier les informations"
+                        >
+                          <Pencil size={15} />
+                        </button>
                         <button 
                           className="btn-icon" 
                           onClick={() => handleDeleteMember(member)}
@@ -361,6 +429,69 @@ export default function IntegrationTeamPage() {
 
               <div style={{ display: "flex", gap: 12, paddingTop: 10 }}>
                 <button type="button" className="btn btn-subtle" style={{ flex: 1, height: 44 }} onClick={() => setIsAdding(false)}>Annuler</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, height: 44, justifyContent: "center" }} disabled={submitting}>
+                  {submitting ? <Loader2 className="animate-spin" size={18} /> : "Enregistrer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal: Edit team member */}
+      {typeof window !== "undefined" && isEditing && editingMember && createPortal(
+        <div className="modal-overlay" onClick={() => setIsEditing(false)}>
+          <div 
+            className="custom-modal" 
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: 440 }}
+          >
+            <button onClick={() => setIsEditing(false)} style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = "var(--cream)"} onMouseLeave={e => e.currentTarget.style.color = "var(--muted)"}><X size={20} /></button>
+            
+            <div style={{ textAlign: "center", marginBottom: 24 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--gold-glow)", border: "1px solid rgba(212,175,55,0.25)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", margin: "0 auto 12px" }}>
+                <Pencil size={20} />
+              </div>
+              <h3 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Modifier les informations</h3>
+              <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Modifier un membre de l'équipe d'intégration</p>
+            </div>
+
+            <form onSubmit={handleEditCounselor} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="form-grid-2">
+                <div>
+                  <label className="form-label">Prénom</label>
+                  <input className="input" placeholder="Ex: Jean" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} required style={{ height: 40 }} />
+                </div>
+                <div>
+                  <label className="form-label">Nom</label>
+                  <input className="input" placeholder="Ex: Dupont" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value})} required style={{ height: 40 }} />
+                </div>
+              </div>
+              <div>
+                <label className="form-label">Adresse e-mail</label>
+                <input className="input" type="email" placeholder="counselor@email.com" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} required style={{ height: 40 }} />
+              </div>
+              <div>
+                <label className="form-label">Rôle dans l'équipe</label>
+                <select 
+                  className="input" 
+                  value={editForm.role} 
+                  onChange={e => setEditForm({...editForm, role: e.target.value})} 
+                  style={{ height: 40, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(212, 175, 55, 0.25)" }}
+                >
+                  <option value="integration_conseiller">Conseiller Intégration</option>
+                  <option value="integration_second">Second Intégration</option>
+                  <option value="integration_responsable">Responsable Intégration</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Code d'accès secret (Laisser vide pour ne pas changer)</label>
+                <input className="input" placeholder="Ex: NOUVEAUCODE92" value={editForm.accessCode} onChange={e => setEditForm({...editForm, accessCode: e.target.value})} style={{ height: 40, letterSpacing: 1.5 }} />
+              </div>
+
+              <div style={{ display: "flex", gap: 12, paddingTop: 10 }}>
+                <button type="button" className="btn btn-subtle" style={{ flex: 1, height: 44 }} onClick={() => setIsEditing(false)}>Annuler</button>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1, height: 44, justifyContent: "center" }} disabled={submitting}>
                   {submitting ? <Loader2 className="animate-spin" size={18} /> : "Enregistrer"}
                 </button>
