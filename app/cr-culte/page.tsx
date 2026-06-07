@@ -593,7 +593,7 @@ Bénédictions ✨❤️`;
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginTop: 4 }}>
                       <div>
-                        <label style={{ fontSize: 11, color: "var(--cream-dim)", display: "block", marginBottom: 4 }}>Inscrit pour les 12 piliers (Texte ou Nombre)</label>
+                        <label style={{ fontSize: 11, color: "var(--cream-dim)", display: "block", marginBottom: 4 }}>Inscrit pour les 12 piliers</label>
                         <input type="text" className="input" style={{ height: 38 }} value={formData.piliers_12} onChange={e => setFormData({...formData, piliers_12: e.target.value})} placeholder="Ex: ?, 0, 3..." />
                       </div>
                     </div>

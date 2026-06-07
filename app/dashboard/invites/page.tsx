@@ -66,6 +66,8 @@ interface Guest {
   bergerie_id?: string | null;
   created_by?: string | null;
   famille_disciple?: string;
+  etatCivil?: string;
+  souhaiteEtreContacte?: boolean;
 }
 
 const MOCK_GUESTS: Guest[] = [];
@@ -408,7 +410,9 @@ export default function InvitesPage() {
         commentaireSuivi: g.commentaire_suivi || "",
         archived: g.archived || false,
         created_by: g.created_by,
-        famille_disciple: g.famille_disciple || "AUCUNE"
+        famille_disciple: g.famille_disciple || "AUCUNE",
+        etatCivil: g.etat_civil || "Célibataire",
+        souhaiteEtreContacte: g.souhaite_etre_contacte !== false
       }));
       setGuests(mapped);
     }
@@ -437,6 +441,8 @@ export default function InvitesPage() {
     commentaire: "",
     commentaireSuivi: "",
     famille_disciple: "AUCUNE",
+    etatCivil: "Célibataire",
+    souhaiteEtreContacte: true,
   });
 
   const toggleAttendance = async (guestId: string, day: string) => {
@@ -530,7 +536,9 @@ export default function InvitesPage() {
       interet_bapteme: newGuest.interetBapteme,
       commentaire: newGuest.commentaire,
       commentaire_suivi: newGuest.commentaireSuivi || "",
-      famille_disciple: newGuest.famille_disciple || "AUCUNE"
+      famille_disciple: newGuest.famille_disciple || "AUCUNE",
+      etat_civil: newGuest.etatCivil || "Célibataire",
+      souhaite_etre_contacte: newGuest.souhaiteEtreContacte !== false
     };
 
     if (userRoleClean.startsWith("integration_")) {
@@ -604,6 +612,8 @@ export default function InvitesPage() {
       commentaire: "",
       commentaireSuivi: "",
       famille_disciple: "AUCUNE",
+      etatCivil: "Célibataire",
+      souhaiteEtreContacte: true,
     });
   };
 
@@ -835,7 +845,9 @@ export default function InvitesPage() {
       interetBapteme: guest.interetBapteme || false,
       commentaire: guest.commentaire || "",
       commentaireSuivi: guest.commentaireSuivi || "",
-      famille_disciple: guest.famille_disciple || "AUCUNE"
+      famille_disciple: guest.famille_disciple || "AUCUNE",
+      etatCivil: guest.etatCivil || "Célibataire",
+      souhaiteEtreContacte: guest.souhaiteEtreContacte !== false
     });
     setIsAddModalOpen(true);
   };
@@ -1048,7 +1060,8 @@ export default function InvitesPage() {
                 phone: "", email: "", address: "", arrivalDate: new Date().toISOString().split('T')[0],
                 event: "Culte", aps: false, localChurch: false,
                 responsible: "Non assigné", aEteInvite: false, parQui: "",
-                baptemeEau: false, interetFormation: false, interetCDM: false, commentaire: ""
+                baptemeEau: false, interetFormation: false, interetCDM: false, commentaire: "",
+                etatCivil: "Célibataire", souhaiteEtreContacte: true
               });
               setIsAddModalOpen(true);
             }}>
@@ -1294,7 +1307,7 @@ export default function InvitesPage() {
                     <span style={{ fontSize: 11, color: "var(--muted)" }}>C.D.M (Jeudi)</span>
                     <span style={{ fontSize: 11, color: "var(--sky)", fontWeight: 600 }}>{avgParticipationCDM}%</span>
                   </div>
-                  <div className="progress" style={{ height: 6 }}>
+              <div className="progress" style={{ height: 6 }}>
                     <div className="progress-fill" style={{ width: `${avgParticipationCDM}%`, background: "var(--sky)" }} />
                   </div>
                 </div>
@@ -1310,7 +1323,7 @@ export default function InvitesPage() {
         <div className="modal-overlay">
           <div className="custom-modal fade-in">
             <button 
-              onClick={() => setIsAddModalOpen(false)}
+              onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }}
               style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}
             >
               <XCircle size={24} />
@@ -1330,16 +1343,16 @@ export default function InvitesPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>PRÉNOM</label>
-                  <input className="input" required value={newGuest.firstName || ""} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} placeholder="Jean" />
-                </div>
-                <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>NOM</label>
                   <input className="input" required value={newGuest.lastName || ""} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} placeholder="Dupont" />
                 </div>
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>PRÉNOM</label>
+                  <input className="input" required value={newGuest.firstName || ""} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} placeholder="Jean" />
+                </div>
               </div>
 
-              <div className="form-grid-2">
+              <div className="form-grid-3">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>TÉLÉPHONE</label>
                   <input 
@@ -1353,6 +1366,17 @@ export default function InvitesPage() {
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>E-MAIL</label>
                   <input className="input" type="email" value={newGuest.email || ""} onChange={e => setNewGuest({...newGuest, email: e.target.value})} placeholder="jean@email.com" />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÉTAT CIVIL</label>
+                  <select className="input" value={newGuest.etatCivil || "Célibataire"} onChange={e => setNewGuest({...newGuest, etatCivil: e.target.value})}>
+                    <option value="Marié(e)">Marié(e)</option>
+                    <option value="Séparé(e)">Séparé(e)</option>
+                    <option value="Divorcé(e)">Divorcé(e)</option>
+                    <option value="Veuf(ve)">Veuf(ve)</option>
+                    <option value="En couple">En couple</option>
+                    <option value="Célibataire">Célibataire</option>
+                  </select>
                 </div>
               </div>
 
@@ -1391,23 +1415,7 @@ export default function InvitesPage() {
                 <input className="input" value={newGuest.address || ""} onChange={e => setNewGuest({...newGuest, address: e.target.value})} placeholder="Rue de l'Industrie 12, 6040 Jumet" />
               </div>
 
-              {userRoleClean.startsWith("integration_") ? (
-                userRoleClean !== "integration_conseiller" && (
-                  <div>
-                    <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>CONSEILLER ASSIGNÉ</label>
-                    <select 
-                       className="input" 
-                       value={newGuest.assigned_to || ""} 
-                       onChange={e => setNewGuest({...newGuest, assigned_to: e.target.value})}
-                    >
-                      <option value="">Non assigné</option>
-                      {counselors.map(c => (
-                        <option key={c.id} value={c.id}>{c.display_name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )
-              ) : (
+              {!userRoleClean.startsWith("integration_") && (
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>RESPONSABLE ASSIGNÉ</label>
                   <select 
@@ -1456,6 +1464,7 @@ export default function InvitesPage() {
                   style={{ minHeight: 80, fontSize: 12 }}
                 />
               </div>
+
               <div className="form-grid-2" style={{ marginBottom: 15 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <input type="checkbox" checked={newGuest.aEteInvite || false} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} />
@@ -1488,7 +1497,7 @@ export default function InvitesPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 20 }}>
+              <div className="form-grid-2">
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <input type="checkbox" checked={newGuest.aps} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} />
                   <span style={{ fontSize: 13 }}>APS</span>
@@ -1497,10 +1506,14 @@ export default function InvitesPage() {
                   <input type="checkbox" checked={newGuest.localChurch} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} />
                   <span style={{ fontSize: 13 }}>Déjà d'une église locale</span>
                 </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input type="checkbox" checked={newGuest.souhaiteEtreContacte !== false} onChange={e => setNewGuest({...newGuest, souhaiteEtreContacte: e.target.checked})} />
+                  <span style={{ fontSize: 13, color: "var(--gold)", fontWeight: "bold" }}>Souhaite être contacté(e)</span>
+                </div>
               </div>
 
               <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
-                <button type="button" className="btn btn-outline" onClick={() => setIsAddModalOpen(false)}>Annuler</button>
+                <button type="button" className="btn btn-outline" onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }}>Annuler</button>
                 <button type="submit" className="btn btn-primary">Enregistrer</button>
               </div>
             </form>
@@ -1869,7 +1882,7 @@ export default function InvitesPage() {
                               </button>
                               
                               <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,175,55,0.15)" }}>
-                                <label style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est à la famille</label>
+                                <label style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est affecté à la famille</label>
                                 <select 
                                   className="input" 
                                   value={guest.famille_disciple || "AUCUNE"} 
