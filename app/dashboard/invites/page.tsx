@@ -1041,8 +1041,7 @@ export default function InvitesPage() {
           )}
           {canDeleteInvites && (
             <button 
-              className="btn btn-outline" 
-              style={showCorbeille ? { background: "var(--red)", borderColor: "var(--red)", color: "white" } : { borderColor: "rgba(239,68,68,0.4)", color: "var(--red)" }}
+              className={`btn btn-trash-toggle ${showCorbeille ? 'active' : ''}`}
               onClick={() => setShowCorbeille(!showCorbeille)}
             >
               <Trash2 size={14} /> {showCorbeille ? "Quitter la Corbeille" : "Corbeille"}
@@ -1777,8 +1776,8 @@ export default function InvitesPage() {
                               <div style={{ marginTop: 10, padding: 12, background: "rgba(239, 68, 68, 0.1)", borderRadius: 8, border: "1px solid rgba(239, 68, 68, 0.2)" }}>
                                 <p style={{ fontSize: 11, color: "#ef4444", marginBottom: 8, textAlign: "center", fontWeight: 600 }}>{showCorbeille ? "SUPPRESSION DÉFINITIVE" : "ZONE DANGEREUSE"}</p>
                                 <button 
-                                  className="btn" 
-                                  style={{ width: "100%", backgroundColor: "transparent", color: "#ef4444", border: "1px solid #ef4444", fontWeight: "bold", padding: "10px", fontSize: 11 }} 
+                                  className="btn btn-danger-outline" 
+                                  style={{ width: "100%", fontWeight: "bold", padding: "10px", fontSize: 11 }} 
                                   onClick={() => { setDeletingGuest(guest); setDeleteError(null); }}
                                 >
                                   {showCorbeille ? (
@@ -2089,12 +2088,9 @@ export default function InvitesPage() {
                 <>
                   <button 
                     type="button" 
-                    className="btn" 
+                    className="btn btn-danger-solid" 
                     style={{
                       width: "100%",
-                      background: "var(--red)",
-                      color: "white",
-                      border: "none",
                       borderRadius: 8,
                       padding: "12px 16px",
                       fontWeight: 600,
@@ -2103,19 +2099,10 @@ export default function InvitesPage() {
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 8,
-                      transition: "all 0.2s ease",
                       boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)"
                     }}
                     disabled={isDeleting} 
                     onClick={() => handleDeleteGuest(deletingGuest.id)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#e03e3e";
-                      e.currentTarget.style.boxShadow = "0 6px 16px rgba(239, 68, 68, 0.35)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "var(--red)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(239, 68, 68, 0.2)";
-                    }}
                   >
                     {isDeleting ? (
                       <>
@@ -2160,37 +2147,33 @@ export default function InvitesPage() {
 
                     <button 
                       type="button" 
-                      className="btn" 
+                      className="btn btn-danger-solid" 
                       style={{
-                        flex: 1.2,
-                        background: "rgba(239, 68, 68, 0.06)",
-                        color: "#fc8181",
-                        border: "1px solid rgba(239, 68, 68, 0.2)",
+                        flex: 1.5,
                         borderRadius: 8,
                         padding: "10px 16px",
-                        fontWeight: 500,
+                        fontWeight: 600,
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         gap: 6,
-                        transition: "all 0.2s ease"
+                        boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)"
                       }}
                       disabled={isDeleting} 
                       onClick={() => handlePermanentDeleteGuest(deletingGuest.id)}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)";
-                        e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.4)";
-                        e.currentTarget.style.color = "#fff";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "rgba(239, 68, 68, 0.06)";
-                        e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.2)";
-                        e.currentTarget.style.color = "#fc8181";
-                      }}
                     >
-                      <Trash2 size={14} />
-                      Détruire définitivement
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="spinner" size={14} />
+                          Suppression...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 size={14} />
+                          Détruire définitivement
+                        </>
+                      )}
                     </button>
                   </div>
                 </>
@@ -2225,12 +2208,9 @@ export default function InvitesPage() {
 
                   <button 
                     type="button" 
-                    className="btn" 
+                    className="btn btn-danger-solid" 
                     style={{
                       flex: 1.5,
-                      background: "var(--red)",
-                      color: "white",
-                      border: "none",
                       borderRadius: 8,
                       padding: "10px 16px",
                       fontWeight: 600,
@@ -2239,19 +2219,10 @@ export default function InvitesPage() {
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 6,
-                      transition: "all 0.2s ease",
                       boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)"
                     }}
                     disabled={isDeleting} 
                     onClick={() => handlePermanentDeleteGuest(deletingGuest.id)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#e03e3e";
-                      e.currentTarget.style.boxShadow = "0 6px 16px rgba(239, 68, 68, 0.35)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "var(--red)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(239, 68, 68, 0.2)";
-                    }}
                   >
                     {isDeleting ? (
                       <>

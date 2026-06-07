@@ -6942,3 +6942,45 @@ body.dark .page-content .glass-flush [style*="rgba(0, 0, 0"] {
   color: #dddfdf !important;
 }
 
+/* Custom styling for trash/archive toggles to ensure high visibility in light and dark themes */
+.btn-trash-toggle {
+  background: transparent !important;
+  border-color: rgba(223, 125, 111, 0.4) !important; /* light red */
+  color: var(--red) !important;
+}
+.btn-trash-toggle:hover {
+  background: rgba(223, 125, 111, 0.08) !important;
+  border-color: var(--red) !important;
+}
+.btn-trash-toggle.active {
+  background: var(--red) !important;
+  border-color: var(--red) !important;
+  color: #fffaf4 !important; /* light cream/white */
+}
+.btn-trash-toggle.active:hover {
+  background: #e03e3e !important;
+  border-color: #e03e3e !important;
+}
+
+/* Custom styling for outline red/danger buttons */
+.btn-danger-outline {
+  background: transparent !important;
+  color: var(--red) !important;
+  border: 1px solid var(--red) !important;
+}
+.btn-danger-outline:hover {
+  background: rgba(223, 125, 111, 0.08) !important;
+  color: var(--red) !important;
+  border-color: var(--red) !important;
+}
+
+/* Custom solid red/danger buttons for critical confirmation modals */
+.btn-danger-solid {
+  background: var(--red) !important;
+  color: #fffaf4 !important;
+  border: 1px solid var(--red) !important;
+}
+.btn-danger-solid:hover {
+  background: #e03e3e !important;
+  border-color: #e03e3e !important;
+}

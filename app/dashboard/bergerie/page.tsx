@@ -818,8 +818,7 @@ export default function BergeriePage() {
               </>
             )}
             <button 
-              className="btn btn-outline" 
-              style={showCorbeille ? { background: "var(--red)", borderColor: "var(--red)", color: "white" } : { borderColor: "rgba(239,68,68,0.4)", color: "var(--red)" }}
+              className={`btn btn-trash-toggle ${showCorbeille ? 'active' : ''}`}
               onClick={() => setShowCorbeille(!showCorbeille)}
             >
               <Trash2 size={14} /> {showCorbeille ? "Quitter la Corbeille" : "Corbeille"}
