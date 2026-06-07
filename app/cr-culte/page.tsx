@@ -75,7 +75,7 @@ export default function CrCultePage() {
     piliers_12: "0",
     sans_eglise_locale: 0,
     avec_eglise_locale: 0,
-    autre_eglise_icc: "/",
+    autre_eglise_icc: "0",
     cadeaux_offerts: 0,
     salon_lounge_effectif: 0,
     bibles_distribuees: 0,
@@ -185,7 +185,7 @@ export default function CrCultePage() {
       piliers_12: "0",
       sans_eglise_locale: 0,
       avec_eglise_locale: 0,
-      autre_eglise_icc: "/",
+      autre_eglise_icc: "0",
       cadeaux_offerts: 0,
       salon_lounge_effectif: 0,
       bibles_distribuees: 0,
@@ -214,7 +214,7 @@ export default function CrCultePage() {
       piliers_12: cr.piliers_12 || "0",
       sans_eglise_locale: cr.sans_eglise_locale || 0,
       avec_eglise_locale: cr.avec_eglise_locale || 0,
-      autre_eglise_icc: cr.autre_eglise_icc || "/",
+      autre_eglise_icc: cr.autre_eglise_icc || "0",
       cadeaux_offerts: cr.cadeaux_offerts || 0,
       salon_lounge_effectif: cr.salon_lounge_effectif || 0,
       bibles_distribuees: cr.bibles_distribuees || 0,
@@ -293,6 +293,8 @@ export default function CrCultePage() {
     const adosStr = cr.ados > 0 ? cr.ados : "/";
     const enfantsStr = cr.enfants > 0 ? cr.enfants : "/";
     const apsStr = cr.aps > 0 ? cr.aps : "/";
+    const autreIccVal = parseInt(cr.autre_eglise_icc, 10);
+    const autreIccStr = isNaN(autreIccVal) || autreIccVal === 0 ? "/" : autreIccVal.toString();
 
     return `*CR GLOBAL CULTE du Dimanche ${formattedDate}*
 
@@ -314,7 +316,7 @@ export default function CrCultePage() {
 
 ➡ Invités avec église locale: *${cr.avec_eglise_locale || 0}*
 
-➡️ Autre église ICC: ${cr.autre_eglise_icc || "/"}
+➡️ Autre église ICC: ${autreIccStr}
 
 ▶️Cadeaux offerts aux invités accueillis  : ${cr.cadeaux_offerts || 0}
 
@@ -615,15 +617,11 @@ Bénédictions ✨❤️`;
                       value={formData.avec_eglise_locale} 
                       onChange={val => setFormData(prev => ({ ...prev, avec_eglise_locale: val }))}
                     />
-                    <div>
-                      <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>AUTRE ÉGLISE ICC</label>
-                      <input 
-                        type="text" 
-                        className="input" 
-                        value={formData.autre_eglise_icc} 
-                        onChange={e => setFormData({...formData, autre_eglise_icc: e.target.value})}
-                      />
-                    </div>
+                    <NumberSpinner 
+                      label="AUTRE ÉGLISE ICC"
+                      value={parseInt(formData.autre_eglise_icc, 10) || 0} 
+                      onChange={val => setFormData(prev => ({ ...prev, autre_eglise_icc: val.toString() }))}
+                    />
                   </div>
 
                   <div style={{ marginTop: 16 }}>
@@ -1091,7 +1089,8 @@ function NumberSpinner({
       <input 
         type="number" 
         min={min}
-        value={value} 
+        placeholder="0"
+        value={value === 0 ? "" : value} 
         onKeyDown={handleKeyDown}
         onChange={e => {
           const val = parseInt(e.target.value, 10);
