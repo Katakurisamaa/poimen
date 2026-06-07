@@ -1882,7 +1882,7 @@ export default function InvitesPage() {
                               </button>
                               
                               <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,175,55,0.15)" }}>
-                                <label style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est affecté à la famille</label>
+                                <label style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est affecté(e) à la famille</label>
                                 <select 
                                   className="input" 
                                   value={guest.famille_disciple || "AUCUNE"} 
