@@ -5839,6 +5839,15 @@ html[data-theme="dark"] .evang-page-hero {
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.34) !important;
 }
 
+html[data-theme="dark"] .affectation-card-stat {
+  background: rgba(8, 12, 13, 0.86) !important;
+  border-color: rgba(221, 223, 224, 0.12) !important;
+}
+
+html[data-theme="dark"] .affectation-card-identity h3 {
+  color: #dddfdf !important;
+}
+
 html[data-theme="dark"] .attendance-day,
 html[data-theme="dark"] .suivi-toggle-row,
 html[data-theme="dark"] .page-content .suivi-toggle-row {
@@ -6854,3 +6863,82 @@ html[data-theme="dark"] .modal-overlay .form-label,
 html[data-theme="dark"] .arch-card .form-label {
   color: var(--gold-light) !important;
 }
+
+/* --- Dark Mode Space and General Overrides --- */
+
+/* Fix inline background colors overriding in dark mode (handles different spacing and background/background-color expansion in serialized inline styles) */
+html[data-theme="dark"] .page-content [style*="rgba(0, 0, 0"],
+html[data-theme="dark"] .page-content [style*="rgba(0,0,0"],
+body[data-theme="dark"] .page-content [style*="rgba(0, 0, 0"],
+body[data-theme="dark"] .page-content [style*="rgba(0,0,0"],
+body.dark .page-content [style*="rgba(0, 0, 0"],
+body.dark .page-content [style*="rgba(0,0,0"],
+
+html[data-theme="dark"] .page-content [style*="rgba(10, 6, 22"],
+html[data-theme="dark"] .page-content [style*="rgba(10,6,22"],
+body[data-theme="dark"] .page-content [style*="rgba(10, 6, 22"],
+body[data-theme="dark"] .page-content [style*="rgba(10,6,22"],
+body.dark .page-content [style*="rgba(10, 6, 22"],
+body.dark .page-content [style*="rgba(10,6,22"],
+
+html[data-theme="dark"] .page-content [style*="rgba(8, 5, 24"],
+html[data-theme="dark"] .page-content [style*="rgba(8,5,24"],
+body[data-theme="dark"] .page-content [style*="rgba(8, 5, 24"],
+body[data-theme="dark"] .page-content [style*="rgba(8,5,24"],
+body.dark .page-content [style*="rgba(8, 5, 24"],
+body.dark .page-content [style*="rgba(8,5,24"],
+
+html[data-theme="dark"] .page-content [style*="rgba(5,"],
+html[data-theme="dark"] .page-content [style*="rgba(5, "],
+body[data-theme="dark"] .page-content [style*="rgba(5,"],
+body[data-theme="dark"] .page-content [style*="rgba(5, "],
+body.dark .page-content [style*="rgba(5,"],
+body.dark .page-content [style*="rgba(5, "],
+
+html[data-theme="dark"] .page-content [style*="rgba(255, 255, 255"],
+html[data-theme="dark"] .page-content [style*="rgba(255,255,255"],
+body[data-theme="dark"] .page-content [style*="rgba(255, 255, 255"],
+body[data-theme="dark"] .page-content [style*="rgba(255,255,255"],
+body.dark .page-content [style*="rgba(255, 255, 255"],
+body.dark .page-content [style*="rgba(255,255,255"] {
+  background: rgba(10, 14, 15, 0.74) !important;
+  border-color: rgba(221, 223, 224, 0.1) !important;
+  color: #dddfdf !important;
+}
+
+/* Fix textareas and inputs in dark mode */
+html[data-theme="dark"] .page-content textarea[style*="rgba(0,0,0"],
+html[data-theme="dark"] .page-content textarea[style*="rgba(0, 0, 0"],
+body[data-theme="dark"] .page-content textarea[style*="rgba(0,0,0"],
+body[data-theme="dark"] .page-content textarea[style*="rgba(0, 0, 0"],
+body.dark .page-content textarea[style*="rgba(0,0,0"],
+body.dark .page-content textarea[style*="rgba(0, 0, 0"],
+html[data-theme="dark"] .page-content input[style*="rgba(10, 6, 22"],
+html[data-theme="dark"] .page-content input[style*="rgba(10,6,22"],
+body[data-theme="dark"] .page-content input[style*="rgba(10, 6, 22"],
+body[data-theme="dark"] .page-content input[style*="rgba(10,6,22"],
+body.dark .page-content input[style*="rgba(10, 6, 22"],
+body.dark .page-content input[style*="rgba(10,6,22"] {
+  background: rgba(7, 11, 12, 0.82) !important;
+  color: #dddfdf !important;
+  border-color: rgba(221, 223, 224, 0.12) !important;
+}
+
+/* Fix glass compact and glass flush overrides */
+html[data-theme="dark"] .page-content .glass-compact[style*="rgba(255,255,255"],
+html[data-theme="dark"] .page-content .glass-compact[style*="rgba(255, 255, 255"],
+body[data-theme="dark"] .page-content .glass-compact[style*="rgba(255,255,255"],
+body[data-theme="dark"] .page-content .glass-compact[style*="rgba(255, 255, 255"],
+body.dark .page-content .glass-compact[style*="rgba(255,255,255"],
+body.dark .page-content .glass-compact[style*="rgba(255, 255, 255"],
+html[data-theme="dark"] .page-content .glass-flush [style*="rgba(0,0,0"],
+html[data-theme="dark"] .page-content .glass-flush [style*="rgba(0, 0, 0"],
+body[data-theme="dark"] .page-content .glass-flush [style*="rgba(0,0,0"],
+body[data-theme="dark"] .page-content .glass-flush [style*="rgba(0, 0, 0"],
+body.dark .page-content .glass-flush [style*="rgba(0,0,0"],
+body.dark .page-content .glass-flush [style*="rgba(0, 0, 0"] {
+  background: rgba(10, 14, 15, 0.74) !important;
+  border-color: rgba(221, 223, 224, 0.1) !important;
+  color: #dddfdf !important;
+}
+

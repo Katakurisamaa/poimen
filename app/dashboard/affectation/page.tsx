@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronUp, MoreHorizontal, Loader2, ListChecks, BarChart3
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { autoAddLeaderToMembers } from "@/app/actions/auth";
+import { autoAddLeaderToMembers, listIntegrationTeam } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 
 
@@ -63,6 +63,7 @@ interface Guest {
   assigned_to?: string | null;
   church_id?: string | null;
   bergerie_id?: string | null;
+  famille_disciple?: string;
 }
 
 const MOCK_RESPONSIBLES = ["Non assigné"];
@@ -125,7 +126,18 @@ export default function AffectationPage() {
         const parsed = JSON.parse(userInfo);
         setUserRole(parsed.role);
         setUserId(parsed.id);
-        setChurchId(parsed.church_id);
+        
+        let cId = parsed.church_id;
+        if (!cId) {
+          try {
+            const savedChurch = localStorage.getItem("selected_church");
+            if (savedChurch) {
+              cId = JSON.parse(savedChurch).id;
+            }
+          } catch {}
+        }
+        setChurchId(cId);
+
         const rLower = (parsed.role || "").toLowerCase().trim();
         setIsConseiller(parsed.isConseiller === true || rLower === "integration_conseiller" || rLower === "conseiller");
         
@@ -160,14 +172,13 @@ export default function AffectationPage() {
   const fetchResponsibles = async () => {
     if (isIntegrationOrCounselor) {
       if (!churchId) return;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, email")
-        .eq("church_id", churchId)
-        .in("role", ["integration_responsable", "integration_second", "integration_conseiller", "conseiller"]);
-      
-      if (!error && data) {
-        setCounselors(data);
+      const res = await listIntegrationTeam(churchId);
+      if (res.success && res.team) {
+        setCounselors(res.team.map((t: any) => ({
+          id: t.id,
+          display_name: t.name,
+          email: t.email
+        })));
       }
       
       const { data: bData, error: bError } = await supabase
@@ -297,7 +308,8 @@ export default function AffectationPage() {
         assigned_to: g.assigned_to,
         church_id: g.church_id,
         bergerie_id: g.bergerie_id,
-        archived: g.archived || false
+        archived: g.archived || false,
+        famille_disciple: g.famille_disciple || "AUCUNE"
       }));
       setGuests(mapped);
     }
@@ -369,6 +381,7 @@ export default function AffectationPage() {
     interetBapteme: false,
     commentaire: "",
     commentaireSuivi: "",
+    famille_disciple: "AUCUNE",
   });
 
   const toggleAttendance = async (guestId: string, day: string) => {
@@ -421,36 +434,49 @@ export default function AffectationPage() {
 
   const handleSaveGuest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!familyId) return;
+    if (!familyId && !churchId) return;
+
+    const payload: any = {
+      civility: newGuest.civility,
+      first_name: newGuest.firstName,
+      last_name: newGuest.lastName,
+      age: newGuest.age,
+      phone: newGuest.phone,
+      email: newGuest.email,
+      address: newGuest.address,
+      arrival_date: newGuest.arrivalDate,
+      event: newGuest.event,
+      aps: newGuest.aps,
+      local_church: newGuest.localChurch,
+      responsible: newGuest.responsible,
+      a_ete_invite: newGuest.aEteInvite,
+      par_qui: newGuest.parQui,
+      bapteme_eau: newGuest.baptemeEau,
+      interet_formation: newGuest.interetFormation,
+      interet_cdm: newGuest.interetCDM,
+      integre_cdm: newGuest.integreCDM,
+      priere_partage: newGuest.prierePartage,
+      dans_famille_disciple: newGuest.dansFamilleDisciple,
+      interet_bapteme: newGuest.interetBapteme,
+      commentaire: newGuest.commentaire,
+      commentaire_suivi: newGuest.commentaireSuivi || "",
+      famille_disciple: newGuest.famille_disciple || "AUCUNE"
+    };
+
+    if (isIntegrationOrCounselor) {
+      payload.church_id = churchId;
+      payload.bergerie_id = null;
+      if (!editingGuestId) {
+        payload.assigned_to = userId; // Auto-assign to current counselor on creation
+      }
+    } else {
+      payload.bergerie_id = familyId;
+    }
 
     if (editingGuestId) {
       const { error } = await supabase
         .from("invites")
-        .update({
-          civility: newGuest.civility,
-          first_name: newGuest.firstName,
-          last_name: newGuest.lastName,
-          age: newGuest.age,
-          phone: newGuest.phone,
-          email: newGuest.email,
-          address: newGuest.address,
-          arrival_date: newGuest.arrivalDate,
-          event: newGuest.event,
-          aps: newGuest.aps,
-          local_church: newGuest.localChurch,
-          responsible: newGuest.responsible,
-          a_ete_invite: newGuest.aEteInvite,
-          par_qui: newGuest.parQui,
-          bapteme_eau: newGuest.baptemeEau,
-          interet_formation: newGuest.interetFormation,
-          interet_cdm: newGuest.interetCDM,
-          integre_cdm: newGuest.integreCDM,
-          priere_partage: newGuest.prierePartage,
-          dans_famille_disciple: newGuest.dansFamilleDisciple,
-          interet_bapteme: newGuest.interetBapteme,
-          commentaire: newGuest.commentaire,
-          commentaire_suivi: newGuest.commentaireSuivi || ""
-        })
+        .update(payload)
         .eq("id", editingGuestId);
 
       if (error) {
@@ -461,34 +487,10 @@ export default function AffectationPage() {
         setEditingGuestId(null);
       }
     } else {
+      payload.commentaire_suivi = "";
       const { data: inserted, error } = await supabase
         .from("invites")
-        .insert({
-          bergerie_id: familyId,
-          civility: newGuest.civility,
-          first_name: newGuest.firstName,
-          last_name: newGuest.lastName,
-          age: newGuest.age,
-          phone: newGuest.phone,
-          email: newGuest.email,
-          address: newGuest.address,
-          arrival_date: newGuest.arrivalDate,
-          event: newGuest.event,
-          aps: newGuest.aps,
-          local_church: newGuest.localChurch,
-          responsible: newGuest.responsible,
-          a_ete_invite: newGuest.aEteInvite,
-          par_qui: newGuest.parQui,
-          bapteme_eau: newGuest.baptemeEau,
-          interet_formation: newGuest.interetFormation,
-          interet_cdm: newGuest.interetCDM,
-          integre_cdm: newGuest.integreCDM,
-          priere_partage: newGuest.prierePartage,
-          dans_famille_disciple: newGuest.dansFamilleDisciple,
-          interet_bapteme: newGuest.interetBapteme,
-          commentaire: newGuest.commentaire,
-          commentaire_suivi: ""
-        })
+        .insert(payload)
         .select()
         .single();
 
@@ -520,6 +522,7 @@ export default function AffectationPage() {
       interetCDM: false,
       interetEvenement: false,
       commentaire: "",
+      famille_disciple: "AUCUNE",
     });
   };
 
@@ -1138,6 +1141,25 @@ export default function AffectationPage() {
                     <input className="input" value={newGuest.address || ""} onChange={e => setNewGuest({...newGuest, address: e.target.value})} />
                   </div>
 
+                  {isIntegrationOrCounselor && (
+                    <div>
+                      <label className="form-label">EST À LA FAMILLE</label>
+                      <select 
+                        className="input" 
+                        value={newGuest.famille_disciple || "AUCUNE"} 
+                        onChange={e => setNewGuest({...newGuest, famille_disciple: e.target.value})}
+                      >
+                        <option value="AUCUNE">AUCUNE</option>
+                        <option value="FAMILLE DE NOÉ">FAMILLE DE NOÉ</option>
+                        <option value="FAMILLE DE DAVID">FAMILLE DE DAVID</option>
+                        <option value="FAMILLE CHARIS">FAMILLE CHARIS</option>
+                        <option value="FAMILLE IT'S TIME">FAMILLE IT'S TIME</option>
+                        <option value="FAMILLE GÉNÉRATION JOSUÉ">FAMILLE GÉNÉRATION JOSUÉ</option>
+                        <option value="FAMILLE DE MOÏSE">FAMILLE DE MOÏSE</option>
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="form-label">COMMENTAIRE / NOTES PARTICULIÈRES</label>
                     <textarea 
@@ -1319,17 +1341,38 @@ export default function AffectationPage() {
                           </div>
                           
                           {isIntegrationOrCounselor && (
-                            <button 
-                              className="btn btn-primary btn-sm" 
-                              style={{ marginTop: 16, width: "100%", background: "linear-gradient(135deg, var(--gold) 0%, #b8973b 100%)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-                              onClick={() => {
-                                setTransferringGuest(guest);
-                                setSelectedBergerieId(guest.bergerie_id || "");
-                                setIsTransferModalOpen(true);
-                              }}
-                            >
-                              {guest.bergerie_id ? "Changer de famille" : "Confier à une famille"}
-                            </button>
+                            <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                              <button 
+                                className="btn btn-primary btn-sm" 
+                                disabled
+                                style={{ width: "100%", background: "linear-gradient(135deg, var(--gold) 0%, #b8973b 100%)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, opacity: 0.5, cursor: "not-allowed" }}
+                                title="Fonctionnalité désactivée temporairement"
+                              >
+                                {guest.bergerie_id ? "Changer de famille" : "Confier à une famille"}
+                              </button>
+                              
+                              <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,175,55,0.15)" }}>
+                                <label className="form-label" style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est à la famille</label>
+                                <select 
+                                  className="input" 
+                                  value={guest.famille_disciple || "AUCUNE"} 
+                                  onChange={async (e) => {
+                                    const newFamily = e.target.value;
+                                    setGuests(prev => prev.map(g => g.id === guest.id ? {...g, famille_disciple: newFamily} : g));
+                                    await supabase.from("invites").update({ famille_disciple: newFamily }).eq("id", guest.id);
+                                  }} 
+                                  style={{ width: "100%", fontSize: 12 }}
+                                >
+                                  <option value="AUCUNE">AUCUNE</option>
+                                  <option value="FAMILLE DE NOÉ">FAMILLE DE NOÉ</option>
+                                  <option value="FAMILLE DE DAVID">FAMILLE DE DAVID</option>
+                                  <option value="FAMILLE CHARIS">FAMILLE CHARIS</option>
+                                  <option value="FAMILLE IT'S TIME">FAMILLE IT'S TIME</option>
+                                  <option value="FAMILLE GÉNÉRATION JOSUÉ">FAMILLE GÉNÉRATION JOSUÉ</option>
+                                  <option value="FAMILLE DE MOÏSE">FAMILLE DE MOÏSE</option>
+                                </select>
+                              </div>
+                            </div>
                           )}
 
                           {guest.bergerie_id && (
@@ -1518,36 +1561,6 @@ export default function AffectationPage() {
                             />
                           </div>
                         </div>
-
-                        {/* Dynamic Assignment Control for Leaders */}
-                        {(userRole?.toLowerCase() === "berger" || userRole?.toLowerCase().includes("second")) && !isConseiller && (
-                          <div className="glass glass-compact col-span-2" style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(212,175,55,0.15)" }}>
-                            <h4 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, fontFamily: "var(--font-body)", fontWeight: 700 }}>Affectation Administrative</h4>
-                            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                              <div style={{ flex: 1 }}>
-                                <select 
-                                  className="input" 
-                                  style={{ fontSize: 12 }}
-                                  value={guest.responsible || "Non assigné"} 
-                                  onChange={e => handleUpdateAssignment(guest.id, e.target.value)}
-                                >
-                                  {responsibles.map(r => (
-                                    <option key={r} value={r}>{r}</option>
-                                  ))}
-                                  {guest.responsible && guest.responsible !== "Non assigné" && !responsibles.includes(guest.responsible) && (
-                                    <option key={guest.responsible} value={guest.responsible}>{guest.responsible}</option>
-                                  )}
-                                </select>
-                              </div>
-                              <button 
-                                className="btn btn-primary btn-sm" 
-                                onClick={() => handleSelfAssign(guest.id)}
-                              >
-                                M'affecter
-                              </button>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}

@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList, createFamilyUserContext } from "@/app/actions/auth";
+import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList, createFamilyUserContext, listIntegrationTeam } from "@/app/actions/auth";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 import { getActiveContext, getActiveSpaceType, getActiveUserInfo } from "@/lib/client-session";
 
@@ -395,9 +395,16 @@ export default function DashboardPage() {
       let mQuery;
       let iQuery;
       let eQuery;
+      let members: any[] = [];
+      let mErr: any = null;
 
       if (isIntegration) {
-        mQuery = supabase.from("profiles").select("*").eq("church_id", currentChurchId).ilike("role", "integration_%");
+        const res = await listIntegrationTeam(currentChurchId);
+        if (res.success && res.team) {
+          members = res.team;
+        } else {
+          mErr = { message: res.error || "Failed to fetch integration team" };
+        }
         iQuery = supabase.from("invites").select("*").eq("church_id", currentChurchId).eq("archived", false);
         if (isOnlyResponsable) {
           iQuery = iQuery.eq("assigned_to", userInfo?.id || "");
@@ -418,7 +425,11 @@ export default function DashboardPage() {
         }
       }
 
-      const { data: members, error: mErr } = await mQuery;
+      if (!isIntegration && mQuery) {
+        const { data, error } = await mQuery;
+        members = data || [];
+        mErr = error;
+      }
       const { data: invites, error: iErr } = await iQuery;
       const { data: evangs, error: eErr } = await eQuery;
 

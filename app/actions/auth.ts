@@ -151,8 +151,48 @@ async function assertCanManageIntegrationTeam(churchId: string) {
   return { ok: false, error: "Non autorise. Gestion reservee aux responsables integration." };
 }
 
+async function assertCanReadIntegrationTeam(churchId: string) {
+  const serverSupabase = await createServerClient();
+  const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
+
+  if (authErr || !user) {
+    return { ok: false, error: "Non authentifie." };
+  }
+
+  const cleanEmail = user.email?.toLowerCase().trim();
+  if (cleanEmail === SUPER_ADMIN_EMAIL) {
+    return { ok: true, user };
+  }
+
+  const { data: profile } = await serverSupabase
+    .from("profiles")
+    .select("role, church_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const role = profile?.role?.toLowerCase().trim();
+  if (role && (role.startsWith("integration_") || role === "conseiller") && profile?.church_id === churchId) {
+    return { ok: true, user };
+  }
+
+  const { data: context } = await serverSupabase
+    .from("user_contexts")
+    .select("role, church_id")
+    .eq("user_id", user.id)
+    .eq("church_id", churchId)
+    .eq("context_type", "integration")
+    .eq("active", true)
+    .maybeSingle();
+
+  if (context) {
+    return { ok: true, user };
+  }
+
+  return { ok: false, error: "Non autorise." };
+}
+
 export async function listIntegrationTeam(churchId: string) {
-  const permission = await assertCanManageIntegrationTeam(churchId);
+  const permission = await assertCanReadIntegrationTeam(churchId);
   if (!permission.ok) return { success: false, error: permission.error };
 
   const supabase = await getServiceSupabase();

@@ -3,14 +3,14 @@
 import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { 
-  Search, Plus, UserPlus, UserMinus, Filter, CheckCircle2, XCircle, X,
+  Search, Plus, UserPlus, UserMinus, Filter, CheckCircle2, XCircle, X, Link,
   Calendar, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2,
   Trash2, Trash, RotateCcw, Pencil, Archive, AlertTriangle,
   ListChecks, BarChart3
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { autoAddLeaderToMembers } from "@/app/actions/auth";
+import { autoAddLeaderToMembers, listIntegrationTeam } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 
 
@@ -65,6 +65,7 @@ interface Guest {
   church_id?: string | null;
   bergerie_id?: string | null;
   created_by?: string | null;
+  famille_disciple?: string;
 }
 
 const MOCK_GUESTS: Guest[] = [];
@@ -122,6 +123,11 @@ export default function InvitesPage() {
   const [mounted, setMounted] = useState(false);
   const [isConseiller, setIsConseiller] = useState(false);
   const [showCorbeille, setShowCorbeille] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const isIntegrationOrCounselor = useMemo(() => {
+    return userRoleClean.startsWith("integration_") || userRoleClean === "conseiller" || isConseiller;
+  }, [userRoleClean, isConseiller]);
 
   useEffect(() => {
     setMounted(true);
@@ -153,7 +159,17 @@ export default function InvitesPage() {
         setUserId(parsed.id);
         const rLower = (parsed.role || "").toLowerCase().trim();
         setIsConseiller(parsed.isConseiller === true || rLower === "integration_conseiller" || rLower === "conseiller");
-        setChurchId(parsed.church_id);
+        
+        let cId = parsed.church_id;
+        if (!cId) {
+          try {
+            const savedChurch = localStorage.getItem("selected_church");
+            if (savedChurch) {
+              cId = JSON.parse(savedChurch).id;
+            }
+          } catch {}
+        }
+        setChurchId(cId);
         
         // Robust name generation
         const firstName = (parsed.firstName || "").trim();
@@ -244,14 +260,13 @@ export default function InvitesPage() {
   const fetchResponsibles = async () => {
     if (userRoleClean.startsWith("integration_")) {
       if (!churchId) return;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, email")
-        .eq("church_id", churchId)
-        .in("role", ["integration_responsable", "integration_second", "integration_conseiller"]);
-      
-      if (!error && data) {
-        setCounselors(data);
+      const res = await listIntegrationTeam(churchId);
+      if (res.success && res.team) {
+        setCounselors(res.team.map((t: any) => ({
+          id: t.id,
+          display_name: t.name,
+          email: t.email
+        })));
       }
       return;
     }
@@ -318,8 +333,8 @@ export default function InvitesPage() {
     if (userRoleClean.startsWith("integration_")) {
       if (churchId) {
         query = query.eq("church_id", churchId);
-        if (userRoleClean === "integration_conseiller" && userId) {
-          query = query.eq("created_by", userId);
+        if ((userRoleClean === "integration_conseiller" || userRoleClean === "conseiller") && userId) {
+          query = query.or(`created_by.eq.${userId},assigned_to.eq.${userId}`);
         }
       } else {
         setLoading(false);
@@ -329,7 +344,7 @@ export default function InvitesPage() {
       if (familyId) {
         query = query.eq("bergerie_id", familyId);
         if (userRoleClean === "conseiller" && userId) {
-          query = query.eq("created_by", userId);
+          query = query.or(`created_by.eq.${userId},assigned_to.eq.${userId}`);
         }
       } else {
         setLoading(false);
@@ -392,7 +407,8 @@ export default function InvitesPage() {
         commentaire: g.commentaire || "",
         commentaireSuivi: g.commentaire_suivi || "",
         archived: g.archived || false,
-        created_by: g.created_by
+        created_by: g.created_by,
+        famille_disciple: g.famille_disciple || "AUCUNE"
       }));
       setGuests(mapped);
     }
@@ -420,12 +436,19 @@ export default function InvitesPage() {
     interetBapteme: false,
     commentaire: "",
     commentaireSuivi: "",
+    famille_disciple: "AUCUNE",
   });
 
   const toggleAttendance = async (guestId: string, day: string) => {
-    if (canModifyInvites === false) return;
     const guest = guests.find(g => g.id === guestId);
     if (!guest) return;
+
+    const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second";
+    const isAssignedCounselor = guest.assigned_to === userId && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller");
+    const isCreator = guest.created_by === userId && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller");
+    
+    const canEdit = canModifyInvites || isIntegrationLeader || isAssignedCounselor || isCreator;
+    if (!canEdit) return;
 
     const newAttendance = { ...guest.attendance, [day]: !guest.attendance[day] };
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, attendance: newAttendance } : g));
@@ -433,9 +456,15 @@ export default function InvitesPage() {
   };
 
   const toggleSuivi = async (guestId: string, field: keyof Guest) => {
-    if (canModifyInvites === false) return;
     const guest = guests.find(g => g.id === guestId);
     if (!guest) return;
+
+    const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second";
+    const isAssignedCounselor = guest.assigned_to === userId && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller");
+    const isCreator = guest.created_by === userId && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller");
+    
+    const canEdit = canModifyInvites || isIntegrationLeader || isAssignedCounselor || isCreator;
+    if (!canEdit) return;
 
     const newValue = !guest[field];
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, [field]: newValue } : g));
@@ -500,7 +529,8 @@ export default function InvitesPage() {
       dans_famille_disciple: newGuest.dansFamilleDisciple,
       interet_bapteme: newGuest.interetBapteme,
       commentaire: newGuest.commentaire,
-      commentaire_suivi: newGuest.commentaireSuivi || ""
+      commentaire_suivi: newGuest.commentaireSuivi || "",
+      famille_disciple: newGuest.famille_disciple || "AUCUNE"
     };
 
     if (userRoleClean.startsWith("integration_")) {
@@ -566,14 +596,14 @@ export default function InvitesPage() {
       aps: false,
       localChurch: false,
       responsible: "Non assigné",
-      assigned_to: null,
-      created_by: null,
       aEteInvite: false,
       parQui: "",
+      baptemeEau: false,
+      interetFormation: false,
       interetCDM: false,
-      interetBapteme: false,
       commentaire: "",
-      commentaireSuivi: ""
+      commentaireSuivi: "",
+      famille_disciple: "AUCUNE",
     });
   };
 
@@ -804,7 +834,8 @@ export default function InvitesPage() {
       dansFamilleDisciple: guest.dansFamilleDisciple,
       interetBapteme: guest.interetBapteme || false,
       commentaire: guest.commentaire || "",
-      commentaireSuivi: guest.commentaireSuivi || ""
+      commentaireSuivi: guest.commentaireSuivi || "",
+      famille_disciple: guest.famille_disciple || "AUCUNE"
     });
     setIsAddModalOpen(true);
   };
@@ -927,6 +958,14 @@ export default function InvitesPage() {
   const devenuStarCount = statsBase.filter(g => g.devenuStar).length;
   const baptemeEauCount = statsBase.filter(g => g.baptemeEau).length;
   
+  const familyNoeCount = statsBase.filter(g => g.famille_disciple === "FAMILLE DE NOÉ").length;
+  const familyDavidCount = statsBase.filter(g => g.famille_disciple === "FAMILLE DE DAVID").length;
+  const familyCharisCount = statsBase.filter(g => g.famille_disciple === "FAMILLE CHARIS").length;
+  const familyItsTimeCount = statsBase.filter(g => g.famille_disciple === "FAMILLE IT'S TIME").length;
+  const familyJosueCount = statsBase.filter(g => g.famille_disciple === "FAMILLE GÉNÉRATION JOSUÉ").length;
+  const familyMoiseCount = statsBase.filter(g => g.famille_disciple === "FAMILLE DE MOÏSE").length;
+  const familyAucuneCount = statsBase.filter(g => !g.famille_disciple || g.famille_disciple === "AUCUNE").length;
+  
   const avgParticipationCDM = Math.round(statsBase.reduce((acc, g) => acc + calculateRate(g, thursdays), 0) / (statsBase.length || 1));
   const avgParticipationCulte = Math.round(statsBase.reduce((acc, g) => acc + calculateRate(g, sundays), 0) / (statsBase.length || 1));
   
@@ -973,38 +1012,50 @@ export default function InvitesPage() {
             Gestion et suivi des nouveaux arrivants
           </p>
         </div>
-        {(canDeleteInvites || canAddOrEditInvites) && (
-          <div style={{ display: "flex", gap: 10 }}>
-            {canDeleteInvites && (
-              <button 
-                className="btn btn-outline" 
-                style={showCorbeille ? { background: "var(--red)", borderColor: "var(--red)", color: "white" } : { borderColor: "rgba(239,68,68,0.4)", color: "var(--red)" }}
-                onClick={() => setShowCorbeille(!showCorbeille)}
-              >
-                <Trash2 size={14} /> {showCorbeille ? "Quitter la Corbeille" : "Corbeille"}
-                {!showCorbeille && archivedGuests.length > 0 && (
-                  <span style={{ background: "var(--red)", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
-                    {archivedGuests.length}
-                  </span>
-                )}
-              </button>
-            )}
-            {canAddOrEditInvites && (
-              <button className="btn btn-primary" onClick={() => {
-                setNewGuest({
-                  civility: "M.", firstName: "", lastName: "", age: "26-30 ans",
-                  phone: "", email: "", address: "", arrivalDate: new Date().toISOString().split('T')[0],
-                  event: "Culte", aps: false, localChurch: false,
-                  responsible: "Non assigné", aEteInvite: false, parQui: "",
-                  baptemeEau: false, interetFormation: false, interetCDM: false, commentaire: ""
-                });
-                setIsAddModalOpen(true);
-              }}>
-                <Plus size={14} /> Ajouter
-              </button>
-            )}
-          </div>
-        )}
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {churchId && (
+            <button 
+              className="btn btn-outline" 
+              style={{ borderColor: "var(--gold)", color: "var(--gold)" }}
+              onClick={() => {
+                const link = `${window.location.origin}/public-invite?church_id=${churchId}`;
+                navigator.clipboard.writeText(link);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+              }}
+            >
+              <Link size={14} /> {linkCopied ? "Lien copié !" : "Partager le lien"}
+            </button>
+          )}
+          {canDeleteInvites && (
+            <button 
+              className="btn btn-outline" 
+              style={showCorbeille ? { background: "var(--red)", borderColor: "var(--red)", color: "white" } : { borderColor: "rgba(239,68,68,0.4)", color: "var(--red)" }}
+              onClick={() => setShowCorbeille(!showCorbeille)}
+            >
+              <Trash2 size={14} /> {showCorbeille ? "Quitter la Corbeille" : "Corbeille"}
+              {!showCorbeille && archivedGuests.length > 0 && (
+                <span style={{ background: "var(--red)", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
+                  {archivedGuests.length}
+                </span>
+              )}
+            </button>
+          )}
+          {canAddOrEditInvites && (
+            <button className="btn btn-primary" onClick={() => {
+              setNewGuest({
+                civility: "M.", firstName: "", lastName: "", age: "26-30 ans",
+                phone: "", email: "", address: "", arrivalDate: new Date().toISOString().split('T')[0],
+                event: "Culte", aps: false, localChurch: false,
+                responsible: "Non assigné", aEteInvite: false, parQui: "",
+                baptemeEau: false, interetFormation: false, interetCDM: false, commentaire: ""
+              });
+              setIsAddModalOpen(true);
+            }}>
+              <Plus size={14} /> Ajouter
+            </button>
+          )}
+        </div>
       </div>
 
       {/* View Switcher Tabs */}
@@ -1122,6 +1173,42 @@ export default function InvitesPage() {
                     </div>
                     <div className="progress" style={{ height: 6 }}>
                       <div className="progress-fill" style={{ width: `${percentage}%`, background: stage.color }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6 }}>{percentage}% de la base</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Répartition par Famille de Disciples */}
+          <div className="glass" style={{ padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 style={{ fontSize: 18, color: "var(--gold)" }}>Répartition par Famille de Disciples</h3>
+              <div className="badge badge-primary">
+                {statsBase.filter(g => g.famille_disciple && g.famille_disciple !== "AUCUNE").length} Affectés
+              </div>
+            </div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
+              {[
+                { label: "FAMILLE DE NOÉ", val: familyNoeCount, color: "var(--gold)" },
+                { label: "FAMILLE DE DAVID", val: familyDavidCount, color: "var(--sky)" },
+                { label: "FAMILLE CHARIS", val: familyCharisCount, color: "var(--green)" },
+                { label: "FAMILLE IT'S TIME", val: familyItsTimeCount, color: "var(--orange)" },
+                { label: "FAMILLE GÉNÉRATION JOSUÉ", val: familyJosueCount, color: "var(--violet)" },
+                { label: "FAMILLE DE MOÏSE", val: familyMoiseCount, color: "var(--rose)" },
+                { label: "AUCUNE / NON SPÉCIFIÉ", val: familyAucuneCount, color: "var(--muted)" }
+              ].map((fam, i) => {
+                const percentage = Math.round((fam.val / (statsBase.length || 1)) * 100);
+                return (
+                  <div key={fam.label} className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>{fam.label}</span>
+                      <span style={{ fontSize: 12, color: fam.color, fontWeight: 700 }}>{fam.val}</span>
+                    </div>
+                    <div className="progress" style={{ height: 6 }}>
+                      <div className="progress-fill" style={{ width: `${percentage}%`, background: fam.color }} />
                     </div>
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6 }}>{percentage}% de la base</div>
                   </div>
@@ -1336,6 +1423,25 @@ export default function InvitesPage() {
                     {newGuest.responsible && newGuest.responsible !== "Non assigné" && !responsibles.includes(newGuest.responsible) && (
                       <option key={newGuest.responsible} value={newGuest.responsible}>{newGuest.responsible}</option>
                     )}
+                  </select>
+                </div>
+              )}
+
+              {isIntegrationOrCounselor && (
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>EST À LA FAMILLE</label>
+                  <select 
+                    className="input" 
+                    value={newGuest.famille_disciple || "AUCUNE"} 
+                    onChange={e => setNewGuest({...newGuest, famille_disciple: e.target.value})}
+                  >
+                    <option value="AUCUNE">AUCUNE</option>
+                    <option value="FAMILLE DE NOÉ">FAMILLE DE NOÉ</option>
+                    <option value="FAMILLE DE DAVID">FAMILLE DE DAVID</option>
+                    <option value="FAMILLE CHARIS">FAMILLE CHARIS</option>
+                    <option value="FAMILLE IT'S TIME">FAMILLE IT'S TIME</option>
+                    <option value="FAMILLE GÉNÉRATION JOSUÉ">FAMILLE GÉNÉRATION JOSUÉ</option>
+                    <option value="FAMILLE DE MOÏSE">FAMILLE DE MOÏSE</option>
                   </select>
                 </div>
               )}
@@ -1747,6 +1853,41 @@ export default function InvitesPage() {
                                     </button>
                                   );
                                 })()}
+                              </div>
+                            </div>
+                          )}
+
+                          {isIntegrationOrCounselor && (
+                            <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                              <button 
+                                className="btn btn-primary btn-sm" 
+                                disabled
+                                style={{ width: "100%", background: "linear-gradient(135deg, var(--gold) 0%, #b8973b 100%)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, opacity: 0.5, cursor: "not-allowed" }}
+                                title="Fonctionnalité désactivée temporairement"
+                              >
+                                {guest.bergerie_id ? "Changer de famille" : "Confier à une famille"}
+                              </button>
+                              
+                              <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,175,55,0.15)" }}>
+                                <label style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est à la famille</label>
+                                <select 
+                                  className="input" 
+                                  value={guest.famille_disciple || "AUCUNE"} 
+                                  onChange={async (e) => {
+                                    const newFamily = e.target.value;
+                                    setGuests(prev => prev.map(g => g.id === guest.id ? {...g, famille_disciple: newFamily} : g));
+                                    await supabase.from("invites").update({ famille_disciple: newFamily }).eq("id", guest.id);
+                                  }} 
+                                  style={{ width: "100%", fontSize: 12 }}
+                                >
+                                  <option value="AUCUNE">AUCUNE</option>
+                                  <option value="FAMILLE DE NOÉ">FAMILLE DE NOÉ</option>
+                                  <option value="FAMILLE DE DAVID">FAMILLE DE DAVID</option>
+                                  <option value="FAMILLE CHARIS">FAMILLE CHARIS</option>
+                                  <option value="FAMILLE IT'S TIME">FAMILLE IT'S TIME</option>
+                                  <option value="FAMILLE GÉNÉRATION JOSUÉ">FAMILLE GÉNÉRATION JOSUÉ</option>
+                                  <option value="FAMILLE DE MOÏSE">FAMILLE DE MOÏSE</option>
+                                </select>
                               </div>
                             </div>
                           )}
