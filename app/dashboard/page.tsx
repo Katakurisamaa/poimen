@@ -1682,7 +1682,7 @@ export default function DashboardPage() {
         <div>
           <div style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 700 }}>{dateStr}</div>
           <h2 className="page-title" style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 12 }}>
-            Bonjour, {userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : "Utilisateur"}
+            Bonjour, {userInfo ? userInfo.firstName : "Utilisateur"}
             <span className="badge badge-gold" style={{ fontSize: 9, padding: "3px 10px", border: "1px solid rgba(212,175,55,0.3)" }}>
               {(() => {
                 const r = (userInfo?.role || "").toLowerCase().trim();
