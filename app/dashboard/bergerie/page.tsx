@@ -859,7 +859,7 @@ export default function BergeriePage() {
         <div className="search-bar-container" style={{ display:"flex", gap:10, alignItems:"center", flex: 1 }}>
           <div style={{ position:"relative", flex: 1 }}>
             <Search size={18} style={{ position:"absolute", left: 14, top:"50%", transform:"translateY(-50%)", color:"rgba(255,255,255,0.35)" }} />
-            <input className="input search-bar-premium" placeholder="Rechercher par nom/prénom..." value={search} onChange={(e)=>setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
+            <input className="input search-bar-premium" placeholder="Rechercher par nom/prénom..." value={search} onChange={(e)=>setSearch(e.target.value)} />
           </div>
           <button 
             type="button"
