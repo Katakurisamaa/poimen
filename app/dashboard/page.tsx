@@ -857,6 +857,25 @@ export default function DashboardPage() {
       setMyBergerie(null);
       setUserInfo(null);
       setActiveSpace("hub");
+
+      const { data: activeBgs } = await supabase
+        .from("bergeries")
+        .select("*")
+        .eq("church_id", churchObj.id)
+        .eq("status", "active");
+      
+      if (activeBgs) setBergeries(activeBgs);
+
+      const { data: pending } = await supabase
+        .from("bergeries")
+        .select("*")
+        .eq("church_id", churchObj.id)
+        .eq("status", "pending")
+        .limit(1)
+        .maybeSingle();
+      
+      if (pending) setPendingRequest(pending);
+
       setLoading(false);
       return;
     }
