@@ -1940,67 +1940,69 @@ export default function DashboardPage() {
       </div>
 
       {/* Activities + À risque */}
-      <div className="bento bento-2-1 d3">
-        <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités & Événements</span>
-            {isLeader && (
-              <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => window.location.href = "/dashboard/activities"}>
-                <ChevronRight size={12} /> Faire l'appel
-              </button>
-            )}
-          </div>
-          <div style={{ padding: "4px 0" }}>
-            {activitiesList.length > 0 ? activitiesList.map((a, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: i < activitiesList.length - 1 || upcomingBirthdays.length > 0 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
-                <div className="color-bar" style={{ background: "linear-gradient(180deg, var(--gold), var(--gold-light))", height: 38, width: 3, borderRadius: 2 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{a.title}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Calendar size={11} style={{ color: "var(--gold)" }} /> {a.date}</span>
-                    <span>·</span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Clock size={11} style={{ color: "var(--gold)" }} /> {a.time}</span>
-                  </div>
-                </div>
-                {a.upcoming ? (
-                  <span className="badge badge-gold" style={{ fontSize: 9 }}>À venir</span>
-                ) : (
-                  <span style={{ fontSize: 14, fontWeight: 800, fontFamily: "var(--font-display)", color: (a.attendance ?? 0) >= 70 ? "var(--green)" : "var(--orange)" }}>
-                    {a.attendance}%
-                  </span>
-                )}
-              </div>
-            )) : (
-              <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>Aucune activité pastorale enregistrée</div>
-            )}
-          </div>
-
-          {/* Upcoming Birthdays Section */}
-          {upcomingBirthdays.length > 0 && (
-            <div style={{ borderTop: "1px solid rgba(212, 175, 55, 0.15)", padding: "18px 24px", background: "rgba(212, 175, 55, 0.02)" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                <span>🎂 Anniversaires Proches</span>
-                <span className="badge badge-gold animate-bounce" style={{ fontSize: 9, padding: "2px 6px" }}>{upcomingBirthdays.length} proche(s)</span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {upcomingBirthdays.map((b, idx) => (
-                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "10px 14px", borderRadius: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cream)" }}>{b.name}</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, color: "var(--muted)" }}>{b.date}</span>
-                      <span className="badge badge-gold" style={{ fontSize: 9, padding: "2px 8px" }}>{b.relativeText}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+      <div className="bento d3" style={{ gridTemplateColumns: isIntegration ? "1fr" : "2fr 1fr" }}>
+        {!isIntegration && (
+          <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+            <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités & Événements</span>
+              {isLeader && (
+                <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => window.location.href = "/dashboard/activities"}>
+                  <ChevronRight size={12} /> Faire l'appel
+                </button>
+              )}
             </div>
-          )}
-        </div>
+            <div style={{ padding: "4px 0" }}>
+              {activitiesList.length > 0 ? activitiesList.map((a, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: i < activitiesList.length - 1 || upcomingBirthdays.length > 0 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
+                  <div className="color-bar" style={{ background: "linear-gradient(180deg, var(--gold), var(--gold-light))", height: 38, width: 3, borderRadius: 2 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{a.title}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Calendar size={11} style={{ color: "var(--gold)" }} /> {a.date}</span>
+                      <span>·</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Clock size={11} style={{ color: "var(--gold)" }} /> {a.time}</span>
+                    </div>
+                  </div>
+                  {a.upcoming ? (
+                    <span className="badge badge-gold" style={{ fontSize: 9 }}>À venir</span>
+                  ) : (
+                    <span style={{ fontSize: 14, fontWeight: 800, fontFamily: "var(--font-display)", color: (a.attendance ?? 0) >= 70 ? "var(--green)" : "var(--orange)" }}>
+                      {a.attendance}%
+                    </span>
+                  )}
+                </div>
+              )) : (
+                <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>Aucune activité pastorale enregistrée</div>
+              )}
+            </div>
 
-        <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "var(--surface)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {/* Upcoming Birthdays Section */}
+            {upcomingBirthdays.length > 0 && (
+              <div style={{ borderTop: "1px solid rgba(212, 175, 55, 0.15)", padding: "18px 24px", background: "rgba(212, 175, 55, 0.02)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>🎂 Anniversaires Proches</span>
+                  <span className="badge badge-gold animate-bounce" style={{ fontSize: 9, padding: "2px 6px" }}>{upcomingBirthdays.length} proche(s)</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {upcomingBirthdays.map((b, idx) => (
+                    <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "10px 14px", borderRadius: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cream)" }}>{b.name}</div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 11, color: "var(--muted)" }}>{b.date}</span>
+                        <span className="badge badge-gold" style={{ fontSize: 9, padding: "2px 8px" }}>{b.relativeText}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="glass glass-flush" style={{ border: isIntegration ? "1px solid rgba(139, 92, 246, 0.15)" : "1px solid rgba(212, 175, 55, 0.15)" }}>
+          <div style={{ padding: "18px 24px", borderBottom: isIntegration ? "1px solid rgba(139, 92, 246, 0.15)" : "1px solid rgba(212, 175, 55, 0.15)", background: "var(--surface)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--red)" }}>
               ● {isIntegration ? "Alertes de Suivi Intégration" : "Alertes de Suivi FDD"}
             </span>
@@ -2008,7 +2010,7 @@ export default function DashboardPage() {
           </div>
           <div style={{ padding: "4px 0" }}>
             {atRiskList.length > 0 ? atRiskList.map((m, i) => (
-              <div key={i} style={{ padding: "16px 24px", borderBottom: i < atRiskList.length - 1 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
+              <div key={i} style={{ padding: "16px 24px", borderBottom: i < atRiskList.length - 1 ? (isIntegration ? "1px solid rgba(139, 92, 246, 0.08)" : "1px solid rgba(212, 175, 55, 0.08)") : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
                   <div className="avatar avatar-gradient avatar-effect-pulse" style={{ width: 36, height: 36, fontSize: 12, color: "var(--red)", borderColor: "var(--red)" }}>{m.initials}</div>
                   <div style={{ flex: 1 }}>
