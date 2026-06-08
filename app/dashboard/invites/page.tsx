@@ -1958,7 +1958,7 @@ export default function InvitesPage() {
                       {!isConseiller && (
                         <>
                           {/* Column 2: Attendance */}
-                          <div className="invite-attendance-block" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                          <div className="invite-attendance-block" style={{ display: "flex", flexDirection: "column", gap: 15, padding: "20px" }}>
                             <div>
                               <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>CDM (Jeudi)</h4>
                               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -2012,7 +2012,7 @@ export default function InvitesPage() {
                           </div>
 
                           {/* Column 3: Actions & Status */}
-                          <div className="invite-actions-block" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                          <div className="invite-actions-block" style={{ display: "flex", flexDirection: "column", gap: 15, padding: "20px" }}>
                             {userRoleClean.startsWith("integration_") && (
                               guest.bergerie_id ? (
                                 <div style={{ padding: "10px", borderRadius: 8, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
@@ -2170,7 +2170,7 @@ export default function InvitesPage() {
                           </div>
 
                           {/* Column 4: Detailed Follow-up */}
-                          <div className="invite-followup-block col-span-2" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                          <div className="invite-followup-block col-span-2" style={{ display: "flex", flexDirection: "column", gap: 15, padding: "20px" }}>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 15 }}>
                               <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
                                 <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Premier Contact</h5>
