@@ -1345,7 +1345,7 @@ export default function DashboardPage() {
                   style={{ height: 42, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(139, 92, 246, 0.25)" }}
                 >
                   {integrationList.map(item => (
-                    <option key={item.email} value={item.email}>{item.name} ({item.role === "integration_responsable" ? "Responsable" : item.role === "integration_second" ? "Second" : "Conseiller"})</option>
+                    <option key={item.email} value={item.email}>{item.name}</option>
                   ))}
                 </select>
               )}
@@ -1585,7 +1585,7 @@ export default function DashboardPage() {
                       style={{ height: 42, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(212, 175, 55, 0.25)" }}
                     >
                       {familyLeaders.map(m => (
-                        <option key={m.id} value={m.email}>{m.civility} {m.first_name} {m.last_name} ({m.status})</option>
+                        <option key={m.id} value={m.email}>{m.civility} {m.first_name} {m.last_name}</option>
                       ))}
                     </select>
                   )}
