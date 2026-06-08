@@ -64,6 +64,8 @@ interface Guest {
   church_id?: string | null;
   bergerie_id?: string | null;
   famille_disciple?: string;
+  etatCivil?: string;
+  souhaiteEtreContacte?: boolean;
 }
 
 const MOCK_RESPONSIBLES = ["Non assigné"];
@@ -309,7 +311,9 @@ export default function AffectationPage() {
         church_id: g.church_id,
         bergerie_id: g.bergerie_id,
         archived: g.archived || false,
-        famille_disciple: g.famille_disciple || "AUCUNE"
+        famille_disciple: g.famille_disciple || "AUCUNE",
+        etatCivil: g.etat_civil || "Célibataire",
+        souhaiteEtreContacte: g.souhaite_etre_contacte !== false
       }));
       setGuests(mapped);
     }
@@ -382,6 +386,8 @@ export default function AffectationPage() {
     commentaire: "",
     commentaireSuivi: "",
     famille_disciple: "AUCUNE",
+    etatCivil: "Célibataire",
+    souhaiteEtreContacte: true,
   });
 
   const toggleAttendance = async (guestId: string, day: string) => {
@@ -460,7 +466,9 @@ export default function AffectationPage() {
       interet_bapteme: newGuest.interetBapteme,
       commentaire: newGuest.commentaire,
       commentaire_suivi: newGuest.commentaireSuivi || "",
-      famille_disciple: newGuest.famille_disciple || "AUCUNE"
+      famille_disciple: newGuest.famille_disciple || "AUCUNE",
+      etat_civil: newGuest.etatCivil || "Célibataire",
+      souhaite_etre_contacte: newGuest.souhaiteEtreContacte !== false
     };
 
     if (isIntegrationOrCounselor) {
@@ -683,9 +691,11 @@ export default function AffectationPage() {
       integreCDM: guest.integreCDM,
       prierePartage: guest.prierePartage,
       dansFamilleDisciple: guest.dansFamilleDisciple,
-      interetBapteme: guest.interetBapteme || false,
       commentaire: guest.commentaire || "",
-      commentaireSuivi: guest.commentaireSuivi || ""
+      commentaireSuivi: guest.commentaireSuivi || "",
+      famille_disciple: guest.famille_disciple || "AUCUNE",
+      etatCivil: guest.etatCivil || "Célibataire",
+      souhaiteEtreContacte: guest.souhaiteEtreContacte !== false
     });
     setIsAddModalOpen(true);
   };
@@ -1048,15 +1058,15 @@ export default function AffectationPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="form-label">PRÉNOM</label>
-                      <input className="input" required value={newGuest.firstName || ""} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} />
-                    </div>
-                    <div>
                       <label className="form-label">NOM</label>
                       <input className="input" required value={newGuest.lastName || ""} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} />
                     </div>
+                    <div>
+                      <label className="form-label">PRÉNOM</label>
+                      <input className="input" required value={newGuest.firstName || ""} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} />
+                    </div>
                   </div>
-                  <div className="form-grid-2">
+                  <div className="form-grid-3">
                     <div>
                       <label className="form-label">TÉLÉPHONE</label>
                       <input className="input" value={newGuest.phone || ""} onChange={e => setNewGuest({...newGuest, phone: e.target.value})} />
@@ -1064,6 +1074,17 @@ export default function AffectationPage() {
                     <div>
                       <label className="form-label">E-MAIL</label>
                       <input className="input" type="email" value={newGuest.email || ""} onChange={e => setNewGuest({...newGuest, email: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="form-label">ÉTAT CIVIL</label>
+                      <select className="input" value={newGuest.etatCivil || "Célibataire"} onChange={e => setNewGuest({...newGuest, etatCivil: e.target.value})}>
+                        <option value="Marié(e)">Marié(e)</option>
+                        <option value="Séparé(e)">Séparé(e)</option>
+                        <option value="Divorcé(e)">Divorcé(e)</option>
+                        <option value="Veuf(ve)">Veuf(ve)</option>
+                        <option value="En couple">En couple</option>
+                        <option value="Célibataire">Célibataire</option>
+                      </select>
                     </div>
                   </div>
                   <div className="form-grid-3-equal">
@@ -1125,7 +1146,7 @@ export default function AffectationPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: 20 }}>
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <input type="checkbox" checked={newGuest.aps || false} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Fiche APS Remplie</span>
@@ -1134,31 +1155,16 @@ export default function AffectationPage() {
                       <input type="checkbox" checked={newGuest.localChurch || false} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Déjà d'une église locale</span>
                     </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" checked={newGuest.souhaiteEtreContacte !== false} onChange={e => setNewGuest({...newGuest, souhaiteEtreContacte: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <span style={{ fontSize: 13, color: "var(--gold)", fontWeight: "bold" }}>Souhaite être contacté(e)</span>
+                    </div>
                   </div>
 
                   <div>
                     <label className="form-label">ADRESSE DOMICILE</label>
                     <input className="input" value={newGuest.address || ""} onChange={e => setNewGuest({...newGuest, address: e.target.value})} />
                   </div>
-
-                  {isIntegrationOrCounselor && (
-                    <div>
-                      <label className="form-label">EST À LA FAMILLE</label>
-                      <select 
-                        className="input" 
-                        value={newGuest.famille_disciple || "AUCUNE"} 
-                        onChange={e => setNewGuest({...newGuest, famille_disciple: e.target.value})}
-                      >
-                        <option value="AUCUNE">AUCUNE</option>
-                        <option value="FAMILLE DE NOÉ">FAMILLE DE NOÉ</option>
-                        <option value="FAMILLE DE DAVID">FAMILLE DE DAVID</option>
-                        <option value="FAMILLE CHARIS">FAMILLE CHARIS</option>
-                        <option value="FAMILLE IT'S TIME">FAMILLE IT'S TIME</option>
-                        <option value="FAMILLE GÉNÉRATION JOSUÉ">FAMILLE GÉNÉRATION JOSUÉ</option>
-                        <option value="FAMILLE DE MOÏSE">FAMILLE DE MOÏSE</option>
-                      </select>
-                    </div>
-                  )}
 
                   <div>
                     <label className="form-label">COMMENTAIRE / NOTES PARTICULIÈRES</label>
@@ -1340,7 +1346,7 @@ export default function AffectationPage() {
                             </div>
                           </div>
                           
-                          {isIntegrationOrCounselor && (
+                          {!isIntegrationOrCounselor && (
                             <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
                               <button 
                                 className="btn btn-primary btn-sm" 
@@ -1352,7 +1358,7 @@ export default function AffectationPage() {
                               </button>
                               
                               <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,175,55,0.15)" }}>
-                                <label className="form-label" style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est à la famille</label>
+                                <label className="form-label" style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est affecté(e) à la famille</label>
                                 <select 
                                   className="input" 
                                   value={guest.famille_disciple || "AUCUNE"} 

@@ -1434,24 +1434,7 @@ export default function InvitesPage() {
                 </div>
               )}
 
-              {isIntegrationOrCounselor && (
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>EST À LA FAMILLE</label>
-                  <select 
-                    className="input" 
-                    value={newGuest.famille_disciple || "AUCUNE"} 
-                    onChange={e => setNewGuest({...newGuest, famille_disciple: e.target.value})}
-                  >
-                    <option value="AUCUNE">AUCUNE</option>
-                    <option value="FAMILLE DE NOÉ">FAMILLE DE NOÉ</option>
-                    <option value="FAMILLE DE DAVID">FAMILLE DE DAVID</option>
-                    <option value="FAMILLE CHARIS">FAMILLE CHARIS</option>
-                    <option value="FAMILLE IT'S TIME">FAMILLE IT'S TIME</option>
-                    <option value="FAMILLE GÉNÉRATION JOSUÉ">FAMILLE GÉNÉRATION JOSUÉ</option>
-                    <option value="FAMILLE DE MOÏSE">FAMILLE DE MOÏSE</option>
-                  </select>
-                </div>
-              )}
+
 
               <div>
                 <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>COMMENTAIRE ARRIVÉE / NOTES PARTICULIÈRES</label>
@@ -1869,7 +1852,7 @@ export default function InvitesPage() {
                             </div>
                           )}
 
-                          {isIntegrationOrCounselor && (
+                          {!isIntegrationOrCounselor && (
                             <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
                               <button 
                                 className="btn btn-primary btn-sm" 
