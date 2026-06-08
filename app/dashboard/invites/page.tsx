@@ -958,9 +958,29 @@ export default function InvitesPage() {
     return groups;
   }, [filtered]);
 
+  const availableYears = useMemo(() => {
+    const years = guests
+      .map(g => g.arrivalDate ? g.arrivalDate.split('-')[0] : null)
+      .filter((y): y is string => !!y);
+    const unique = Array.from(new Set(years)).sort().reverse();
+    return unique.length > 0 ? unique : [new Date().getFullYear().toString()];
+  }, [guests]);
+
+  useEffect(() => {
+    if (availableYears.length > 0) {
+      const yearStrings = availableYears.map(y => y.toString());
+      if (!yearStrings.includes(selectedYear.toString())) {
+        setSelectedYear(parseInt(availableYears[0], 10));
+      }
+      if (arrivalYear !== "all" && !availableYears.includes(arrivalYear)) {
+        setArrivalYear("all");
+      }
+    }
+  }, [availableYears, selectedYear, arrivalYear]);
+
   const calculateRate = (guest: Guest, dates: string[]) => {
     const eligibleDates = guest.arrivalDate 
-      ? dates.filter(d => d > guest.arrivalDate) 
+      ? dates.filter(d => d >= guest.arrivalDate) 
       : dates;
     if (eligibleDates.length === 0) return 0;
     const presents = eligibleDates.filter(d => guest.attendance[d]).length;
@@ -1172,17 +1192,17 @@ export default function InvitesPage() {
             </select>
             <select className="input" style={{ width: 90, fontSize: 12 }} value={arrivalYear} onChange={e => setArrivalYear(e.target.value)}>
               <option value="all">Toutes années</option>
-              {[2024, 2025, 2026].map(y => <option key={y} value={y.toString()}>{y}</option>)}
+              {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>PRÉSENCES</span>
             <select className="input" style={{ width: 130, fontSize: 12 }} value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}>
               <option value="-1">Tous les mois</option>
-              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i}>{m}</option>)}
+              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i.toString()}>{m}</option>)}
             </select>
             <select className="input" style={{ width: 90, fontSize: 12 }} value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))}>
-              {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+              {availableYears.map(y => <option key={y} value={parseInt(y, 10)}>{y}</option>)}
             </select>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1583,8 +1603,8 @@ export default function InvitesPage() {
               </select>
               <select className="input" value={arrivalYear} onChange={e => setArrivalYear(e.target.value)} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
                 <option value="all">Toutes</option>
-                {[2023, 2024, 2025, 2026].map(y => (
-                  <option key={y} value={y.toString()}>{y}</option>
+                {availableYears.map(y => (
+                  <option key={y} value={y}>{y}</option>
                 ))}
               </select>
             </div>
@@ -1597,8 +1617,8 @@ export default function InvitesPage() {
                 ))}
               </select>
               <select className="input" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
-                {[2023, 2024, 2025, 2026].map(y => (
-                  <option key={y} value={y}>{y}</option>
+                {availableYears.map(y => (
+                  <option key={y} value={parseInt(y, 10)}>{y}</option>
                 ))}
               </select>
             </div>
@@ -1962,7 +1982,7 @@ export default function InvitesPage() {
                             <div>
                               <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>CDM (Jeudi)</h4>
                               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {thursdays.map(day => {
+                                {thursdays.filter(day => !guest.arrivalDate || day >= guest.arrivalDate).map(day => {
                                   const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
                                   return (
                                     <div
@@ -1987,7 +2007,7 @@ export default function InvitesPage() {
                             <div>
                               <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>Culte (Dimanche)</h4>
                               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {sundays.map(day => {
+                                {sundays.filter(day => !guest.arrivalDate || day >= guest.arrivalDate).map(day => {
                                   const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
                                   return (
                                     <div
