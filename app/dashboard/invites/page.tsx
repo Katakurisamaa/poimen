@@ -1690,8 +1690,6 @@ export default function InvitesPage() {
                               <th style={{ padding: "12px 24px", textAlign: "left" }}>INVITÉ</th>
                               <th style={{ padding: "12px 16px", textAlign: "left" }}>DATE D'ARRIVÉE</th>
                               <th style={{ padding: "12px 16px", textAlign: "left" }}>ACCOMPAGNEMENT</th>
-                              <th style={{ padding: "12px 16px", textAlign: "left" }}>PRÉSENCES</th>
-                              <th style={{ padding: "12px 16px", textAlign: "left" }}>PIPELINE PCNC</th>
                               <th style={{ padding: "12px 16px", textAlign: "left" }}>RÉAFFECTER</th>
                               <th style={{ padding: "12px 24px", textAlign: "right" }}>ACTIONS</th>
                             </tr>
@@ -1751,44 +1749,6 @@ export default function InvitesPage() {
                                     ) : (
                                       <span style={{ fontSize: 12 }}>{guest.responsible || "Non assigné"}</span>
                                     )}
-                                  </td>
-
-                                  {/* Présences */}
-                                  <td style={{ padding: "12px 16px" }}>
-                                    <div style={{ display: "flex", gap: 6 }}>
-                                      <span 
-                                        className="badge" 
-                                        style={{ 
-                                          background: rateCDM >= 45 ? "rgba(34, 197, 94, 0.12)" : "rgba(249, 115, 22, 0.12)", 
-                                          color: rateCDM >= 45 ? "var(--green)" : "var(--orange)", 
-                                          fontSize: 10,
-                                          fontWeight: 600
-                                        }}
-                                      >
-                                        CDM: {rateCDM}%
-                                      </span>
-                                      <span 
-                                        className="badge" 
-                                        style={{ 
-                                          background: rateCulte >= 45 ? "rgba(34, 197, 94, 0.12)" : "rgba(249, 115, 22, 0.12)", 
-                                          color: rateCulte >= 45 ? "var(--green)" : "var(--orange)", 
-                                          fontSize: 10,
-                                          fontWeight: 600
-                                        }}
-                                      >
-                                        Culte: {rateCulte}%
-                                      </span>
-                                    </div>
-                                  </td>
-
-                                  {/* Pipeline PCNC */}
-                                  <td style={{ padding: "12px 16px" }}>
-                                    <div style={{ display: "flex", gap: 4 }}>
-                                      <span className="badge" style={{ opacity: guest.pcnc ? 1 : 0.2, background: "var(--violet)", color: "white", fontSize: 9, padding: "2px 4px", fontWeight: 700 }}>001</span>
-                                      <span className="badge" style={{ opacity: guest.p101 ? 1 : 0.2, background: "var(--sky)", color: "white", fontSize: 9, padding: "2px 4px", fontWeight: 700 }}>101</span>
-                                      <span className="badge" style={{ opacity: guest.p201 ? 1 : 0.2, background: "var(--orange)", color: "white", fontSize: 9, padding: "2px 4px", fontWeight: 700 }}>201</span>
-                                      <span className="badge" style={{ opacity: guest.p301 ? 1 : 0.2, background: "var(--green)", color: "white", fontSize: 9, padding: "2px 4px", fontWeight: 700 }}>301</span>
-                                    </div>
                                   </td>
 
                                   {/* Réaffecter Famille */}
