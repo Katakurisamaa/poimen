@@ -1209,7 +1209,7 @@ export default function AffectationPage() {
 
           {/* Filters */}
           <div className="glass fade-in affectations-filters" style={{ padding: "16px 20px", display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ position: "relative", flex: 2, minWidth: 240 }}>
+            <div className="search-bar-container" style={{ position: "relative", flex: 2 }}>
               <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.35)" }} />
               <input className="input search-bar-premium" placeholder="Rechercher une brebi par nom ou prénom..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
             </div>

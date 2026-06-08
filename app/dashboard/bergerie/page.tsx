@@ -856,8 +856,8 @@ export default function BergeriePage() {
       )}
 
       <div className="glass-compact affectations-filters" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
-        <div style={{ display:"flex", gap:10, alignItems:"center", flex: 1, minWidth: 0 }}>
-          <div style={{ position:"relative", flex: 1, minWidth: 0 }}>
+        <div className="search-bar-container" style={{ display:"flex", gap:10, alignItems:"center", flex: 1 }}>
+          <div style={{ position:"relative", flex: 1 }}>
             <Search size={18} style={{ position:"absolute", left: 14, top:"50%", transform:"translateY(-50%)", color:"rgba(255,255,255,0.35)" }} />
             <input className="input search-bar-premium" placeholder="Rechercher par nom/prénom..." value={search} onChange={(e)=>setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
           </div>
