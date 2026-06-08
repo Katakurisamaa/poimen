@@ -178,29 +178,6 @@ export default function LandingPage() {
       </div>
 
       <div style={{ maxWidth: 1000, margin: "0 auto", position: "relative", zIndex: 1 }}>
-        {/* Top Navbar */}
-        <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 0", marginBottom: 20 }} className="fade-in">
-          <Link 
-            href="/cr-culte" 
-            className="btn btn-outline" 
-            style={{ 
-              fontSize: 13, 
-              borderColor: "rgba(212, 175, 55, 0.3)", 
-              color: "var(--gold-light)", 
-              display: "flex", 
-              alignItems: "center", 
-              gap: 8,
-              borderRadius: "50px",
-              padding: "8px 16px",
-              background: "var(--surface-solid)",
-              textDecoration: "none"
-            }}
-          >
-            <FileText size={15} />
-            <span>CR Global Culte</span>
-          </Link>
-        </div>
-
         {/* Header */}
         <header style={{ textAlign: "center", marginBottom: 50, position: "relative" }} className="fade-in">
           {/* Sublime Liturgical Indicator */}

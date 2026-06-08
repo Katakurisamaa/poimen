@@ -198,11 +198,13 @@ function SidebarContent({ onToggleMobile, mobileOpen }: { onToggleMobile?: () =>
               ];
             }
 
-            const profilIndex = navItems.findIndex((item: any) => item.label === "Profil");
-            if (profilIndex !== -1) {
-              navItems.splice(profilIndex, 0, { label: "CR Culte", href: "/cr-culte", icon: FileText });
-            } else {
-              navItems.push({ label: "CR Culte", href: "/cr-culte", icon: FileText });
+            if (isIntegration || isSuperAdmin || userRole === "admin") {
+              const profilIndex = navItems.findIndex((item: any) => item.label === "Profil");
+              if (profilIndex !== -1) {
+                navItems.splice(profilIndex, 0, { label: "CR Culte", href: "/cr-culte", icon: FileText });
+              } else {
+                navItems.push({ label: "CR Culte", href: "/cr-culte", icon: FileText });
+              }
             }
 
             return navItems.map((item: any) => {
