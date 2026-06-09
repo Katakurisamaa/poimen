@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList, createFamilyUserContext, listIntegrationTeam } from "@/app/actions/auth";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 import { getActiveContext, getActiveSpaceType, getActiveUserInfo } from "@/lib/client-session";
+import { filterElapsedDateKeys } from "@/lib/date-utils";
 
 const STATS = [
   { label: "Membres", value: "0", sub: "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
@@ -533,7 +534,7 @@ export default function DashboardPage() {
 
               activeTypes.forEach(act => {
                 act.days.forEach((dayNum: number) => {
-                  const dates = getDaysOfPeriod(currentYear, currentMonth, dayNum);
+                  const dates = filterElapsedDateKeys(getDaysOfPeriod(currentYear, currentMonth, dayNum));
                   // Filter dates to only include those at or after m.date_entree AND activity startDate
                   const validDates = dates.filter(d => {
                     if (d < act.startDate) return false;

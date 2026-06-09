@@ -7075,3 +7075,65 @@ body.dark .affectations-filters .search-bar-container .search-bar-premium::place
     padding-left: 44px !important;
   }
 }
+
+/* High contrast attendance switches in dark mode */
+html[data-theme="dark"] .attendance-switch,
+body[data-theme="dark"] .attendance-switch,
+body.dark .attendance-switch {
+  background:
+    linear-gradient(180deg, rgba(221, 223, 224, 0.15), rgba(221, 223, 224, 0.08)) !important;
+  border-color: rgba(221, 223, 224, 0.34) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 18px rgba(0, 0, 0, 0.28) !important;
+}
+
+html[data-theme="dark"] .attendance-switch-knob,
+body[data-theme="dark"] .attendance-switch-knob,
+body.dark .attendance-switch-knob {
+  background: #f0f1f1 !important;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(221, 223, 224, 0.5) !important;
+}
+
+html[data-theme="dark"] .attendance-switch.is-on,
+body[data-theme="dark"] .attendance-switch.is-on,
+body.dark .attendance-switch.is-on {
+  background:
+    linear-gradient(180deg, rgba(143, 166, 147, 0.62), rgba(84, 118, 91, 0.5)) !important;
+  border-color: rgba(143, 166, 147, 0.72) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 1px rgba(143, 166, 147, 0.18),
+    0 10px 22px rgba(0, 0, 0, 0.3) !important;
+}
+
+html[data-theme="dark"] .activity-attendance-card .attendance-switch,
+body[data-theme="dark"] .activity-attendance-card .attendance-switch,
+body.dark .activity-attendance-card .attendance-switch {
+  background:
+    linear-gradient(180deg, rgba(221, 223, 224, 0.26), rgba(221, 223, 224, 0.13)) !important;
+  border-color: rgba(221, 223, 224, 0.46) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 1px rgba(221, 223, 224, 0.08),
+    0 8px 18px rgba(0, 0, 0, 0.28) !important;
+}
+
+html[data-theme="dark"] .activity-attendance-card .attendance-switch-knob,
+body[data-theme="dark"] .activity-attendance-card .attendance-switch-knob,
+body.dark .activity-attendance-card .attendance-switch-knob {
+  background: #f4f1ea !important;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.46),
+    0 0 0 1px rgba(255, 255, 255, 0.38) !important;
+}
+
+html[data-theme="dark"] .activity-attendance-card .attendance-switch.is-on,
+body[data-theme="dark"] .activity-attendance-card .attendance-switch.is-on,
+body.dark .activity-attendance-card .attendance-switch.is-on {
+  background:
+    linear-gradient(180deg, rgba(143, 166, 147, 0.76), rgba(84, 118, 91, 0.62)) !important;
+  border-color: rgba(143, 166, 147, 0.82) !important;
+}

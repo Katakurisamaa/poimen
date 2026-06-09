@@ -10,6 +10,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
+import { filterElapsedDateKeys } from "@/lib/date-utils";
 
 
 const STATUS_OPTIONS = ["Brebi", "Responsable", "Berger", "Second"];
@@ -321,7 +322,7 @@ export default function BergeriePage() {
     const now = new Date();
     
     activities.forEach(act => {
-      const dates = getDaysOfPeriodForActivity(now.getFullYear(), now.getMonth(), act);
+      const dates = filterElapsedDateKeys(getDaysOfPeriodForActivity(now.getFullYear(), now.getMonth(), act));
       const validDates = dates.filter(d => !member.date_entree || d >= member.date_entree);
       const nonCancelledDates = validDates.filter(d => !act.cancelledDates?.includes(d));
       totalPossible += nonCancelledDates.length;

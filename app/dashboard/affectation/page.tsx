@@ -10,6 +10,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers, listIntegrationTeam } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
+import { filterElapsedDateKeys } from "@/lib/date-utils";
 
 
 interface Guest {
@@ -755,8 +756,8 @@ export default function AffectationPage() {
 
   const calculateRate = (guest: Guest, dates: string[]) => {
     const eligibleDates = guest.arrivalDate 
-      ? dates.filter(d => d >= guest.arrivalDate) 
-      : dates;
+      ? filterElapsedDateKeys(dates).filter(d => d >= guest.arrivalDate)
+      : filterElapsedDateKeys(dates);
     if (eligibleDates.length === 0) return 0;
     const presents = eligibleDates.filter(d => guest.attendance[d]).length;
     return Math.round((presents / eligibleDates.length) * 100);

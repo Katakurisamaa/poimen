@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
+import { filterElapsedDateKeys } from "@/lib/date-utils";
 import { 
   Plus, Calendar, Clock, MapPin, ChevronRight, XCircle, 
   Search, CheckCircle2, List, Grid3X3, Users, BarChart3,
@@ -562,7 +563,7 @@ export default function ActivitiesPage() {
     let totalPresent = 0;
     
     activeActivitiesForPeriod.forEach(act => {
-      const dates = activityDates[act.id] || [];
+      const dates = filterElapsedDateKeys(activityDates[act.id] || []);
       const validDates = dates.filter(d => !member.dateEntree || d >= member.dateEntree);
       const nonCancelledDates = validDates.filter(d => !act.cancelledDates?.includes(d));
       totalPossible += nonCancelledDates.length;
@@ -581,7 +582,7 @@ export default function ActivitiesPage() {
 
     activeActivitiesForPeriod.forEach(act => {
       activityStats[act.id] = { present: 0, total: 0 };
-      const dates = activityDates[act.id] || [];
+      const dates = filterElapsedDateKeys(activityDates[act.id] || []);
       
       members.forEach(member => {
         if (member.archived) return;
@@ -1040,15 +1041,20 @@ export default function ActivitiesPage() {
                             </div>
                             <div className={`attendance-switch ${isPresent ? "is-on" : ""}`} style={{ 
                               width: 46, height: 22, borderRadius: 11, position: "relative",
-                              background: isPresent ? "var(--green)" : "var(--bg-deep)",
+                              background: isPresent
+                                ? "linear-gradient(180deg, rgba(143, 166, 147, 0.95), rgba(85, 115, 60, 0.9))"
+                                : "linear-gradient(180deg, rgba(221, 223, 224, 0.24), rgba(221, 223, 224, 0.12))",
                               transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-                              border: `1px solid ${isPresent ? "transparent" : "rgba(212,175,55,0.15)"}`
+                              border: `1px solid ${isPresent ? "rgba(143, 166, 147, 0.72)" : "rgba(221, 223, 224, 0.42)"}`,
+                              boxShadow: isPresent
+                                ? "0 0 0 1px rgba(143, 166, 147, 0.18), 0 8px 18px rgba(0,0,0,0.28)"
+                                : "inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 18px rgba(0,0,0,0.24)"
                             }}>
                               <div className="attendance-switch-knob" style={{ 
                                 position: "absolute", top: 2, left: isPresent ? 26 : 2,
                                 width: 16, height: 16, borderRadius: "50%",
-                                background: isPresent ? "var(--bg)" : "var(--gold-light)",
-                                boxShadow: "0 2px 5px rgba(0,0,0,0.3)",
+                                background: isPresent ? "#f0f1f1" : "#f7f3ec",
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.42), 0 0 0 1px rgba(255,255,255,0.32)",
                                 transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
                               }} />
                             </div>
@@ -1146,7 +1152,7 @@ export default function ActivitiesPage() {
                     <div style={{ padding: "20px", borderTop: "1px solid var(--border)", background: "var(--bg-deep)" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 15 }}>
                         {activeActivitiesForPeriod.map(act => {
-                          const dates = activityDates[act.id] || [];
+                          const dates = filterElapsedDateKeys(activityDates[act.id] || []);
                           const nonCancelledDates = dates.filter(d => !act.cancelledDates?.includes(d));
                           const presentCount = nonCancelledDates.filter(d => m.attendance[act.id]?.[d]).length;
                           const rate = nonCancelledDates.length === 0 ? 0 : Math.round((presentCount / nonCancelledDates.length) * 100);
