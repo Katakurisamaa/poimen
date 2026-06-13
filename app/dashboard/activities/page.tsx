@@ -1479,7 +1479,7 @@ export default function ActivitiesPage() {
                       <thead>
                         {/* Row 1: Months */}
                         <tr>
-                          <th rowSpan={2} style={{ width: 220, minWidth: 220, borderBottom: "2px solid rgba(212, 175, 55, 0.2)" }}>Membres</th>
+                          <th rowSpan={2} style={{ width: 220, minWidth: 220, borderBottom: "2px solid rgba(212, 175, 55, 0.2)" }}>Membres ({alphabeticalMembers.length})</th>
                           {datesByMonthForYear.map((m, idx) => (
                             <th 
                               key={m.monthName} 
