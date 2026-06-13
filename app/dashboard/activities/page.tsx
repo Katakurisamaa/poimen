@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
@@ -9,7 +9,7 @@ import {
   Plus, Calendar, Clock, MapPin, ChevronRight, XCircle, 
   Search, CheckCircle2, List, Grid3X3, Users, BarChart3,
   ChevronDown, ChevronUp, MoreHorizontal, Trash2,
-  AlertTriangle, TrendingUp, Pencil
+  AlertTriangle, TrendingUp, Pencil, Maximize2, Minimize2
 } from "lucide-react";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import type { ActivityType } from "@/types";
@@ -54,7 +54,9 @@ export default function ActivitiesPage() {
   const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"attendance" | "schedule" | "stats">("attendance");
-  const [attendanceViewMode, setAttendanceViewMode] = useState<"by-member" | "by-activity">("by-activity");
+  const [attendanceViewMode, setAttendanceViewMode] = useState<"by-member" | "by-activity" | "by-year">("by-activity");
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const presentationRef = useRef<HTMLDivElement>(null);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -90,6 +92,62 @@ export default function ActivitiesPage() {
       document.body.classList.remove("no-scroll");
     };
   }, [isAddModalOpen]);
+
+  useEffect(() => {
+    if (isPresentationMode) {
+      document.documentElement.classList.add("no-scroll");
+      document.body.classList.add("no-scroll");
+    } else {
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).msFullscreenElement) {
+          const doc = document as any;
+          if (doc.exitFullscreen) {
+            doc.exitFullscreen().catch(() => {});
+          } else if (doc.webkitExitFullscreen) {
+            doc.webkitExitFullscreen();
+          } else if (doc.msExitFullscreen) {
+            doc.msExitFullscreen();
+          }
+        } else {
+          setIsPresentationMode(false);
+        }
+      }
+    };
+
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).msFullscreenElement
+      ) && (
+        document.fullscreenElement === presentationRef.current ||
+        (document as any).webkitFullscreenElement === presentationRef.current ||
+        (document as any).msFullscreenElement === presentationRef.current
+      );
+      setIsPresentationMode(isCurrentlyFullscreen);
+    };
+
+    if (isPresentationMode) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("msfullscreenchange", handleFullscreenChange);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("msfullscreenchange", handleFullscreenChange);
+      document.documentElement.classList.remove("no-scroll");
+      document.body.classList.remove("no-scroll");
+    };
+  }, [isPresentationMode]);
 
   // Load activities from localStorage and members from Supabase
   useEffect(() => {
@@ -408,6 +466,29 @@ export default function ActivitiesPage() {
     return map;
   }, [activities, selectedMonth, selectedYear]);
 
+  const datesByMonthForYear = useMemo(() => {
+    if (!activeActivity) return [];
+    
+    const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+    const result: { monthName: string; monthIndex: number; dates: string[] }[] = [];
+    
+    for (let m = 0; m < 12; m++) {
+      const dates = getDaysOfMonthForActivity(selectedYear, m, activeActivity);
+      if (dates.length > 0) {
+        result.push({
+          monthName: monthNames[m],
+          monthIndex: m,
+          dates
+        });
+      }
+    }
+    return result;
+  }, [activeActivity, selectedYear]);
+
+  const allYearDates = useMemo(() => {
+    return datesByMonthForYear.flatMap(m => m.dates);
+  }, [datesByMonthForYear]);
+
   // Handle default date for By Activity mode
   useEffect(() => {
     if (selectedActivityId && activityDates[selectedActivityId]?.length > 0) {
@@ -558,6 +639,34 @@ export default function ActivitiesPage() {
     setNewActivity({ name: "", day: 0, startTime: "18:00", endTime: "20:00", location: "Salles Annexes", startDate: "2026-03-29" });
   };
 
+  const togglePresentationMode = async () => {
+    if (!presentationRef.current) return;
+    const elem = presentationRef.current as any;
+    try {
+      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement && !(document as any).msFullscreenElement) {
+        if (elem.requestFullscreen) {
+          await elem.requestFullscreen();
+        } else if (elem.webkitRequestFullscreen) {
+          await elem.webkitRequestFullscreen();
+        } else if (elem.msRequestFullscreen) {
+          await elem.msRequestFullscreen();
+        }
+      } else {
+        const doc = document as any;
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen();
+        } else if (doc.msExitFullscreen) {
+          await doc.msExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.error("Error toggling fullscreen:", err);
+      setIsPresentationMode(!isPresentationMode);
+    }
+  };
+
   const calculateEngagement = (member: Member) => {
     let totalPossible = 0;
     let totalPresent = 0;
@@ -571,6 +680,17 @@ export default function ActivitiesPage() {
     });
     
     return totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
+  };
+
+  const calculateAnnualEngagement = (member: Member) => {
+    if (!selectedActivityId || !activeActivity) return { rate: 0, present: 0, total: 0 };
+    const elapsedDates = filterElapsedDateKeys(allYearDates);
+    const validDates = elapsedDates.filter(d => !member.dateEntree || d >= member.dateEntree);
+    const nonCancelledDates = validDates.filter(d => !activeActivity.cancelledDates?.includes(d));
+    const totalPossible = nonCancelledDates.length;
+    const totalPresent = nonCancelledDates.filter(d => member.attendance[selectedActivityId]?.[d]).length;
+    const rate = totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
+    return { rate, present: totalPresent, total: totalPossible };
   };
 
   const stats = useMemo(() => {
@@ -667,6 +787,29 @@ export default function ActivitiesPage() {
       return a.firstName.localeCompare(b.firstName, "fr", { sensitivity: "base" });
     });
   }, [members, search, isLeader, currentUserFullName, activities, activityDates]);
+
+  const alphabeticalMembers = useMemo(() => {
+    const searchLower = search.toLowerCase();
+    let list = members.filter(m => !m.archived);
+
+    // Privacy: Non-leaders only see themselves
+    if (!isLeader && currentUserFullName) {
+      list = list.filter(m => {
+        const mFullName = `${m.firstName} ${m.lastName}`.toLowerCase();
+        return mFullName === currentUserFullName.toLowerCase();
+      });
+    }
+
+    // Filter by search query
+    list = list.filter(m => {
+      const fullName1 = `${m.firstName} ${m.lastName}`.toLowerCase();
+      const fullName2 = `${m.lastName} ${m.firstName}`.toLowerCase();
+      return fullName1.includes(searchLower) || fullName2.includes(searchLower);
+    });
+    
+    // Sort purely alphabetically by first name (A-Z)
+    return [...list].sort((a, b) => a.firstName.localeCompare(b.firstName, "fr", { sensitivity: "base" }));
+  }, [members, search, isLeader, currentUserFullName]);
 
   const activeMembersOnDate = useMemo(() => {
     return filteredMembers.filter(m => {
@@ -777,11 +920,13 @@ export default function ActivitiesPage() {
 
         <div className="glass activity-period-picker" style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 16px", borderRadius: 12, border: "1px solid rgba(212, 175, 55, 0.15)" }}>
           <Calendar size={14} className="text-[var(--gold)]" />
-          <select className="input-minimal" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))}>
-            {displayedMonths.map(m => (
-              <option key={m.index} value={m.index} style={{ background: "var(--bg)", color: "var(--cream)" }}>{m.name}</option>
-            ))}
-          </select>
+          {!(activeTab === "attendance" && attendanceViewMode === "by-year") && (
+            <select className="input-minimal" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))}>
+              {displayedMonths.map(m => (
+                <option key={m.index} value={m.index} style={{ background: "var(--bg)", color: "var(--cream)" }}>{m.name}</option>
+              ))}
+            </select>
+          )}
           <select className="input-minimal" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
             {yearsRange.map(y => (
               <option key={y} value={y} style={{ background: "var(--bg)", color: "var(--cream)" }}>{y}</option>
@@ -819,6 +964,19 @@ export default function ActivitiesPage() {
                 }}
               >
                 Suivi Global (Par Membre)
+              </button>
+              <button 
+                className="btn-year-view"
+                onClick={() => setAttendanceViewMode("by-year")}
+                style={{ 
+                  padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 700, transition: "all 0.3s",
+                  background: attendanceViewMode === "by-year" ? "var(--gold)" : "transparent",
+                  color: attendanceViewMode === "by-year" ? "var(--bg)" : "var(--muted)",
+                  border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 6
+                }}
+              >
+                <Grid3X3 size={14} /> Tableau Annuel
               </button>
             </div>
           </div>
@@ -1091,7 +1249,7 @@ export default function ActivitiesPage() {
               )}
             </div>
           )
-        ) : (
+        ) : attendanceViewMode === "by-member" ? (
           /* BY MEMBER GRID VIEW (ORIGINAL) */
           <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
               {/* Controls */}
@@ -1219,6 +1377,321 @@ export default function ActivitiesPage() {
             })}
           </div>
         </div>
+          ) : (
+            /* BY YEAR ANNUAL TABLE VIEW */
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {/* Warning on Mobile */}
+              <div className="annual-table-mobile-warning glass" style={{ padding: 40, textAlign: "center", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+                <AlertTriangle size={48} className="text-[var(--gold)]" style={{ margin: "0 auto 20px" }} />
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>
+                  Écran trop étroit
+                </h3>
+                <p style={{ color: "var(--muted)", maxWidth: 460, margin: "0 auto" }}>
+                  La vue sous forme de tableau annuel nécessite un espace d'affichage important et n'est disponible que sur ordinateur ou grand écran. Veuillez utiliser la vue « Faire l'Appel » ou « Suivi Global (Par Membre) » sur mobile.
+                </p>
+              </div>
+
+              {/* Desktop Content */}
+              <div ref={presentationRef} className={`annual-table-desktop-only ${isPresentationMode ? "presentation-mode" : ""}`} style={{ display: "flex", flexDirection: "column", gap: 20, width: "100%" }}>
+                {/* Controls */}
+                <div className="glass" style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, alignItems: "end", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+                  <div>
+                    <label className="form-label" style={{ marginBottom: 8 }}>Activité</label>
+                    <select 
+                      className="input w-full" 
+                      value={selectedActivityId || ""} 
+                      onChange={(e) => setSelectedActivityId(e.target.value)}
+                      style={{ height: 42 }}
+                    >
+                      {activities.map(a => <option key={a.id} value={a.id} style={{ background: "var(--bg)", color: "var(--cream)" }}>{a.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ marginBottom: 8 }}>Année</label>
+                    <select 
+                      className="input w-full" 
+                      value={selectedYear} 
+                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                      style={{ height: 42 }}
+                    >
+                      {yearsRange.map(y => <option key={y} value={y} style={{ background: "var(--bg)", color: "var(--cream)" }}>{y}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ position: "relative" }}>
+                    <label className="form-label" style={{ marginBottom: 8 }}>Rechercher un membre</label>
+                    <div className="relative">
+                      <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--cream-dim)" }} />
+                      <input className="input w-full search-bar-premium" placeholder="Filtrer la liste..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ paddingLeft: 42 }} />
+                    </div>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={togglePresentationMode}
+                      className="btn btn-outline w-full"
+                      style={{ 
+                        height: 42, 
+                        display: "flex", 
+                        alignItems: "center", 
+                        justifyContent: "center", 
+                        gap: 8,
+                        borderColor: isPresentationMode ? "var(--red)" : "rgba(212, 175, 55, 0.3)",
+                        background: isPresentationMode ? "rgba(239, 68, 68, 0.1)" : "rgba(212, 175, 55, 0.05)",
+                        color: isPresentationMode ? "var(--red)" : "var(--gold)",
+                        fontSize: 13,
+                        fontWeight: 700
+                      }}
+                    >
+                      {isPresentationMode ? (
+                        <>
+                          <Minimize2 size={16} /> Quitter Plein Écran
+                        </>
+                      ) : (
+                        <>
+                          <Maximize2 size={16} /> Mode Présentation
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Table section */}
+                {!selectedActivityId || !activeActivity ? (
+                  <div className="glass" style={{ padding: 60, textAlign: "center", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+                    <Calendar size={48} className="text-[var(--gold)]" style={{ opacity: 0.2, margin: "0 auto 20px" }} />
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>
+                      Aucune activité sélectionnée
+                    </h3>
+                  </div>
+                ) : allYearDates.length === 0 ? (
+                  <div className="glass" style={{ padding: 60, textAlign: "center", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+                    <Calendar size={48} className="text-[var(--gold)]" style={{ opacity: 0.2, margin: "0 auto 20px" }} />
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>
+                      Aucune séance planifiée pour {selectedYear}
+                    </h3>
+                    <p style={{ color: "var(--muted)", maxWidth: 460, margin: "0 auto" }}>
+                      Cette activité commence le {formatDate(activeActivity.startDate || "2026-03-29")}. Il n'y a pas d'occurrences pour le jour de la semaine configuré sur cette période.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="annual-table-container">
+                    <table className="annual-table">
+                      <thead>
+                        {/* Row 1: Months */}
+                        <tr>
+                          <th rowSpan={2} style={{ width: 220, minWidth: 220, borderBottom: "2px solid rgba(212, 175, 55, 0.2)" }}>Membres</th>
+                          {datesByMonthForYear.map((m, idx) => (
+                            <th 
+                              key={m.monthName} 
+                              colSpan={m.dates.length}
+                              className={m.monthIndex % 2 === 0 ? "month-header-even" : "month-header-odd"}
+                              style={{ 
+                                borderBottom: "2px solid rgba(212, 175, 55, 0.2)",
+                                borderRight: idx < datesByMonthForYear.length - 1 ? "2px solid rgba(212, 175, 55, 0.15)" : "none",
+                                fontSize: 12
+                              }}
+                            >
+                              {m.monthName}
+                            </th>
+                          ))}
+                        </tr>
+                        {/* Row 2: Dates */}
+                        <tr>
+                          {datesByMonthForYear.map((m, mIdx) => 
+                            m.dates.map((date, dIdx) => {
+                              const isCancelled = activeActivity.cancelledDates?.includes(date);
+                              const isLastInMonth = dIdx === m.dates.length - 1;
+                              const isLastMonth = mIdx === datesByMonthForYear.length - 1;
+                              return (
+                                <th 
+                                  key={date}
+                                  className={`${m.monthIndex % 2 === 0 ? "month-header-even" : "month-header-odd"} ${isCancelled ? "header-cancelled" : ""}`}
+                                  style={{
+                                    borderRight: isLastInMonth && !isLastMonth ? "2px solid rgba(212, 175, 55, 0.15)" : "1px solid rgba(212, 175, 55, 0.08)",
+                                    minWidth: 50,
+                                    width: 50,
+                                    padding: "6px 2px"
+                                  }}
+                                >
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700 }}>{date.split("-")[2]}</span>
+                                    {isLeader && (
+                                      <button
+                                        type="button"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          const currentCancelled = activeActivity.cancelledDates || [];
+                                          const isAlreadyCancelled = currentCancelled.includes(date);
+                                          
+                                          let newCancelled: string[];
+                                          if (isAlreadyCancelled) {
+                                            newCancelled = currentCancelled.filter(d => d !== date);
+                                          } else {
+                                            if (!window.confirm(`Voulez-vous vraiment annuler la séance du ${formatDate(date)} ?`)) return;
+                                            newCancelled = [...currentCancelled, date];
+                                          }
+                                          
+                                          const updatedActs = activities.map(act => {
+                                            if (act.id !== selectedActivityId) return act;
+                                            return { ...act, cancelledDates: newCancelled };
+                                          });
+                                          
+                                          await saveActivities(updatedActs);
+                                        }}
+                                        style={{
+                                          background: "transparent",
+                                          border: "none",
+                                          cursor: "pointer",
+                                          color: isCancelled ? "var(--red)" : "var(--muted)",
+                                          opacity: isCancelled ? 1 : 0.4,
+                                          padding: "2px",
+                                          borderRadius: "4px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          transition: "all 0.2s"
+                                        }}
+                                        title={isCancelled ? "Réactiver la séance" : "Annuler la séance"}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.opacity = "1";
+                                          e.currentTarget.style.transform = "scale(1.1)";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.opacity = isCancelled ? "1" : "0.4";
+                                          e.currentTarget.style.transform = "none";
+                                        }}
+                                      >
+                                        {isCancelled ? <AlertTriangle size={10} /> : <XCircle size={10} />}
+                                      </button>
+                                    )}
+                                  </div>
+                                </th>
+                              );
+                            })
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {alphabeticalMembers.map(m => {
+                          const { rate: annualRate, present: annualPresent, total: annualTotal } = calculateAnnualEngagement(m);
+                          const annualRateColor = annualRate >= 75 ? "var(--green)" : annualRate >= 45 ? "var(--gold-light)" : "var(--red)";
+                          return (
+                            <tr key={m.id}>
+                              <td style={{ width: 220, minWidth: 220 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  <div className="avatar" style={{ 
+                                    width: 24, height: 24, fontSize: 10, fontWeight: 700,
+                                    background: "linear-gradient(135deg, #171412, #4d443d)",
+                                    border: `1.5px solid ${annualRateColor}`,
+                                    color: "#fffaf4",
+                                    WebkitTextFillColor: "#fffaf4"
+                                  }}>
+                                    {m.firstName[0]}{m.lastName[0]}
+                                  </div>
+                                  <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    <span style={{ fontWeight: 600, fontSize: 13, color: "var(--cream)" }}>{m.firstName} {m.lastName}</span>
+                                    <span style={{ display: "block", fontSize: 9, color: "var(--muted)", marginTop: 1 }}>
+                                      Assiduité : <span style={{ color: annualRateColor, fontWeight: 700 }}>{annualRate}%</span> ({annualPresent}/{annualTotal})
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                              {datesByMonthForYear.map((monthGrp, mIdx) => 
+                                monthGrp.dates.map((date, dIdx) => {
+                                  const isCancelled = activeActivity.cancelledDates?.includes(date);
+                                  const isJoined = !m.dateEntree || date >= m.dateEntree;
+                                  const isPresent = m.attendance[selectedActivityId!]?.[date] || false;
+                                  const isLastInMonth = dIdx === monthGrp.dates.length - 1;
+                                  const isLastMonth = mIdx === datesByMonthForYear.length - 1;
+
+                                  if (!isJoined) {
+                                    return (
+                                      <td 
+                                        key={date}
+                                        className={monthGrp.monthIndex % 2 === 0 ? "month-group-even" : "month-group-odd"}
+                                        style={{
+                                          borderRight: isLastInMonth && !isLastMonth ? "2px solid rgba(212, 175, 55, 0.15)" : "1px solid rgba(212, 175, 55, 0.08)",
+                                          color: "var(--muted)",
+                                          fontSize: 10,
+                                          opacity: 0.4,
+                                          userSelect: "none"
+                                        }}
+                                        title="Non inscrit à cette date"
+                                      >
+                                        -
+                                      </td>
+                                    );
+                                  }
+
+                                  if (isCancelled) {
+                                    return (
+                                      <td 
+                                        key={date}
+                                        className="cell-cancelled"
+                                        style={{
+                                          borderRight: isLastInMonth && !isLastMonth ? "2px solid rgba(212, 175, 55, 0.15)" : "1px solid rgba(212, 175, 55, 0.08)",
+                                          color: "var(--red)",
+                                          fontSize: 10,
+                                          opacity: 0.6,
+                                          userSelect: "none"
+                                        }}
+                                        title="Séance annulée"
+                                      >
+                                        ❌
+                                      </td>
+                                    );
+                                  }
+
+                                  return (
+                                    <td 
+                                      key={date}
+                                      className={monthGrp.monthIndex % 2 === 0 ? "month-group-even" : "month-group-odd"}
+                                      style={{
+                                        borderRight: isLastInMonth && !isLastMonth ? "2px solid rgba(212, 175, 55, 0.15)" : "1px solid rgba(212, 175, 55, 0.08)",
+                                        cursor: "pointer"
+                                      }}
+                                      onClick={() => toggleAttendance(m.id, selectedActivityId!, date)}
+                                    >
+                                      <div 
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          width: "100%",
+                                          height: "100%"
+                                        }}
+                                      >
+                                        <div 
+                                          style={{
+                                            width: 18,
+                                            height: 18,
+                                            borderRadius: "50%",
+                                            border: isPresent ? "2px solid var(--green)" : "2px solid rgba(212, 175, 55, 0.3)",
+                                            background: isPresent ? "var(--green)" : "transparent",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            transition: "all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
+                                          }}
+                                        >
+                                          {isPresent && (
+                                            <CheckCircle2 size={10} style={{ color: "var(--bg)", strokeWidth: 3 }} />
+                                          )}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  );
+                                })
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -1474,6 +1947,158 @@ export default function ActivitiesPage() {
         }
         .input-minimal:hover { background: rgba(35, 29, 25, 0.06); }
         .input-minimal option { background: #fffaf4; color: var(--on-light); }
+
+        .annual-table-container {
+          width: 100%;
+          max-height: clamp(400px, 65vh, 700px);
+          overflow: auto;
+          border-radius: 12px;
+          border: 1px solid rgba(212, 175, 55, 0.15);
+          background: var(--surface-solid);
+          position: relative;
+        }
+        .annual-table-container::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .annual-table-container::-webkit-scrollbar-track {
+          background: rgba(212, 175, 55, 0.02);
+          border-radius: 4px;
+        }
+        .annual-table-container::-webkit-scrollbar-thumb {
+          background: rgba(212, 175, 55, 0.15);
+          border-radius: 4px;
+        }
+        .annual-table-container::-webkit-scrollbar-thumb:hover {
+          background: rgba(212, 175, 55, 0.3);
+        }
+        .annual-table {
+          border-collapse: separate;
+          border-spacing: 0;
+          width: max-content;
+          min-width: 100%;
+        }
+        .annual-table th {
+          position: sticky;
+          background: var(--surface-solid);
+          color: var(--cream-dim);
+          font-weight: 700;
+          text-align: center;
+          padding: 8px 12px;
+          border-bottom: 1.5px solid rgba(212, 175, 55, 0.15);
+          border-right: 1px solid rgba(212, 175, 55, 0.08);
+          z-index: 80;
+        }
+        /* Top header row (Months) */
+        .annual-table tr:first-child th {
+          top: 0;
+          z-index: 95;
+          height: 38px;
+          background: var(--surface-solid) !important;
+          border-bottom: 2px solid rgba(212, 175, 55, 0.25);
+        }
+        /* Second header row (Dates) */
+        .annual-table tr:nth-child(2) th {
+          top: 38px;
+          z-index: 95;
+          background: var(--surface-solid) !important;
+          border-bottom: 2px solid rgba(212, 175, 55, 0.2);
+        }
+        /* First column (Members) */
+        .annual-table tbody td:first-child,
+        .annual-table thead tr:first-child th:first-child {
+          position: sticky;
+          left: 0;
+          z-index: 90;
+          background: var(--surface-solid) !important;
+          border-right: 2.5px solid rgba(212, 175, 55, 0.25);
+          width: 220px;
+          min-width: 220px;
+          max-width: 220px;
+          text-align: left;
+        }
+        /* Intersection cell top-left corner */
+        .annual-table thead tr:first-child th:first-child {
+          z-index: 100;
+          top: 0;
+          left: 0;
+          background: var(--surface-solid) !important;
+        }
+        .annual-table td {
+          padding: 10px 12px;
+          border-bottom: 1px solid rgba(212, 175, 55, 0.06);
+          border-right: 1px solid rgba(212, 175, 55, 0.06);
+          text-align: center;
+          transition: background-color 0.2s;
+        }
+        .annual-table tr:hover td {
+          background-color: rgba(212, 175, 55, 0.04) !important;
+        }
+        .annual-table tr:hover td:first-child {
+          background-color: var(--surface-solid) !important;
+          color: var(--gold);
+        }
+        .month-group-even {
+          background-color: rgba(212, 175, 55, 0.02);
+        }
+        .month-group-odd {
+          background-color: transparent;
+        }
+        .month-header-even {
+          background-color: rgba(212, 175, 55, 0.08) !important;
+        }
+        .month-header-odd {
+          background-color: rgba(255, 255, 255, 0.01) !important;
+        }
+        .cell-cancelled {
+          background-color: rgba(239, 68, 68, 0.06) !important;
+          background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(239, 68, 68, 0.05) 5px, rgba(239, 68, 68, 0.05) 10px);
+        }
+        .header-cancelled {
+          background-color: rgba(239, 68, 68, 0.15) !important;
+          color: var(--red) !important;
+        }
+
+        .presentation-mode {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          z-index: 9999 !important;
+          background: var(--bg) !important;
+          padding: 30px !important;
+          margin: 0 !important;
+          box-sizing: border-box !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 20px !important;
+        }
+        .presentation-mode .annual-table-container {
+          flex: 1 !important;
+          max-height: none !important;
+          min-height: 0 !important;
+        }
+
+        @media (max-width: 1024px) {
+          .btn-year-view {
+            display: none !important;
+          }
+          .annual-table-desktop-only {
+            display: none !important;
+          }
+          .annual-table-mobile-warning {
+            display: block !important;
+          }
+        }
+        @media (min-width: 1025px) {
+          .annual-table-desktop-only {
+            display: flex !important;
+          }
+          .annual-table-mobile-warning {
+            display: none !important;
+          }
+        }
       `}</style>
     </div>
   );

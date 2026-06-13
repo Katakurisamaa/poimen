@@ -1143,7 +1143,7 @@ export default function InvitesPage() {
 
       {/* View Switcher Tabs */}
       {!isConseiller && (
-        <div className="invite-view-switcher" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))", width: "min(100%, 750px)" }}>
+        <div className="invite-view-switcher" style={{ gridTemplateColumns: isIntegrationOrCounselor ? "repeat(3, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))", width: "min(100%, 750px)" }}>
           <button 
             onClick={() => {
               setCurrentView('list');
@@ -1159,16 +1159,18 @@ export default function InvitesPage() {
               <span className="invite-view-subtitle">{filtered.length} invité{filtered.length > 1 ? "s" : ""} à suivre</span>
             </span>
           </button>
-          <button 
-            onClick={() => setCurrentView('families')}
-            className={`invite-view-option ${currentView === 'families' ? 'active' : ''}`}
-          >
-            <span className="invite-view-icon"><Home size={18} /></span>
-            <span className="invite-view-copy">
-              <span className="invite-view-title">Familles</span>
-              <span className="invite-view-subtitle">Répartition par famille</span>
-            </span>
-          </button>
+          {isIntegrationOrCounselor && (
+            <button 
+              onClick={() => setCurrentView('families')}
+              className={`invite-view-option ${currentView === 'families' ? 'active' : ''}`}
+            >
+              <span className="invite-view-icon"><Home size={18} /></span>
+              <span className="invite-view-copy">
+                <span className="invite-view-title">Familles</span>
+                <span className="invite-view-subtitle">Répartition par famille</span>
+              </span>
+            </button>
+          )}
           <button 
             onClick={() => setCurrentView('stats')}
             className={`invite-view-option ${currentView === 'stats' ? 'active' : ''}`}
@@ -1275,40 +1277,42 @@ export default function InvitesPage() {
           </div>
 
           {/* Répartition par Famille de Disciples */}
-          <div className="glass" style={{ padding: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h3 style={{ fontSize: 18, color: "var(--gold)" }}>Répartition par Famille de Disciples</h3>
-              <div className="badge badge-primary">
-                {statsBase.filter(g => g.famille_disciple && g.famille_disciple !== "AUCUNE").length} Affectés
+          {isIntegrationOrCounselor && (
+            <div className="glass" style={{ padding: 24 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <h3 style={{ fontSize: 18, color: "var(--gold)" }}>Répartition par Famille de Disciples</h3>
+                <div className="badge badge-primary">
+                  {statsBase.filter(g => g.famille_disciple && g.famille_disciple !== "AUCUNE").length} Affectés
+                </div>
+              </div>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
+                {[
+                  { label: "FAMILLE DE NOÉ", val: familyNoeCount, color: "var(--gold)" },
+                  { label: "FAMILLE DE DAVID", val: familyDavidCount, color: "var(--sky)" },
+                  { label: "FAMILLE CHARIS", val: familyCharisCount, color: "var(--green)" },
+                  { label: "FAMILLE IT'S TIME", val: familyItsTimeCount, color: "var(--orange)" },
+                  { label: "FAMILLE GÉNÉRATION JOSUÉ", val: familyJosueCount, color: "var(--violet)" },
+                  { label: "FAMILLE DE MOÏSE", val: familyMoiseCount, color: "var(--rose)" },
+                  { label: "AUCUNE / NON SPÉCIFIÉ", val: familyAucuneCount, color: "var(--muted)" }
+                ].map((fam, i) => {
+                  const percentage = Math.round((fam.val / (statsBase.length || 1)) * 100);
+                  return (
+                    <div key={fam.label} className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>{fam.label}</span>
+                        <span style={{ fontSize: 12, color: fam.color, fontWeight: 700 }}>{fam.val}</span>
+                      </div>
+                      <div className="progress" style={{ height: 6 }}>
+                        <div className="progress-fill" style={{ width: `${percentage}%`, background: fam.color }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6 }}>{percentage}% de la base</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
-              {[
-                { label: "FAMILLE DE NOÉ", val: familyNoeCount, color: "var(--gold)" },
-                { label: "FAMILLE DE DAVID", val: familyDavidCount, color: "var(--sky)" },
-                { label: "FAMILLE CHARIS", val: familyCharisCount, color: "var(--green)" },
-                { label: "FAMILLE IT'S TIME", val: familyItsTimeCount, color: "var(--orange)" },
-                { label: "FAMILLE GÉNÉRATION JOSUÉ", val: familyJosueCount, color: "var(--violet)" },
-                { label: "FAMILLE DE MOÏSE", val: familyMoiseCount, color: "var(--rose)" },
-                { label: "AUCUNE / NON SPÉCIFIÉ", val: familyAucuneCount, color: "var(--muted)" }
-              ].map((fam, i) => {
-                const percentage = Math.round((fam.val / (statsBase.length || 1)) * 100);
-                return (
-                  <div key={fam.label} className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>{fam.label}</span>
-                      <span style={{ fontSize: 12, color: fam.color, fontWeight: 700 }}>{fam.val}</span>
-                    </div>
-                    <div className="progress" style={{ height: 6 }}>
-                      <div className="progress-fill" style={{ width: `${percentage}%`, background: fam.color }} />
-                    </div>
-                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6 }}>{percentage}% de la base</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          )}
 
           {/* New Stats Row */}
           <div className="bento bento-3">
@@ -1637,7 +1641,7 @@ export default function InvitesPage() {
       </div>
 
       {/* List or Families View */}
-      {currentView === 'families' ? (
+      {currentView === 'families' && isIntegrationOrCounselor ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="fade-in">
           <style dangerouslySetInnerHTML={{__html: `
             .family-table-row {
