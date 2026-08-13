@@ -1088,6 +1088,7 @@ export default function BergeriePage() {
 
           <button 
             type="button"
+            className="annual-table-desktop-only"
             onClick={() => setView("table")} 
             style={{ 
               display: "flex", alignItems: "center", gap: 6,
@@ -1097,7 +1098,7 @@ export default function BergeriePage() {
               fontSize: 12, fontWeight: view === "table" ? 700 : 500,
               cursor: "pointer", transition: "all 0.2s ease"
             }} 
-            title="Vue Tableau"
+            title="Vue Tableau (Grand écran uniquement)"
           >
             <Table size={15} />
             <span>Tableau</span>
@@ -2570,6 +2571,12 @@ export default function BergeriePage() {
           flex: 1 !important;
           max-height: none !important;
           min-height: 0 !important;
+        }
+
+        @media (max-width: 900px) {
+          .annual-table-desktop-only {
+            display: none !important;
+          }
         }
       `}</style>
     </div>
