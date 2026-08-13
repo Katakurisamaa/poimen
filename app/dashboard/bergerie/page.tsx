@@ -5,8 +5,10 @@ import { createPortal } from "react-dom";
 import { 
   Search, Plus, Grid3X3, List, UserMinus, UserPlus, 
   ChevronDown, ChevronUp, XCircle, Loader2, Pencil, Eye,
-  Trash2, Trash, RotateCcw, Archive
+  Trash2, Trash, RotateCcw, Archive, Table, Maximize2, Minimize2,
+  Filter, SlidersHorizontal
 } from "lucide-react";
+import { useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
@@ -40,8 +42,12 @@ interface M {
   formations?: string[];
   est_star?: boolean;
   departement_star?: string;
+  commentaire_star?: string;
   est_cdm?: boolean;
   pilote_cdm?: string;
+  commentaire_cdm?: string;
+  commentaire_pcnc?: string;
+  commentaire_baptise?: string;
 }
 
 interface Activity {
@@ -96,9 +102,65 @@ export default function BergeriePage() {
   const [mounted, setMounted] = useState(false);
   
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"list"|"grid">(() =>
+  const [view, setView] = useState<"list" | "grid" | "table">(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches ? "grid" : "list"
   );
+  const [isTableFullscreen, setIsTableFullscreen] = useState(false);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const toggleTableFullscreen = async () => {
+    if (!tableRef.current) return;
+    const elem = tableRef.current as any;
+    try {
+      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement && !(document as any).msFullscreenElement) {
+        if (elem.requestFullscreen) {
+          await elem.requestFullscreen();
+        } else if (elem.webkitRequestFullscreen) {
+          await elem.webkitRequestFullscreen();
+        } else if (elem.msRequestFullscreen) {
+          await elem.msRequestFullscreen();
+        }
+      } else {
+        const doc = document as any;
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen();
+        } else if (doc.msExitFullscreen) {
+          await doc.msExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.error("Error toggling table fullscreen:", err);
+      setIsTableFullscreen(!isTableFullscreen);
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).msFullscreenElement
+      ) && (
+        document.fullscreenElement === tableRef.current ||
+        (document as any).webkitFullscreenElement === tableRef.current ||
+        (document as any).msFullscreenElement === tableRef.current
+      );
+      setIsTableFullscreen(isCurrentlyFullscreen);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("msfullscreenchange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("msfullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isConseillerModalOpen, setIsConseillerModalOpen] = useState(false);
   const [conseillerSource, setConseillerSource] = useState<"existing" | "new">("existing");
@@ -110,6 +172,8 @@ export default function BergeriePage() {
   const [filterStar, setFilterStar] = useState<string>("all");
   const [filterCDM, setFilterCDM] = useState<string>("all");
   const [filterProfession, setFilterProfession] = useState<string>("all");
+  const [filterPilote, setFilterPilote] = useState<string>("all");
+  const [filterDeptStar, setFilterDeptStar] = useState<string>("all");
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
@@ -222,8 +286,12 @@ export default function BergeriePage() {
         formations: m.formations || [],
         est_star: m.est_star || false,
         departement_star: m.departement_star || "",
+        commentaire_star: m.commentaire_star || "",
         est_cdm: m.est_cdm || false,
-        pilote_cdm: m.pilote_cdm || ""
+        pilote_cdm: m.pilote_cdm || "",
+        commentaire_cdm: m.commentaire_cdm || "",
+        commentaire_pcnc: m.commentaire_pcnc || "",
+        commentaire_baptise: m.commentaire_baptise || ""
       }));
       
       // AUTO-ADD LEADER SAFETY NET
@@ -343,6 +411,20 @@ export default function BergeriePage() {
     return Array.from(new Set(profs)).sort();
   }, [activeMembers]);
 
+  const uniquePilotes = useMemo<string[]>(() => {
+    const pilotes = activeMembers
+      .map(m => m.pilote_cdm?.trim())
+      .filter((p): p is string => !!p && p !== "Aucun");
+    return Array.from(new Set(pilotes)).sort();
+  }, [activeMembers]);
+
+  const uniqueDeptStars = useMemo<string[]>(() => {
+    const depts = activeMembers
+      .map(m => m.departement_star?.trim())
+      .filter((d): d is string => !!d && d !== "Aucun");
+    return Array.from(new Set(depts)).sort();
+  }, [activeMembers]);
+
   const hasActiveFilters = 
     filterBaptise !== "all" ||
     filterPCNC !== "all" ||
@@ -350,7 +432,9 @@ export default function BergeriePage() {
     filterAnnivMois !== "all" ||
     filterStar !== "all" ||
     filterCDM !== "all" ||
-    filterProfession !== "all";
+    filterProfession !== "all" ||
+    filterPilote !== "all" ||
+    filterDeptStar !== "all";
 
   const activeFiltersCount = [
     filterBaptise !== "all",
@@ -359,16 +443,30 @@ export default function BergeriePage() {
     filterAnnivMois !== "all",
     filterStar !== "all",
     filterCDM !== "all",
-    filterProfession !== "all"
+    filterProfession !== "all",
+    filterPilote !== "all",
+    filterDeptStar !== "all"
   ].filter(Boolean).length;
 
 
 
 
   const filtered = (showCorbeille ? archivedMembers : activeMembers).filter((m) => {
-    // Recherche textuelle d'abord
-    const full = `${m.firstName} ${m.lastName}`.toLowerCase();
-    if (search && !full.includes(search.toLowerCase())) return false;
+    // Recherche textuelle multi-champs (Nom, Prénom, Nom & Prénom, Téléphone)
+    if (search) {
+      const q = search.toLowerCase().trim();
+      const qNoSpace = q.replace(/\s+/g, "");
+      const fn = (m.firstName || "").toLowerCase();
+      const ln = (m.lastName || "").toLowerCase();
+      const full1 = `${fn} ${ln}`;
+      const full2 = `${ln} ${fn}`;
+      const phone = (m.phone || "").toLowerCase().replace(/\s+/g, "");
+
+      const matchName = fn.includes(q) || ln.includes(q) || full1.includes(q) || full2.includes(q);
+      const matchPhone = phone.includes(qNoSpace);
+
+      if (!matchName && !matchPhone) return false;
+    }
 
     if (showCorbeille) return true; // Show all archived
 
@@ -428,6 +526,12 @@ export default function BergeriePage() {
     // 9. Profession
     if (filterProfession !== "all" && m.profession?.trim() !== filterProfession) return false;
 
+    // 10. Pilote CDM
+    if (filterPilote !== "all" && (m.pilote_cdm || "Aucun") !== filterPilote) return false;
+
+    // 11. Département STAR
+    if (filterDeptStar !== "all" && (m.departement_star || "Aucun") !== filterDeptStar) return false;
+
     return true;
   }).sort((a, b) => {
     const isAPriority = a.status === "Berger" || a.status === "Second";
@@ -450,6 +554,45 @@ export default function BergeriePage() {
     setData(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m));
     
     await supabase.from("members").update({ status: newStatus }).eq("id", id);
+  };
+
+  const updateMemberField = async (memberId: string, updates: Partial<M>) => {
+    if (!canManageMembers) return;
+
+    // 1. Optimistic update in local state so ALL views sync immediately
+    setData(prev => prev.map(m => m.id === memberId ? { ...m, ...updates } : m));
+
+    // 2. Build payload for Supabase database update
+    const dbPayload: Record<string, any> = {};
+    if (updates.firstName !== undefined) dbPayload.first_name = updates.firstName;
+    if (updates.lastName !== undefined) dbPayload.last_name = updates.lastName;
+    if (updates.phone !== undefined) dbPayload.phone = updates.phone;
+    if (updates.date_entree !== undefined) dbPayload.date_entree = updates.date_entree;
+    if (updates.est_cdm !== undefined) dbPayload.est_cdm = updates.est_cdm;
+    if (updates.pilote_cdm !== undefined) dbPayload.pilote_cdm = updates.pilote_cdm;
+    if (updates.commentaire_cdm !== undefined) dbPayload.commentaire_cdm = updates.commentaire_cdm;
+    if (updates.formations !== undefined) dbPayload.formations = updates.formations;
+    if (updates.commentaire_pcnc !== undefined) dbPayload.commentaire_pcnc = updates.commentaire_pcnc;
+    if (updates.est_star !== undefined) dbPayload.est_star = updates.est_star;
+    if (updates.departement_star !== undefined) dbPayload.departement_star = updates.departement_star;
+    if (updates.commentaire_star !== undefined) dbPayload.commentaire_star = updates.commentaire_star;
+    if (updates.est_baptise !== undefined) dbPayload.est_baptise = updates.est_baptise;
+    if (updates.commentaire_baptise !== undefined) dbPayload.commentaire_baptise = updates.commentaire_baptise;
+
+    if (Object.keys(dbPayload).length === 0) return;
+
+    try {
+      const { error } = await supabase
+        .from("members")
+        .update(dbPayload)
+        .eq("id", memberId);
+
+      if (error) {
+        console.error("Error updating member field in database:", error);
+      }
+    } catch (err) {
+      console.error("Failed to update member field:", err);
+    }
   };
 
   const handleSaveMember = async (e: React.FormEvent) => {
@@ -507,9 +650,12 @@ export default function BergeriePage() {
           est_baptise: newMember.est_baptise,
           formations: newMember.formations || [],
           est_star: newMember.est_star,
-          departement_star: newMember.est_star ? newMember.departement_star : "",
+          departement_star: newMember.est_star ? newMember.departement_star : "Aucun",
+          commentaire_star: !newMember.est_star ? newMember.commentaire_star : "",
           est_cdm: newMember.est_cdm,
-          pilote_cdm: newMember.est_cdm ? newMember.pilote_cdm : ""
+          pilote_cdm: newMember.est_cdm ? newMember.pilote_cdm : "",
+          commentaire_cdm: !newMember.est_cdm ? newMember.commentaire_cdm : "",
+          commentaire_pcnc: newMember.commentaire_pcnc || ""
         })
         .eq("id", newMember.id)
         .select()
@@ -540,9 +686,12 @@ export default function BergeriePage() {
           est_baptise: newMember.est_baptise || false,
           formations: newMember.formations || [],
           est_star: newMember.est_star || false,
-          departement_star: newMember.est_star ? newMember.departement_star : "",
+          departement_star: newMember.est_star ? newMember.departement_star : "Aucun",
+          commentaire_star: !newMember.est_star ? newMember.commentaire_star : "",
           est_cdm: newMember.est_cdm || false,
-          pilote_cdm: newMember.est_cdm ? newMember.pilote_cdm : ""
+          pilote_cdm: newMember.est_cdm ? newMember.pilote_cdm : "",
+          commentaire_cdm: !newMember.est_cdm ? newMember.commentaire_cdm : "",
+          commentaire_pcnc: newMember.commentaire_pcnc || ""
         })
         .select()
         .single();
@@ -578,8 +727,11 @@ export default function BergeriePage() {
         formations: inserted.formations || [],
         est_star: inserted.est_star || false,
         departement_star: inserted.departement_star || "",
+        commentaire_star: inserted.commentaire_star || "",
         est_cdm: inserted.est_cdm || false,
-        pilote_cdm: inserted.pilote_cdm || ""
+        pilote_cdm: inserted.pilote_cdm || "",
+        commentaire_cdm: inserted.commentaire_cdm || "",
+        commentaire_pcnc: inserted.commentaire_pcnc || ""
       };
       
       if (isEditing) {
@@ -878,7 +1030,7 @@ export default function BergeriePage() {
               color: showFiltersPanel || hasActiveFilters ? "var(--gold)" : "var(--muted)",
             }}
           >
-            <Search size={13} />
+            <SlidersHorizontal size={14} />
             <span>Filtres</span>
             {hasActiveFilters && (
               <span style={{ 
@@ -899,9 +1051,57 @@ export default function BergeriePage() {
           </button>
         </div>
         
-        <div style={{ display:"flex", border:"1px solid var(--border)", borderRadius:6, overflow:"hidden" }}>
-          <button onClick={()=>setView("list")} className="btn-icon" style={{ padding:"6px 10px", background:view==="list"?"var(--gold-glow)":"transparent", border:"none", color:view==="list"?"var(--gold)":"var(--muted)", cursor:"pointer" }}><List size={14} /></button>
-          <button onClick={()=>setView("grid")} className="btn-icon" style={{ padding:"6px 10px", background:view==="grid"?"var(--gold-glow)":"transparent", border:"none", color:view==="grid"?"var(--gold)":"var(--muted)", cursor:"pointer" }}><Grid3X3 size={14} /></button>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", background: "var(--surface-solid)", padding: "4px 6px", borderRadius: 10, border: "1px solid var(--border)" }}>
+          <button 
+            type="button"
+            onClick={() => setView("list")} 
+            style={{ 
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 12px", borderRadius: 8, border: "none", 
+              background: view === "list" ? "var(--gold-glow)" : "transparent", 
+              color: view === "list" ? "var(--gold)" : "var(--muted)", 
+              fontSize: 12, fontWeight: view === "list" ? 700 : 500,
+              cursor: "pointer", transition: "all 0.2s ease"
+            }} 
+            title="Vue Liste"
+          >
+            <List size={15} />
+            <span>Liste</span>
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => setView("grid")} 
+            style={{ 
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 12px", borderRadius: 8, border: "none", 
+              background: view === "grid" ? "var(--gold-glow)" : "transparent", 
+              color: view === "grid" ? "var(--gold)" : "var(--muted)", 
+              fontSize: 12, fontWeight: view === "grid" ? 700 : 500,
+              cursor: "pointer", transition: "all 0.2s ease"
+            }} 
+            title="Vue Grille"
+          >
+            <Grid3X3 size={15} />
+            <span>Grille</span>
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => setView("table")} 
+            style={{ 
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 12px", borderRadius: 8, border: "none", 
+              background: view === "table" ? "var(--gold-glow)" : "transparent", 
+              color: view === "table" ? "var(--gold)" : "var(--muted)", 
+              fontSize: 12, fontWeight: view === "table" ? 700 : 500,
+              cursor: "pointer", transition: "all 0.2s ease"
+            }} 
+            title="Vue Tableau"
+          >
+            <Table size={15} />
+            <span>Tableau</span>
+          </button>
         </div>
       </div>
 
@@ -1125,7 +1325,7 @@ export default function BergeriePage() {
             </table>
           </div>
         </div>
-      ) : (
+      ) : view === "grid" ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(min(220px, 100%), 1fr))", gap:10 }}>
           {filtered.map((m) => {
             const engagement = calculateEngagement(m);
@@ -1198,6 +1398,614 @@ export default function BergeriePage() {
               </div>
             );
           })}
+        </div>
+      ) : (
+        /* TABLE VIEW WITH FULLSCREEN MODE, STICKY HEADERS & REAL-TIME EDITING */
+        <div 
+          ref={tableRef}
+          className={`annual-table-desktop-only ${isTableFullscreen ? "presentation-mode" : ""}`}
+          style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}
+        >
+          {/* Header Bar */}
+          <div className="glass" style={{ padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid var(--border)", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Table size={18} className="text-[var(--gold)]" />
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cream)", whiteSpace: "nowrap" }}>
+                  Tableau synthétique ({filtered.length})
+                </span>
+              </div>
+
+              {/* Inline Search Bar for Table View */}
+              <div style={{ position: "relative", minWidth: 220, maxWidth: 360, flex: 1 }}>
+                <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+                <input 
+                  className="input" 
+                  placeholder="Rechercher nom, prénom, tél..." 
+                  value={search} 
+                  onChange={(e) => setSearch(e.target.value)} 
+                  style={{ fontSize: 12, height: 36, paddingLeft: 34, paddingRight: search ? 30 : 10, background: "var(--surface-solid)", color: "var(--cream)", borderColor: "var(--border)", width: "100%" }}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}
+                  >
+                    <XCircle size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={toggleTableFullscreen}
+              className="btn btn-outline btn-sm"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                height: 36,
+                borderColor: isTableFullscreen ? "var(--red)" : "rgba(212, 175, 55, 0.3)",
+                background: isTableFullscreen ? "rgba(239, 68, 68, 0.1)" : "rgba(212, 175, 55, 0.05)",
+                color: isTableFullscreen ? "var(--red)" : "var(--gold)",
+                fontSize: 12,
+                fontWeight: 700
+              }}
+            >
+              {isTableFullscreen ? (
+                <>
+                  <Minimize2 size={14} /> Quitter Plein Écran
+                </>
+              ) : (
+                <>
+                  <Maximize2 size={14} /> Mode Plein Écran
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Table Container with Sticky Frozen Headers & First Column */}
+          <div className="bergerie-table-container">
+            <table className="bergerie-table">
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 220 }}>NOM & Prénom</th>
+                  <th style={{ minWidth: 140 }}>Téléphone</th>
+
+                  {/* Date d'entrée avec filtre mois */}
+                  <th style={{ minWidth: 140 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span>Date d'entrée</span>
+                      <select
+                        value={filterEntreeMois}
+                        onChange={(e) => setFilterEntreeMois(e.target.value)}
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 4px",
+                          borderRadius: 4,
+                          background: filterEntreeMois !== "all" ? "var(--gold)" : "var(--card)",
+                          color: filterEntreeMois !== "all" ? "var(--bg)" : "var(--gold)",
+                          border: `1px solid ${filterEntreeMois !== "all" ? "var(--gold)" : "var(--border)"}`,
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                        title="Filtrer par mois d'entrée"
+                      >
+                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Mois (Tous)</option>
+                        <option value="01" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Janvier</option>
+                        <option value="02" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Février</option>
+                        <option value="03" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Mars</option>
+                        <option value="04" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Avril</option>
+                        <option value="05" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Mai</option>
+                        <option value="06" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Juin</option>
+                        <option value="07" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Juillet</option>
+                        <option value="08" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Août</option>
+                        <option value="09" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Septembre</option>
+                        <option value="10" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Octobre</option>
+                        <option value="11" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Novembre</option>
+                        <option value="12" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Décembre</option>
+                      </select>
+                    </div>
+                  </th>
+
+                  {/* Est Baptisé avec filtre Oui/Non */}
+                  <th style={{ minWidth: 120 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span>Est Baptisé</span>
+                      <select
+                        value={filterBaptise}
+                        onChange={(e) => setFilterBaptise(e.target.value)}
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 4px",
+                          borderRadius: 4,
+                          background: filterBaptise !== "all" ? "var(--gold)" : "var(--card)",
+                          color: filterBaptise !== "all" ? "var(--bg)" : "var(--gold)",
+                          border: `1px solid ${filterBaptise !== "all" ? "var(--gold)" : "var(--border)"}`,
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                        title="Filtrer par Baptême"
+                      >
+                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
+                        <option value="yes" style={{ background: "var(--surface-solid)", color: "var(--green)" }}>Oui</option>
+                        <option value="no" style={{ background: "var(--surface-solid)", color: "var(--red)" }}>Non</option>
+                      </select>
+                    </div>
+                  </th>
+
+                  {/* Commentaire Baptême (Raison) */}
+                  <th style={{ minWidth: 200 }}>Commentaire Baptême (Raison)</th>
+
+                  {/* C.D.M avec filtre Oui/Non */}
+                  <th style={{ minWidth: 110 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span>C.D.M</span>
+                      <select
+                        value={filterCDM}
+                        onChange={(e) => setFilterCDM(e.target.value)}
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 4px",
+                          borderRadius: 4,
+                          background: filterCDM !== "all" ? "var(--gold)" : "var(--card)",
+                          color: filterCDM !== "all" ? "var(--bg)" : "var(--gold)",
+                          border: `1px solid ${filterCDM !== "all" ? "var(--gold)" : "var(--border)"}`,
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                        title="Filtrer par C.D.M"
+                      >
+                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
+                        <option value="yes" style={{ background: "var(--surface-solid)", color: "var(--green)" }}>Oui</option>
+                        <option value="no" style={{ background: "var(--surface-solid)", color: "var(--red)" }}>Non</option>
+                      </select>
+                    </div>
+                  </th>
+
+                  {/* Pilote CDM avec filtre liste des pilotes */}
+                  <th style={{ minWidth: 160 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span>Pilote CDM</span>
+                      <select
+                        value={filterPilote}
+                        onChange={(e) => setFilterPilote(e.target.value)}
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 4px",
+                          borderRadius: 4,
+                          background: filterPilote !== "all" ? "var(--gold)" : "var(--card)",
+                          color: filterPilote !== "all" ? "var(--bg)" : "var(--gold)",
+                          border: `1px solid ${filterPilote !== "all" ? "var(--gold)" : "var(--border)"}`,
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                        title="Filtrer par Pilote CDM"
+                      >
+                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
+                        {uniquePilotes.map(p => (
+                          <option key={p} value={p} style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </th>
+
+                  {/* Commentaire CDM (Raison) */}
+                  <th style={{ minWidth: 200 }}>Commentaire CDM (Raison)</th>
+
+                  {/* P.C.N.C avec filtre formations */}
+                  <th style={{ minWidth: 180 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span>P.C.N.C</span>
+                      <select
+                        value={filterPCNC}
+                        onChange={(e) => setFilterPCNC(e.target.value)}
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 4px",
+                          borderRadius: 4,
+                          background: filterPCNC !== "all" ? "var(--gold)" : "var(--card)",
+                          color: filterPCNC !== "all" ? "var(--bg)" : "var(--gold)",
+                          border: `1px solid ${filterPCNC !== "all" ? "var(--gold)" : "var(--border)"}`,
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                        title="Filtrer par Formation PCNC"
+                      >
+                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
+                        <option value="none" style={{ background: "var(--surface-solid)", color: "var(--orange)" }}>Aucune</option>
+                        <option value="001" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>001</option>
+                        <option value="101" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>101</option>
+                        <option value="201" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>201</option>
+                        <option value="301" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>301</option>
+                      </select>
+                    </div>
+                  </th>
+
+                  {/* Commentaire PCNC (Raison) */}
+                  <th style={{ minWidth: 200 }}>Commentaire PCNC (Raison)</th>
+
+                  {/* Est S.T.A.R avec filtre Oui/Non */}
+                  <th style={{ minWidth: 120 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span>Est S.T.A.R</span>
+                      <select
+                        value={filterStar}
+                        onChange={(e) => setFilterStar(e.target.value)}
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 4px",
+                          borderRadius: 4,
+                          background: filterStar !== "all" ? "var(--gold)" : "var(--card)",
+                          color: filterStar !== "all" ? "var(--bg)" : "var(--gold)",
+                          border: `1px solid ${filterStar !== "all" ? "var(--gold)" : "var(--border)"}`,
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                        title="Filtrer par STAR"
+                      >
+                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
+                        <option value="yes" style={{ background: "var(--surface-solid)", color: "var(--sky)" }}>Oui</option>
+                        <option value="no" style={{ background: "var(--surface-solid)", color: "var(--red)" }}>Non</option>
+                      </select>
+                    </div>
+                  </th>
+
+                  {/* Département S.T.A.R avec filtre liste départements */}
+                  <th style={{ minWidth: 160 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span>Département S.T.A.R</span>
+                      <select
+                        value={filterDeptStar}
+                        onChange={(e) => setFilterDeptStar(e.target.value)}
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 4px",
+                          borderRadius: 4,
+                          background: filterDeptStar !== "all" ? "var(--gold)" : "var(--card)",
+                          color: filterDeptStar !== "all" ? "var(--bg)" : "var(--gold)",
+                          border: `1px solid ${filterDeptStar !== "all" ? "var(--gold)" : "var(--border)"}`,
+                          fontWeight: 700,
+                          cursor: "pointer"
+                        }}
+                        title="Filtrer par Département STAR"
+                      >
+                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
+                        {uniqueDeptStars.map(d => (
+                          <option key={d} value={d} style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>{d}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </th>
+
+                  {/* Commentaire S.T.A.R (Raison) */}
+                  <th style={{ minWidth: 200 }}>Commentaire S.T.A.R (Raison)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={13} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
+                      Aucun membre trouvé dans cette famille.
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((m) => {
+                    const isReadOnly = !canManageMembers;
+                    const hasNoFormations = !(m.formations && m.formations.length > 0);
+                    const piloteDisplay = !m.est_cdm ? "Aucun" : (m.pilote_cdm || "Aucun");
+
+                    return (
+                      <tr key={m.id} className="table-row-hover">
+                        {/* NOM & Prénom (Sticky First Column) */}
+                        <td style={{ fontWeight: 700 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div className="avatar" style={{ width: 30, height: 30, fontSize: 11, background: "var(--card)", border: "1px solid var(--border)", color: "var(--cream)" }}>
+                              {m.firstName[0]}{m.lastName[0]}
+                            </div>
+                            <div>
+                              <span style={{ color: "var(--gold-light)" }}>{m.lastName.toUpperCase()}</span> {m.firstName}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Numéro de téléphone */}
+                        <td>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            defaultValue={m.phone || ""}
+                            disabled={isReadOnly}
+                            onBlur={(e) => {
+                              const val = handlePhoneChange(e.target.value);
+                              if (val !== (m.phone || "")) {
+                                updateMemberField(m.id, { phone: val });
+                              }
+                            }}
+                            onKeyDown={handlePhoneKeyDown}
+                            placeholder="Téléphone..."
+                            style={{ fontSize: 12, height: 32, padding: "0 8px", background: "var(--surface-solid)", color: "var(--cream)", borderColor: "var(--border)" }}
+                          />
+                        </td>
+
+                        {/* Date d'entrée */}
+                        <td>
+                          <input 
+                            type="date" 
+                            className="input" 
+                            value={m.date_entree || ""}
+                            disabled={isReadOnly}
+                            onChange={(e) => updateMemberField(m.id, { date_entree: e.target.value })}
+                            style={{ fontSize: 11, height: 32, padding: "0 6px", background: "var(--surface-solid)", color: "var(--cream)", borderColor: "var(--border)" }}
+                          />
+                        </td>
+
+                        {/* Est Baptisé (oui/non) */}
+                        <td style={{ textAlign: "center" }}>
+                          <select
+                            className="input"
+                            value={m.est_baptise ? "yes" : "no"}
+                            disabled={isReadOnly}
+                            onChange={(e) => {
+                              const isBaptise = e.target.value === "yes";
+                              updateMemberField(m.id, { 
+                                est_baptise: isBaptise,
+                                commentaire_baptise: isBaptise ? "" : (m.commentaire_baptise || "")
+                              });
+                            }}
+                            style={{ 
+                              fontSize: 11, height: 32, padding: "0 6px", 
+                              background: m.est_baptise ? "var(--green-glow)" : "var(--red-glow)", 
+                              color: m.est_baptise ? "var(--green)" : "var(--red)",
+                              borderColor: m.est_baptise ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)",
+                              fontWeight: 700
+                            }}
+                          >
+                            <option value="yes" style={{ background: "var(--surface-solid)", color: "var(--green)" }}>Oui</option>
+                            <option value="no" style={{ background: "var(--surface-solid)", color: "var(--red)" }}>Non</option>
+                          </select>
+                        </td>
+
+                        {/* Commentaire Baptême (Raison si pas baptisé) */}
+                        <td>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            defaultValue={m.est_baptise ? "- Baptisé(e) -" : (m.commentaire_baptise || "")}
+                            key={`${m.id}-commentbaptise-${m.est_baptise}-${m.commentaire_baptise}`}
+                            disabled={isReadOnly || m.est_baptise}
+                            placeholder={!m.est_baptise ? "Raison non baptisé..." : "- Baptisé(e) -"}
+                            onBlur={(e) => {
+                              if (!m.est_baptise && e.target.value !== (m.commentaire_baptise || "")) {
+                                updateMemberField(m.id, { commentaire_baptise: e.target.value });
+                              }
+                            }}
+                            style={{ 
+                              fontSize: 11, height: 32, padding: "0 8px", 
+                              background: "var(--surface-solid)", 
+                              color: "var(--cream)",
+                              opacity: m.est_baptise ? 0.5 : 1,
+                              borderColor: "var(--border)"
+                            }}
+                          />
+                        </td>
+
+                        {/* Cellule de maison (oui/non) */}
+                        <td style={{ textAlign: "center" }}>
+                          <select
+                            className="input"
+                            value={m.est_cdm ? "yes" : "no"}
+                            disabled={isReadOnly}
+                            onChange={(e) => {
+                              const isCdm = e.target.value === "yes";
+                              updateMemberField(m.id, { 
+                                est_cdm: isCdm,
+                                pilote_cdm: isCdm ? (m.pilote_cdm || "") : "",
+                                commentaire_cdm: !isCdm ? (m.commentaire_cdm || "") : ""
+                              });
+                            }}
+                            style={{ 
+                              fontSize: 11, height: 32, padding: "0 6px", 
+                              background: m.est_cdm ? "var(--green-glow)" : "var(--red-glow)", 
+                              color: m.est_cdm ? "var(--green)" : "var(--red)",
+                              borderColor: m.est_cdm ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)",
+                              fontWeight: 700
+                            }}
+                          >
+                            <option value="yes" style={{ background: "var(--surface-solid)", color: "var(--green)" }}>Oui</option>
+                            <option value="no" style={{ background: "var(--surface-solid)", color: "var(--red)" }}>Non</option>
+                          </select>
+                        </td>
+
+                        {/* Nom du pilote CDM */}
+                        <td>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            defaultValue={piloteDisplay}
+                            key={`${m.id}-pilote-${m.est_cdm}-${m.pilote_cdm}`}
+                            disabled={isReadOnly || !m.est_cdm}
+                            placeholder={m.est_cdm ? "Nom du pilote..." : "Aucun"}
+                            onBlur={(e) => {
+                              if (m.est_cdm && e.target.value !== (m.pilote_cdm || "")) {
+                                updateMemberField(m.id, { pilote_cdm: e.target.value === "Aucun" ? "" : e.target.value });
+                              }
+                            }}
+                            style={{ 
+                              fontSize: 12, height: 32, padding: "0 8px", 
+                              background: "var(--surface-solid)", 
+                              color: "var(--cream)",
+                              opacity: !m.est_cdm ? 0.5 : 1,
+                              borderColor: "var(--border)"
+                            }}
+                          />
+                        </td>
+
+                        {/* Commentaire CDM (Raison si pas en cellule) */}
+                        <td>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            defaultValue={m.est_cdm ? "- En cellule -" : (m.commentaire_cdm || "")}
+                            key={`${m.id}-commentcdm-${m.est_cdm}-${m.commentaire_cdm}`}
+                            disabled={isReadOnly || m.est_cdm}
+                            placeholder={!m.est_cdm ? "Raison de non-appartenance..." : "- En cellule -"}
+                            onBlur={(e) => {
+                              if (!m.est_cdm && e.target.value !== (m.commentaire_cdm || "")) {
+                                updateMemberField(m.id, { commentaire_cdm: e.target.value });
+                              }
+                            }}
+                            style={{ 
+                              fontSize: 11, height: 32, padding: "0 8px", 
+                              background: "var(--surface-solid)", 
+                              color: "var(--cream)",
+                              opacity: m.est_cdm ? 0.5 : 1,
+                              borderColor: "var(--border)"
+                            }}
+                          />
+                        </td>
+
+                        {/* P.C.N.C (001, 101, 201, 301) */}
+                        <td style={{ textAlign: "center" }}>
+                          <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+                            {["001", "101", "201", "301"].map(cls => {
+                              const isChecked = (m.formations || []).includes(cls);
+                              return (
+                                <button
+                                  key={cls}
+                                  type="button"
+                                  disabled={isReadOnly}
+                                  onClick={() => {
+                                    const currentFormations = m.formations || [];
+                                    const newFormations = isChecked
+                                      ? currentFormations.filter(f => f !== cls)
+                                      : [...currentFormations, cls];
+                                    updateMemberField(m.id, { formations: newFormations });
+                                  }}
+                                  style={{
+                                    padding: "3px 6px",
+                                    borderRadius: 4,
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    cursor: isReadOnly ? "default" : "pointer",
+                                    background: isChecked ? "var(--gold-glow)" : "var(--card)",
+                                    border: `1px solid ${isChecked ? "var(--gold)" : "var(--border)"}`,
+                                    color: isChecked ? "var(--gold-light)" : "var(--muted)",
+                                    transition: "all 0.15s ease"
+                                  }}
+                                >
+                                  {cls}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </td>
+
+                        {/* Commentaire PCNC (Raison si ne suit pas) */}
+                        <td>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            defaultValue={m.commentaire_pcnc || ""}
+                            disabled={isReadOnly}
+                            placeholder={hasNoFormations ? "Raison pas de PCNC..." : "Commentaire PCNC..."}
+                            onBlur={(e) => {
+                              if (e.target.value !== (m.commentaire_pcnc || "")) {
+                                updateMemberField(m.id, { commentaire_pcnc: e.target.value });
+                              }
+                            }}
+                            style={{ 
+                              fontSize: 11, height: 32, padding: "0 8px", 
+                              background: "var(--surface-solid)",
+                              color: "var(--cream)",
+                              borderColor: hasNoFormations && !m.commentaire_pcnc ? "var(--orange)" : "var(--border)"
+                            }}
+                          />
+                        </td>
+
+                        {/* Est S.T.A.R (oui/non) */}
+                        <td style={{ textAlign: "center" }}>
+                          <select
+                            className="input"
+                            value={m.est_star ? "yes" : "no"}
+                            disabled={isReadOnly}
+                            onChange={(e) => {
+                              const isStar = e.target.value === "yes";
+                              updateMemberField(m.id, { 
+                                est_star: isStar,
+                                departement_star: isStar ? (m.departement_star === "Aucun" ? "" : (m.departement_star || "")) : "Aucun",
+                                commentaire_star: !isStar ? (m.commentaire_star || "") : ""
+                              });
+                            }}
+                            style={{ 
+                              fontSize: 11, height: 32, padding: "0 6px", 
+                              background: m.est_star ? "var(--sky-glow)" : "var(--red-glow)", 
+                              color: m.est_star ? "var(--sky)" : "var(--red)",
+                              borderColor: m.est_star ? "rgba(56, 189, 248, 0.3)" : "rgba(239, 68, 68, 0.3)",
+                              fontWeight: 700
+                            }}
+                          >
+                            <option value="yes" style={{ background: "var(--surface-solid)", color: "var(--sky)" }}>Oui</option>
+                            <option value="no" style={{ background: "var(--surface-solid)", color: "var(--red)" }}>Non</option>
+                          </select>
+                        </td>
+
+                        {/* Département S.T.A.R */}
+                        <td>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            defaultValue={!m.est_star ? "Aucun" : (m.departement_star || "")}
+                            key={`${m.id}-deptstar-${m.est_star}-${m.departement_star}`}
+                            disabled={isReadOnly || !m.est_star}
+                            placeholder={m.est_star ? "Nom du département..." : "Aucun"}
+                            onBlur={(e) => {
+                              if (m.est_star && e.target.value !== (m.departement_star || "")) {
+                                updateMemberField(m.id, { departement_star: e.target.value });
+                              }
+                            }}
+                            style={{ 
+                              fontSize: 11, height: 32, padding: "0 8px", 
+                              background: "var(--surface-solid)", 
+                              color: "var(--cream)",
+                              opacity: !m.est_star ? 0.5 : 1,
+                              borderColor: "var(--border)"
+                            }}
+                          />
+                        </td>
+
+                        {/* Commentaire S.T.A.R (Raison si pas STAR) */}
+                        <td>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            defaultValue={m.est_star ? "- Membre STAR -" : (m.commentaire_star || "")}
+                            key={`${m.id}-commentstar-${m.est_star}-${m.commentaire_star}`}
+                            disabled={isReadOnly || m.est_star}
+                            placeholder={!m.est_star ? "Raison non STAR..." : "- Membre STAR -"}
+                            onBlur={(e) => {
+                              if (!m.est_star && e.target.value !== (m.commentaire_star || "")) {
+                                updateMemberField(m.id, { commentaire_star: e.target.value });
+                              }
+                            }}
+                            style={{ 
+                              fontSize: 11, height: 32, padding: "0 8px", 
+                              background: "var(--surface-solid)", 
+                              color: "var(--cream)",
+                              opacity: m.est_star ? 0.5 : 1,
+                              borderColor: "var(--border)"
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -1666,6 +2474,102 @@ export default function BergeriePage() {
           border: 1px solid var(--gold) !important;
           background: linear-gradient(145deg, rgba(212, 160, 60, 0.1), rgba(0, 0, 0, 0.4)) !important;
           box-shadow: 0 8px 32px rgba(212, 160, 60, 0.1) !important;
+        }
+
+        .bergerie-table-container {
+          width: 100%;
+          max-height: clamp(450px, 70vh, 750px);
+          overflow: auto;
+          border-radius: 12px;
+          border: 1px solid var(--border);
+          background: var(--surface-solid);
+          position: relative;
+        }
+        .bergerie-table-container::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .bergerie-table-container::-webkit-scrollbar-track {
+          background: rgba(212, 175, 55, 0.02);
+          border-radius: 4px;
+        }
+        .bergerie-table-container::-webkit-scrollbar-thumb {
+          background: rgba(212, 175, 55, 0.15);
+          border-radius: 4px;
+        }
+        .bergerie-table-container::-webkit-scrollbar-thumb:hover {
+          background: rgba(212, 175, 55, 0.3);
+        }
+        .bergerie-table {
+          border-collapse: separate;
+          border-spacing: 0;
+          width: max-content;
+          min-width: 100%;
+        }
+        .bergerie-table th {
+          position: sticky;
+          top: 0;
+          z-index: 80;
+          background: var(--surface-solid) !important;
+          color: var(--gold);
+          font-weight: 700;
+          text-align: left;
+          padding: 12px 14px;
+          border-bottom: 2px solid rgba(212, 175, 55, 0.25);
+          border-right: 1px solid rgba(212, 175, 55, 0.08);
+          font-size: 11px;
+        }
+        .bergerie-table tbody td:first-child,
+        .bergerie-table thead tr th:first-child {
+          position: sticky;
+          left: 0;
+          z-index: 90;
+          background: var(--surface-solid) !important;
+          border-right: 2.5px solid rgba(212, 175, 55, 0.25);
+          width: 220px;
+          min-width: 220px;
+          max-width: 220px;
+        }
+        .bergerie-table thead tr th:first-child {
+          z-index: 100;
+          top: 0;
+          left: 0;
+          background: var(--surface-solid) !important;
+        }
+        .bergerie-table td {
+          padding: 10px 12px;
+          border-bottom: 1px solid rgba(212, 175, 55, 0.08);
+          border-right: 1px solid rgba(212, 175, 55, 0.08);
+          background: var(--bg-deep);
+          color: var(--cream);
+          transition: background-color 0.2s;
+        }
+        .bergerie-table tr:hover td {
+          background-color: rgba(212, 175, 55, 0.04) !important;
+        }
+        .bergerie-table tr:hover td:first-child {
+          background-color: var(--surface-solid) !important;
+        }
+
+        .presentation-mode {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          z-index: 9999 !important;
+          background: var(--bg) !important;
+          padding: 30px !important;
+          margin: 0 !important;
+          box-sizing: border-box !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 20px !important;
+        }
+        .presentation-mode .bergerie-table-container {
+          flex: 1 !important;
+          max-height: none !important;
+          min-height: 0 !important;
         }
       `}</style>
     </div>

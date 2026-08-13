@@ -58,6 +58,10 @@ export interface Member {
   archived: boolean;
   created_at: string;
   responsable?: Profile;
+  commentaire_cdm?: string;
+  commentaire_pcnc?: string;
+  commentaire_star?: string;
+  commentaire_baptise?: string;
 }
 
 /* ── Activity ── */
