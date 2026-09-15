@@ -77,14 +77,14 @@ export default function LoginPage() {
       .from("user_contexts")
       .select("*")
       .eq("user_id", userId)
-      .eq("active", true)
       .order("context_type", { ascending: true });
 
-    if (!contextsError && contexts?.length) {
-      return contexts as UserContextRecord[];
+    if (contextsError) throw new Error("Impossible de vérifier vos accès. Réessayez plus tard.");
+    if (contexts?.length) {
+      return contexts.filter(context => context.active === true) as UserContextRecord[];
     }
 
-    if (fallbackProfile) {
+    if (fallbackProfile?.active === true) {
       return [legacyProfileToContext(fallbackProfile, userId, cleanEmail)];
     }
 
@@ -421,14 +421,14 @@ export default function LoginPage() {
 
           <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <div>
-              <label className="form-label">Adresse e-mail</label>
-              <input className="input" type="email" placeholder="votre@email.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              <label className="form-label" htmlFor="login-email">Adresse e-mail</label>
+              <input id="login-email" autoComplete="username" className="input" type="email" placeholder="votre@email.com" value={email} onChange={e => setEmail(e.target.value)} required />
             </div>
             <div>
-              <label className="form-label">Mot de passe</label>
+              <label className="form-label" htmlFor="login-password">Mot de passe</label>
               <div style={{ position: "relative" }}>
-                <input className="input" type={show ? "text" : "password"} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required style={{ paddingRight: 40 }} />
-                <button type="button" onClick={() => setShow(!show)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>{show ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                <input id="login-password" autoComplete="current-password" className="input" type={show ? "text" : "password"} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required style={{ paddingRight: 40 }} />
+                <button type="button" aria-label={show ? "Masquer le mot de passe" : "Afficher le mot de passe"} aria-pressed={show} onClick={() => setShow(!show)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>{show ? <EyeOff size={16} /> : <Eye size={16} />}</button>
               </div>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -440,7 +440,7 @@ export default function LoginPage() {
                   style={{ accentColor: "var(--gold)" }} 
                 /> Se souvenir de moi
               </label>
-              <Link href="/forgot" style={{ fontSize: 12, color: "var(--gold)", textDecoration: "none" }}>Mot de passe oublié ?</Link>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>Mot de passe oublié ? Contactez le support de votre église.</span>
             </div>
             <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: "100%", padding: "12px 0", fontSize: 13, justifyContent: "center", marginTop: 4, opacity: loading ? 0.7 : 1 }}>
               {loading ? <span className="spinner" /> : <><LogIn size={16} /> Se connecter</>}

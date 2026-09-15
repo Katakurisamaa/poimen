@@ -70,7 +70,7 @@ interface Guest {
 }
 
 const MOCK_RESPONSIBLES = ["Non assigné"];
-const STATUS_OPTIONS = ["Brebi", "Responsable", "Berger", "Second"];
+const STATUS_OPTIONS = ["Brebi", "Faiseur de Disciple", "Responsable", "Second", "Berger"];
 
 export default function AffectationPage() {
   const [search, setSearch] = useState("");
@@ -1211,7 +1211,7 @@ export default function AffectationPage() {
           {/* Filters */}
           <div className="glass fade-in affectations-filters" style={{ padding: "16px 20px", display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <div className="search-bar-container" style={{ position: "relative", flex: 2 }}>
-              <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.35)" }} />
+              <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
               <input className="input search-bar-premium" placeholder="Rechercher une brebi par nom ou prénom..." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             

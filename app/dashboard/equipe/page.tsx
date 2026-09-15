@@ -171,7 +171,9 @@ export default function IntegrationTeamPage() {
 
       if (!res.success) throw new Error(res.error);
 
-      alert("Membre de l'équipe enregistré avec succès ! Il peut se connecter immédiatement avec son adresse e-mail et son code d'accès.");
+      alert(res.requiresPrimaryPassword
+        ? "Membre ajouté. Son compte existant conserve son mot de passe personnel."
+        : "Membre créé. Communiquez-lui son mot de passe initial par un canal privé.");
       
       setNewCounselor({ firstName: "", lastName: "", email: "", accessCode: "", role: "integration_conseiller" });
       setIsAdding(false);
@@ -425,7 +427,7 @@ export default function IntegrationTeamPage() {
               </div>
               <div>
                 <label className="form-label">Code d'accès secret (Mot de passe)</label>
-                <input className="input" placeholder="Ex: INTEG92" value={newCounselor.accessCode} onChange={e => setNewCounselor({...newCounselor, accessCode: e.target.value})} required style={{ height: 40, letterSpacing: 1.5 }} />
+                <input className="input" type="password" autoComplete="new-password" minLength={12} maxLength={128} placeholder="12 caractères minimum" value={newCounselor.accessCode} onChange={e => setNewCounselor({...newCounselor, accessCode: e.target.value})} required style={{ height: 40, letterSpacing: 1.5 }} />
                 <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Ce code servira de mot de passe lors de sa toute première connexion.</p>
               </div>
 
@@ -472,7 +474,7 @@ export default function IntegrationTeamPage() {
               </div>
               <div>
                 <label className="form-label">Adresse e-mail</label>
-                <input className="input" type="email" placeholder="counselor@email.com" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} required style={{ height: 40 }} />
+                <input className="input" type="email" value={editForm.email} readOnly style={{ height: 40 }} />
               </div>
               <div>
                 <label className="form-label">Rôle dans l'équipe</label>
@@ -488,8 +490,7 @@ export default function IntegrationTeamPage() {
                 </select>
               </div>
               <div>
-                <label className="form-label">Code d'accès secret (Laisser vide pour ne pas changer)</label>
-                <input className="input" placeholder="Ex: NOUVEAUCODE92" value={editForm.accessCode} onChange={e => setEditForm({...editForm, accessCode: e.target.value})} style={{ height: 40, letterSpacing: 1.5 }} />
+                <p className="form-label">L’adresse de connexion et le mot de passe sont gérés par le titulaire du compte.</p>
               </div>
 
               <div style={{ display: "flex", gap: 12, paddingTop: 10 }}>

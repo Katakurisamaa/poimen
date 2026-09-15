@@ -9,10 +9,12 @@ import {
   Plus, Calendar, Clock, MapPin, ChevronRight, XCircle, 
   Search, CheckCircle2, List, Grid3X3, Users, BarChart3,
   ChevronDown, ChevronUp, MoreHorizontal, Trash2,
-  AlertTriangle, TrendingUp, Pencil, Maximize2, Minimize2
+  AlertTriangle, TrendingUp, Pencil, Maximize2, Minimize2, Zap
 } from "lucide-react";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import type { ActivityType } from "@/types";
+import FastCheckIn from "@/components/activities/FastCheckIn";
+import { buildAttendanceUpdate, QuickAttendanceStatus } from "@/lib/attendance";
 
 // Types
 interface Activity {
@@ -57,7 +59,17 @@ export default function ActivitiesPage() {
   const [attendanceViewMode, setAttendanceViewMode] = useState<"by-member" | "by-activity" | "by-year">("by-activity");
   const [isPresentationMode, setIsPresentationMode] = useState(false);
   const presentationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("fastCheckIn") === "true") {
+        setIsFastCheckInOpen(true);
+      }
+    }
+  }, []);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const [isFastCheckInOpen, setIsFastCheckInOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -245,6 +257,8 @@ export default function ActivitiesPage() {
         // If still no activities, use defaults
         if (loadedActivities.length === 0) {
           loadedActivities = DEFAULT_ACTIVITIES;
+        } else if (!loadedActivities.some(a => a.id === "culte" || a.name.toLowerCase().includes("culte"))) {
+          loadedActivities = [DEFAULT_ACTIVITIES[0], ...loadedActivities];
         }
         setActivities(loadedActivities);
 
@@ -918,7 +932,7 @@ export default function ActivitiesPage() {
           )}
         </div>
 
-        <div className="glass activity-period-picker" style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 16px", borderRadius: 12, border: "1px solid rgba(212, 175, 55, 0.15)" }}>
+        <div className="glass activity-period-picker">
           <Calendar size={14} className="text-[var(--gold)]" />
           {!(activeTab === "attendance" && attendanceViewMode === "by-year") && (
             <select className="input-minimal" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))}>
@@ -979,6 +993,30 @@ export default function ActivitiesPage() {
                 <Grid3X3 size={14} /> Tableau Annuel
               </button>
             </div>
+          </div>
+
+          {/* Mobile Fast Check-in Trigger */}
+          <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+            <button
+              type="button"
+              className="btn btn-primary fast-checkin-launch"
+              onClick={() => setIsFastCheckInOpen(true)}
+              style={{
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 20px",
+                borderRadius: 12,
+                fontWeight: 700,
+                fontSize: 13,
+                background: "linear-gradient(135deg, var(--gold), #b89738)",
+                color: "var(--bg)",
+                boxShadow: "0 6px 20px rgba(212, 175, 55, 0.25)",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <Zap size={16} /> Mode Pointage Rapide
+            </button>
           </div>
 
           {attendanceViewMode === "by-activity" ? (
@@ -1217,6 +1255,51 @@ export default function ActivitiesPage() {
                               }} />
                             </div>
                           </div>
+
+                          {/* Culte Service Selection */}
+                          {isPresent && (selectedActivityId === "culte" || activeActivity?.name.toLowerCase().includes("culte")) && (
+                            <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
+                              {[
+                                { id: "culte_1", label: "Culte 1" },
+                                { id: "culte_2", label: "Culte 2" },
+                                { id: "en_ligne", label: "En ligne" }
+                              ].map(sub => {
+                                const currentSub = typeof isPresent === "string" ? isPresent : "culte_1";
+                                const isSubSelected = currentSub === sub.id;
+                                return (
+                                  <button
+                                    key={sub.id}
+                                    type="button"
+                                    onClick={async () => {
+                                      const nextAttendance = buildAttendanceUpdate(
+                                        m.attendance,
+                                        selectedActivityId!,
+                                        selectedDate,
+                                        "present",
+                                        "",
+                                        sub.id
+                                      );
+                                      setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, attendance: nextAttendance } : mem));
+                                      await supabase.from("members").update({ attendance: nextAttendance }).eq("id", m.id);
+                                    }}
+                                    style={{
+                                      padding: "3px 9px",
+                                      borderRadius: 6,
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      border: isSubSelected ? "1px solid var(--gold)" : "1px solid rgba(212,175,55,0.18)",
+                                      background: isSubSelected ? "var(--gold-glow)" : "transparent",
+                                      color: isSubSelected ? "var(--gold-light)" : "var(--muted)",
+                                      transition: "all 0.2s"
+                                    }}
+                                  >
+                                    {sub.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
 
                           {/* Comment section */}
                           {!isPresent && (
@@ -1734,9 +1817,11 @@ export default function ActivitiesPage() {
                     >
                       <Pencil size={14} style={{ color: "var(--gold-light)" }} />
                     </button>
+                    {act.id !== "culte" && (
                     <button className="btn-icon" onClick={() => saveActivities(activities.filter(a => a.id !== act.id))}>
                       <Trash2 size={14} style={{ color: "var(--red)" }} />
                     </button>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1825,6 +1910,38 @@ export default function ActivitiesPage() {
             </>
           )}
         </div>
+      )}
+
+      {typeof window !== "undefined" && isFastCheckInOpen && activeActivity && selectedDate && createPortal(
+        <FastCheckIn
+          activity={activeActivity}
+          date={selectedDate}
+          members={members}
+          onClose={() => setIsFastCheckInOpen(false)}
+          onChange={async (memberId: string, status: QuickAttendanceStatus, reason?: string, service?: string) => {
+            if (!selectedActivityId || !selectedDate) return;
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+
+            const nextAttendance = buildAttendanceUpdate(
+              member.attendance,
+              selectedActivityId,
+              selectedDate,
+              status,
+              reason,
+              service
+            );
+
+            setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, attendance: nextAttendance } : m)));
+
+            try {
+              await supabase.from("members").update({ attendance: nextAttendance }).eq("id", memberId);
+            } catch (err) {
+              console.error("Fast check-in attendance update error:", err);
+            }
+          }}
+        />,
+        document.body
       )}
 
       {/* Add Activity Modal */}

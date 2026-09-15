@@ -1,0 +1,1106 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabase";
+import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
+import { FddReportingData, computeReportingMetrics, getIntelligentKeyPoints } from "@/types/reporting";
+import ReportingTemplate from "@/components/reporting/ReportingTemplate";
+import { getAttendanceStatus, usesExplicitAttendance } from "@/lib/attendance";
+import {
+  Download, RefreshCw, Save, Check, AlertCircle, FileText,
+  Calendar, Upload, Eye, Edit3, Sparkles, Church, Users
+} from "lucide-react";
+import jsPDF from "jspdf";
+import { toPng } from "html-to-image";
+
+export default function ReportingPage() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [currentFamily, setCurrentFamily] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
+  const reportRef = useRef<HTMLDivElement>(null);
+  const previewViewportRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(1);
+  const [previewHeight, setPreviewHeight] = useState(0);
+
+  // Helper to format French date for Sunday
+  const getInitialSundayDate = () => {
+    const d = new Date();
+    // Get last Sunday
+    const day = d.getDay();
+    const diff = d.getDate() - day; // day 0 is Sunday
+    const sunday = new Date(d.setDate(diff));
+    const yyyy = sunday.getFullYear();
+    const mm = String(sunday.getMonth() + 1).padStart(2, "0");
+    const dd = String(sunday.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const formatFrenchDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const d = new Date(year, month - 1, day);
+      return d.toLocaleDateString("fr-FR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).replace(/^\w/, (c) => c.toUpperCase());
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const [formData, setFormData] = useState<FddReportingData>({
+    bergerie_id: "",
+    church_id: "",
+    nom_famille: "Famille de Disciples",
+    nom_berger: "Berger",
+    date_rapport: getInitialSundayDate(),
+    date_libelle: formatFrenchDate(getInitialSundayDate()),
+    logo_url: "",
+
+    nombre_total_membres: 0,
+    repartition_hommes: 0,
+    repartition_femmes: 0,
+
+    culte_1: 0,
+    culte_2: 0,
+    culte_en_ligne: 0,
+
+    absences_justifiees: 0,
+    absences_non_justifiees: 0,
+    star_en_service: 0,
+    nombre_total_star: 0,
+    reunion_hebdomadaire: 0,
+    nouveaux_membres: 0,
+
+    nombre_disciples: 0,
+    taux_participation_disciples: 85,
+
+    points_cles: [],
+    action_1: "",
+    action_2: "Encourager à participer à la semaine de jeûne et prière.",
+    action_3: "Augmenter le nombre de véritables faiseurs de disciples.",
+    verset_texte: "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi les ouvriers travaillaient d'une main, et de l'autre ils tenaient leurs armes. Chacun bâtit à son endroit, et bâtit le mur.",
+    verset_ref: "Néhémie 4:11-12 (BDS)",
+  });
+
+  // Load family and auto-populate stats from members
+  const loadFamilyAndMemberStats = async (dateOverride?: string, forceRecalculate: boolean = false) => {
+    setLoading(true);
+    try {
+      // 1. Get family context
+      let familyId = "";
+      let familyName = "";
+      let churchId = "";
+
+      const activeCtx = getActiveContext();
+      const savedFamily = localStorage.getItem("selected_family");
+      if (savedFamily) {
+        try {
+          const parsed = JSON.parse(savedFamily);
+          familyId = parsed.id;
+          familyName = parsed.name;
+          churchId = parsed.church_id || "";
+          setCurrentFamily(parsed);
+        } catch {}
+      }
+
+      if (!familyId && activeCtx?.bergerie_id) {
+        familyId = activeCtx.bergerie_id;
+      }
+
+      // 2. Get leader / berger name
+      const userInfo = getActiveUserInfo();
+      const bergerName = userInfo?.display_name || "Berger";
+
+      // 3. Query members of this bergerie
+      let totalMembres = 0;
+      let hommes = 0;
+      let femmes = 0;
+      let totalStar = 0;
+      let disciplesCount = 0;
+      let nouveaux = 0;
+
+      let countC1 = 0;
+      let countC2 = 0;
+      let countEnLigne = 0;
+      let absJustifiees = 0;
+      let absNonJustifiees = 0;
+      let starInService = 0;
+      let disciplesPresent = 0;
+
+      const currentDate = dateOverride || formData.date_rapport || getInitialSundayDate();
+
+      if (familyId) {
+        // Query bergeries activities to detect culte
+        const { data: bergerieData } = await supabase
+          .from("bergeries")
+          .select("activities")
+          .eq("id", familyId)
+          .maybeSingle();
+
+        const acts: any[] = (bergerieData?.activities as any[]) || [];
+        const culteActIds = acts
+          .filter((a: any) => a.id === "culte" || a.name?.toLowerCase().includes("culte"))
+          .map((a: any) => a.id);
+        if (!culteActIds.includes("culte")) culteActIds.push("culte");
+
+        const { data: members, error } = await supabase
+          .from("members")
+          .select("*")
+          .eq("bergerie_id", familyId)
+          .eq("archived", false);
+
+        if (!error && members) {
+          totalMembres = members.length;
+          const explicitPointageInUse = members.some((member: any) => usesExplicitAttendance(member.attendance, culteActIds, currentDate));
+          
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+          members.forEach((m: any) => {
+            // Civility
+            if (m.civility === "M.") {
+              hommes++;
+            } else {
+              femmes++;
+            }
+
+            // Star
+            const isStar = Boolean(m.est_star || m.status === "Star" || m.status === "STAR");
+            if (isStar) {
+              totalStar++;
+            }
+
+            // Faiseurs de Disciples (FDD) : Faiseur de Disciple, Responsable, Second, Berger
+            const normStatus = (m.status || "").toLowerCase().trim();
+            const isFdd = 
+              normStatus === "faiseur de disciple" ||
+              normStatus === "faiseur de disciples" ||
+              normStatus === "fdd" ||
+              normStatus === "responsable" ||
+              normStatus === "second" ||
+              normStatus === "berger" ||
+              normStatus === "disciple";
+            if (isFdd) {
+              disciplesCount++;
+            }
+
+            // Nouveaux membres (dernière semaine)
+            const created = m.date_entree ? new Date(m.date_entree) : (m.created_at ? new Date(m.created_at) : null);
+            if (created && created >= oneWeekAgo) {
+              nouveaux++;
+            }
+
+            // Pointage du culte pour ce dimanche
+            let attendedCulte: string | null = null;
+            for (const actId of culteActIds) {
+              const val = m.attendance?.[actId]?.[currentDate];
+              if (val) {
+                attendedCulte = (val === true || val === "culte_1") ? "culte_1" : val;
+                break;
+              }
+            }
+
+            if (attendedCulte === "culte_1") {
+              countC1++;
+            } else if (attendedCulte === "culte_2") {
+              countC2++;
+            } else if (attendedCulte === "culte_en_ligne") {
+              countEnLigne++;
+            } else {
+              // Explicit fast-check-in states prevent unprocessed people from
+              // being counted as unjustified absences while the roll call runs.
+              let hasComment = false;
+              let absenceStatus: "unpointed" | "justified" | "unjustified" = "unpointed";
+              for (const actId of culteActIds) {
+                const status = getAttendanceStatus(m.attendance, actId, currentDate);
+                if (status === "justified" || status === "unjustified") absenceStatus = status;
+                const c = m.attendance?.["_comments"]?.[actId]?.[currentDate];
+                if (c && typeof c === "string" && c.trim().length > 0) {
+                  hasComment = true;
+                  break;
+                }
+              }
+              if (absenceStatus === "justified" || hasComment) {
+                absJustifiees++;
+              } else if (absenceStatus === "unjustified" || !explicitPointageInUse) {
+                absNonJustifiees++;
+              }
+            }
+
+            if (attendedCulte) {
+              if (isStar) starInService++;
+              if (isFdd) disciplesPresent++;
+            }
+          });
+        }
+      }
+
+      // Check for saved report for this family & date
+      let existingReport: any = null;
+
+      if (!forceRecalculate) {
+        try {
+          const { data: reportDb } = await supabase
+            .from("rapports_fdd")
+            .select("*")
+            .eq("bergerie_id", familyId)
+            .eq("date_rapport", currentDate)
+            .maybeSingle();
+          if (reportDb) existingReport = reportDb;
+        } catch {}
+
+        // Fallback local storage
+        if (!existingReport) {
+          const localSaved = localStorage.getItem(`fdd_report_${familyId}_${currentDate}`);
+          if (localSaved) {
+            try {
+              existingReport = JSON.parse(localSaved);
+            } catch {}
+          }
+        }
+      }
+
+      // Check saved logo
+      const savedLogo = localStorage.getItem(`fdd_custom_logo_${familyId}`) || "";
+
+      if (existingReport && !forceRecalculate) {
+        setFormData((prev) => ({
+          ...prev,
+          ...existingReport,
+          nom_famille: familyName || existingReport.nom_famille || prev.nom_famille,
+          nom_berger: bergerName || existingReport.nom_berger || prev.nom_berger,
+          date_rapport: currentDate,
+          date_libelle: formatFrenchDate(existingReport.date_rapport || currentDate),
+          logo_url: existingReport.logo_url || savedLogo || prev.logo_url,
+        }));
+      } else {
+        const disciplesPct = disciplesCount > 0 
+          ? Math.round((disciplesPresent / disciplesCount) * 100) 
+          : 0;
+
+        // Pre-fill with database numbers and auto-calculated attendance
+        setFormData((prev) => ({
+          ...prev,
+          bergerie_id: familyId,
+          church_id: churchId,
+          nom_famille: familyName || prev.nom_famille,
+          nom_berger: bergerName || prev.nom_berger,
+          date_rapport: currentDate,
+          date_libelle: formatFrenchDate(currentDate),
+          nombre_total_membres: totalMembres || prev.nombre_total_membres,
+          repartition_hommes: hommes || prev.repartition_hommes,
+          repartition_femmes: femmes || prev.repartition_femmes,
+          culte_1: countC1,
+          culte_2: countC2,
+          culte_en_ligne: countEnLigne,
+          absences_justifiees: absJustifiees,
+          absences_non_justifiees: absNonJustifiees,
+          star_en_service: starInService,
+          nombre_total_star: totalStar || prev.nombre_total_star,
+          nombre_disciples: disciplesCount,
+          taux_participation_disciples: disciplesPct,
+          nouveaux_membres: nouveaux || prev.nouveaux_membres,
+          action_1: prev.action_1 || (
+            absNonJustifiees > 1
+              ? `Faire le suivi des ${absNonJustifiees} absences injustifiées.`
+              : absNonJustifiees === 1
+              ? "Prendre des nouvelles du membre absent non justifié."
+              : "Maintenir le contact pastoral et féliciter les membres pour leur fidélité."
+          ),
+          logo_url: savedLogo || prev.logo_url,
+        }));
+      }
+    } catch (err) {
+      console.error("Error loading reporting data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFamilyAndMemberStats();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== "preview") return;
+
+    const updatePreviewSize = () => {
+      const viewportWidth = previewViewportRef.current?.clientWidth || 880;
+      const nextScale = Math.min(1, Math.max(0.25, (viewportWidth - 4) / 880));
+      setPreviewScale(nextScale);
+      setPreviewHeight((reportRef.current?.offsetHeight || 0) * nextScale);
+    };
+
+    updatePreviewSize();
+    const observer = new ResizeObserver(updatePreviewSize);
+    if (previewViewportRef.current) observer.observe(previewViewportRef.current);
+    if (reportRef.current) observer.observe(reportRef.current);
+    return () => observer.disconnect();
+  }, [activeTab]);
+
+  // Update date handler
+  const handleDateChange = (newDate: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      date_rapport: newDate,
+      date_libelle: formatFrenchDate(newDate),
+    }));
+    loadFamilyAndMemberStats(newDate, false);
+  };
+
+  // Upload custom logo handler (FileReader to Base64)
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = reader.result as string;
+      setFormData((prev) => ({ ...prev, logo_url: b64 }));
+      if (formData.bergerie_id) {
+        localStorage.setItem(`fdd_custom_logo_${formData.bergerie_id}`, b64);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Save report
+  const handleSaveReport = async () => {
+    setSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      // 1. Save to localStorage
+      if (formData.bergerie_id && formData.date_rapport) {
+        localStorage.setItem(
+          `fdd_report_${formData.bergerie_id}_${formData.date_rapport}`,
+          JSON.stringify(formData)
+        );
+      }
+
+      // 2. Save to Supabase (if table exists)
+      const payload = {
+        bergerie_id: formData.bergerie_id,
+        church_id: formData.church_id || null,
+        date_rapport: formData.date_rapport,
+        nom_famille: formData.nom_famille,
+        nom_berger: formData.nom_berger,
+        logo_url: formData.logo_url || null,
+        nombre_total_membres: Number(formData.nombre_total_membres) || 0,
+        repartition_hommes: Number(formData.repartition_hommes) || 0,
+        repartition_femmes: Number(formData.repartition_femmes) || 0,
+        culte_1: Number(formData.culte_1) || 0,
+        culte_2: Number(formData.culte_2) || 0,
+        culte_en_ligne: Number(formData.culte_en_ligne) || 0,
+        absences_justifiees: Number(formData.absences_justifiees) || 0,
+        absences_non_justifiees: Number(formData.absences_non_justifiees) || 0,
+        star_en_service: Number(formData.star_en_service) || 0,
+        nombre_total_star: Number(formData.nombre_total_star) || 0,
+        reunion_hebdomadaire: Number(formData.reunion_hebdomadaire) || 0,
+        nouveaux_membres: Number(formData.nouveaux_membres) || 0,
+        nombre_disciples: Number(formData.nombre_disciples) || 0,
+        taux_participation_disciples: Number(formData.taux_participation_disciples) || 0,
+        action_1: formData.action_1,
+        action_2: formData.action_2,
+        action_3: formData.action_3,
+        verset_texte: formData.verset_texte,
+        verset_ref: formData.verset_ref,
+        updated_at: new Date().toISOString(),
+      };
+
+      try {
+        const { error } = await supabase
+          .from("rapports_fdd")
+          .upsert(payload, { onConflict: "bergerie_id, date_rapport" });
+        if (error) {
+          console.warn("Supabase upsert warning (table may require patch):", error.message);
+        }
+      } catch (dbErr) {
+        console.warn("Supabase error:", dbErr);
+      }
+
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3500);
+    } catch (e) {
+      console.error("Save error:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Export to PDF
+  const handleDownloadPdf = async () => {
+    const printElement = document.getElementById("reporting-print-container") || reportRef.current;
+    if (!printElement) {
+      alert("Erreur: le modèle de rapport n'a pas été trouvé.");
+      return;
+    }
+
+    setDownloadingPdf(true);
+
+    try {
+      const dataUrl = await toPng(printElement, {
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        cacheBust: true,
+      });
+
+      // 2. Create PDF in Portrait A4 (210mm x 297mm)
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+
+      // Clean margins
+      const margin = 5;
+      const availW = pdfWidth - margin * 2;
+      const availH = pdfHeight - margin * 2;
+
+      // Wait for image dimensions
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+      });
+
+      // Scale to fit both width and height within available area
+      let printW = availW;
+      let printH = (img.height * printW) / img.width;
+
+      if (printH > availH) {
+        printH = availH;
+        printW = (img.width * printH) / img.height;
+      }
+
+      const leftOffset = margin + (availW - printW) / 2;
+      const topOffset = margin + (availH - printH) / 2;
+
+      pdf.addImage(dataUrl, "PNG", leftOffset, topOffset, printW, printH, undefined, "FAST");
+
+      const safeFamilyName = (formData.nom_famille || "Famille")
+        .replace(/[^a-zA-Z0-9_-]/g, "_");
+      pdf.save(`Rapport_FDD_${safeFamilyName}_${formData.date_rapport}.pdf`);
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      alert("Une erreur est survenue lors de la génération du PDF. Veuillez réessayer.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const metrics = computeReportingMetrics(formData);
+
+  return (
+    <div className="reporting-page" style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px" }}>
+      {/* ── TOP ACTION BAR ── */}
+      <div
+        className="reporting-header"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 24,
+          flexWrap: "wrap",
+          gap: 14,
+        }}
+      >
+        <div>
+          <div className="reporting-title-row" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: "10px",
+                background: "linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(139,92,246,0.1) 100%)",
+                border: "1px solid rgba(212, 175, 55, 0.4)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--cream)",
+              }}
+            >
+              <FileText size={20} />
+            </div>
+            <div>
+              <h1 className="reporting-page-title" style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "var(--cream)" }}>
+                Reporting Culte & Engagement
+              </h1>
+              <p style={{ fontSize: 13, color: "var(--muted)", margin: "2px 0 0" }}>
+                {formData.nom_famille} • {formData.date_libelle}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Buttons */}
+        <div className="reporting-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Tab switcher */}
+          <div
+            className="reporting-tab-switcher"
+            style={{
+              display: "flex",
+              borderRadius: "8px",
+              padding: "3px",
+            }}
+          >
+            <button
+              onClick={() => setActiveTab("edit")}
+              className={`reporting-tab-btn ${activeTab === "edit" ? "active" : ""}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 14px",
+                borderRadius: "6px",
+                border: "none",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <Edit3 size={15} />
+              Formulaire
+            </button>
+            <button
+              onClick={() => setActiveTab("preview")}
+              className={`reporting-tab-btn ${activeTab === "preview" ? "active" : ""}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 14px",
+                borderRadius: "6px",
+                border: "none",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <Eye size={15} />
+              Aperçu fidèle
+            </button>
+          </div>
+
+          <button
+            onClick={() => loadFamilyAndMemberStats(formData.date_rapport, true)}
+            disabled={loading}
+            className="btn btn-outline"
+            style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+            title="Recharger et recalculer avec les données des membres"
+          >
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+            Synchroniser
+          </button>
+
+          <button
+            onClick={handleSaveReport}
+            disabled={saving}
+            className="btn btn-outline"
+            style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+          >
+            {saveSuccess ? <Check size={15} className="text-emerald-400" /> : <Save size={15} />}
+            {saving ? "Sauvegarde..." : saveSuccess ? "Enregistré !" : "Enregistrer"}
+          </button>
+
+          <button
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            className="btn btn-primary"
+            style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <Download size={15} />
+            {downloadingPdf ? "Génération PDF..." : "Télécharger en PDF"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── TABS CONTENT ── */}
+      {activeTab === "edit" && (
+        <div className="reporting-form-layout" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          {/* ── LEFT COLUMN: REPARTITION CULTE & DATES ── */}
+          <div className="reporting-form-column" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {/* Card: Informations Générales */}
+            <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                <Calendar size={18} style={{ color: "var(--gold)" }} />
+                Paramètres du Dimanche
+              </h3>
+
+              <div className="reporting-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  <label className="form-label">Date du Culte</label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={formData.date_rapport}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Nom du Berger</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={formData.nom_berger}
+                    onChange={(e) => setFormData({ ...formData, nom_berger: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="reporting-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 12 }}>
+                <div>
+                  <label className="form-label">Nom de la Famille</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={formData.nom_famille}
+                    onChange={(e) => setFormData({ ...formData, nom_famille: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Logo Officiel (Optionnel)</label>
+                  <label
+                    className="btn btn-outline"
+                    style={{
+                      width: "100%",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Upload size={14} />
+                    {formData.logo_url ? "Logo importé ✓" : "Importer image logo"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={handleLogoUpload}
+                    />
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            {/* Card: Participation par Culte (Sans EJP) */}
+            <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                <Church size={18} style={{ color: "var(--gold)" }} />
+                Présences par Culte (Ce Dimanche)
+              </h3>
+
+              <div className="reporting-fields-grid reporting-fields-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+                <div>
+                  <label className="form-label" style={{ color: "var(--sky)", fontWeight: 700 }}>Culte 1 (Matin)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.culte_1 || ""}
+                    onChange={(e) => setFormData({ ...formData, culte_1: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ color: "var(--orange)", fontWeight: 700 }}>Culte 2 (Midi)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.culte_2 || ""}
+                    onChange={(e) => setFormData({ ...formData, culte_2: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ color: "var(--violet)", fontWeight: 700 }}>Culte en Ligne</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.culte_en_ligne || ""}
+                    onChange={(e) => setFormData({ ...formData, culte_en_ligne: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              {/* Total Summary */}
+              <div
+                className="reporting-total-banner"
+                style={{
+                  marginTop: 16,
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span className="reporting-total-label" style={{ fontSize: 13, fontWeight: 700 }}>
+                  TOTAL PARTICIPATION AU CULTE :
+                </span>
+                <span className="reporting-total-val" style={{ fontSize: 18, fontWeight: 900 }}>
+                  {metrics.totalParticipation} participants ({metrics.tauxParticipationGlobale}%)
+                </span>
+              </div>
+            </section>
+
+            {/* Card: Absences & STAR */}
+            <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14 }}>
+                Absences, STAR & Semaine
+              </h3>
+
+              <div className="reporting-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  <label className="form-label">Absences justifiées</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.absences_justifiees || ""}
+                    onChange={(e) => setFormData({ ...formData, absences_justifiees: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Absences non justifiées</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.absences_non_justifiees || ""}
+                    onChange={(e) => setFormData({ ...formData, absences_non_justifiees: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">STAR en service ce dimanche</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.star_en_service || ""}
+                    onChange={(e) => setFormData({ ...formData, star_en_service: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Présents réunion hebdo (CDM)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.reunion_hebdomadaire || ""}
+                    onChange={(e) => setFormData({ ...formData, reunion_hebdomadaire: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* ── RIGHT COLUMN: MEMBRES, ACTIONS & VERSET ── */}
+          <div className="reporting-form-column" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {/* Card: Effectifs des Membres (Auto-sync) */}
+            <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
+              <div className="reporting-card-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Users size={18} style={{ color: "var(--gold)" }} />
+                  Effectif de la Famille
+                </h3>
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>Issu de la base de données</span>
+              </div>
+
+              <div className="reporting-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  <label className="form-label">Total membres</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.nombre_total_membres || ""}
+                    onChange={(e) => setFormData({ ...formData, nombre_total_membres: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Nouveaux membres</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.nouveaux_membres || ""}
+                    onChange={(e) => setFormData({ ...formData, nouveaux_membres: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ color: "var(--sky)", fontWeight: 700 }}>Hommes</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.repartition_hommes || ""}
+                    onChange={(e) => setFormData({ ...formData, repartition_hommes: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ color: "var(--pink)", fontWeight: 700 }}>Femmes</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.repartition_femmes || ""}
+                    onChange={(e) => setFormData({ ...formData, repartition_femmes: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Total STAR dans la famille</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.nombre_total_star || ""}
+                    onChange={(e) => setFormData({ ...formData, nombre_total_star: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Faiseurs de Disciples (FDD)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={formData.nombre_disciples ?? ""}
+                    onChange={(e) => setFormData({ ...formData, nombre_disciples: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Taux Participation FDD (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="input"
+                    value={formData.taux_participation_disciples ?? ""}
+                    onChange={(e) => setFormData({ ...formData, taux_participation_disciples: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Card: Points Clés (Synthèse & Analyse) */}
+            <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
+              <div className="reporting-card-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 10 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Sparkles size={18} style={{ color: "var(--gold)" }} />
+                  Points Clés (Synthèse & Analyse)
+                </h3>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: 11, height: 32, padding: "0 12px", borderRadius: 8 }}
+                  onClick={() => {
+                    const generated = getIntelligentKeyPoints(formData, metrics);
+                    setFormData(prev => ({ ...prev, points_cles: generated }));
+                  }}
+                  title="Recalculer les points clés selon les chiffres actuels"
+                >
+                  <RefreshCw size={13} style={{ marginRight: 6 }} />
+                  Régénérer intelligemment
+                </button>
+              </div>
+
+              <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>
+                Ces points sont générés de façon logique selon vos présences et effectifs réels. Vous pouvez modifier chaque phrase librement :
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {(formData.points_cles && formData.points_cles.length > 0
+                  ? formData.points_cles
+                  : getIntelligentKeyPoints(formData, metrics)
+                ).map((pt, idx) => (
+                  <div key={idx} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--gold)", width: 18, flexShrink: 0 }}>
+                      {idx + 1}.
+                    </span>
+                    <input
+                      type="text"
+                      className="input"
+                      value={pt}
+                      onChange={(e) => {
+                        const currentPoints = [
+                          ...(formData.points_cles && formData.points_cles.length > 0
+                            ? formData.points_cles
+                            : getIntelligentKeyPoints(formData, metrics))
+                        ];
+                        currentPoints[idx] = e.target.value;
+                        setFormData(prev => ({ ...prev, points_cles: currentPoints }));
+                      }}
+                      style={{ fontSize: 12.5 }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Card: Actions Suggérées (3 badges) */}
+            <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14 }}>
+                Actions Suggérées (On passe à l'action !)
+              </h3>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div>
+                  <label className="form-label">Action 1</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={formData.action_1}
+                    placeholder="Ex: Faire le suivi des absences..."
+                    onChange={(e) => setFormData({ ...formData, action_1: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Action 2</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={formData.action_2}
+                    placeholder="Ex: Encourager au jeûne et prière..."
+                    onChange={(e) => setFormData({ ...formData, action_2: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Action 3</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={formData.action_3}
+                    placeholder="Ex: Augmenter les faiseurs de disciples..."
+                    onChange={(e) => setFormData({ ...formData, action_3: e.target.value })}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Card: Verset Biblique */}
+            <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14 }}>
+                Verset Biblique de Clôture
+              </h3>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div>
+                  <label className="form-label">Texte du verset</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={formData.verset_texte}
+                    onChange={(e) => setFormData({ ...formData, verset_texte: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Référence (Livre, Chapitre, Version)</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={formData.verset_ref}
+                    placeholder="Ex: Néhémie 4:11-12 (BDS)"
+                    onChange={(e) => setFormData({ ...formData, verset_ref: e.target.value })}
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
+
+      {/* ── PREVIEW BANNER (when on preview tab) ── */}
+      {activeTab === "preview" && (
+        <div className="reporting-preview-banner-wrap" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginBottom: 16 }}>
+          <div
+            className="reporting-preview-banner"
+            style={{
+              padding: "10px 16px",
+              backgroundColor: "rgba(212, 175, 55, 0.1)",
+              border: "1px solid rgba(212, 175, 55, 0.3)",
+              borderRadius: "8px",
+              fontSize: 13,
+              color: "var(--gold-light)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Sparkles size={16} />
+            <span>
+              Aperçu fidèle du rapport officiel. Cliquez sur <strong>« Télécharger en PDF »</strong> pour générer le document officiel à transmettre au pasteur.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── REPORTING TEMPLATE (ALWAYS MOUNTED IN DOM SO PDF DOWNLOAD WORKS AT ANY TIME) ── */}
+      <div
+        ref={previewViewportRef}
+        className={activeTab === "preview" ? "reporting-preview-viewport" : "reporting-preview-hidden"}
+        style={
+          activeTab === "preview"
+            ? {
+                width: "100%",
+                overflow: "hidden",
+                padding: "10px 0 30px",
+                display: "flex",
+                justifyContent: "center",
+                height: previewHeight ? previewHeight + 40 : undefined,
+              }
+            : {
+                position: "fixed",
+                left: "-9999px",
+                top: 0,
+                width: 880,
+                opacity: 0,
+                pointerEvents: "none",
+                zIndex: -100,
+              }
+        }
+      >
+        <div
+          className="reporting-preview-stage"
+          style={{
+            width: 880,
+            flex: "0 0 880px",
+            transform: activeTab === "preview" ? `scale(${previewScale})` : undefined,
+            transformOrigin: "top center",
+          }}
+        >
+          <ReportingTemplate data={formData} containerRef={reportRef} />
+        </div>
+      </div>
+    </div>
+  );
+}

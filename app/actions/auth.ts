@@ -3,6 +3,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
 import { SUPER_ADMIN_EMAIL, inferContextType, normalizeFamilyRole } from "@/lib/auth-contexts";
+import { isUuid, isFamilyLeader, validTeamInput } from "@/lib/security-validation";
 
 type ResolvedAccess = {
   role: string;
@@ -18,7 +19,7 @@ function isDuplicateAuthUserError(message: string) {
   return normalized.includes("already") || normalized.includes("registered") || normalized.includes("exists");
 }
 
-async function upsertUserContext(supabase: any, userId: string, email: string, access: ResolvedAccess) {
+async function upsertUserContext(supabase: any, userId: string, email: string, access: ResolvedAccess, allowReactivation = false) {
   const contextType = inferContextType(access.role, access.bergerieId);
 
   let query = supabase
@@ -31,7 +32,11 @@ async function upsertUserContext(supabase: any, userId: string, email: string, a
   query = access.churchId ? query.eq("church_id", access.churchId) : query.is("church_id", null);
   query = access.bergerieId ? query.eq("bergerie_id", access.bergerieId) : query.is("bergerie_id", null);
 
-  const { data: existing } = await query.maybeSingle();
+  const { data: existing, error: lookupError } = await query.maybeSingle();
+  if (lookupError) return { data: null, error: lookupError };
+  if (existing?.active === false && !allowReactivation) {
+    return { data: null, error: { message: "Cet accès a été désactivé. Contactez un responsable." } };
+  }
   const payload = {
     user_id: userId,
     email,
@@ -76,7 +81,7 @@ async function createOrPreserveProfile(supabase: any, userId: string, email: str
       display_name: existingProfile.display_name || access.displayName,
       church_id: existingProfile.church_id || access.churchId || null,
       bergerie_id: existingProfile.bergerie_id || access.bergerieId || null,
-      active: true
+      active: existingProfile.active
     })
     .eq("id", userId);
 }
@@ -111,6 +116,7 @@ async function findAuthUserByEmail(supabase: any, email: string) {
 }
 
 async function assertCanManageIntegrationTeam(churchId: string) {
+  if (!isUuid(churchId)) return { ok: false, error: "Église invalide." };
   const serverSupabase = await createServerClient();
   const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
 
@@ -123,10 +129,21 @@ async function assertCanManageIntegrationTeam(churchId: string) {
     return { ok: true, user };
   }
 
+  // Contexts are authoritative, including revocations and demotions.
+  const { data: memberships, error: membershipError } = await serverSupabase.from("user_contexts")
+    .select("role, active").eq("user_id", user.id).eq("church_id", churchId).eq("context_type", "integration");
+  if (membershipError) return { ok: false, error: "Vérification des droits impossible." };
+  if (memberships?.length) {
+    return memberships.some(m => m.active && ["integration_responsable", "integration_second"].includes(m.role))
+      ? { ok: true, user }
+      : { ok: false, error: "Accès de gestion désactivé ou insuffisant." };
+  }
+
   const { data: profile } = await serverSupabase
     .from("profiles")
     .select("role, church_id")
     .eq("id", user.id)
+    .eq("active", true)
     .maybeSingle();
 
   const role = profile?.role?.toLowerCase().trim();
@@ -152,6 +169,7 @@ async function assertCanManageIntegrationTeam(churchId: string) {
 }
 
 async function assertCanReadIntegrationTeam(churchId: string) {
+  if (!isUuid(churchId)) return { ok: false, error: "Église invalide." };
   const serverSupabase = await createServerClient();
   const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
 
@@ -164,10 +182,20 @@ async function assertCanReadIntegrationTeam(churchId: string) {
     return { ok: true, user };
   }
 
+  const { data: memberships, error: membershipError } = await serverSupabase.from("user_contexts")
+    .select("role, active").eq("user_id", user.id).eq("church_id", churchId).eq("context_type", "integration");
+  if (membershipError) return { ok: false, error: "Vérification des droits impossible." };
+  if (memberships?.length) {
+    return memberships.some(m => m.active && ["integration_responsable", "integration_second", "integration_conseiller"].includes(m.role))
+      ? { ok: true, user }
+      : { ok: false, error: "Accès désactivé." };
+  }
+
   const { data: profile } = await serverSupabase
     .from("profiles")
     .select("role, church_id")
     .eq("id", user.id)
+    .eq("active", true)
     .maybeSingle();
 
   const role = profile?.role?.toLowerCase().trim();
@@ -259,6 +287,7 @@ export async function createIntegrationTeamMember(params: {
   accessCode: string;
   role: string;
 }) {
+  if (!params || !validTeamInput(params)) return { success: false, error: "Coordonnées invalides." };
   const permission = await assertCanManageIntegrationTeam(params.churchId);
   if (!permission.ok) return { success: false, error: permission.error };
 
@@ -266,11 +295,17 @@ export async function createIntegrationTeamMember(params: {
   const cleanEmail = params.email.toLowerCase().trim();
   const displayName = `${params.firstName.trim()} ${params.lastName.trim()}`.trim();
   const role = params.role === "integration_second" ? "integration_second" : "integration_conseiller";
+  if (cleanEmail === SUPER_ADMIN_EMAIL) {
+    return { success: false, error: "Le compte administrateur central ne peut pas être provisionné par cette action." };
+  }
 
   let targetUser = await findAuthUserByEmail(supabase, cleanEmail);
   let createdAuthUser = false;
 
   if (!targetUser) {
+    if (typeof params.accessCode !== "string" || params.accessCode.length < 12 || params.accessCode.length > 128) {
+      return { success: false, error: "Le mot de passe initial doit comporter entre 12 et 128 caractères." };
+    }
     const { data, error } = await supabase.auth.admin.createUser({
       email: cleanEmail,
       password: params.accessCode,
@@ -279,12 +314,6 @@ export async function createIntegrationTeamMember(params: {
     if (error) return { success: false, error: error.message };
     targetUser = data.user;
     createdAuthUser = true;
-  } else {
-    const { error: updateErr } = await supabase.auth.admin.updateUserById(
-      targetUser.id,
-      { password: params.accessCode }
-    );
-    if (updateErr) return { success: false, error: updateErr.message };
   }
 
   if (!targetUser?.id) {
@@ -300,7 +329,7 @@ export async function createIntegrationTeamMember(params: {
     familyData: null
   };
 
-  const { error: contextError } = await upsertUserContext(supabase, targetUser.id, cleanEmail, access);
+  const { error: contextError } = await upsertUserContext(supabase, targetUser.id, cleanEmail, access, true);
   if (contextError) return { success: false, error: contextError.message };
 
   const { error: profileError } = await createOrPreserveProfile(supabase, targetUser.id, cleanEmail, access);
@@ -315,15 +344,24 @@ export async function createIntegrationTeamMember(params: {
   return {
     success: true,
     createdAuthUser,
-    requiresPrimaryPassword: false
+    requiresPrimaryPassword: !createdAuthUser
   };
 }
 
 export async function deactivateIntegrationTeamMember(params: { churchId: string; userId: string; contextId?: string | null }) {
+  if (!params || !isUuid(params.userId) || (params.contextId && !isUuid(params.contextId))) return { success: false, error: "Membre invalide." };
   const permission = await assertCanManageIntegrationTeam(params.churchId);
   if (!permission.ok) return { success: false, error: permission.error };
 
   const supabase = await getServiceSupabase();
+  const { data: targets, error: targetsError } = await supabase.from("user_contexts")
+    .select("id, role, email").eq("user_id", params.userId).eq("church_id", params.churchId).eq("context_type", "integration");
+  if (targetsError || !targets?.length) return { success: false, error: "Membre introuvable." };
+  if (params.contextId && !targets.some(t => t.id === params.contextId)) return { success: false, error: "Accès introuvable dans cette église." };
+  if (targets.some(t => t.role === "integration_responsable" || t.email.toLowerCase().trim() === SUPER_ADMIN_EMAIL)
+    && permission.user?.email?.toLowerCase().trim() !== SUPER_ADMIN_EMAIL) {
+    return { success: false, error: "Seul l'administrateur central peut désactiver ce responsable." };
+  }
   let query = supabase
     .from("user_contexts")
     .update({ active: false })
@@ -346,6 +384,16 @@ export async function deactivateIntegrationTeamMember(params: { churchId: string
 }
 
 export async function adminSignUp(email: string, accessCode: string) {
+  if (typeof email !== "string" || typeof accessCode !== "string" || email.length > 254 || accessCode.length > 128 || !accessCode) {
+    return { success: false, error: "Informations d'identification invalides." };
+  }
+  // A shared organisation code is not proof of ownership of an email address.
+  // New accounts must be provisioned by an authorised manager.
+  const sessionClient = await createServerClient();
+  const { data: { user: caller }, error: sessionError } = await sessionClient.auth.getUser();
+  if (sessionError || !caller?.email_confirmed_at || caller.email?.toLowerCase().trim() !== email.toLowerCase().trim()) {
+    return { success: false, error: "Connectez-vous avec votre mot de passe personnel. Pour un premier accès, contactez votre responsable." };
+  }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -377,7 +425,7 @@ export async function adminSignUp(email: string, accessCode: string) {
     .eq("integration_access_code", accessCode)
     .maybeSingle();
 
-  if (!chErr && church) {
+  if (!chErr && church && !church.archived) {
     resolvedRole = "integration_responsable";
     resolvedChurchId = church.id;
     resolvedDisplayName = (church.integration_first_name && church.integration_last_name)
@@ -392,7 +440,7 @@ export async function adminSignUp(email: string, accessCode: string) {
       .eq("access_code", accessCode)
       .maybeSingle();
 
-    if (!pcErr && pendingCounselor) {
+    if (!pcErr && pendingCounselor && ["integration_conseiller", "integration_second"].includes(pendingCounselor.role)) {
       resolvedRole = pendingCounselor.role;
       resolvedChurchId = pendingCounselor.church_id;
       resolvedDisplayName = `${pendingCounselor.first_name} ${pendingCounselor.last_name}`;
@@ -404,7 +452,7 @@ export async function adminSignUp(email: string, accessCode: string) {
         .eq("email", cleanEmail)
         .maybeSingle();
 
-      if (!memErr && member && member.bergeries) {
+      if (!memErr && member && !member.archived && member.bergeries && !member.bergeries.archived && member.bergeries.status === "active" && isFamilyLeader(member.status)) {
         const familyCode = member.bergeries.access_code;
         if (familyCode && accessCode === familyCode) {
           resolvedRole = normalizeFamilyRole(member.status);
@@ -454,12 +502,7 @@ export async function adminSignUp(email: string, accessCode: string) {
       return { success: false, error: authErr.message };
     }
 
-    const { data: usersData, error: listErr } = await supabase.auth.admin.listUsers();
-    if (listErr) {
-      return { success: false, error: `Recuperation du compte existant echouee: ${listErr.message}` };
-    }
-
-    const existingUser = usersData?.users?.find(u => u.email?.toLowerCase().trim() === cleanEmail);
+    const existingUser = await findAuthUserByEmail(supabase, cleanEmail);
     if (!existingUser) {
       return { success: false, error: "Compte existant introuvable." };
     }
@@ -467,6 +510,11 @@ export async function adminSignUp(email: string, accessCode: string) {
     targetUserId = existingUser.id;
     targetUser = existingUser;
     requiresPrimaryPassword = true;
+    const sessionClient = await createServerClient();
+    const { data: { user: caller }, error: callerError } = await sessionClient.auth.getUser();
+    if (callerError || caller?.id !== targetUserId) {
+      return { success: false, error: "Connectez-vous avec votre mot de passe personnel avant d'ajouter un espace." };
+    }
   }
 
   if (!targetUserId || !targetUser) {
@@ -489,15 +537,13 @@ export async function adminSignUp(email: string, accessCode: string) {
 
   return {
     success: true,
-    user: targetUser,
+    user: { id: targetUserId },
     role: resolvedRole,
     displayName: resolvedDisplayName,
     churchId: resolvedChurchId,
     bergerieId: resolvedBergerieId,
     context,
-    requiresPrimaryPassword,
-    churchData,
-    familyData
+    requiresPrimaryPassword
   };
 }
 
@@ -510,6 +556,9 @@ export async function autoAddLeaderToMembers(params: {
   status: string;
   is_conseiller?: boolean;
 }) {
+  if (!params || !validTeamInput({ churchId: params.bergerie_id, firstName: params.first_name, lastName: params.last_name, email: params.email })) {
+    return { success: false, error: "Coordonnées invalides." };
+  }
   const serverSupabase = await createServerClient();
   const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
 
@@ -519,7 +568,7 @@ export async function autoAddLeaderToMembers(params: {
 
   const { data: profile } = await serverSupabase
     .from("profiles")
-    .select("role")
+    .select("role, bergerie_id, active")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -528,6 +577,9 @@ export async function autoAddLeaderToMembers(params: {
 
   if (!isSelf && !isSuperAdmin) {
     return { success: false, error: "Non autorise. Vous ne pouvez ajouter que votre propre profil de leader." };
+  }
+  if (!isSuperAdmin && (!profile?.active || profile.bergerie_id !== params.bergerie_id || !isFamilyLeader(profile.role))) {
+    return { success: false, error: "Vous ne disposez pas d'un rôle de leader dans cette famille." };
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -552,8 +604,8 @@ export async function autoAddLeaderToMembers(params: {
       first_name: params.first_name,
       last_name: params.last_name,
       email: params.email.toLowerCase().trim(),
-      status: params.status,
-      is_conseiller: params.is_conseiller || false,
+      status: isSuperAdmin ? normalizeFamilyRole(params.status) : normalizeFamilyRole(profile!.role),
+      is_conseiller: isSuperAdmin ? !!params.is_conseiller : false,
       attendance: {}
     })
     .select()
@@ -569,6 +621,8 @@ export async function autoAddLeaderToMembers(params: {
 
 export async function getIntegrationDropdownList(churchId: string) {
   try {
+    const permission = await assertCanReadIntegrationTeam(churchId);
+    if (!permission.ok) return { success: false, error: permission.error };
     const supabase = await getServiceSupabase();
     const list: any[] = [];
 
@@ -584,8 +638,7 @@ export async function getIntegrationDropdownList(churchId: string) {
           email: p.email.toLowerCase().trim(),
           name: `${p.first_name} ${p.last_name}`,
           role: p.role || "integration_counselor",
-          isPending: true,
-          code: p.access_code
+          isPending: true
         });
       });
     }
@@ -653,6 +706,9 @@ export async function updateIntegrationTeamMember(params: {
   accessCode?: string;
   role: string;
 }) {
+  if (!params || !validTeamInput(params) || !isUuid(params.userId) || !isUuid(params.contextId)) {
+    return { success: false, error: "Membre invalide." };
+  }
   const permission = await assertCanManageIntegrationTeam(params.churchId);
   if (!permission.ok) return { success: false, error: permission.error };
 
@@ -661,14 +717,18 @@ export async function updateIntegrationTeamMember(params: {
   const displayName = `${params.firstName.trim()} ${params.lastName.trim()}`.trim();
   const role = params.role === "integration_second" ? "integration_second" : params.role === "integration_responsable" ? "integration_responsable" : "integration_conseiller";
 
-  // 1. Update auth email & password if provided
-  const updatePayload: any = { email: cleanEmail };
-  if (params.accessCode) {
-    updatePayload.password = params.accessCode;
+  // An organisation manager may edit membership, never global account credentials.
+  const { data: target, error: targetError } = await supabase.from("user_contexts")
+    .select("id, email, role")
+    .eq("id", params.contextId).eq("user_id", params.userId)
+    .eq("church_id", params.churchId).eq("context_type", "integration").single();
+  if (targetError || !target) return { success: false, error: "Membre introuvable dans cette église." };
+  if (params.accessCode || cleanEmail !== target.email.toLowerCase().trim()) {
+    return { success: false, error: "L'adresse de connexion et le mot de passe doivent être modifiés par le titulaire du compte." };
   }
-
-  const { error: authError } = await supabase.auth.admin.updateUserById(params.userId, updatePayload);
-  if (authError) return { success: false, error: authError.message };
+  if ((role === "integration_responsable" || target.role === "integration_responsable") && permission.user?.email?.toLowerCase().trim() !== SUPER_ADMIN_EMAIL) {
+    return { success: false, error: "Seul l'administrateur central peut modifier le responsable." };
+  }
 
   // 2. Update user_contexts
   const { error: contextError } = await supabase
@@ -678,20 +738,12 @@ export async function updateIntegrationTeamMember(params: {
       display_name: displayName,
       role: role
     })
-    .eq("id", params.contextId);
+    .eq("id", params.contextId)
+    .eq("user_id", params.userId)
+    .eq("church_id", params.churchId)
+    .eq("context_type", "integration");
 
   if (contextError) return { success: false, error: contextError.message };
-
-  // 3. Update profiles
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .update({
-      email: cleanEmail,
-      display_name: displayName
-    })
-    .eq("id", params.userId);
-
-  if (profileError) return { success: false, error: profileError.message };
 
   // 4. Update church integration settings if role is integration_responsable
   if (role === "integration_responsable") {
@@ -717,7 +769,10 @@ export async function updateIntegrationTeamMember(params: {
 
 export async function getFamilyLeadersList(familyId: string) {
   try {
-    const supabase = await getServiceSupabase();
+    if (!isUuid(familyId)) return { success: false, error: "Famille invalide." };
+    const supabase = await createServerClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return { success: false, error: "Connectez-vous pour consulter les responsables." };
     const { data: members, error } = await supabase
       .from("members")
       .select("id, email, civility, first_name, last_name, status")
@@ -746,14 +801,27 @@ export async function createFamilyUserContext(params: {
   displayName: string;
 }) {
   try {
+    if (!params || !isUuid(params.familyId)) return { success: false, error: "Famille invalide." };
+    const sessionClient = await createServerClient();
+    const { data: { user }, error: authError } = await sessionClient.auth.getUser();
+    if (authError || !user?.email || user.id !== params.userId) {
+      return { success: false, error: "Non authentifié." };
+    }
     const supabase = await getServiceSupabase();
-    const cleanEmail = params.email.toLowerCase().trim();
+    const cleanEmail = user.email.toLowerCase().trim();
+    const { data: member, error: memberError } = await supabase.from("members")
+      .select("status, first_name, last_name, bergeries!inner(id, church_id, status, archived)")
+      .eq("email", cleanEmail).eq("bergerie_id", params.familyId).eq("archived", false).single();
+    const family = member?.bergeries as any;
+    if (memberError || !member || !family || family.status !== "active" || family.archived || !isFamilyLeader(member.status)) {
+      return { success: false, error: "Aucun rôle de leader actif dans cette famille." };
+    }
     
     const access = {
-      role: normalizeFamilyRole(params.role),
-      churchId: params.churchId,
+      role: normalizeFamilyRole(member.status),
+      churchId: family.church_id,
       bergerieId: params.familyId,
-      displayName: params.displayName,
+      displayName: `${member.first_name} ${member.last_name}`.trim(),
       churchData: null,
       familyData: null
     };
@@ -769,5 +837,3 @@ export async function createFamilyUserContext(params: {
     return { success: false, error: err.message };
   }
 }
-
-

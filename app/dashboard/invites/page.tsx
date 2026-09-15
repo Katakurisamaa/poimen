@@ -75,7 +75,7 @@ const MOCK_GUESTS: Guest[] = [];
 
 const MOCK_RESPONSIBLES = ["Non assigné"];
 
-const STATUS_OPTIONS = ["Brebi", "Responsable", "Berger", "Second"];
+const STATUS_OPTIONS = ["Brebi", "Faiseur de Disciple", "Responsable", "Second", "Berger"];
 
 const FAMILY_KEYS = [
   "FAMILLE DE NOÉ",
@@ -1592,7 +1592,7 @@ export default function InvitesPage() {
       {/* Search & Filters */}
       <div className="glass-compact affectations-filters" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
         <div className="search-bar-container" style={{ position: "relative", flex: 2 }}>
-          <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.35)" }} />
+          <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
           <input className="input search-bar-premium" placeholder="Rechercher par nom..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
@@ -2339,7 +2339,7 @@ export default function InvitesPage() {
                     border: "1px solid rgba(239, 68, 68, 0.2)",
                     padding: "2px 8px",
                     borderRadius: 6,
-                    color: "white",
+                    color: "var(--cream)",
                     fontWeight: 600
                   }}>
                     {deletingGuest.firstName} {deletingGuest.lastName}
@@ -2354,7 +2354,7 @@ export default function InvitesPage() {
                     border: "1px solid rgba(255, 193, 7, 0.2)",
                     padding: "2px 8px",
                     borderRadius: 6,
-                    color: "white",
+                    color: "var(--cream)",
                     fontWeight: 600
                   }}>
                     {deletingGuest.firstName} {deletingGuest.lastName}

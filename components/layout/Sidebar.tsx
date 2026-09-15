@@ -15,6 +15,7 @@ import {
 const NAV = [
   { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
   { label: "Bergerie", href: "/dashboard/bergerie", icon: Users },
+  { label: "Reporting", href: "/dashboard/reporting", icon: FileText },
   { label: "Invités", href: "/dashboard/invites", icon: UserPlus },
   { label: "Mes Affectations", href: "/dashboard/affectation", icon: ShieldCheck },
   { label: "Activités", href: "/dashboard/activities", icon: CalendarDays },

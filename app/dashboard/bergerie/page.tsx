@@ -15,7 +15,7 @@ import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
 
 
-const STATUS_OPTIONS = ["Brebi", "Responsable", "Berger", "Second"];
+const STATUS_OPTIONS = ["Brebi", "Faiseur de Disciple", "Responsable", "Second", "Berger"];
 
 interface M { 
   id: string; 
@@ -1011,7 +1011,7 @@ export default function BergeriePage() {
       <div className="glass-compact affectations-filters" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
         <div className="search-bar-container" style={{ display:"flex", gap:10, alignItems:"center", flex: 1 }}>
           <div style={{ position:"relative", flex: 1 }}>
-            <Search size={18} style={{ position:"absolute", left: 14, top:"50%", transform:"translateY(-50%)", color:"rgba(255,255,255,0.35)" }} />
+            <Search size={18} style={{ position:"absolute", left: 14, top:"50%", transform:"translateY(-50%)", color:"var(--muted)" }} />
             <input className="input search-bar-premium" placeholder="Rechercher par nom/prénom..." value={search} onChange={(e)=>setSearch(e.target.value)} />
           </div>
           <button 
@@ -1241,7 +1241,7 @@ export default function BergeriePage() {
                       </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <div className={`badge badge-${m.status.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 9, minWidth: 80, justifyContent: "center" }}>
+                          <div className={`badge badge-${m.status.toLowerCase().replace(/\s+/g, '-')}`} style={{ fontSize: 9, minWidth: 80, justifyContent: "center" }}>
                             {m.status.toUpperCase()}
                           </div>
                           {m.is_conseiller && (

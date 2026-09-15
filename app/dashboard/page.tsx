@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Users, CalendarCheck, AlertTriangle, Target, TrendingUp, TrendingDown, Calendar, Clock, MessageSquare, ChevronRight, Plus, MapPin, Shield, Loader2, CheckCircle2, Clock3, Search, User, Phone, X, UserPlus, CalendarDays, Eye, EyeOff, Home } from "lucide-react";
+import { Users, CalendarCheck, AlertTriangle, Target, TrendingUp, TrendingDown, Calendar, Clock, MessageSquare, ChevronRight, Plus, MapPin, Shield, Loader2, CheckCircle2, Clock3, Search, User, Phone, X, UserPlus, CalendarDays, Eye, EyeOff, Home, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
@@ -308,6 +308,12 @@ export default function DashboardPage() {
           .single();
         if (bgData?.activities && Array.isArray(bgData.activities) && bgData.activities.length > 0) {
           configuredActivities = bgData.activities as any[];
+          const hasCulte = configuredActivities.some(
+            (a: any) => a.id === "culte" || a.name?.toLowerCase().includes("culte")
+          );
+          if (!hasCulte) {
+            configuredActivities = [DEFAULT_ACTIVITIES[0], ...configuredActivities];
+          }
         }
       }
 
@@ -1947,9 +1953,18 @@ export default function DashboardPage() {
             <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)" }}>
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités & Événements</span>
               {isLeader && (
-                <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => window.location.href = "/dashboard/activities"}>
-                  <ChevronRight size={12} /> Faire l'appel
-                </button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button 
+                    className="btn btn-primary btn-sm fast-checkin-mobile-shortcut" 
+                    style={{ padding: "4px 10px", fontSize: 10, gap: 4 }} 
+                    onClick={() => window.location.href = "/dashboard/activities?fastCheckIn=true"}
+                  >
+                    <Zap size={12} /> Pointage rapide
+                  </button>
+                  <button className="btn btn-subtle btn-sm" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => window.location.href = "/dashboard/activities"}>
+                    <ChevronRight size={12} /> Faire l'appel
+                  </button>
+                </div>
               )}
             </div>
             <div style={{ padding: "4px 0" }}>
