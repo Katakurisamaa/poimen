@@ -190,10 +190,10 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
               {data.nom_famille || "La famille des bâtisseurs"}
             </div>
             <div className="reporting-berger-name" style={{ fontSize: 13, color: "#334155", marginTop: 1, fontWeight: 500 }}>
-              <strong>Berger :</strong> {data.nom_berger || "Nom du Berger"}
+              <strong>Berger :</strong> {data.nom_berger && data.nom_berger.trim().toLowerCase() !== "berger" ? data.nom_berger : "Prénom Nom"}
             </div>
             <div className="reporting-tagline" style={{ fontSize: 10.5, color: "#64748b", letterSpacing: 1.2, marginTop: 2, textTransform: "uppercase", fontWeight: 600 }}>
-              Suivi • Participation • Engagement • Croissance
+              {data.slogan || "Suivi • Participation • Engagement • Croissance"}
             </div>
           </div>
         </div>
@@ -694,48 +694,53 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
             <span style={{ fontSize: 13 }}>🎯</span>
             <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.5, textTransform: "uppercase", color: "#ffffff" }}>
-              ACTIONS SUGGÉRÉES — ON PASSE À L'ACTION !
+              PLAN D'ACTION — ON PASSE À L'ACTION !
             </span>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6, position: "relative", zIndex: 1 }}>
-            {[
-              { 
-                num: 1, 
-                text: data.action_1 || (
-                  data.absences_non_justifiees > 1 
-                    ? `Faire le suivi des ${data.absences_non_justifiees} absences injustifiées.` 
-                    : data.absences_non_justifiees === 1 
-                    ? "Prendre des nouvelles du membre absent non justifié." 
-                    : "Maintenir le contact pastoral et féliciter les membres pour leur fidélité."
-                ) 
-              },
-              { num: 2, text: data.action_2 || "Encourager à participer à la semaine de jeûne et prière." },
-              { num: 3, text: data.action_3 || "Augmenter le nombre de véritables faiseurs de disciples." },
-            ].map((action, idx) => (
-              <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: "50%",
-                    backgroundColor: "#ea580c",
-                    color: "#ffffff",
-                    fontSize: 10,
-                    fontWeight: 900,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {action.num}
+            {(() => {
+              const actionsList = [
+                data.action_1,
+                data.action_2,
+                data.action_3,
+              ]
+                .map((text) => (typeof text === "string" ? text.trim() : ""))
+                .filter(Boolean);
+
+              if (actionsList.length === 0) {
+                return (
+                  <div style={{ fontSize: 10, color: "#94a3b8", fontStyle: "italic", padding: "6px 0" }}>
+                    Aucune action définie pour cette semaine.
+                  </div>
+                );
+              }
+
+              return actionsList.map((text, idx) => (
+                <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      backgroundColor: "#ea580c",
+                      color: "#ffffff",
+                      fontSize: 10,
+                      fontWeight: 900,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {idx + 1}
+                  </div>
+                  <span style={{ fontSize: 10, color: "#e2e8f0", fontWeight: 500 }}>
+                    {text}
+                  </span>
                 </div>
-                <span style={{ fontSize: 10, color: "#e2e8f0", fontWeight: 500 }}>
-                  {action.text}
-                </span>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
 
           {/* Target graphic in background */}

@@ -61,12 +61,16 @@ export default function ActivitiesPage() {
   const presentationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("fastCheckIn") === "true") {
-        setIsFastCheckInOpen(true);
-      }
+    const smallScreen = window.matchMedia("(max-width: 1024px)");
+    const params = new URLSearchParams(window.location.search);
+    if (smallScreen.matches && params.get("fastCheckIn") === "true") {
+      setIsFastCheckInOpen(true);
     }
+    const closeOnLargeScreen = () => {
+      if (!smallScreen.matches) setIsFastCheckInOpen(false);
+    };
+    smallScreen.addEventListener("change", closeOnLargeScreen);
+    return () => smallScreen.removeEventListener("change", closeOnLargeScreen);
   }, []);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [isFastCheckInOpen, setIsFastCheckInOpen] = useState(false);
@@ -995,12 +999,15 @@ export default function ActivitiesPage() {
             </div>
           </div>
 
-          {/* Mobile Fast Check-in Trigger */}
+          {/* Phone/tablet quick check-in for the selected activity and date */}
           <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
             <button
               type="button"
               className="btn btn-primary fast-checkin-launch"
-              onClick={() => setIsFastCheckInOpen(true)}
+              disabled={!activeActivity || !selectedDate || isLoading}
+              onClick={() => {
+                if (window.matchMedia("(max-width: 1024px)").matches) setIsFastCheckInOpen(true);
+              }}
               style={{
                 alignItems: "center",
                 gap: 8,
@@ -1015,7 +1022,7 @@ export default function ActivitiesPage() {
                 cursor: "pointer",
               }}
             >
-              <Zap size={16} /> Mode Pointage Rapide
+              <Zap size={16} /> Pointage rapide
             </button>
           </div>
 
@@ -1919,9 +1926,9 @@ export default function ActivitiesPage() {
           members={members}
           onClose={() => setIsFastCheckInOpen(false)}
           onChange={async (memberId: string, status: QuickAttendanceStatus, reason?: string, service?: string) => {
-            if (!selectedActivityId || !selectedDate) return;
+            if (!selectedActivityId || !selectedDate) throw new Error("Aucune séance sélectionnée.");
             const member = members.find(m => m.id === memberId);
-            if (!member) return;
+            if (!member) throw new Error("Ce membre n’est plus disponible.");
 
             const nextAttendance = buildAttendanceUpdate(
               member.attendance,
@@ -1932,13 +1939,14 @@ export default function ActivitiesPage() {
               service
             );
 
-            setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, attendance: nextAttendance } : m)));
+            const { error } = await supabase.from("members")
+              .update({ attendance: nextAttendance })
+              .eq("id", memberId)
+              .select("id")
+              .single();
+            if (error) throw error;
 
-            try {
-              await supabase.from("members").update({ attendance: nextAttendance }).eq("id", memberId);
-            } catch (err) {
-              console.error("Fast check-in attendance update error:", err);
-            }
+            setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, attendance: nextAttendance } : m)));
           }}
         />,
         document.body

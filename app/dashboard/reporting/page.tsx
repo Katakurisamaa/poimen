@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
-import { FddReportingData, computeReportingMetrics, getIntelligentKeyPoints } from "@/types/reporting";
+import { FddReportingData, computeReportingMetrics, getKeyPointsSummary } from "@/types/reporting";
 import ReportingTemplate from "@/components/reporting/ReportingTemplate";
 import { getAttendanceStatus, usesExplicitAttendance } from "@/lib/attendance";
 import {
   Download, RefreshCw, Save, Check, AlertCircle, FileText,
-  Calendar, Upload, Eye, Edit3, Sparkles, Church, Users
+  Calendar, Upload, Eye, Edit3, Church, Users,
+  ChevronLeft, ChevronRight, Bookmark
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -26,18 +27,6 @@ export default function ReportingPage() {
   const [previewHeight, setPreviewHeight] = useState(0);
 
   // Helper to format French date for Sunday
-  const getInitialSundayDate = () => {
-    const d = new Date();
-    // Get last Sunday
-    const day = d.getDay();
-    const diff = d.getDate() - day; // day 0 is Sunday
-    const sunday = new Date(d.setDate(diff));
-    const yyyy = sunday.getFullYear();
-    const mm = String(sunday.getMonth() + 1).padStart(2, "0");
-    const dd = String(sunday.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  };
-
   const formatFrenchDate = (dateStr: string) => {
     if (!dateStr) return "";
     try {
@@ -54,11 +43,50 @@ export default function ReportingPage() {
     }
   };
 
+  const getInitialSundayDate = () => {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = day === 0 ? 0 : day; // If today is Sunday, take today, else go back to last Sunday
+    const sunday = new Date(d);
+    sunday.setDate(d.getDate() - diff);
+    const yyyy = sunday.getFullYear();
+    const mm = String(sunday.getMonth() + 1).padStart(2, "0");
+    const dd = String(sunday.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // Generate list of the 12 most recent Sundays for quick filter
+  const getRecentSundays = (count = 12) => {
+    const sundays: { isoDate: string; label: string; isLatest: boolean }[] = [];
+    const now = new Date();
+    const day = now.getDay();
+    const diffToSunday = day === 0 ? 0 : day;
+    const baseSunday = new Date(now);
+    baseSunday.setDate(now.getDate() - diffToSunday);
+    baseSunday.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < count; i++) {
+      const d = new Date(baseSunday);
+      d.setDate(baseSunday.getDate() - i * 7);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const isoDate = `${yyyy}-${mm}-${dd}`;
+      sundays.push({
+        isoDate,
+        label: formatFrenchDate(isoDate),
+        isLatest: i === 0,
+      });
+    }
+    return sundays;
+  };
+
   const [formData, setFormData] = useState<FddReportingData>({
     bergerie_id: "",
     church_id: "",
     nom_famille: "Famille de Disciples",
-    nom_berger: "Berger",
+    nom_berger: "",
+    slogan: "Suivi • Participation • Engagement • Croissance",
     date_rapport: getInitialSundayDate(),
     date_libelle: formatFrenchDate(getInitialSundayDate()),
     logo_url: "",
@@ -83,8 +111,8 @@ export default function ReportingPage() {
 
     points_cles: [],
     action_1: "",
-    action_2: "Encourager à participer à la semaine de jeûne et prière.",
-    action_3: "Augmenter le nombre de véritables faiseurs de disciples.",
+    action_2: "",
+    action_3: "",
     verset_texte: "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi les ouvriers travaillaient d'une main, et de l'autre ils tenaient leurs armes. Chacun bâtit à son endroit, et bâtit le mur.",
     verset_ref: "Néhémie 4:11-12 (BDS)",
   });
@@ -114,11 +142,7 @@ export default function ReportingPage() {
         familyId = activeCtx.bergerie_id;
       }
 
-      // 2. Get leader / berger name
-      const userInfo = getActiveUserInfo();
-      const bergerName = userInfo?.display_name || "Berger";
-
-      // 3. Query members of this bergerie
+      // 2. Query members of this bergerie
       let totalMembres = 0;
       let hommes = 0;
       let femmes = 0;
@@ -133,14 +157,30 @@ export default function ReportingPage() {
       let absNonJustifiees = 0;
       let starInService = 0;
       let disciplesPresent = 0;
+      let reunionHebdo = 0;
 
       const currentDate = dateOverride || formData.date_rapport || getInitialSundayDate();
+      const [cy, cm, cd] = currentDate.split("-").map(Number);
+      const sundayEnd = new Date(cy, cm - 1, cd, 23, 59, 59);
+      const sevenDaysPrior = new Date(cy, cm - 1, cd - 7, 0, 0, 0);
+
+      // Dates of the preceding week (Monday to Saturday)
+      const precedingWeekDates: string[] = [];
+      for (let offset = 1; offset <= 6; offset++) {
+        const wd = new Date(cy, cm - 1, cd - offset);
+        const wy = wd.getFullYear();
+        const wm = String(wd.getMonth() + 1).padStart(2, "0");
+        const wday = String(wd.getDate()).padStart(2, "0");
+        precedingWeekDates.push(`${wy}-${wm}-${wday}`);
+      }
+
+      let detectedBergerName = "";
 
       if (familyId) {
-        // Query bergeries activities to detect culte
+        // Query bergeries activities & berger_id
         const { data: bergerieData } = await supabase
           .from("bergeries")
-          .select("activities")
+          .select("activities, berger_id")
           .eq("id", familyId)
           .maybeSingle();
 
@@ -149,6 +189,12 @@ export default function ReportingPage() {
           .filter((a: any) => a.id === "culte" || a.name?.toLowerCase().includes("culte"))
           .map((a: any) => a.id);
         if (!culteActIds.includes("culte")) culteActIds.push("culte");
+
+        // Non-culte activities (weekly meeting, CDM, prière, etc.)
+        const nonCulteActIds = acts
+          .filter((a: any) => a.id !== "culte" && !a.name?.toLowerCase().includes("culte"))
+          .map((a: any) => a.id);
+        if (!nonCulteActIds.includes("cdm")) nonCulteActIds.push("cdm");
 
         const { data: members, error } = await supabase
           .from("members")
@@ -159,9 +205,32 @@ export default function ReportingPage() {
         if (!error && members) {
           totalMembres = members.length;
           const explicitPointageInUse = members.some((member: any) => usesExplicitAttendance(member.attendance, culteActIds, currentDate));
-          
-          const oneWeekAgo = new Date();
-          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+          // Check if there is a member with status = 'Berger' in this family
+          const bergerMember = members.find((m: any) => {
+            const st = (m.status || "").toLowerCase().trim();
+            return st === "berger";
+          });
+          if (bergerMember) {
+            detectedBergerName = `${bergerMember.first_name} ${bergerMember.last_name}`.trim();
+          }
+
+          // If not found in members, check if berger_id points to a member or profile
+          if (!detectedBergerName && bergerieData?.berger_id) {
+            const matchMem = members.find((m: any) => m.id === bergerieData.berger_id);
+            if (matchMem) {
+              detectedBergerName = `${matchMem.first_name} ${matchMem.last_name}`.trim();
+            } else {
+              try {
+                const { data: p } = await supabase
+                  .from("profiles")
+                  .select("display_name")
+                  .eq("id", bergerieData.berger_id)
+                  .maybeSingle();
+                if (p?.display_name) detectedBergerName = p.display_name.trim();
+              } catch {}
+            }
+          }
 
           members.forEach((m: any) => {
             // Civility
@@ -191,10 +260,14 @@ export default function ReportingPage() {
               disciplesCount++;
             }
 
-            // Nouveaux membres (dernière semaine)
+            // Nouveaux membres (semaine précédant ce dimanche)
             const created = m.date_entree ? new Date(m.date_entree) : (m.created_at ? new Date(m.created_at) : null);
-            if (created && created >= oneWeekAgo) {
+            if (created && created >= sevenDaysPrior && created <= sundayEnd) {
               nouveaux++;
+            } else if (normStatus === "nouveau" || normStatus === "nouvelle âme" || normStatus === "invité") {
+              if (created && created >= sevenDaysPrior && created <= sundayEnd) {
+                nouveaux++;
+              }
             }
 
             // Pointage du culte pour ce dimanche
@@ -214,8 +287,7 @@ export default function ReportingPage() {
             } else if (attendedCulte === "culte_en_ligne") {
               countEnLigne++;
             } else {
-              // Explicit fast-check-in states prevent unprocessed people from
-              // being counted as unjustified absences while the roll call runs.
+              // Absences
               let hasComment = false;
               let absenceStatus: "unpointed" | "justified" | "unjustified" = "unpointed";
               for (const actId of culteActIds) {
@@ -229,8 +301,6 @@ export default function ReportingPage() {
               }
               if (absenceStatus === "justified" || hasComment) {
                 absJustifiees++;
-              } else if (absenceStatus === "unjustified" || !explicitPointageInUse) {
-                absNonJustifiees++;
               }
             }
 
@@ -238,9 +308,74 @@ export default function ReportingPage() {
               if (isStar) starInService++;
               if (isFdd) disciplesPresent++;
             }
+
+            // Participation à la réunion hebdomadaire (CDM / Prière / Réunion hebdo)
+            let attendedWeekly = false;
+            for (const actId of nonCulteActIds) {
+              for (const d of precedingWeekDates) {
+                if (m.attendance?.[actId]?.[d]) {
+                  attendedWeekly = true;
+                  break;
+                }
+              }
+              if (attendedWeekly) break;
+            }
+            if (attendedWeekly) {
+              reunionHebdo++;
+            }
           });
+
+          // Accurate calculation of unjustified absences:
+          // Total absences = Total members - (Present Culte 1 + Culte 2 + Culte en ligne)
+          // Absences non justifiées = Total absences - Absences justifiées
+          const totalPartCulte = countC1 + countC2 + countEnLigne;
+          const totalSundayAbsences = Math.max(0, totalMembres - totalPartCulte);
+          absNonJustifiees = Math.max(0, totalSundayAbsences - absJustifiees);
+
+          // Check if any additional new invites were entered in this family during that week
+          try {
+            const { count: countInvites } = await supabase
+              .from("invites")
+              .select("id", { count: "exact", head: true })
+              .eq("bergerie_id", familyId)
+              .eq("archived", false)
+              .gte("created_at", sevenDaysPrior.toISOString())
+              .lte("created_at", sundayEnd.toISOString());
+            if (countInvites && countInvites > 0) {
+              nouveaux += countInvites;
+            }
+          } catch {}
         }
       }
+
+      // If shepherd name not yet found, check profiles where bergerie_id = familyId and role = 'berger'
+      if (!detectedBergerName && familyId) {
+        try {
+          const { data: pBerger } = await supabase
+            .from("profiles")
+            .select("display_name")
+            .eq("bergerie_id", familyId)
+            .ilike("role", "%berger%")
+            .maybeSingle();
+          if (pBerger?.display_name) detectedBergerName = pBerger.display_name.trim();
+        } catch {}
+      }
+
+      // If still not found, check logged-in user info
+      if (!detectedBergerName) {
+        const userInfo = getActiveUserInfo();
+        if (userInfo) {
+          if (userInfo.firstName || userInfo.lastName) {
+            detectedBergerName = `${userInfo.firstName || ""} ${userInfo.lastName || ""}`.trim();
+          } else if (userInfo.display_name && userInfo.display_name.toLowerCase() !== "berger") {
+            detectedBergerName = userInfo.display_name.trim();
+          } else if (userInfo.name && userInfo.name.toLowerCase() !== "berger") {
+            detectedBergerName = userInfo.name.trim();
+          }
+        }
+      }
+
+      const bergerName = detectedBergerName || "Prénom Nom";
 
       // Check for saved report for this family & date
       let existingReport: any = null;
@@ -267,15 +402,41 @@ export default function ReportingPage() {
         }
       }
 
-      // Check saved logo
+      // Check saved logo, slogan, and bible verse for this family
       const savedLogo = localStorage.getItem(`fdd_custom_logo_${familyId}`) || "";
+      const savedSlogan = localStorage.getItem(`fdd_custom_slogan_${familyId}`);
+      const savedVerseText = localStorage.getItem(`fdd_custom_verse_text_${familyId}`);
+      const savedVerseRef = localStorage.getItem(`fdd_custom_verse_ref_${familyId}`);
+
+      const defaultVerseText = "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi les ouvriers travaillaient d'une main, et de l'autre ils tenaient leurs armes. Chacun bâtit à son endroit, et bâtit le mur.";
+      const defaultVerseRef = "Néhémie 4:11-12 (BDS)";
+
+      const effectiveSlogan = (savedSlogan !== null && savedSlogan !== undefined)
+        ? savedSlogan
+        : (existingReport?.slogan || "Suivi • Participation • Engagement • Croissance");
+
+      const effectiveVerseText = (savedVerseText !== null && savedVerseText !== undefined)
+        ? savedVerseText
+        : (existingReport?.verset_texte || defaultVerseText);
+
+      const effectiveVerseRef = (savedVerseRef !== null && savedVerseRef !== undefined)
+        ? savedVerseRef
+        : (existingReport?.verset_ref || defaultVerseRef);
 
       if (existingReport && !forceRecalculate) {
         setFormData((prev) => ({
           ...prev,
           ...existingReport,
           nom_famille: familyName || existingReport.nom_famille || prev.nom_famille,
-          nom_berger: bergerName || existingReport.nom_berger || prev.nom_berger,
+          nom_berger: (existingReport.nom_berger && existingReport.nom_berger !== "Berger")
+            ? existingReport.nom_berger
+            : (bergerName !== "Prénom Nom" ? bergerName : prev.nom_berger || "Prénom Nom"),
+          slogan: effectiveSlogan,
+          verset_texte: effectiveVerseText,
+          verset_ref: effectiveVerseRef,
+          action_1: existingReport.action_1 !== undefined ? existingReport.action_1 : (prev.action_1 ?? ""),
+          action_2: existingReport.action_2 !== undefined ? existingReport.action_2 : (prev.action_2 ?? ""),
+          action_3: existingReport.action_3 !== undefined ? existingReport.action_3 : (prev.action_3 ?? ""),
           date_rapport: currentDate,
           date_libelle: formatFrenchDate(existingReport.date_rapport || currentDate),
           logo_url: existingReport.logo_url || savedLogo || prev.logo_url,
@@ -291,7 +452,13 @@ export default function ReportingPage() {
           bergerie_id: familyId,
           church_id: churchId,
           nom_famille: familyName || prev.nom_famille,
-          nom_berger: bergerName || prev.nom_berger,
+          nom_berger: bergerName !== "Prénom Nom" ? bergerName : (prev.nom_berger && prev.nom_berger !== "Berger" ? prev.nom_berger : "Prénom Nom"),
+          slogan: effectiveSlogan,
+          verset_texte: effectiveVerseText,
+          verset_ref: effectiveVerseRef,
+          action_1: prev.action_1 !== undefined ? prev.action_1 : "",
+          action_2: prev.action_2 !== undefined ? prev.action_2 : "",
+          action_3: prev.action_3 !== undefined ? prev.action_3 : "",
           date_rapport: currentDate,
           date_libelle: formatFrenchDate(currentDate),
           nombre_total_membres: totalMembres || prev.nombre_total_membres,
@@ -306,14 +473,8 @@ export default function ReportingPage() {
           nombre_total_star: totalStar || prev.nombre_total_star,
           nombre_disciples: disciplesCount,
           taux_participation_disciples: disciplesPct,
+          reunion_hebdomadaire: reunionHebdo || prev.reunion_hebdomadaire,
           nouveaux_membres: nouveaux || prev.nouveaux_membres,
-          action_1: prev.action_1 || (
-            absNonJustifiees > 1
-              ? `Faire le suivi des ${absNonJustifiees} absences injustifiées.`
-              : absNonJustifiees === 1
-              ? "Prendre des nouvelles du membre absent non justifié."
-              : "Maintenir le contact pastoral et féliciter les membres pour leur fidélité."
-          ),
           logo_url: savedLogo || prev.logo_url,
         }));
       }
@@ -383,6 +544,15 @@ export default function ReportingPage() {
           `fdd_report_${formData.bergerie_id}_${formData.date_rapport}`,
           JSON.stringify(formData)
         );
+        if (formData.slogan !== undefined) {
+          localStorage.setItem(`fdd_custom_slogan_${formData.bergerie_id}`, formData.slogan);
+        }
+        if (formData.verset_texte !== undefined) {
+          localStorage.setItem(`fdd_custom_verse_text_${formData.bergerie_id}`, formData.verset_texte);
+        }
+        if (formData.verset_ref !== undefined) {
+          localStorage.setItem(`fdd_custom_verse_ref_${formData.bergerie_id}`, formData.verset_ref);
+        }
       }
 
       // 2. Save to Supabase (if table exists)
@@ -392,6 +562,7 @@ export default function ReportingPage() {
         date_rapport: formData.date_rapport,
         nom_famille: formData.nom_famille,
         nom_berger: formData.nom_berger,
+        slogan: formData.slogan || null,
         logo_url: formData.logo_url || null,
         nombre_total_membres: Number(formData.nombre_total_membres) || 0,
         repartition_hommes: Number(formData.repartition_hommes) || 0,
@@ -633,16 +804,78 @@ export default function ReportingPage() {
         <div className="reporting-form-layout" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
           {/* ── LEFT COLUMN: REPARTITION CULTE & DATES ── */}
           <div className="reporting-form-column" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {/* Card: Informations Générales */}
+            {/* Card: Informations Générales & Filtre du Dimanche */}
             <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-                <Calendar size={18} style={{ color: "var(--gold)" }} />
-                Paramètres du Dimanche
-              </h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Calendar size={18} style={{ color: "var(--gold)" }} />
+                  Sélection du Dimanche & Paramètres
+                </h3>
+
+                {/* Quick Sunday navigation buttons */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const [y, m, d] = formData.date_rapport.split("-").map(Number);
+                      const prevD = new Date(y, m - 1, d - 7);
+                      const py = prevD.getFullYear();
+                      const pm = String(prevD.getMonth() + 1).padStart(2, "0");
+                      const pd = String(prevD.getDate()).padStart(2, "0");
+                      handleDateChange(`${py}-${pm}-${pd}`);
+                    }}
+                    className="btn btn-outline btn-sm"
+                    style={{ fontSize: 11, padding: "4px 8px", height: 28 }}
+                    title="Dimanche précédent (-7 jours)"
+                  >
+                    <ChevronLeft size={14} /> Précédent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const [y, m, d] = formData.date_rapport.split("-").map(Number);
+                      const nextD = new Date(y, m - 1, d + 7);
+                      const ny = nextD.getFullYear();
+                      const nm = String(nextD.getMonth() + 1).padStart(2, "0");
+                      const nd = String(nextD.getDate()).padStart(2, "0");
+                      handleDateChange(`${ny}-${nm}-${nd}`);
+                    }}
+                    className="btn btn-outline btn-sm"
+                    style={{ fontSize: 11, padding: "4px 8px", height: 28 }}
+                    title="Dimanche suivant (+7 jours)"
+                  >
+                    Suivant <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Sunday dropdown filter */}
+              <div style={{ marginBottom: 14 }}>
+                <label className="form-label" style={{ fontWeight: 700, color: "var(--gold-light)" }}>
+                  Choisir le Dimanche du Culte
+                </label>
+                <select
+                  className="input"
+                  value={formData.date_rapport}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  style={{ fontWeight: 600, fontSize: 13.5 }}
+                >
+                  {getRecentSundays(12).map((s) => (
+                    <option key={s.isoDate} value={s.isoDate}>
+                      {s.label} {s.isLatest ? "★ (Dernier dimanche)" : ""}
+                    </option>
+                  ))}
+                  {!getRecentSundays(12).some(s => s.isoDate === formData.date_rapport) && (
+                    <option value={formData.date_rapport}>
+                      {formData.date_libelle || formData.date_rapport} (Date personnalisée)
+                    </option>
+                  )}
+                </select>
+              </div>
 
               <div className="reporting-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
-                  <label className="form-label">Date du Culte</label>
+                  <label className="form-label">Date exacte (calendrier)</label>
                   <input
                     type="date"
                     className="input"
@@ -651,11 +884,12 @@ export default function ReportingPage() {
                   />
                 </div>
                 <div>
-                  <label className="form-label">Nom du Berger</label>
+                  <label className="form-label">Nom du Berger (Prénom + Nom)</label>
                   <input
                     type="text"
                     className="input"
                     value={formData.nom_berger}
+                    placeholder="Ex: David Kouassi"
                     onChange={(e) => setFormData({ ...formData, nom_berger: e.target.value })}
                   />
                 </div>
@@ -696,6 +930,27 @@ export default function ReportingPage() {
                     />
                   </label>
                 </div>
+              </div>
+
+              {/* Devise / Slogan personnalisable pour chaque famille */}
+              <div style={{ marginTop: 12 }}>
+                <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Devise / Slogan de la Famille</span>
+                  <span style={{ fontSize: 11, color: "var(--muted)" }}>Propre à chaque famille</span>
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  value={formData.slogan ?? ""}
+                  placeholder="Ex: Suivi • Participation • Engagement • Croissance"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormData(prev => ({ ...prev, slogan: val }));
+                    if (formData.bergerie_id) {
+                      localStorage.setItem(`fdd_custom_slogan_${formData.bergerie_id}`, val);
+                    }
+                  }}
+                />
               </div>
             </section>
 
@@ -909,36 +1164,36 @@ export default function ReportingPage() {
               </div>
             </section>
 
-            {/* Card: Points Clés (Synthèse & Analyse) */}
+            {/* Card: Points Clés & Synthèse Pastorale */}
             <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
               <div className="reporting-card-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 10 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                  <Sparkles size={18} style={{ color: "var(--gold)" }} />
-                  Points Clés (Synthèse & Analyse)
+                  <FileText size={18} style={{ color: "var(--gold)" }} />
+                  Points Clés & Synthèse Pastorale
                 </h3>
                 <button
                   type="button"
                   className="btn btn-outline btn-sm"
                   style={{ fontSize: 11, height: 32, padding: "0 12px", borderRadius: 8 }}
                   onClick={() => {
-                    const generated = getIntelligentKeyPoints(formData, metrics);
+                    const generated = getKeyPointsSummary(formData, metrics);
                     setFormData(prev => ({ ...prev, points_cles: generated }));
                   }}
                   title="Recalculer les points clés selon les chiffres actuels"
                 >
                   <RefreshCw size={13} style={{ marginRight: 6 }} />
-                  Régénérer intelligemment
+                  Actualiser la synthèse
                 </button>
               </div>
 
               <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>
-                Ces points sont générés de façon logique selon vos présences et effectifs réels. Vous pouvez modifier chaque phrase librement :
+                Synthèse pastorale automatique calculée selon vos chiffres et présences réels du culte. Vous pouvez ajuster chaque point librement :
               </p>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {(formData.points_cles && formData.points_cles.length > 0
                   ? formData.points_cles
-                  : getIntelligentKeyPoints(formData, metrics)
+                  : getKeyPointsSummary(formData, metrics)
                 ).map((pt, idx) => (
                   <div key={idx} style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <span style={{ fontSize: 12, fontWeight: 800, color: "var(--gold)", width: 18, flexShrink: 0 }}>
@@ -952,7 +1207,7 @@ export default function ReportingPage() {
                         const currentPoints = [
                           ...(formData.points_cles && formData.points_cles.length > 0
                             ? formData.points_cles
-                            : getIntelligentKeyPoints(formData, metrics))
+                            : getKeyPointsSummary(formData, metrics))
                         ];
                         currentPoints[idx] = e.target.value;
                         setFormData(prev => ({ ...prev, points_cles: currentPoints }));
@@ -964,26 +1219,94 @@ export default function ReportingPage() {
               </div>
             </section>
 
-            {/* Card: Actions Suggérées (3 badges) */}
+            {/* Card: Plan d'Action (On passe à l'action !) */}
             <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14 }}>
-                Actions Suggérées (On passe à l'action !)
-              </h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", margin: 0 }}>
+                  🎯 Plan d'Action — On passe à l'action !
+                </h3>
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>Entièrement personnalisable</span>
+              </div>
+
+              <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
+                Renseignez les 3 actions prioritaires décidées pour la famille cette semaine. Cliquez sur une suggestion rapide ou saisissez librement votre texte :
+              </p>
+
+              {/* Quick suggestion chips */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                {[
+                  "Faire le suivi pastoral des absences non justifiées",
+                  "Organiser une visite fraternelle aux brebis fragiles",
+                  "Encourager à participer à la semaine de jeûne et prière",
+                  "Appeler chaque membre absent pour prendre des nouvelles",
+                  "Augmenter le nombre de véritables faiseurs de disciples",
+                  "Planifier une sortie d'évangélisation en famille",
+                ].map((sug, sIdx) => (
+                  <button
+                    key={sIdx}
+                    type="button"
+                    onClick={() => {
+                      if (!formData.action_1 || formData.action_1.trim() === "") {
+                        setFormData(prev => ({ ...prev, action_1: sug }));
+                      } else if (!formData.action_2 || formData.action_2.trim() === "") {
+                        setFormData(prev => ({ ...prev, action_2: sug }));
+                      } else {
+                        setFormData(prev => ({ ...prev, action_3: sug }));
+                      }
+                    }}
+                    style={{
+                      fontSize: 11,
+                      padding: "4px 9px",
+                      borderRadius: "14px",
+                      backgroundColor: "rgba(255, 255, 255, 0.06)",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      color: "var(--cream)",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                    title="Cliquer pour insérer dans la première action libre"
+                  >
+                    + {sug}
+                  </button>
+                ))}
+              </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
-                  <label className="form-label">Action 1</label>
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Action 1 (Priorité haute)</span>
+                    {formData.action_1 && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, action_1: "" })}
+                        style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, cursor: "pointer" }}
+                      >
+                        Effacer
+                      </button>
+                    )}
+                  </label>
                   <input
                     type="text"
                     className="input"
                     value={formData.action_1}
-                    placeholder="Ex: Faire le suivi des absences..."
+                    placeholder="Ex: Faire le suivi des absences non justifiées..."
                     onChange={(e) => setFormData({ ...formData, action_1: e.target.value })}
                   />
                 </div>
 
                 <div>
-                  <label className="form-label">Action 2</label>
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Action 2 (Engagement & Prière)</span>
+                    {formData.action_2 && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, action_2: "" })}
+                        style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, cursor: "pointer" }}
+                      >
+                        Effacer
+                      </button>
+                    )}
+                  </label>
                   <input
                     type="text"
                     className="input"
@@ -994,7 +1317,18 @@ export default function ReportingPage() {
                 </div>
 
                 <div>
-                  <label className="form-label">Action 3</label>
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Action 3 (Croissance & Disciples)</span>
+                    {formData.action_3 && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, action_3: "" })}
+                        style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, cursor: "pointer" }}
+                      >
+                        Effacer
+                      </button>
+                    )}
+                  </label>
                   <input
                     type="text"
                     className="input"
@@ -1008,9 +1342,12 @@ export default function ReportingPage() {
 
             {/* Card: Verset Biblique */}
             <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14 }}>
-                Verset Biblique de Clôture
-              </h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", margin: 0 }}>
+                  Verset Biblique de Clôture
+                </h3>
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>Mémorisé pour tous vos futurs rapports</span>
+              </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
@@ -1019,7 +1356,13 @@ export default function ReportingPage() {
                     className="input"
                     rows={2}
                     value={formData.verset_texte}
-                    onChange={(e) => setFormData({ ...formData, verset_texte: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData(prev => ({ ...prev, verset_texte: val }));
+                      if (formData.bergerie_id) {
+                        localStorage.setItem(`fdd_custom_verse_text_${formData.bergerie_id}`, val);
+                      }
+                    }}
                   />
                 </div>
 
@@ -1030,7 +1373,13 @@ export default function ReportingPage() {
                     className="input"
                     value={formData.verset_ref}
                     placeholder="Ex: Néhémie 4:11-12 (BDS)"
-                    onChange={(e) => setFormData({ ...formData, verset_ref: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData(prev => ({ ...prev, verset_ref: val }));
+                      if (formData.bergerie_id) {
+                        localStorage.setItem(`fdd_custom_verse_ref_${formData.bergerie_id}`, val);
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -1056,9 +1405,9 @@ export default function ReportingPage() {
               gap: 8,
             }}
           >
-            <Sparkles size={16} />
+            <FileText size={16} />
             <span>
-              Aperçu fidèle du rapport officiel. Cliquez sur <strong>« Télécharger en PDF »</strong> pour générer le document officiel à transmettre au pasteur.
+              Aperçu officiel du rapport. Cliquez sur <strong>« Télécharger en PDF »</strong> pour générer le document à transmettre à la hiérarchie pastorale.
             </span>
           </div>
         </div>

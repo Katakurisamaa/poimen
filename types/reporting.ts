@@ -4,6 +4,7 @@ export interface FddReportingData {
   church_id?: string;
   nom_famille: string;
   nom_berger: string;
+  slogan?: string; // Slogan / Devise personnalisable par famille
   date_rapport: string; // YYYY-MM-DD
   date_libelle?: string; // Dimanche 30 août 2026
   logo_url?: string;
@@ -79,8 +80,12 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
   
   const totalPart = c1 + c2 + cLigne;
   const absJust = Math.max(0, data.absences_justifiees || 0);
-  const absNonJust = Math.max(0, data.absences_non_justifiees || 0);
   const totalAbs = Math.max(0, total - totalPart);
+  
+  // Si les absences non justifiées ne sont pas renseignées ou égales à zéro alors qu'il y a des absences
+  const absNonJust = (data.absences_non_justifiees !== undefined && data.absences_non_justifiees > 0)
+    ? data.absences_non_justifiees
+    : Math.max(0, totalAbs - absJust);
 
   const pct = (val: number, base: number) => base > 0 ? parseFloat(((val / base) * 100).toFixed(2)) : 0;
 
@@ -113,7 +118,7 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
   };
 }
 
-export function getIntelligentKeyPoints(data: FddReportingData, metrics: CalculatedMetrics): string[] {
+export function getKeyPointsSummary(data: FddReportingData, metrics: CalculatedMetrics): string[] {
   const points: string[] = [];
 
   // 1. Taux de participation globale
@@ -123,7 +128,7 @@ export function getIntelligentKeyPoints(data: FddReportingData, metrics: Calcula
     } else if (metrics.tauxParticipationGlobale >= 50) {
       points.push(`La participation globale est de ${metrics.tauxParticipationGlobale}% (${metrics.totalParticipation} présents sur ${data.nombre_total_membres} membres).`);
     } else if (metrics.totalParticipation > 0) {
-      points.push(`Participation globale à consolider : ${metrics.tauxParticipationGlobale}% (${metrics.totalParticipation} présents sur ${data.nombre_total_membres} membres).`);
+      points.push(`Participation globale : ${metrics.tauxParticipationGlobale}% (${metrics.totalParticipation} présents sur ${data.nombre_total_membres} membres).`);
     } else {
       points.push(`Aucune présence enregistrée au culte ce dimanche sur ${data.nombre_total_membres} membres.`);
     }
@@ -131,7 +136,7 @@ export function getIntelligentKeyPoints(data: FddReportingData, metrics: Calcula
     points.push(`Taux de participation globale : ${metrics.tauxParticipationGlobale}%.`);
   }
 
-  // 2. Répartition intelligente des cultes
+  // 2. Répartition des cultes
   const cultes = [
     { name: "Culte 1", count: data.culte_1 || 0, pct: metrics.pctPartCulte1 || 0 },
     { name: "Culte 2", count: data.culte_2 || 0, pct: metrics.pctPartCulte2 || 0 },
@@ -153,7 +158,7 @@ export function getIntelligentKeyPoints(data: FddReportingData, metrics: Calcula
 
   // 3. Répartition Hommes / Femmes
   if (data.repartition_femmes === data.repartition_hommes && data.repartition_femmes > 0) {
-    points.push(`Parité parfaite dans la famille : 50% de femmes (${data.repartition_femmes}) et 50% d'hommes (${data.repartition_hommes}).`);
+    points.push(`Parité dans la famille : 50% de femmes (${data.repartition_femmes}) et 50% d'hommes (${data.repartition_hommes}).`);
   } else if (data.repartition_femmes > data.repartition_hommes) {
     points.push(`Les femmes représentent ${metrics.pctTotalFemmes}% de l'effectif (${data.repartition_femmes}) et les hommes ${metrics.pctTotalHommes}% (${data.repartition_hommes}).`);
   } else if (data.repartition_hommes > data.repartition_femmes) {
@@ -163,16 +168,20 @@ export function getIntelligentKeyPoints(data: FddReportingData, metrics: Calcula
   }
 
   // 4. Absences
-  if (data.absences_non_justifiees === 0) {
+  const effectiveNonJust = (data.absences_non_justifiees !== undefined && data.absences_non_justifiees > 0)
+    ? data.absences_non_justifiees
+    : Math.max(0, metrics.totalAbsences - data.absences_justifiees);
+
+  if (effectiveNonJust === 0) {
     if (data.absences_justifiees === 0) {
       points.push("Assiduité remarquable : aucune absence signalée ce dimanche !");
     } else {
-      points.push(`Aucune absence injustifiée (${data.absences_justifiees} absence${data.absences_justifiees > 1 ? "s" : ""} justifiée${data.absences_justifiees > 1 ? "s" : ""}).`);
+      points.push(`Toutes les absences sont justifiées (${data.absences_justifiees} absence${data.absences_justifiees > 1 ? "s" : ""} justifiée${data.absences_justifiees > 1 ? "s" : ""}).`);
     }
-  } else if (data.absences_non_justifiees === 1) {
-    points.push(`1 seule absence non justifiée à contacter pour suivi pastoral${data.absences_justifiees > 0 ? ` (${data.absences_justifiees} justifiée${data.absences_justifiees > 1 ? "s" : ""})` : ""}.`);
+  } else if (effectiveNonJust === 1) {
+    points.push(`1 absence non justifiée à contacter pour suivi pastoral${data.absences_justifiees > 0 ? ` (${data.absences_justifiees} justifiée${data.absences_justifiees > 1 ? "s" : ""})` : ""}.`);
   } else {
-    points.push(`${data.absences_non_justifiees} absences non justifiées à suivre en priorité${data.absences_justifiees > 0 ? ` (${data.absences_justifiees} justifiée${data.absences_justifiees > 1 ? "s" : ""})` : ""}.`);
+    points.push(`${effectiveNonJust} absences non justifiées à suivre en priorité${data.absences_justifiees > 0 ? ` (${data.absences_justifiees} justifiée${data.absences_justifiees > 1 ? "s" : ""})` : ""}.`);
   }
 
   // 5. STAR en service
@@ -195,4 +204,7 @@ export function getIntelligentKeyPoints(data: FddReportingData, metrics: Calcula
 
   return points;
 }
+
+// Alias for backward compatibility
+export const getIntelligentKeyPoints = getKeyPointsSummary;
 

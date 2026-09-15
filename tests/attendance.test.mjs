@@ -47,3 +47,44 @@ test('legacy comments remain compatible as justified absences', () => {
   assert.equal(getAttendanceStatus(legacy, activity, date), 'justified');
   assert.equal(usesExplicitAttendance(legacy, [activity], date), false);
 });
+
+test('clearing a justified absence makes the member unpointed and removes the reason', () => {
+  const initial = buildAttendanceUpdate({}, activity, date, 'justified', 'Famille');
+  const next = buildAttendanceUpdate(initial, activity, date, 'unpointed');
+  assert.equal(getAttendanceStatus(next, activity, date), 'unpointed');
+  assert.equal(next.culte[date], false);
+  assert.equal(next._comments.culte[date], undefined);
+  assert.equal(getAttendanceStatus(initial, activity, date), 'justified');
+});
+
+test('undoing a correction restores the original absence reason', () => {
+  const initial = buildAttendanceUpdate({}, activity, date, 'justified', 'Rendez-vous familial');
+  const previousStatus = getAttendanceStatus(initial, activity, date);
+  const previousReason = initial._comments.culte[date];
+  const corrected = buildAttendanceUpdate(initial, activity, date, 'present', '', 'culte_en_ligne');
+  const restored = buildAttendanceUpdate(corrected, activity, date, previousStatus, previousReason);
+  assert.equal(getAttendanceStatus(restored, activity, date), 'justified');
+  assert.equal(restored._comments.culte[date], 'Rendez-vous familial');
+  assert.equal(restored.culte[date], false);
+});
+
+test('undo restores the original service even when the active service changed', () => {
+  const initial = buildAttendanceUpdate({}, activity, date, 'present', '', 'culte_2');
+  const corrected = buildAttendanceUpdate(initial, activity, date, 'unjustified');
+  const restored = buildAttendanceUpdate(corrected, activity, date, 'present', '', initial.culte[date]);
+  assert.equal(restored.culte[date], 'culte_2');
+  assert.equal(getAttendanceStatus(restored, activity, date), 'present');
+});
+
+test('pointing and undoing leave other dates and activities intact', () => {
+  const otherDate = '2026-09-06';
+  let attendance = buildAttendanceUpdate({}, activity, otherDate, 'justified', 'Travail');
+  attendance = buildAttendanceUpdate(attendance, 'cdm', date, 'present');
+  const initial = JSON.stringify(attendance);
+  const pointed = buildAttendanceUpdate(attendance, activity, date, 'present', '', 'culte_1');
+  const restored = buildAttendanceUpdate(pointed, activity, date, 'unpointed');
+  assert.equal(getAttendanceStatus(restored, activity, otherDate), 'justified');
+  assert.equal(restored._comments.culte[otherDate], 'Travail');
+  assert.equal(getAttendanceStatus(restored, 'cdm', date), 'present');
+  assert.equal(JSON.stringify(attendance), initial);
+});
