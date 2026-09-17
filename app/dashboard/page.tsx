@@ -421,7 +421,7 @@ export default function DashboardPage() {
           eQuery = eQuery.eq("created_by", userInfo?.id || "");
         }
       } else {
-        mQuery = supabase.from("members").select("*").eq("bergerie_id", myBergerie.id).eq("archived", false);
+        mQuery = supabase.from("members").select("*").eq("bergerie_id", myBergerie.id);
         iQuery = supabase.from("invites").select("*").eq("bergerie_id", myBergerie.id);
         eQuery = supabase.from("evangelisations").select("*").eq("bergerie_id", myBergerie.id);
 
@@ -434,10 +434,11 @@ export default function DashboardPage() {
 
       if (!isIntegration && mQuery) {
         const { data, error } = await mQuery;
-        members = data || [];
+        members = (data || []).filter((m: any) => !m.archived);
         mErr = error;
       }
-      const { data: invites, error: iErr } = await iQuery;
+      const { data: rawInvites, error: iErr } = await iQuery;
+      const invites = (rawInvites || []).filter((i: any) => !i.archived);
       const { data: evangs, error: eErr } = await eQuery;
 
       if (mErr) console.error("Error fetching members:", mErr);
@@ -550,7 +551,7 @@ export default function DashboardPage() {
                   totalPossible += validDates.length;
                   const actAtt = attObj[act.id] || {};
                   validDates.forEach(d => {
-                    if (actAtt[d] === true) {
+                    if (actAtt[d] === true || typeof actAtt[d] === "string") {
                       totalPresent++;
                     }
                   });

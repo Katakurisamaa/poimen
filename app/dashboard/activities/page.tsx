@@ -269,7 +269,9 @@ export default function ActivitiesPage() {
         // 3. Fetch Members
         const { data: membersData } = await supabase.from("members").select("*").eq("bergerie_id", bergerieId);
 
-        const allPeople: Member[] = (membersData || []).map(m => ({
+        const allPeople: Member[] = (membersData || [])
+          .filter(m => !m.archived)
+          .map(m => ({
           id: m.id,
           firstName: m.first_name,
           lastName: m.last_name,
@@ -753,6 +755,7 @@ export default function ActivitiesPage() {
     };
 
     members.forEach(m => {
+      if (m.archived) return;
       const rate = calculateEngagement(m);
       if (rate >= 80) engagementLevels.high++;
       else if (rate >= 50) engagementLevels.medium++;
@@ -1923,7 +1926,7 @@ export default function ActivitiesPage() {
         <FastCheckIn
           activity={activeActivity}
           date={selectedDate}
-          members={members}
+          members={members.filter(m => !m.archived)}
           onClose={() => setIsFastCheckInOpen(false)}
           onChange={async (memberId: string, status: QuickAttendanceStatus, reason?: string, service?: string) => {
             if (!selectedActivityId || !selectedDate) throw new Error("Aucune séance sélectionnée.");

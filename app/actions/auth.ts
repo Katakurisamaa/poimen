@@ -770,20 +770,97 @@ export async function updateIntegrationTeamMember(params: {
 export async function getFamilyLeadersList(familyId: string) {
   try {
     if (!isUuid(familyId)) return { success: false, error: "Famille invalide." };
-    const supabase = await createServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return { success: false, error: "Connectez-vous pour consulter les responsables." };
-    const { data: members, error } = await supabase
+    const supabase = await getServiceSupabase();
+
+    // 1. Fetch family to verify existence and retrieve creator information
+    const { data: family, error: famErr } = await supabase
+      .from("bergeries")
+      .select("id, name, creator_email, creator_first_name, creator_last_name, creator_civility, creator_role, berger_id, coordonnateur_id, archived")
+      .eq("id", familyId)
+      .maybeSingle();
+
+    if (famErr || !family || family.archived) {
+      return { success: false, error: "Famille introuvable ou archivée." };
+    }
+
+    // 2. Fetch all active members of this family
+    const { data: members, error: memErr } = await supabase
       .from("members")
       .select("id, email, civility, first_name, last_name, status")
       .eq("bergerie_id", familyId)
       .eq("archived", false);
 
-    if (error) throw error;
+    if (memErr) throw memErr;
 
-    const leaders = (members || []).filter((m: any) => {
+    const leadersMap = new Map<string, any>();
+
+    (members || []).forEach((m: any) => {
       const status = (m.status || "").toLowerCase().trim();
-      return status.includes("berger") || status.includes("second") || status.includes("responsable");
+      const isLeader =
+        isFamilyLeader(status) ||
+        status.includes("berger") ||
+        status.includes("second") ||
+        status.includes("responsable") ||
+        status.includes("coordonnateur") ||
+        (family.berger_id && m.id === family.berger_id) ||
+        (family.coordonnateur_id && m.id === family.coordonnateur_id);
+
+      if (isLeader && m.email) {
+        const emailKey = m.email.toLowerCase().trim();
+        leadersMap.set(emailKey, {
+          id: m.id,
+          email: emailKey,
+          civility: m.civility || "M.",
+          first_name: m.first_name,
+          last_name: m.last_name,
+          status: m.status
+        });
+      }
+    });
+
+    // 3. Fallback: If family creator exists and is not yet in leadersMap, add them
+    if (family.creator_email) {
+      const creatorKey = family.creator_email.toLowerCase().trim();
+      if (!leadersMap.has(creatorKey)) {
+        leadersMap.set(creatorKey, {
+          id: `creator-${family.id}`,
+          email: creatorKey,
+          civility: family.creator_civility || "M.",
+          first_name: family.creator_first_name || "Berger",
+          last_name: family.creator_last_name || "",
+          status: family.creator_role || "Berger"
+        });
+      }
+    }
+
+    const leaders = Array.from(leadersMap.values());
+
+    // Rank leaders: 1 = Berger, 2 = Second, 3 = Responsable, 4 = Coordonnateur, 5 = other
+    const getLeaderRank = (l: any) => {
+      const st = (l.status || "").toLowerCase().trim();
+      const isBergerById = family.berger_id && l.id === family.berger_id;
+      if (isBergerById || (st.includes("berger") && !st.includes("second"))) {
+        return 1;
+      }
+      if (st.includes("second")) {
+        return 2;
+      }
+      if (st.includes("responsable")) {
+        return 3;
+      }
+      if (st.includes("coordonnateur") || (family.coordonnateur_id && l.id === family.coordonnateur_id)) {
+        return 4;
+      }
+      return 5;
+    };
+
+    leaders.sort((a, b) => {
+      const rankA = getLeaderRank(a);
+      const rankB = getLeaderRank(b);
+      if (rankA !== rankB) return rankA - rankB;
+      const nameA = `${a.first_name || ""} ${a.last_name || ""}`.trim();
+      const nameB = `${b.first_name || ""} ${b.last_name || ""}`.trim();
+      return nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
     });
 
     return { success: true, leaders };
@@ -809,19 +886,37 @@ export async function createFamilyUserContext(params: {
     }
     const supabase = await getServiceSupabase();
     const cleanEmail = user.email.toLowerCase().trim();
-    const { data: member, error: memberError } = await supabase.from("members")
+
+    // 1. Check if member exists in members table
+    const { data: member } = await supabase.from("members")
       .select("status, first_name, last_name, bergeries!inner(id, church_id, status, archived)")
-      .eq("email", cleanEmail).eq("bergerie_id", params.familyId).eq("archived", false).single();
-    const family = member?.bergeries as any;
-    if (memberError || !member || !family || family.status !== "active" || family.archived || !isFamilyLeader(member.status)) {
-      return { success: false, error: "Aucun rôle de leader actif dans cette famille." };
+      .eq("email", cleanEmail).eq("bergerie_id", params.familyId).eq("archived", false).maybeSingle();
+
+    const memberFamily = member?.bergeries as any;
+    let resolvedRole = member?.status ? normalizeFamilyRole(member.status) : null;
+    let resolvedChurchId = memberFamily?.church_id;
+    let resolvedDisplayName = member ? `${member.first_name} ${member.last_name}`.trim() : null;
+
+    if (!member || !memberFamily || memberFamily.status !== "active" || memberFamily.archived || !isFamilyLeader(member.status)) {
+      // 2. Check if user is the registered creator of the family
+      const { data: famOnly } = await supabase.from("bergeries")
+        .select("id, church_id, status, archived, creator_email, creator_role, creator_first_name, creator_last_name")
+        .eq("id", params.familyId).maybeSingle();
+
+      if (famOnly && famOnly.status === "active" && !famOnly.archived && famOnly.creator_email?.toLowerCase().trim() === cleanEmail) {
+        resolvedRole = normalizeFamilyRole(famOnly.creator_role || "Berger");
+        resolvedChurchId = famOnly.church_id;
+        resolvedDisplayName = `${famOnly.creator_first_name || ""} ${famOnly.creator_last_name || ""}`.trim() || cleanEmail;
+      } else {
+        return { success: false, error: "Aucun rôle de leader actif dans cette famille." };
+      }
     }
     
     const access = {
-      role: normalizeFamilyRole(member.status),
-      churchId: family.church_id,
+      role: resolvedRole || "responsable de brebi",
+      churchId: resolvedChurchId || params.churchId,
       bergerieId: params.familyId,
-      displayName: `${member.first_name} ${member.last_name}`.trim(),
+      displayName: resolvedDisplayName || params.displayName || cleanEmail,
       churchData: null,
       familyData: null
     };

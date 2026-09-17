@@ -196,11 +196,12 @@ export default function ReportingPage() {
           .map((a: any) => a.id);
         if (!nonCulteActIds.includes("cdm")) nonCulteActIds.push("cdm");
 
-        const { data: members, error } = await supabase
+        const { data: membersRaw, error } = await supabase
           .from("members")
           .select("*")
-          .eq("bergerie_id", familyId)
-          .eq("archived", false);
+          .eq("bergerie_id", familyId);
+
+        const members = (membersRaw || []).filter((m: any) => !m.archived);
 
         if (!error && members) {
           totalMembres = members.length;

@@ -54,9 +54,15 @@
 .date svg { margin-top: 2px; }
 .date time::first-letter { text-transform: uppercase; }
 .serviceField > span, .editorField > span, .editorField > label { display: block; font-size: 12px; margin-bottom: 10px; color: var(--checkin-muted); }
-.services { display: flex; gap: 3px; padding: 4px; border: 1px solid var(--checkin-line); border-radius: 12px; background: var(--checkin-bg); }
-.services button { flex: 1; border: 1px solid transparent; min-height: 38px; border-radius: 8px; background: transparent; color: var(--checkin-muted); font-size: 12px; white-space: nowrap; }
-.services button[aria-pressed="true"] { background: color-mix(in srgb, var(--checkin-gold) 13%, var(--checkin-bg)); color: var(--checkin-gold); border-color: color-mix(in srgb, var(--checkin-gold) 22%, transparent); font-weight: 650; }
+.services { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--checkin-line); border-radius: 12px; background: var(--checkin-bg); }
+.services button { flex: 1; border: 1px solid transparent; min-height: 38px; border-radius: 8px; background: transparent; color: var(--checkin-muted); font-size: 12px; white-space: nowrap; cursor: pointer; user-select: none; touch-action: manipulation; transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+.services button:hover:not(:disabled) { color: var(--cream); background: rgba(255, 255, 255, 0.06); transform: translateY(-1px); }
+.services button:active:not(:disabled) { transform: scale(0.92) translateY(1px); transition-duration: 0.05s; }
+.services button[aria-pressed="true"] { background: color-mix(in srgb, var(--checkin-gold) 16%, var(--checkin-bg)); color: var(--checkin-gold); border-color: color-mix(in srgb, var(--checkin-gold) 35%, transparent); font-weight: 700; box-shadow: 0 2px 10px color-mix(in srgb, var(--checkin-gold) 25%, transparent); }
+.culteSummary { display: flex; flex-direction: column; gap: 8px; }
+.culteSummaryBadges { display: flex; flex-direction: column; gap: 5px; }
+.culteBadge { display: flex; align-items: center; justify-content: space-between; padding: 7px 11px; background: var(--checkin-panel); border: 1px solid var(--checkin-line); border-radius: 9px; font-size: 11px; color: var(--checkin-muted); }
+.culteBadge strong { color: var(--checkin-green); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .progressHeading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .progressHeading > span { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .progressHeading strong { font-size: 21px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
@@ -97,11 +103,21 @@
 .memberInfo h3 { font-size: 14px; font-weight: 550; line-height: 1.35; overflow-wrap: anywhere; }
 .memberInfo p { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .memberActions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
-.presentButton, .absentButton, .editButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border-radius: 9px; padding: 0 12px; font-size: 12px !important; font-weight: 550 !important; }
-.presentButton { background: color-mix(in srgb, var(--checkin-green) 10%, transparent); border: 1px solid color-mix(in srgb, var(--checkin-green) 25%, transparent); color: var(--checkin-green); }
-.presentButton:hover:not(:disabled) { background: color-mix(in srgb, var(--checkin-green) 20%, transparent); border-color: var(--checkin-green); }
+.culteGroup { display: inline-flex; align-items: center; gap: 6px; }
+.culteBtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; border-radius: 10px; padding: 0 12px; font-size: 12px !important; font-weight: 600 !important; background: color-mix(in srgb, var(--checkin-green) 12%, transparent); border: 1.5px solid color-mix(in srgb, var(--checkin-green) 30%, transparent); color: var(--checkin-green); white-space: nowrap; cursor: pointer; user-select: none; touch-action: manipulation; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease; }
+.culteBtn:hover:not(:disabled) { transform: translateY(-2px); background: color-mix(in srgb, var(--checkin-green) 24%, transparent); border-color: var(--checkin-green); color: #ffffff; box-shadow: 0 6px 16px color-mix(in srgb, var(--checkin-green) 35%, transparent); }
+.culteBtn:active:not(:disabled), .culteBtn[data-active="true"] { transform: scale(0.91) translateY(1px); background: var(--checkin-green) !important; border-color: var(--checkin-green) !important; color: #0b1f10 !important; box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 14px color-mix(in srgb, var(--checkin-green) 60%, transparent); transition-duration: 0.05s; }
+.culteBtn[data-dimmed="true"] { opacity: 0.4; filter: grayscale(0.4); }
+.culteBtn:focus-visible { outline: 2px solid var(--checkin-green); outline-offset: 2px; }
+.culteBtnFull { display: inline; }
+.culteBtnShort { display: none; }
+.presentButton, .absentButton, .editButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; border-radius: 10px; padding: 0 13px; font-size: 12px !important; font-weight: 600 !important; cursor: pointer; user-select: none; touch-action: manipulation; transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+.presentButton { background: color-mix(in srgb, var(--checkin-green) 12%, transparent); border: 1.5px solid color-mix(in srgb, var(--checkin-green) 30%, transparent); color: var(--checkin-green); box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); }
+.presentButton:hover:not(:disabled) { transform: translateY(-2px); background: color-mix(in srgb, var(--checkin-green) 24%, transparent); border-color: var(--checkin-green); color: #ffffff; box-shadow: 0 6px 16px color-mix(in srgb, var(--checkin-green) 35%, transparent); }
+.presentButton:active:not(:disabled) { transform: scale(0.91) translateY(1px); background: var(--checkin-green) !important; border-color: var(--checkin-green) !important; color: #0b1f10 !important; box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45); transition-duration: 0.05s; }
 .absentButton, .editButton { background: transparent; border: 1px solid var(--checkin-line); color: var(--checkin-muted); }
-.absentButton:hover:not(:disabled), .editButton:hover:not(:disabled) { color: var(--cream); background: var(--checkin-panel); }
+.absentButton:hover:not(:disabled), .editButton:hover:not(:disabled) { transform: translateY(-1.5px); color: var(--cream); background: var(--checkin-panel); border-color: color-mix(in srgb, var(--checkin-gold) 40%, transparent); }
+.absentButton:active:not(:disabled), .editButton:active:not(:disabled) { transform: scale(0.92) translateY(1px); background: color-mix(in srgb, var(--checkin-gold) 15%, transparent); transition-duration: 0.05s; }
 .editButton { border-color: transparent; }
 .green { color: var(--checkin-green); }
 .amber { color: var(--checkin-gold); }
@@ -174,6 +190,8 @@
   .member { flex-wrap: wrap; padding: 14px 0; }
   .memberActions { width: 100%; padding-left: 54px; }
   .memberActions > button { flex: 1; }
+  .culteGroup { display: flex; flex: 3; gap: 4px; }
+  .culteGroup > .culteBtn { flex: 1; min-width: 0; padding-inline: 6px; }
 }
 @media (max-width: 640px) {
   .dialog { width: 100%; height: 100dvh; margin: 0; border: 0; border-radius: 0; }
@@ -186,7 +204,7 @@
   .closeButton > span { display: none; }
   .workspace { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
   .context { flex-shrink: 0; gap: 12px; overflow: visible; padding: 16px 20px 12px; border-right: 0; border-bottom: 1px solid var(--checkin-line); }
-  .session > .eyebrow, .overview { display: none; }
+  .session > .eyebrow, .overview, .culteSummary { display: none; }
   .session h2 { font-size: 22px; margin: 0 0 5px; }
   .date { font-size: 11px; }
   .serviceField > span { display: none; }
@@ -209,6 +227,10 @@
   .memberInfo p { font-size: 10px; }
   .memberActions { width: auto; padding: 0; gap: 4px; }
   .memberActions > button { flex: none; padding-inline: 9px; font-size: 11px !important; }
+  .culteBtnFull { display: none; }
+  .culteBtnShort { display: inline; }
+  .culteGroup { flex: none; gap: 3px; }
+  .culteBtn { min-height: 38px; padding-inline: 7px; font-size: 11px !important; gap: 3px; }
   .presentButton { gap: 4px; }
   .footer { flex-wrap: wrap; gap: 10px; padding: 12px max(18px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); }
   .footer > .primaryButton { width: 100%; min-height: 45px; }
@@ -229,6 +251,8 @@
   .member { flex-wrap: wrap; }
   .memberActions { padding-left: 45px; width: 100%; }
   .memberActions > button { flex: 1; }
+  .culteGroup { width: 100%; }
+  .culteGroup > .culteBtn { flex: 1; }
   .filters button { font-size: 10px; gap: 4px; }
 }
 @media (prefers-reduced-motion: reduce) {

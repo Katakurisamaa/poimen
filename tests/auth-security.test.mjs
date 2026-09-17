@@ -72,11 +72,27 @@ test('anonymous calls cannot reach privileged data or create an account', async 
   const h = harness();
   for (const result of [
     await h.actions.getIntegrationDropdownList(churchId),
-    await h.actions.getFamilyLeadersList(churchId),
     await h.actions.adminSignUp('person@example.com', 'shared-code'),
     await h.actions.createFamilyUserContext({ userId, familyId: churchId }),
   ]) assert.equal(result.success, false);
   assert.equal(h.privilegedClients(), 0);
+});
+
+test('getFamilyLeadersList fetches family leaders for login dropdown', async () => {
+  const h = harness({
+    serviceResult: q => ({
+      data: q.table === 'bergeries'
+        ? { id: churchId, name: 'Famille Test', creator_email: 'leader@example.com', creator_first_name: 'Test', creator_last_name: 'Leader', creator_role: 'Berger', archived: false }
+        : q.table === 'members'
+        ? [{ id: userId, email: 'second@example.com', civility: 'M.', first_name: 'Second', last_name: 'Leader', status: 'Second du berger' }]
+        : null
+    })
+  });
+  const res = await h.actions.getFamilyLeadersList(churchId);
+  assert.equal(res.success, true);
+  assert.equal(res.leaders.length, 2);
+  assert.equal(res.leaders[0].status, 'Berger');
+  assert.equal(res.leaders[1].status, 'Second du berger');
 });
 
 test('a revoked context overrides a stale manager profile', async () => {
