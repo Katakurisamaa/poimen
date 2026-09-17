@@ -155,14 +155,11 @@ export default function FastCheckIn({ activity, date, members, onClose, onChange
     setSavingService(change.service || null);
     setFailure(null);
     setNotice("");
-    const focused = document.activeElement;
     try {
       await onChange(change.memberId, change.status, change.reason, change.service);
       setEditor(null);
       if (undo) { setReceipt(null); setNotice(`Dernière action annulée pour ${label(previous.member)}.`); }
       else setReceipt({ name: label(previous.member), status: change.status, service: change.service, previous: { memberId: previous.member.id, status: previous.status, reason: previous.reason, service: previous.service } });
-      // When a filtered row disappears, keep keyboard users inside the working area.
-      requestAnimationFrame(() => { if (focused instanceof HTMLElement && !focused.isConnected) searchRef.current?.focus({ preventScroll: true }); });
       return true;
     } catch {
       setFailure({ change, undo, message: "Le statut n’a pas été enregistré. Vérifiez votre connexion, puis réessayez." });
