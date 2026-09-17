@@ -375,8 +375,8 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                 { label: "Absence le dimanche", count: metrics.totalAbsences, pctTot: `${metrics.pctTotalAbsenceDimanche}%`, pctPart: "-" },
                 { label: "Absences justifiées", count: data.absences_justifiees, pctTot: `${metrics.pctTotalAbsencesJustifiees}%`, pctPart: "-" },
                 { label: "Absences non justifiées", count: data.absences_non_justifiees, pctTot: `${metrics.pctTotalAbsencesNonJustifiees}%`, pctPart: "-" },
-                { label: "STAR en service", count: data.star_en_service, pctTot: `${metrics.pctTotalStarEnService}%`, pctPart: "-" },
-                { label: "Nombre de STAR", count: data.nombre_total_star, pctTot: `${metrics.pctTotalStar}%`, pctPart: "-" },
+                { label: "S.T.A.R en service", count: data.star_en_service, pctTot: `${metrics.pctTotalStarEnService}%`, pctPart: "-" },
+                { label: "Nombre de S.T.A.R", count: data.nombre_total_star, pctTot: `${metrics.pctTotalStar}%`, pctPart: "-" },
                 { label: "Participation à la réunion hebdomadaire", count: data.reunion_hebdomadaire, pctTot: `${metrics.pctTotalReunionHebdo}%`, pctPart: "-" },
                 { label: "Nouveaux membres (depuis la semaine dernière)", count: data.nouveaux_membres, pctTot: `${metrics.pctTotalNouveauxMembres}%`, pctPart: "-" },
               ].map((row, idx) => (

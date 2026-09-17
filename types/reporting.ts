@@ -186,11 +186,11 @@ export function getKeyPointsSummary(data: FddReportingData, metrics: CalculatedM
 
   // 5. STAR en service
   if (data.star_en_service > 0) {
-    points.push(`${data.star_en_service} membre${data.star_en_service > 1 ? "s" : ""} STAR en service ce dimanche${data.nombre_total_star > 0 ? ` (sur ${data.nombre_total_star} ouvriers)` : ""}.`);
+    points.push(`${data.star_en_service} membre${data.star_en_service > 1 ? "s" : ""} S.T.A.R en service ce dimanche${data.nombre_total_star > 0 ? ` (sur ${data.nombre_total_star} membres S.T.A.R)` : ""}.`);
   } else if (data.nombre_total_star > 0) {
-    points.push(`Aucun membre STAR en service ce dimanche (${data.nombre_total_star} ouvriers dans la famille).`);
+    points.push(`Aucun membre S.T.A.R en service ce dimanche (${data.nombre_total_star} membres S.T.A.R dans la famille).`);
   } else {
-    points.push("Aucun ouvrier STAR répertorié dans la famille actuellement.");
+    points.push("Aucun membre S.T.A.R répertorié dans la famille actuellement.");
   }
 
   // 6. Nouveaux membres & Disciples

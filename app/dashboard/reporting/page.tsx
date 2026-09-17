@@ -1021,7 +1021,7 @@ export default function ReportingPage() {
             {/* Card: Absences & STAR */}
             <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14 }}>
-                Absences, STAR & Semaine
+                Absences, S.T.A.R & Semaine
               </h3>
 
               <div className="reporting-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -1048,7 +1048,7 @@ export default function ReportingPage() {
                 </div>
 
                 <div>
-                  <label className="form-label">STAR en service ce dimanche</label>
+                  <label className="form-label">S.T.A.R en service ce dimanche</label>
                   <input
                     type="number"
                     min="0"
@@ -1130,7 +1130,7 @@ export default function ReportingPage() {
                 </div>
 
                 <div>
-                  <label className="form-label">Total STAR dans la famille</label>
+                  <label className="form-label">Total S.T.A.R dans la famille</label>
                   <input
                     type="number"
                     min="0"
