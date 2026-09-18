@@ -1,5 +1,12 @@
 /* Shared rhythm for the authenticated workspace. Existing business views stay intact. */
 .experience-shell .main-area { transition: none; }
+/* Keep the content aligned with the rail as soon as it is rendered. */
+@media (min-width: 1025px) {
+  .experience-shell:has(> aside[aria-label="Navigation principale"]) > .main-area {
+    margin-left: 260px;
+    width: calc(100% - 260px);
+  }
+}
 .experience-shell .page-content { padding: 28px 32px 42px; }
 .experience-shell .page-title { font-size: clamp(24px, 3vw, 32px) !important; letter-spacing: -.04em !important; font-weight: 650 !important; text-shadow: none !important; }
 .experience-shell :is(h2,h3,h4) { text-shadow: none; }
@@ -415,4 +422,16 @@ body[data-theme="dark"] .member-action-btn-green:hover {
 
 .member-progress-fill.rate-low {
   background: linear-gradient(90deg, #dc2626, #ef4444);
+}
+
+@media (max-width: 1024px) {
+  .member-card-heading { flex-wrap: wrap; }
+  .member-card-heading > div:first-child { min-width: min(180px, 100%); }
+  .member-card-actions { margin-left: auto !important; }
+  .member-action-btn { width: 44px; height: 44px; }
+  .member-phone-link { min-height: 44px; overflow-wrap: anywhere; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .member-card-item, .member-card-avatar, .member-action-btn, .member-progress-fill { transition: none; }
+  .member-card-item:hover, .member-card-item:hover .member-card-avatar, .member-action-btn:hover { transform: none; }
 }

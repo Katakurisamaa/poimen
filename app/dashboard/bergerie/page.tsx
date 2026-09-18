@@ -67,6 +67,29 @@ interface Activity {
 }
 
 const INITIAL_DATA: M[] = [];
+const createEmptyMember = (): Partial<M> => ({
+    civility: "M.",
+    firstName: "",
+    lastName: "",
+    age: "26-30 ans",
+    phone: "",
+    status: "Brebi",
+    email: "",
+    attendance: {},
+    date_entree: new Date().toISOString().split('T')[0],
+    date_anniversaire: "",
+    adresse: "",
+    profession: "",
+    etat_civil: "Célibataire",
+    a_enfants: false,
+    nombre_enfants: 0,
+    est_baptise: false,
+    formations: [],
+    est_star: false,
+    departement_star: "",
+    est_cdm: false,
+    pilote_cdm: ""
+  });
 
 const getRoleBadgeInfo = (status: string) => {
   const s = (status || "").toLowerCase().trim();
@@ -88,7 +111,7 @@ const getAvatarClass = (status: string) => {
 
 const getEngagementRateClass = (engagement: number) => {
   if (engagement >= 75) return "rate-high";
-  if (engagement >= 40) return "rate-medium";
+  if (engagement >= 45) return "rate-medium";
   return "rate-low";
 };
 
@@ -371,29 +394,7 @@ function BergeriePage() {
     setLoading(false);
   };
 
-  const [newMember, setNewMember] = useState<Partial<M>>({
-    civility: "M.",
-    firstName: "",
-    lastName: "",
-    age: "26-30 ans",
-    phone: "",
-    status: "Brebi",
-    email: "",
-    attendance: {},
-    date_entree: new Date().toISOString().split('T')[0],
-    date_anniversaire: "",
-    adresse: "",
-    profession: "",
-    etat_civil: "Célibataire",
-    a_enfants: false,
-    nombre_enfants: 0,
-    est_baptise: false,
-    formations: [],
-    est_star: false,
-    departement_star: "",
-    est_cdm: false,
-    pilote_cdm: ""
-  });
+  const [newMember, setNewMember] = useState<Partial<M>>(createEmptyMember);
 
   // Helpers for calculation
   const getDaysOfPeriodForActivity = (year: number, month: number, act: Activity) => {
@@ -1018,7 +1019,7 @@ function BergeriePage() {
           <div className="mobile-scroll-x" style={{ gap: 8 }}>
             {!showCorbeille && (
               <>
-                <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
+                <button className="btn btn-primary" onClick={() => { setNewMember(createEmptyMember()); setIsConseillerChecked(false); setIsAddModalOpen(true); }}>
                   <Plus size={14} /> Nouveau Membre
                 </button>
               </>
@@ -1394,13 +1395,13 @@ function BergeriePage() {
                 className={`member-card-item ${isMainLeader ? "leader-card" : ""}`}
               >
                 {/* Top Row: Avatar + Identity + Role + Actions */}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, justifyContent: "space-between" }}>
+                <div className="member-card-heading" style={{ display: "flex", alignItems: "flex-start", gap: 12, justifyContent: "space-between" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
                     <div className={`member-card-avatar ${avatarClass}`}>
                       {m.firstName?.[0] || ""}{m.lastName?.[0] || ""}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cream)", lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cream)", lineHeight: 1.25, overflowWrap: "anywhere" }}>
                         <PersonButton person={m} onClick={() => personView.openPerson(m.id)} />
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
@@ -1423,7 +1424,7 @@ function BergeriePage() {
 
                   {/* Actions */}
                   {canManageMembers && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 4 }}>
+                    <div className="member-card-actions" style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 4 }}>
                       {showCorbeille ? (
                         <>
                           <button 
@@ -1471,7 +1472,7 @@ function BergeriePage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", marginTop: 12, flexWrap: "wrap" }}>
                   {m.civility && <span>{m.civility}</span>}
                   {m.civility && m.age && <span style={{ opacity: 0.5 }}>•</span>}
-                  {m.age && <span>{m.age} ans</span>}
+                  {m.age && <span>{/\bans\b/i.test(m.age) ? m.age : `${m.age} ans`}</span>}
                   {m.phone && (
                     <>
                       <span style={{ opacity: 0.5 }}>•</span>

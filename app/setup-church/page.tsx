@@ -1,5 +1,7 @@
 "use client";
 
+import PoimenLogo from "@/components/brand/PoimenLogo";
+
 import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Church, MapPin, Key, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
@@ -136,7 +138,7 @@ function SetupChurchContent() {
           <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--gold-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", margin: "0 auto 16px" }}>
             <Church size={32} />
           </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 32, fontWeight: 700, color: "var(--gold-light)", marginBottom: 8 }}>Poimén</h1>
+          <h1 style={{ margin: "0 0 18px", lineHeight: 1 }}><PoimenLogo  /></h1>
           <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>Enregistrez votre Église</h2>
           <p style={{ fontSize: 13, color: "var(--muted)" }}>
             Vous avez été invité à rejoindre la plateforme. Remplissez les informations ci-dessous pour configurer votre église.

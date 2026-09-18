@@ -9,6 +9,7 @@ import { getNavigation, isNavigationActive, roleLabel, type NavItem } from "@/li
 import { useWorkspace } from "@/lib/use-workspace";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import styles from "@/components/experience/Experience.module.css";
+import PoimenLogo from "@/components/brand/PoimenLogo";
 
 const ICONS = { home: House, people: Users, followup: ListChecks, calendar: CalendarDays, report: FileText, team: Users, outreach: Globe, profile: UserRound, admin: ShieldCheck, church: Church };
 type Props = { mobileOpen?: boolean; onToggleMobile?: () => void };
@@ -55,7 +56,7 @@ function Navigation({ mobileOpen, onToggleMobile }: Props) {
   };
   return <>
     <aside className={`${styles.rail} ${styles.ui}`} aria-label="Navigation principale">
-      <Link className={styles.logo} href={primary[0]?.href || "/dashboard/affectation"}>poimén<span>PRENDRE SOIN. AVANCER ENSEMBLE.</span></Link>
+      <Link className={styles.brandLink} href={primary[0]?.href || "/dashboard/affectation"} aria-label="Poimén — accueil de votre espace"><PoimenLogo decorative /></Link>
       <div className={styles.railContext}><Church size={17} /><span>{workspace.churchName}</span></div>
       <nav><span className={styles.navCaption}>AU QUOTIDIEN</span>{links(primary)}<span className={styles.navCaption}>VOTRE ESPACE</span>{links(secondary)}</nav>
       <div className={styles.railAccount}><span className={styles.avatar}>{workspace.name.split(" ").map(part => part[0]).slice(0, 2).join("") || "P"}</span><div><strong>{workspace.name || "Mon compte"}</strong><small>{roleLabel(workspace.role)}</small></div><button type="button" className={styles.iconButton} aria-label="Se déconnecter" disabled={signingOut} onClick={() => void signOut()}><LogOut size={18} /></button></div>
@@ -65,7 +66,8 @@ function Navigation({ mobileOpen, onToggleMobile }: Props) {
       <button type="button" className={open || secondary.some(active) ? styles.selected : ""} aria-label="Plus de rubriques" aria-haspopup="dialog" aria-expanded={open} onClick={() => setMoreOpen(true)}><MoreHorizontal size={22} /><span>Plus</span></button>
     </nav>
     <dialog ref={dialogRef} className={`${styles.menuDialog} ${styles.ui}`} aria-labelledby="more-title" onCancel={event => { event.preventDefault(); close(); }}>
-      <div className={styles.sectionHeading}><div><span className={styles.kicker}>VOTRE ESPACE</span><h2 id="more-title">Toutes les rubriques</h2></div><button type="button" className={styles.iconButton} aria-label="Fermer le menu" onClick={close} autoFocus><X size={20} /></button></div>
+      <PoimenLogo />
+      <div className={styles.sectionHeading} style={{ marginTop: 24 }}><div><span className={styles.kicker}>VOTRE ESPACE</span><h2 id="more-title">Toutes les rubriques</h2></div><button type="button" className={styles.iconButton} aria-label="Fermer le menu" onClick={close} autoFocus><X size={20} /></button></div>
       <nav aria-label="Toutes les rubriques">{links(primary, true)}<hr />{links(secondary, true)}</nav>
       <button type="button" className={styles.secondary} disabled={signingOut} onClick={() => void signOut()}><LogOut size={17} />{signingOut ? "Déconnexion…" : "Se déconnecter"}</button>
     </dialog>

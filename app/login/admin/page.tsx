@@ -1,5 +1,7 @@
 "use client";
 
+import PoimenLogo from "@/components/brand/PoimenLogo";
+
 import { useState } from "react";
 import { Eye, EyeOff, LogIn, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -76,7 +78,7 @@ export default function AdminLoginPage() {
           <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--gold-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", margin: "0 auto 12px" }}>
             <ShieldCheck size={28} />
           </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 32, fontWeight: 700, color: "var(--gold-light)", margin: 0 }}>Poimén</h1>
+          <h1 style={{ margin: "0 0 18px", lineHeight: 1 }}><PoimenLogo  /></h1>
           <p style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 3, textTransform: "uppercase", marginTop: 6 }}>Administration Centrale</p>
         </div>
 

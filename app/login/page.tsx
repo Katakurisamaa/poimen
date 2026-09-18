@@ -1,5 +1,7 @@
 "use client";
 
+import PoimenLogo from "@/components/brand/PoimenLogo";
+
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, LogIn, MapPin, AlertCircle, ShieldCheck, Users, UserRoundCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -356,7 +358,7 @@ export default function LoginPage() {
 
       <div style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }} className="fade-in">
         <div style={{ textAlign: "center", marginBottom: 44 }}>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 48, fontWeight: 700, color: "var(--gold-light)", letterSpacing: "-0.02em", margin: 0 }}>Poimén</h1>
+          <h1 style={{ margin: "0 0 18px", lineHeight: 1 }}><PoimenLogo size="hero" /></h1>
           <p style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 3, textTransform: "uppercase", marginTop: 6 }}>Famille de Disciple</p>
         </div>
 

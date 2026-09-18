@@ -1,5 +1,7 @@
 "use client";
 
+import PoimenLogo from "@/components/brand/PoimenLogo";
+
 import { useState, useEffect } from "react";
 import { Search, MapPin, Lock, ChevronRight, X, Loader2, Church, Flame, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -186,20 +188,7 @@ export default function LandingPage() {
             <div style={{ width: 1, height: 40, background: "linear-gradient(180deg, transparent, var(--gold))" }} />
           </div>
           
-          <h1 style={{ 
-            fontFamily: "var(--font-display)", 
-            fontSize: 66, 
-            fontWeight: 800, 
-            marginBottom: 8,
-            letterSpacing: "-0.01em",
-            background: "linear-gradient(135deg, #FFF6D6 0%, #D4AF37 55%, #AA771C 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            filter: "drop-shadow(0 2px 25px rgba(212,175,55,0.18))"
-          }}>
-            Poimén
-          </h1>
+          <h1 style={{ margin: "0 0 18px", lineHeight: 1 }}><PoimenLogo size="hero" signature /></h1>
           
           <p style={{ 
             fontSize: 11, 
