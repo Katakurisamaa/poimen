@@ -24,7 +24,7 @@ export interface FddReportingData {
   absences_non_justifiees: number;
   star_en_service: number;
   nombre_total_star: number;
-  reunion_hebdomadaire: number;
+  reunion_hebdomadaire: number; // Participation aux sorties d'évangélisation de la semaine (lundi au dimanche)
   nouveaux_membres: number;
 
   // Disciples
@@ -200,6 +200,11 @@ export function getKeyPointsSummary(data: FddReportingData, metrics: CalculatedM
     points.push(`Engagement des faiseurs de disciples : ${data.taux_participation_disciples || 0}% de présence (${data.nombre_disciples} FDD répertoriés).`);
   } else {
     points.push("Aucun nouveau membre enregistré cette semaine.");
+  }
+
+  // 7. Sorties d'évangélisation
+  if (data.reunion_hebdomadaire > 0) {
+    points.push(`Mobilisation pour l'évangélisation : ${data.reunion_hebdomadaire} participant${data.reunion_hebdomadaire > 1 ? "s" : ""} aux sorties cette semaine (${metrics.pctTotalReunionHebdo}% des membres).`);
   }
 
   return points;

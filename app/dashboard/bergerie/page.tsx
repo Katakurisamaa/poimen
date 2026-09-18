@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { 
   Search, Plus, Grid3X3, List, UserMinus, UserPlus, 
@@ -13,6 +13,10 @@ import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
+import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
+import { usePeopleView } from "@/lib/use-people-view";
+import { useFeedback } from "@/components/experience/FeedbackProvider";
+import PeopleNavigation from "@/components/experience/PeopleNavigation";
 
 
 const STATUS_OPTIONS = ["Brebi", "Faiseur de Disciple", "Responsable", "Second", "Berger"];
@@ -64,7 +68,9 @@ interface Activity {
 
 const INITIAL_ACTIVITIES: Activity[] = [
   { id: "culte", name: "Culte du Dimanche", day: 0, startTime: "10:00", endTime: "12:30" },
-  { id: "cdm", name: "CDM (Cellule Alpha)", day: 4, startTime: "19:00", endTime: "20:30" },
+  { id: "cdm", name: "CDM", day: 4, startTime: "19:00", endTime: "20:30" },
+  { id: "evangelisation", name: "Évangélisation", day: 6, startTime: "15:00", endTime: "17:00" },
+  { id: "teach_and_pray", name: "Teach & Pray", day: 2, startTime: "19:30", endTime: "21:00" },
 ];
 
 const INITIAL_DATA: M[] = [];
@@ -75,7 +81,11 @@ const getEngagementColor = (engagement: number) => {
   return "var(--red)";
 };
 
-export default function BergeriePage() {
+function BergeriePage() {
+  const { notify, confirm } = useFeedback();
+  const saveLock = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState("");
   const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (
       [46, 8, 9, 27, 13].includes(e.keyCode) ||
@@ -162,6 +172,7 @@ export default function BergeriePage() {
   }, []);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  useEffect(() => { if (isAddModalOpen) setFormError(""); }, [isAddModalOpen]);
   const [isConseillerModalOpen, setIsConseillerModalOpen] = useState(false);
   const [conseillerSource, setConseillerSource] = useState<"existing" | "new">("existing");
   const [selectedConseillerId, setSelectedConseillerId] = useState<string>("");
@@ -548,6 +559,8 @@ export default function BergeriePage() {
     return (a.firstName || "").localeCompare(b.firstName || "", "fr", { sensitivity: "base" });
   });
 
+  const personView = usePeopleView(filtered);
+
   const updateStatus = async (id: string, newStatus: string) => {
     if (userRole === "Brebi" || userRole === "brebi") return;
     
@@ -597,20 +610,25 @@ export default function BergeriePage() {
 
   const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saveLock.current) return;
+    saveLock.current = true;
+    setIsSaving(true);
+    setFormError("");
+    try {
     if (!familyId) return;
 
     // Uniqueness checks
     if (newMember.status === "Berger") {
       const exists = data.find(m => m.status === "Berger" && m.id !== newMember.id);
       if (exists) {
-        alert("Attention : Une famille ne peut avoir qu'un seul Berger.");
+        setFormError("Attention : Une famille ne peut avoir qu'un seul Berger.");
         return;
       }
     }
     if (newMember.status === "Second") {
       const exists = data.find(m => m.status === "Second" && m.id !== newMember.id);
       if (exists) {
-        alert("Attention : Une famille ne peut avoir qu'un seul Second.");
+        setFormError("Attention : Une famille ne peut avoir qu'un seul Second.");
         return;
       }
     }
@@ -618,7 +636,7 @@ export default function BergeriePage() {
     if (isConseillerChecked) {
       const existingConseiller = data.find(m => m.is_conseiller && m.id !== newMember.id);
       if (existingConseiller) {
-        alert(`Attention : ${existingConseiller.firstName} ${existingConseiller.lastName} est déjà le Conseiller de cette bergerie. Retirez-lui ce rôle d'abord.`);
+        setFormError(`Attention : ${existingConseiller.firstName} ${existingConseiller.lastName} est déjà le Conseiller de cette bergerie. Retirez-lui ce rôle d'abord.`);
         return;
       }
     }
@@ -700,7 +718,8 @@ export default function BergeriePage() {
     const { data: inserted, error } = result;
 
     if (error) {
-      alert("Erreur : " + error.message);
+      setFormError("Erreur : " + error.message);
+        return;
     } else if (inserted) {
       const m: M = {
         id: inserted.id,
@@ -740,7 +759,8 @@ export default function BergeriePage() {
         setData([m, ...data]);
       }
       
-      setIsAddModalOpen(false);
+      notify("La fiche a bien été enregistrée.");
+        setIsAddModalOpen(false);
       setIsConseillerChecked(false);
       setNewMember({
         civility: "M.",
@@ -765,6 +785,12 @@ export default function BergeriePage() {
         est_cdm: false,
         pilote_cdm: ""
       });
+    }
+    } catch {
+      setFormError("L’enregistrement a échoué. Votre saisie est conservée ; vérifiez votre connexion et réessayez.");
+    } finally {
+      saveLock.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -793,7 +819,7 @@ export default function BergeriePage() {
   };
 
   const handleDeleteMember = async (id: string) => {
-    if (!confirm("Voulez-vous déplacer ce membre dans la corbeille ?")) return;
+    if (!await confirm("Voulez-vous déplacer ce membre dans la corbeille ?")) return;
 
     const { error } = await supabase
       .from("members")
@@ -801,7 +827,7 @@ export default function BergeriePage() {
       .eq("id", id);
 
     if (error) {
-      alert("Erreur lors de l'archivage : " + error.message);
+      notify("Erreur lors de l'archivage : " + error.message);
     } else {
       setData(prev => prev.map(m => m.id === id ? { ...m, archived: true } : m));
     }
@@ -814,14 +840,14 @@ export default function BergeriePage() {
       .eq("id", id);
 
     if (error) {
-      alert("Erreur lors de la restauration : " + error.message);
+      notify("Erreur lors de la restauration : " + error.message);
     } else {
       setData(prev => prev.map(m => m.id === id ? { ...m, archived: false } : m));
     }
   };
 
   const handlePermanentDelete = async (id: string) => {
-    if (!confirm("⚠️ Suppression DÉFINITIVE. Cette action est irréversible. Continuer ?")) return;
+    if (!await confirm("Suppression définitive. Cette action est irréversible. Voulez-vous continuer ?")) return;
 
     try {
       // 1. Fetch the member's details before deletion
@@ -933,7 +959,7 @@ export default function BergeriePage() {
       .eq("id", id);
 
     if (error) {
-      alert("Erreur lors de la suppression : " + error.message);
+      notify("Erreur lors de la suppression : " + error.message);
     } else {
       setData(prev => prev.filter(m => m.id !== id));
     }
@@ -949,14 +975,17 @@ export default function BergeriePage() {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
+      <PeopleNavigation current="members" />
+      {personView.requestedId && !personView.selected && !loading && <div className="ux-list-context"><span>Cette fiche n’est pas disponible dans la liste actuelle.</span><button type="button" onClick={personView.closePerson}>Fermer</button></div>}
+      {personView.selected && <PersonPanel person={personView.selected} kind="member" onClose={personView.closePerson} onContinue={canManageMembers ? () => { setNewMember(personView.selected!); setIsConseillerChecked(!!personView.selected!.is_conseiller); setIsAddModalOpen(true); } : undefined} continueLabel="Modifier les informations" />}
       <div className="page-header">
         <div>
-          <h2 className="page-title">{showCorbeille ? "Corbeille" : "Bergerie"}</h2>
+          <h2 className="page-title">{showCorbeille ? "Corbeille" : "Membres"}</h2>
           <p style={{ fontSize:12, color:"var(--muted)", marginTop:4 }}>
             {showCorbeille 
               ? `${archivedMembers.length} membre(s) archivé(s)`
               : hasActiveFilters || search
-                ? `${filtered.length} membre(s) trouvé(s) sur ${activeMembers.length} fidèles`
+                ? `${filtered.length} membre(s) trouvé(s) sur ${activeMembers.length} membres`
                 : `${activeMembers.length} membres actifs dans la bergerie`
             }
           </p>
@@ -1237,7 +1266,7 @@ export default function BergeriePage() {
                     <tr key={m.id} className={isMainLeader ? "leader-row" : ""}>
                       <td style={{ color:"var(--muted)", fontSize:12 }}>{m.civility}</td>
                       <td>
-                        <div style={{ fontWeight:600 }}>{m.firstName} {m.lastName}</div>
+                        <div style={{ fontWeight:600 }}><PersonButton person={m} onClick={() => personView.openPerson(m.id)} /></div>
                       </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1385,7 +1414,7 @@ export default function BergeriePage() {
                 </div>
                 <div style={{ marginBottom:12 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ fontWeight:700, fontSize:15 }}>{m.firstName} {m.lastName}</div>
+                    <div style={{ fontWeight:700, fontSize:15 }}><PersonButton person={m} onClick={() => personView.openPerson(m.id)} /></div>
                     <span className="badge badge-sky" style={{ fontSize: 9 }}>{m.status.toUpperCase()}</span>
                   </div>
                   <div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{m.civility} · {m.age} · {m.phone}</div>
@@ -1707,7 +1736,7 @@ export default function BergeriePage() {
                               {m.firstName[0]}{m.lastName[0]}
                             </div>
                             <div>
-                              <span style={{ color: "var(--gold-light)" }}>{m.lastName.toUpperCase()}</span> {m.firstName}
+                              <PersonButton person={m} onClick={() => personView.openPerson(m.id)} />
                             </div>
                           </div>
                         </td>
@@ -2020,6 +2049,10 @@ export default function BergeriePage() {
             </div>
             
             <form onSubmit={handleSaveMember} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {formError && <p className="ux-form-error" role="alert">{formError}</p>}
+              <p className="ux-form-help">Commencez par l’essentiel. Les autres informations peuvent être complétées plus tard.</p>
+              <fieldset disabled={isSaving} style={{ display: "contents", border: 0 }}>
+
               <div style={{ borderBottom: "1px dashed rgba(212,175,55,0.15)", paddingBottom: 12, marginBottom: 4 }}>
                 <h4 style={{ fontSize: 12, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700 }}>1. Informations Personnelles</h4>
               </div>
@@ -2069,7 +2102,8 @@ export default function BergeriePage() {
                 </div>
               </div>
 
-              <div className="form-grid-2">
+              <details className="ux-extra-fields" open={!!newMember.id} onInvalidCapture={event => { event.currentTarget.open = true; }}><summary>Compléter le profil et le parcours</summary><div className="ux-extra-content">
+<div className="form-grid-2">
                 <div>
                   <label className="label">Profession</label>
                   <input className="input" value={newMember.profession || ""} onChange={e => setNewMember({...newMember, profession: e.target.value})} placeholder="Ex: Enseignant, Ingénieur..." />
@@ -2279,11 +2313,16 @@ export default function BergeriePage() {
                 </div>
               </div>
 
-              <div style={{ marginTop: 8, display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              
+</div></details>
+
+<div style={{ marginTop: 8, display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-outline" onClick={() => setIsAddModalOpen(false)}>Annuler</button>
-                <button type="submit" className="btn btn-primary">Enregistrer</button>
+                <button type="submit" className="btn btn-primary" disabled={isSaving}>{isSaving ? "Enregistrement…" : "Enregistrer"}</button>
               </div>
-            </form>
+            
+              </fieldset>
+</form>
           </div>
         </div>,
         document.body
@@ -2310,9 +2349,9 @@ export default function BergeriePage() {
                     </p>
                     <button className="btn btn-outline" style={{ marginTop: 14, borderColor: "var(--red)", color: "var(--red)", fontSize: 11 }}
                       onClick={async () => {
-                        if (!confirm("Retirer ce conseiller ?")) return;
+                        if (!await confirm("Voulez-vous retirer ce conseiller ?")) return;
                         const { error } = await supabase.from("members").update({ is_conseiller: false }).eq("id", currentConseiller.id);
-                        if (error) { alert("Erreur : " + error.message); return; }
+                        if (error) { notify("Erreur : " + error.message); return; }
                         setData(prev => prev.map(m => m.id === currentConseiller.id ? { ...m, is_conseiller: false } : m).filter(m => m.status !== "Externe"));
                       }}
                     >Désassigner le conseiller</button>
@@ -2350,7 +2389,7 @@ export default function BergeriePage() {
                           onClick={async () => {
                             if (!selectedConseillerId) return;
                             const { error } = await supabase.from("members").update({ is_conseiller: true }).eq("id", selectedConseillerId);
-                            if (error) { alert("Erreur : " + error.message); return; }
+                            if (error) { notify("Erreur : " + error.message); return; }
                             setData(prev => prev.map(m => m.id === selectedConseillerId ? { ...m, is_conseiller: true } : m));
                             setIsConseillerModalOpen(false);
                             setSelectedConseillerId("");
@@ -2400,7 +2439,7 @@ export default function BergeriePage() {
                         <button className="btn btn-outline" onClick={() => setIsConseillerModalOpen(false)}>Annuler</button>
                         <button className="btn btn-primary" style={{ background: "var(--sky)" }}
                           onClick={async () => {
-                            if (!newMember.firstName || !newMember.lastName) { alert("Veuillez remplir le nom et prénom."); return; }
+                            if (!newMember.firstName || !newMember.lastName) { notify("Veuillez remplir le nom et prénom."); return; }
                             if (!familyId) return;
                             const { data: inserted, error } = await supabase.from("members").insert({
                               bergerie_id: familyId,
@@ -2414,7 +2453,7 @@ export default function BergeriePage() {
                               is_conseiller: true,
                               attendance: {}
                             }).select().single();
-                            if (error) { alert("Erreur : " + error.message); return; }
+                            if (error) { notify("Erreur : " + error.message); return; }
                             if (inserted) {
                               setData(prev => [...prev, {
                                 id: inserted.id, civility: inserted.civility,
@@ -2581,4 +2620,8 @@ export default function BergeriePage() {
       `}</style>
     </div>
   );
+}
+
+export default function Page() {
+  return <Suspense fallback={<p role="status">Chargement…</p>}><BergeriePage /></Suspense>;
 }

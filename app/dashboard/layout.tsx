@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import { FeedbackProvider } from "@/components/experience/FeedbackProvider";
+import "./experience.css";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
@@ -244,9 +246,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isFullWidth = !isAdmin && !hasFamily && !isSuperAdmin && !isIntegration;
 
   return (
-    <div className="app-shell">
-      {/* Mobile overlay */}
-      <div className={`mobile-overlay ${mobileOpen ? "show" : ""}`} onClick={() => setMobileOpen(false)} />
+    <FeedbackProvider><div className="app-shell experience-shell">
+
 
       <Sidebar mobileOpen={mobileOpen} onToggleMobile={() => setMobileOpen(false)} />
 
@@ -264,6 +265,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           #sidebar-close-btn { display: flex !important; }
         }
       `}</style>
-    </div>
+    </div></FeedbackProvider>
   );
 }

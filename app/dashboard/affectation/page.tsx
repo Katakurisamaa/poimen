@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { Suspense, useRef, useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { 
   Search, Plus, UserPlus, Filter, CheckCircle2, XCircle, X, 
@@ -11,6 +11,10 @@ import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers, listIntegrationTeam } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
+import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
+import { usePeopleView } from "@/lib/use-people-view";
+import { useFeedback } from "@/components/experience/FeedbackProvider";
+
 
 
 interface Guest {
@@ -72,10 +76,15 @@ interface Guest {
 const MOCK_RESPONSIBLES = ["Non assigné"];
 const STATUS_OPTIONS = ["Brebi", "Faiseur de Disciple", "Responsable", "Second", "Berger"];
 
-export default function AffectationPage() {
+function AffectationPage() {
+  const { notify, confirm } = useFeedback();
+  const saveLock = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState("");
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  useEffect(() => { if (isAddModalOpen) setFormError(""); }, [isAddModalOpen]);
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -91,6 +100,7 @@ export default function AffectationPage() {
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [guests, setGuests] = useState<Guest[]>([]);
+  const personView = usePeopleView(guests);
   const [responsibles, setResponsibles] = useState<string[]>(["Non assigné"]);
   const [isConseiller, setIsConseiller] = useState(false);
   const [counselors, setCounselors] = useState<{ id: string; display_name: string; email: string }[]>([]);
@@ -200,7 +210,7 @@ export default function AffectationPage() {
     if (!familyId) return;
     const { data, error } = await supabase
       .from("members")
-      .select("first_name, last_name, status, email")
+      .select("first_name, last_name, status, email, archived")
       .eq("bergerie_id", familyId);
     
     if (!error && data) {
@@ -209,7 +219,7 @@ export default function AffectationPage() {
       const userRoleVal = (userInfo.role || "").toLowerCase();
       const isLeader = userRoleVal.includes("berger") || userRoleVal.includes("second") || userRoleVal.includes("responsable");
       
-      const me = data.find(m => m.email?.toLowerCase() === userEmail);
+      const me = data.find(m => !m.archived && m.email?.toLowerCase() === userEmail);
       if (!me && isLeader && userEmail) {
         const res = await autoAddLeaderToMembers({
           bergerie_id: familyId,
@@ -227,6 +237,7 @@ export default function AffectationPage() {
       }
 
       const leaders = data.filter(m => {
+        if (m.archived || m.status === "Externe") return false;
         const s = (m.status || "").toLowerCase();
         return s.includes("berger") || s.includes("second") || s.includes("responsable");
       });
@@ -328,7 +339,7 @@ export default function AffectationPage() {
       .eq("id", guestId);
     
     if (error) {
-      alert("Erreur lors de l'affectation : " + error.message);
+      notify("Erreur lors de l'affectation : " + error.message);
     } else {
       fetchGuests();
     }
@@ -342,7 +353,7 @@ export default function AffectationPage() {
           .update({ assigned_to: userId })
           .eq("id", guestId);
         if (error) {
-          alert("Erreur lors de l'affectation : " + error.message);
+          notify("Erreur lors de l'affectation : " + error.message);
         } else {
           setGuests(prev => prev.map(g => g.id === guestId ? { ...g, assigned_to: userId } : g));
         }
@@ -354,7 +365,7 @@ export default function AffectationPage() {
           .update({ responsible: userName })
           .eq("id", guestId);
         if (error) {
-          alert("Erreur lors de l'affectation : " + error.message);
+          notify("Erreur lors de l'affectation : " + error.message);
         } else {
           setGuests(prev => prev.map(g => g.id === guestId ? { ...g, responsible: userName } : g));
         }
@@ -441,6 +452,11 @@ export default function AffectationPage() {
 
   const handleSaveGuest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saveLock.current) return;
+    saveLock.current = true;
+    setIsSaving(true);
+    setFormError("");
+    try {
     if (!familyId && !churchId) return;
 
     const payload: any = {
@@ -489,9 +505,11 @@ export default function AffectationPage() {
         .eq("id", editingGuestId);
 
       if (error) {
-        alert("Erreur lors de la modification : " + error.message);
+        setFormError("Erreur lors de la modification : " + error.message);
+        return;
       } else {
         fetchGuests();
+        notify("La fiche a bien été enregistrée.");
         setIsAddModalOpen(false);
         setEditingGuestId(null);
       }
@@ -504,9 +522,11 @@ export default function AffectationPage() {
         .single();
 
       if (error) {
-        alert("Erreur lors de l'ajout : " + error.message);
+        setFormError("Erreur lors de l'ajout : " + error.message);
+        return;
       } else if (inserted) {
         fetchGuests();
+        notify("La fiche a bien été enregistrée.");
         setIsAddModalOpen(false);
       }
     }
@@ -533,6 +553,12 @@ export default function AffectationPage() {
       commentaire: "",
       famille_disciple: "AUCUNE",
     });
+    } catch {
+      setFormError("L’enregistrement a échoué. Votre saisie est conservée ; vérifiez votre connexion et réessayez.");
+    } finally {
+      saveLock.current = false;
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteGuest = async (guestId: string) => {
@@ -540,7 +566,7 @@ export default function AffectationPage() {
     const isFamilyRole = !isIntegrationOrCounselor && userRoleClean !== "super_admin";
     
     if (isFamilyRole && guest && guest.church_id) {
-      if (!window.confirm("Voulez-vous vraiment retirer cet invité de votre Famille ? Il restera disponible pour l'Intégration.")) return;
+      if (!await confirm("Voulez-vous vraiment retirer cet invité de votre Famille ? Il restera disponible pour l'Intégration.")) return;
       
       const { error } = await supabase
         .from("invites")
@@ -552,12 +578,12 @@ export default function AffectationPage() {
         .eq("id", guestId);
         
       if (error) {
-        alert("Erreur lors du retrait : " + error.message);
+        notify("Erreur lors du retrait : " + error.message);
       } else {
         fetchGuests();
       }
     } else {
-      if (!window.confirm("Voulez-vous vraiment supprimer définitivement cet invité ? Cette action est irréversible.")) return;
+      if (!await confirm("Voulez-vous vraiment supprimer définitivement cet invité ? Cette action est irréversible.")) return;
       
       const { error } = await supabase
         .from("invites")
@@ -565,7 +591,7 @@ export default function AffectationPage() {
         .eq("id", guestId);
         
       if (error) {
-        alert("Erreur lors de la suppression : " + error.message);
+        notify("Erreur lors de la suppression : " + error.message);
       } else {
         fetchGuests();
       }
@@ -586,14 +612,14 @@ export default function AffectationPage() {
 
       if (error) throw error;
 
-      alert(`L'invité ${transferringGuest.firstName} ${transferringGuest.lastName} a été confié avec succès !`);
+      notify(`L'invité ${transferringGuest.firstName} ${transferringGuest.lastName} a été confié avec succès !`);
       setIsTransferModalOpen(false);
       setTransferringGuest(null);
       setSelectedBergerieId("");
       fetchGuests();
     } catch (err: any) {
       console.error("Error transferring guest:", err);
-      alert("Erreur lors de l'opération : " + err.message);
+      notify("Erreur lors de l'opération : " + err.message);
     } finally {
       setIsTransferring(false);
     }
@@ -602,7 +628,7 @@ export default function AffectationPage() {
   const promoteToMember = async (guest: Guest) => {
     if (!guest.bergerie_id) return;
     
-    if (!window.confirm(`Voulez-vous vraiment transformer ${guest.firstName} ${guest.lastName} en membre de la Bergerie ?`)) return;
+    if (!await confirm(`Voulez-vous vraiment transformer ${guest.firstName} ${guest.lastName} en membre de la Bergerie ?`)) return;
 
     setLoading(true);
     try {
@@ -628,10 +654,10 @@ export default function AffectationPage() {
 
       // 3. Refresh list
       await fetchGuests();
-      alert(`${guest.firstName} a été ajouté à la Bergerie avec succès !`);
+      notify(`${guest.firstName} a été ajouté à la Bergerie avec succès !`);
     } catch (err: any) {
       console.error("Promotion error:", err);
-      alert("Erreur lors de l'ajout à la bergerie : " + err.message);
+      notify("Erreur lors de l'ajout à la bergerie : " + err.message);
     } finally {
       setLoading(false);
     }
@@ -640,7 +666,7 @@ export default function AffectationPage() {
   const removeFromMember = async (guest: Guest) => {
     if (!guest.bergerie_id) return;
     
-    if (!window.confirm(`Voulez-vous vraiment retirer ${guest.firstName} ${guest.lastName} de la Bergerie ?`)) return;
+    if (!await confirm(`Voulez-vous vraiment retirer ${guest.firstName} ${guest.lastName} de la Bergerie ?`)) return;
 
     setLoading(true);
     try {
@@ -660,10 +686,10 @@ export default function AffectationPage() {
 
       // 3. Refresh list
       await fetchGuests();
-      alert(`${guest.firstName} a été retiré de la Bergerie.`);
+      notify(`${guest.firstName} a été retiré de la Bergerie.`);
     } catch (err: any) {
       console.error("Removal error:", err);
-      alert("Erreur lors du retrait : " + err.message);
+      notify("Erreur lors du retrait : " + err.message);
     } finally {
       setLoading(false);
     }
@@ -770,6 +796,8 @@ export default function AffectationPage() {
   };
 
   const filtered = guests.filter(g => {
+      if (personView.filter === "contact" && (g.appelAbouti || g.souhaiteEtreContacte === false)) return false;
+      if (personView.filter === "unassigned" && (userRole?.startsWith("integration_") ? !!g.assigned_to : !!g.responsible && g.responsible !== "Non assigné")) return false;
     // Strict isolation: only show guests personally assigned to the current user
     if (isIntegrationOrCounselor) {
       if (g.assigned_to !== userId) return false;
@@ -835,6 +863,10 @@ export default function AffectationPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      
+      {personView.requestedId && !personView.selected && !loading && <div className="ux-list-context"><span>Cette fiche n’est pas disponible dans la liste actuelle.</span><button type="button" onClick={personView.closePerson}>Fermer</button></div>}
+      {personView.selected && <PersonPanel person={personView.selected} kind="guest" onClose={personView.closePerson} onContinue={() => { setExpandedId(personView.selected!.id); setSearch(personView.selected!.firstName + " " + personView.selected!.lastName);  }} />}
+      {personView.filter && <div className="ux-list-context"><span>{personView.filter === "contact" ? "Premiers contacts à établir" : "Invités sans responsable"}</span><button type="button" onClick={personView.clearFilter}>Afficher tout</button></div>}
       {/* Header */}
       {/* Read-only banner for Conseiller */}
       {isConseiller && (
@@ -846,7 +878,7 @@ export default function AffectationPage() {
 
       <div className="page-header fade-in">
         <div>
-          <h2 className="page-title">Mes Affectations</h2>
+          <h2 className="page-title">Mon suivi</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
             Suivi personnalisé et accompagnement spirituel de vos brebis affectées
           </p>
@@ -1069,6 +1101,10 @@ export default function AffectationPage() {
                   {editingGuestId ? "Modifier la Brebi" : "Enregistrer une Brebi"}
                 </h2>
                 <form onSubmit={handleSaveGuest} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {formError && <p className="ux-form-error" role="alert">{formError}</p>}
+              <p className="ux-form-help">Commencez par l’essentiel. Les autres informations peuvent être complétées plus tard.</p>
+              <fieldset disabled={isSaving} style={{ display: "contents", border: 0 }}>
+
                   <div className="form-grid-3">
                     <div>
                       <label className="form-label">CIVILITÉ</label>
@@ -1108,7 +1144,8 @@ export default function AffectationPage() {
                       </select>
                     </div>
                   </div>
-                  <div className="form-grid-3-equal">
+                  <details className="ux-extra-fields" open={!!editingGuestId}><summary>Compléter le profil et le parcours</summary><div className="ux-extra-content">
+<div className="form-grid-3-equal">
                     <div>
                       <label className="form-label">DATE D'ARRIVÉE</label>
                       <input className="input" type="date" value={newGuest.arrivalDate || ""} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
@@ -1176,10 +1213,7 @@ export default function AffectationPage() {
                       <input type="checkbox" checked={newGuest.localChurch || false} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Déjà d'une église locale</span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.souhaiteEtreContacte !== false} onChange={e => setNewGuest({...newGuest, souhaiteEtreContacte: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                      <span style={{ fontSize: 13, color: "var(--gold)", fontWeight: "bold" }}>Souhaite être contacté(e)</span>
-                    </div>
+                    
                   </div>
 
                   <div>
@@ -1198,11 +1232,19 @@ export default function AffectationPage() {
                     />
                   </div>
 
-                  <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                  
+</div></details>
+<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" checked={newGuest.souhaiteEtreContacte !== false} onChange={e => setNewGuest({...newGuest, souhaiteEtreContacte: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                      <span style={{ fontSize: 13, color: "var(--gold)", fontWeight: "bold" }}>Souhaite être contacté(e)</span>
+                    </div>
+<div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
                     <button type="button" className="btn btn-subtle" onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }}>Annuler</button>
-                    <button type="submit" className="btn btn-primary">Enregistrer la brebi</button>
+                    <button type="submit" className="btn btn-primary" disabled={isSaving}>{isSaving ? "Enregistrement…" : "Enregistrer"}</button>
                   </div>
-                </form>
+                
+              </fieldset>
+</form>
               </div>
             </div>,
             document.body
@@ -1300,7 +1342,7 @@ export default function AffectationPage() {
                       </div>
                       <div className="affectation-card-identity" style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cream)" }}>{guest.firstName} {guest.lastName}</h3>
+                          <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cream)" }}><PersonButton person={guest} onClick={() => personView.openPerson(guest.id)} /></h3>
                           {fidelised && <span className="badge badge-gold" style={{ fontSize: 8 }}>Fidélisé</span>}
                           {(isIntegrationOrCounselor || isAuthorizedLeader) && (
                             <button 
@@ -1682,3 +1724,7 @@ function SuiviToggle({ label, checked, onChange, disabled }: { label: string; ch
   );
 }
 
+
+export default function Page() {
+  return <Suspense fallback={<p role="status">Chargement…</p>}><AffectationPage /></Suspense>;
+}

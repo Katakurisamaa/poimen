@@ -71,11 +71,28 @@ function harness({ user = null, sessionResult = () => ({ data: null }), serviceR
 test('anonymous calls cannot reach privileged data or create an account', async () => {
   const h = harness();
   for (const result of [
-    await h.actions.getIntegrationDropdownList(churchId),
+    await h.actions.listIntegrationTeam(churchId),
     await h.actions.adminSignUp('person@example.com', 'shared-code'),
     await h.actions.createFamilyUserContext({ userId, familyId: churchId }),
   ]) assert.equal(result.success, false);
   assert.equal(h.privilegedClients(), 0);
+});
+
+test('getIntegrationDropdownList fetches integration team for login dropdown', async () => {
+  const h = harness({
+    serviceResult: q => ({
+      data: q.table === 'churches'
+        ? { id: churchId, name: 'Eglise Test', integration_email: 'head@example.com', integration_first_name: 'Head', integration_last_name: 'Leader', archived: false }
+        : q.table === 'user_contexts'
+        ? [{ email: 'counselor@example.com', display_name: 'Counselor Name', role: 'integration_conseiller' }]
+        : []
+    })
+  });
+  const res = await h.actions.getIntegrationDropdownList(churchId);
+  assert.equal(res.success, true);
+  assert.equal(res.list.length, 2);
+  assert.equal(res.list[0].role, 'integration_responsable');
+  assert.equal(res.list[1].role, 'integration_conseiller');
 });
 
 test('getFamilyLeadersList fetches family leaders for login dropdown', async () => {

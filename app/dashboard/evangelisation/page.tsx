@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
+import { useFeedback } from "@/components/experience/FeedbackProvider";
 
 interface Evangelisation {
   id: string;
@@ -42,6 +43,7 @@ interface Evangelisation {
 }
 
 export default function EvangelisationPage() {
+  const { notify, confirm } = useFeedback();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -498,7 +500,7 @@ export default function EvangelisationPage() {
       }
 
       if (!activeUid) {
-        alert("⚠️ Erreur de session : Impossible d'identifier l'utilisateur connecté. Veuillez vous reconnecter.");
+        notify("Erreur de session : Impossible d'identifier l'utilisateur connecté. Veuillez vous reconnecter.");
         setSubmitting(false);
         return;
       }
@@ -518,14 +520,14 @@ export default function EvangelisationPage() {
       const isIntegrationSave = effectiveRole.startsWith("integration_");
 
       if (!activeChurchId) {
-        alert("⚠️ Erreur de session : L'identifiant d'église n'a pas pu être récupéré. Veuillez vous reconnecter.");
+        notify("Erreur de session : L'identifiant d'église n'a pas pu être récupéré. Veuillez vous reconnecter.");
         setSubmitting(false);
         return;
       }
 
       const cleanFamilyId = dbBergerieId && dbBergerieId !== "null" && dbBergerieId !== "undefined" ? dbBergerieId : "";
       if (!isIntegrationSave && !cleanFamilyId) {
-        alert("⚠️ Erreur : Aucune famille de disciples n'est associée à votre compte. Veuillez vérifier votre profil.");
+        notify("Erreur : Aucune famille de disciples n'est associée à votre compte. Veuillez vérifier votre profil.");
         setSubmitting(false);
         return;
       }
@@ -569,7 +571,7 @@ export default function EvangelisationPage() {
       
       if (resError) throw resError;
 
-      alert(editingReport ? "Rapport d'évangélisation modifié avec succès !" : "Rapport d'évangélisation enregistré avec succès !");
+      notify(editingReport ? "Rapport d'évangélisation modifié avec succès !" : "Rapport d'évangélisation enregistré avec succès !");
       setIsAddModalOpen(false);
       setEditingReport(null);
       
@@ -596,7 +598,7 @@ export default function EvangelisationPage() {
       fetchEvangelisations();
     } catch (err: any) {
       console.error("Error saving evangelisation:", err);
-      alert("Erreur lors de la sauvegarde : " + err.message);
+      notify("Erreur lors de la sauvegarde : " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -630,14 +632,15 @@ export default function EvangelisationPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Voulez-vous vraiment supprimer définitivement ce rapport d'évangélisation ? Cette action est irréversible.")) return;
+    if (!await confirm("Voulez-vous vraiment supprimer définitivement ce rapport d'évangélisation ? Cette action est irréversible.")) return;
     
     try {
       const { error } = await supabase.from("evangelisations").delete().eq("id", id);
       if (error) throw error;
       setEvangelisations(prev => prev.filter(e => e.id !== id));
+      notify("Rapport d'évangélisation supprimé avec succès.");
     } catch (err: any) {
-      alert("Erreur lors de la suppression : " + err.message);
+      notify("Erreur lors de la suppression : " + err.message);
     }
   };
 
@@ -654,7 +657,7 @@ export default function EvangelisationPage() {
       setEvangelisations(prev => prev.map(e => e.id === id ? { ...e, attended_service: !currentValue } : e));
     } catch (err: any) {
       console.error("Error toggling attendance:", err);
-      alert("Erreur lors de la mise à jour de la présence : " + err.message);
+      notify("Erreur lors de la mise à jour de la présence : " + err.message);
     }
   };
 
@@ -674,7 +677,7 @@ export default function EvangelisationPage() {
       setEvangelisations(prev => prev.map(e => e.id === id ? { ...e, is_contacted: isContacted, call_comment: comment } : e));
     } catch (err: any) {
       console.error("Error updating call tracking:", err);
-      alert("Erreur lors de la mise à jour du suivi d'appel : " + err.message);
+      notify("Erreur lors de la mise à jour du suivi d'appel : " + err.message);
     }
   };
 

@@ -13,8 +13,19 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
+import { useFeedback } from "@/components/experience/FeedbackProvider";
+
+function isAttendancePresent(val: any): boolean {
+  if (val === true || val === 1 || val === "present") return true;
+  if (typeof val === "string" && val.trim().length > 0 && val !== "false" && val !== "unpointed" && val !== "justified" && val !== "unjustified") return true;
+  if (!val || typeof val !== "object") return false;
+  if (val.status === "present") return true;
+  if (typeof val.service === "string" && val.service.trim().length > 0) return true;
+  return false;
+}
 
 export default function ReportingPage() {
+  const { notify } = useFeedback();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -113,7 +124,7 @@ export default function ReportingPage() {
     action_1: "",
     action_2: "",
     action_3: "",
-    verset_texte: "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi les ouvriers travaillaient d'une main, et de l'autre ils tenaient leurs armes. Chacun bâtit à son endroit, et bâtit le mur.",
+    verset_texte: "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi chacun travaillait d'une main, et de l'autre tenait son arme. Chacun bâtit à son endroit, et bâtit le mur.",
     verset_ref: "Néhémie 4:11-12 (BDS)",
   });
 
@@ -164,15 +175,30 @@ export default function ReportingPage() {
       const sundayEnd = new Date(cy, cm - 1, cd, 23, 59, 59);
       const sevenDaysPrior = new Date(cy, cm - 1, cd - 7, 0, 0, 0);
 
-      // Dates of the preceding week (Monday to Saturday)
-      const precedingWeekDates: string[] = [];
-      for (let offset = 1; offset <= 6; offset++) {
-        const wd = new Date(cy, cm - 1, cd - offset);
-        const wy = wd.getFullYear();
-        const wm = String(wd.getMonth() + 1).padStart(2, "0");
-        const wday = String(wd.getDate()).padStart(2, "0");
-        precedingWeekDates.push(`${wy}-${wm}-${wday}`);
-      }
+      // Helper to determine the Monday to Sunday week dates for any date in the week
+      // e.g. for Sunday 13/09/2026: Monday 07/09/2026 to Sunday 13/09/2026
+      const getReportingWeekDates = (targetDateStr: string): string[] => {
+        if (!targetDateStr) return [];
+        const [y, m, d] = targetDateStr.split("-").map(Number);
+        const target = new Date(y, m - 1, d);
+        const day = target.getDay(); // 0 is Sunday
+        const diffToMonday = day === 0 ? -6 : 1 - day;
+        const monday = new Date(target);
+        monday.setDate(target.getDate() + diffToMonday);
+
+        const dates: string[] = [];
+        for (let i = 0; i < 7; i++) {
+          const cur = new Date(monday);
+          cur.setDate(monday.getDate() + i);
+          const wy = cur.getFullYear();
+          const wm = String(cur.getMonth() + 1).padStart(2, "0");
+          const wd = String(cur.getDate()).padStart(2, "0");
+          dates.push(`${wy}-${wm}-${wd}`);
+        }
+        return dates;
+      };
+
+      const weekDates: string[] = getReportingWeekDates(currentDate);
 
       let detectedBergerName = "";
 
@@ -190,18 +216,34 @@ export default function ReportingPage() {
           .map((a: any) => a.id);
         if (!culteActIds.includes("culte")) culteActIds.push("culte");
 
-        // Non-culte activities (weekly meeting, CDM, prière, etc.)
-        const nonCulteActIds = acts
-          .filter((a: any) => a.id !== "culte" && !a.name?.toLowerCase().includes("culte"))
+        const normalizeStr = (s: string) =>
+          (s || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .trim();
+
+        // Evangelisation activities (Sorties d'évangélisation)
+        const evangActIds = acts
+          .filter((a: any) => {
+            const id = normalizeStr(a.id);
+            const name = normalizeStr(a.name);
+            return (
+              id === "evangelisation" ||
+              id.includes("evang") ||
+              name.includes("evang") ||
+              name.includes("sortie")
+            );
+          })
           .map((a: any) => a.id);
-        if (!nonCulteActIds.includes("cdm")) nonCulteActIds.push("cdm");
+        if (!evangActIds.includes("evangelisation")) evangActIds.push("evangelisation");
 
         const { data: membersRaw, error } = await supabase
           .from("members")
           .select("*")
           .eq("bergerie_id", familyId);
 
-        const members = (membersRaw || []).filter((m: any) => !m.archived);
+        const members = (membersRaw || []).filter((m: any) => !m.archived && m.status !== "Externe");
 
         if (!error && members) {
           totalMembres = members.length;
@@ -285,8 +327,10 @@ export default function ReportingPage() {
               countC1++;
             } else if (attendedCulte === "culte_2") {
               countC2++;
-            } else if (attendedCulte === "culte_en_ligne") {
+            } else if (attendedCulte === "culte_en_ligne" || attendedCulte === "en_ligne" || attendedCulte === "online") {
               countEnLigne++;
+            } else if (attendedCulte) {
+              countC1++;
             } else {
               // Absences
               let hasComment = false;
@@ -310,18 +354,37 @@ export default function ReportingPage() {
               if (isFdd) disciplesPresent++;
             }
 
-            // Participation à la réunion hebdomadaire (CDM / Prière / Réunion hebdo)
-            let attendedWeekly = false;
-            for (const actId of nonCulteActIds) {
-              for (const d of precedingWeekDates) {
-                if (m.attendance?.[actId]?.[d]) {
-                  attendedWeekly = true;
+            // Participation aux sorties d'évangélisation (calcul hebdomadaire du lundi au dimanche)
+            let attendedEvang = false;
+            const attObj = m.attendance || {};
+            const attKeys = Object.keys(attObj).filter((k) => !k.startsWith("_"));
+
+            for (const actId of evangActIds) {
+              for (const d of weekDates) {
+                if (isAttendancePresent(attObj[actId]?.[d])) {
+                  attendedEvang = true;
                   break;
                 }
               }
-              if (attendedWeekly) break;
+              if (attendedEvang) break;
             }
-            if (attendedWeekly) {
+
+            if (!attendedEvang) {
+              for (const key of attKeys) {
+                const lk = normalizeStr(key);
+                if (lk.includes("evang") || lk.includes("sortie")) {
+                  for (const d of weekDates) {
+                    if (isAttendancePresent(attObj[key]?.[d])) {
+                      attendedEvang = true;
+                      break;
+                    }
+                  }
+                  if (attendedEvang) break;
+                }
+              }
+            }
+
+            if (attendedEvang) {
               reunionHebdo++;
             }
           });
@@ -409,7 +472,7 @@ export default function ReportingPage() {
       const savedVerseText = localStorage.getItem(`fdd_custom_verse_text_${familyId}`);
       const savedVerseRef = localStorage.getItem(`fdd_custom_verse_ref_${familyId}`);
 
-      const defaultVerseText = "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi les ouvriers travaillaient d'une main, et de l'autre ils tenaient leurs armes. Chacun bâtit à son endroit, et bâtit le mur.";
+      const defaultVerseText = "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi chacun travaillait d'une main, et de l'autre tenait son arme. Chacun bâtit à son endroit, et bâtit le mur.";
       const defaultVerseRef = "Néhémie 4:11-12 (BDS)";
 
       const effectiveSlogan = (savedSlogan !== null && savedSlogan !== undefined)
@@ -428,6 +491,7 @@ export default function ReportingPage() {
         setFormData((prev) => ({
           ...prev,
           ...existingReport,
+          reunion_hebdomadaire: reunionHebdo,
           nom_famille: familyName || existingReport.nom_famille || prev.nom_famille,
           nom_berger: (existingReport.nom_berger && existingReport.nom_berger !== "Berger")
             ? existingReport.nom_berger
@@ -474,7 +538,7 @@ export default function ReportingPage() {
           nombre_total_star: totalStar || prev.nombre_total_star,
           nombre_disciples: disciplesCount,
           taux_participation_disciples: disciplesPct,
-          reunion_hebdomadaire: reunionHebdo || prev.reunion_hebdomadaire,
+          reunion_hebdomadaire: reunionHebdo,
           nouveaux_membres: nouveaux || prev.nouveaux_membres,
           logo_url: savedLogo || prev.logo_url,
         }));
@@ -611,7 +675,7 @@ export default function ReportingPage() {
   const handleDownloadPdf = async () => {
     const printElement = document.getElementById("reporting-print-container") || reportRef.current;
     if (!printElement) {
-      alert("Erreur: le modèle de rapport n'a pas été trouvé.");
+      notify("Erreur : le modèle de rapport n'a pas été trouvé.");
       return;
     }
 
@@ -666,7 +730,7 @@ export default function ReportingPage() {
       pdf.save(`Rapport_FDD_${safeFamilyName}_${formData.date_rapport}.pdf`);
     } catch (err) {
       console.error("PDF generation error:", err);
-      alert("Une erreur est survenue lors de la génération du PDF. Veuillez réessayer.");
+      notify("Une erreur est survenue lors de la génération du PDF. Veuillez réessayer.");
     } finally {
       setDownloadingPdf(false);
     }
@@ -763,7 +827,7 @@ export default function ReportingPage() {
               }}
             >
               <Eye size={15} />
-              Aperçu fidèle
+              Aperçu du rapport
             </button>
           </div>
 
@@ -1059,7 +1123,7 @@ export default function ReportingPage() {
                 </div>
 
                 <div>
-                  <label className="form-label">Présents réunion hebdo (CDM)</label>
+                  <label className="form-label">Participation aux sorties d'évangélisation</label>
                   <input
                     type="number"
                     min="0"

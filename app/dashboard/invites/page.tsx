@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { Suspense, useRef, useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { 
   Search, Plus, UserPlus, UserMinus, Filter, CheckCircle2, XCircle, X, Link,
@@ -13,6 +13,10 @@ import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers, listIntegrationTeam } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
+import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
+import { usePeopleView } from "@/lib/use-people-view";
+import { useFeedback } from "@/components/experience/FeedbackProvider";
+import PeopleNavigation from "@/components/experience/PeopleNavigation";
 
 
 interface Guest {
@@ -97,7 +101,11 @@ const FAMILY_COLORS: Record<string, { main: string; glow: string; border: string
   "AUCUNE": { main: "var(--muted)", glow: "rgba(148, 163, 184, 0.02)", border: "rgba(148, 163, 184, 0.12)" },
 };
 
-export default function InvitesPage() {
+function InvitesPage() {
+  const { notify, confirm } = useFeedback();
+  const saveLock = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState("");
   const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (
       [46, 8, 9, 27, 13].includes(e.keyCode) ||
@@ -122,6 +130,7 @@ export default function InvitesPage() {
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  useEffect(() => { if (isAddModalOpen) setFormError(""); }, [isAddModalOpen]);
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -140,12 +149,24 @@ export default function InvitesPage() {
   const [localChurchFilter, setLocalChurchFilter] = useState<string>("all");
   const [userRole, setUserRole] = useState<string | null>(null);
   const userRoleClean = useMemo(() => (userRole || "").toLowerCase().trim(), [userRole]);
+  const canAddOrEditInvites = 
+    userRoleClean === "integration_responsable" || 
+    userRoleClean === "integration_second" ||
+    userRoleClean === "integration_conseiller" ||
+    userRoleClean === "conseiller";
   const [userName, setUserName] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [churchId, setChurchId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [guests, setGuests] = useState<Guest[]>(MOCK_GUESTS);
+  const personView = usePeopleView(guests);
+  const { createRequested, acknowledgeCreate } = personView;
+  useEffect(() => {
+    if (!createRequested || loading) return;
+    if (canAddOrEditInvites) setIsAddModalOpen(true);
+    acknowledgeCreate();
+  }, [createRequested, loading, canAddOrEditInvites, acknowledgeCreate]);
   const [responsibles, setResponsibles] = useState<string[]>(["Non assigné"]);
   const [counselors, setCounselors] = useState<{ id: string; display_name: string; email: string }[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -540,6 +561,11 @@ export default function InvitesPage() {
 
   const handleSaveGuest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saveLock.current) return;
+    saveLock.current = true;
+    setIsSaving(true);
+    setFormError("");
+    try {
     if (!familyId && !churchId) return;
 
     const payload: any = {
@@ -597,9 +623,11 @@ export default function InvitesPage() {
         .eq("id", editingGuestId);
 
       if (error) {
-        alert("Erreur lors de la modification : " + error.message);
+        setFormError("Erreur lors de la modification : " + error.message);
+        return;
       } else {
         fetchGuests();
+        notify("La fiche a bien été enregistrée.");
         setIsAddModalOpen(false);
         setEditingGuestId(null);
       }
@@ -614,9 +642,11 @@ export default function InvitesPage() {
         .single();
 
       if (error) {
-        alert("Erreur lors de l'ajout : " + error.message);
+        setFormError("Erreur lors de l'ajout : " + error.message);
+        return;
       } else if (inserted) {
         fetchGuests();
+        notify("La fiche a bien été enregistrée.");
         setIsAddModalOpen(false);
       }
     }
@@ -645,6 +675,12 @@ export default function InvitesPage() {
       etatCivil: "Célibataire",
       souhaiteEtreContacte: true,
     });
+    } catch {
+      setFormError("L’enregistrement a échoué. Votre saisie est conservée ; vérifiez votre connexion et réessayez.");
+    } finally {
+      saveLock.current = false;
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteGuest = async (id: string) => {
@@ -699,7 +735,7 @@ export default function InvitesPage() {
         .eq("id", id);
       if (error) {
         if (error.code === 'PGRST204' || error.message?.includes('archived')) {
-          alert("La colonne 'archived' n'existe pas encore en base de données. Veuillez appliquer le patch SQL v2.5.");
+          notify("La colonne 'archived' n'existe pas encore en base de données. Veuillez appliquer le patch SQL v2.5.");
           return;
         }
         throw error;
@@ -707,7 +743,7 @@ export default function InvitesPage() {
       setGuests(guests.map(g => g.id === id ? { ...g, archived: false } : g));
     } catch (err: any) {
       console.error("Error restoring guest:", err);
-      alert("Erreur lors de la restauration de l'invité : " + (err.message || err));
+      notify("Erreur lors de la restauration de l'invité : " + (err.message || err));
     }
   };
 
@@ -755,7 +791,7 @@ export default function InvitesPage() {
           .update({ assigned_to: userId })
           .eq("id", guestId);
         if (error) {
-          alert("Erreur lors de l'affectation : " + error.message);
+          notify("Erreur lors de l'affectation : " + error.message);
         } else {
           setGuests(prev => prev.map(g => g.id === guestId ? { ...g, assigned_to: userId } : g));
         }
@@ -767,7 +803,7 @@ export default function InvitesPage() {
           .update({ responsible: userName })
           .eq("id", guestId);
         if (error) {
-          alert("Erreur lors de l'affectation : " + error.message);
+          notify("Erreur lors de l'affectation : " + error.message);
         } else {
           setGuests(prev => prev.map(g => g.id === guestId ? { ...g, responsible: userName } : g));
         }
@@ -779,7 +815,7 @@ export default function InvitesPage() {
   const promoteToMember = async (guest: Guest) => {
     if (!familyId) return;
     
-    if (!window.confirm(`Voulez-vous vraiment transformer ${guest.firstName} ${guest.lastName} en membre de la Bergerie ?`)) return;
+    if (!await confirm(`Voulez-vous vraiment transformer ${guest.firstName} ${guest.lastName} en membre de la Bergerie ?`)) return;
 
     setLoading(true);
     try {
@@ -805,10 +841,10 @@ export default function InvitesPage() {
 
       // 3. Refresh list
       await fetchGuests();
-      alert(`${guest.firstName} a été ajouté à la Bergerie avec succès !`);
+      notify(`${guest.firstName} a été ajouté à la Bergerie avec succès !`);
     } catch (err: any) {
       console.error("Promotion error:", err);
-      alert("Erreur lors de l'ajout à la bergerie : " + err.message);
+      notify("Erreur lors de l'ajout à la bergerie : " + err.message);
     } finally {
       setLoading(false);
     }
@@ -817,7 +853,7 @@ export default function InvitesPage() {
   const removeFromMember = async (guest: Guest) => {
     if (!familyId) return;
     
-    if (!window.confirm(`Voulez-vous vraiment retirer ${guest.firstName} ${guest.lastName} de la Bergerie ?`)) return;
+    if (!await confirm(`Voulez-vous vraiment retirer ${guest.firstName} ${guest.lastName} de la Bergerie ?`)) return;
 
     setLoading(true);
     try {
@@ -838,10 +874,10 @@ export default function InvitesPage() {
 
       // 3. Refresh list
       await fetchGuests();
-      alert(`${guest.firstName} a été retiré de la Bergerie.`);
+      notify(`${guest.firstName} a été retiré de la Bergerie.`);
     } catch (err: any) {
       console.error("Removal error:", err);
-      alert("Erreur lors du retrait : " + err.message);
+      notify("Erreur lors du retrait : " + err.message);
     } finally {
       setLoading(false);
     }
@@ -917,6 +953,8 @@ export default function InvitesPage() {
 
   const filtered = useMemo(() => {
     return guests.filter(g => {
+      if (personView.filter === "contact" && (g.appelAbouti || g.souhaiteEtreContacte === false)) return false;
+      if (personView.filter === "unassigned" && (userRole?.startsWith("integration_") ? !!g.assigned_to : !!g.responsible && g.responsible !== "Non assigné")) return false;
       const fullName = `${g.firstName} ${g.lastName}`.toLowerCase();
       const matchSearch = fullName.includes(search.toLowerCase());
       const matchArchived = (g.archived || false) === showCorbeille;
@@ -925,7 +963,7 @@ export default function InvitesPage() {
         (localChurchFilter === "no" && !g.localChurch);
       return matchSearch && matchArchived && matchesLocalChurch;
     });
-  }, [guests, search, showCorbeille, localChurchFilter]);
+  }, [guests, search, showCorbeille, localChurchFilter, personView.filter, userRole]);
 
   const canModifyInvites = useMemo(() => {
     if (!userRole) return false;
@@ -1065,11 +1103,7 @@ export default function InvitesPage() {
   // Permissions logic for integration roles:
   // - Leaders (responsable, second) can add, edit, and delete.
   // - Counselors (conseiller) can add, but not delete.
-  const canAddOrEditInvites = 
-    userRoleClean === "integration_responsable" || 
-    userRoleClean === "integration_second" ||
-    userRoleClean === "integration_conseiller" ||
-    userRoleClean === "conseiller";
+
 
   const canDeleteInvites = 
     userRoleClean === "integration_responsable" || 
@@ -1077,6 +1111,10 @@ export default function InvitesPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <PeopleNavigation current="guests" />
+      {personView.requestedId && !personView.selected && !loading && <div className="ux-list-context"><span>Cette fiche n’est pas disponible dans la liste actuelle.</span><button type="button" onClick={personView.closePerson}>Fermer</button></div>}
+      {personView.selected && <PersonPanel person={personView.selected} kind="guest" onClose={personView.closePerson} onContinue={() => { setExpandedId(personView.selected!.id); setSearch(personView.selected!.firstName + " " + personView.selected!.lastName); setCurrentView("list"); }} />}
+      {personView.filter && <div className="ux-list-context"><span>{personView.filter === "contact" ? "Premiers contacts à établir" : "Invités sans responsable"}</span><button type="button" onClick={personView.clearFilter}>Afficher tout</button></div>}
       {/* Global Read-only banner */}
       {!canDeleteInvites && !isConseiller && (
         <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(212,160,60,0.08)", border: "1px solid rgba(212,160,60,0.25)", display: "flex", alignItems: "center", gap: 10 }}>
@@ -1418,6 +1456,10 @@ export default function InvitesPage() {
             </h2>
             
             <form onSubmit={handleSaveGuest} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {formError && <p className="ux-form-error" role="alert">{formError}</p>}
+              <p className="ux-form-help">Commencez par l’essentiel. Les autres informations peuvent être complétées plus tard.</p>
+              <fieldset disabled={isSaving} style={{ display: "contents", border: 0 }}>
+
               <div className="form-grid-3">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>CIVILITÉ</label>
@@ -1464,7 +1506,8 @@ export default function InvitesPage() {
                 </div>
               </div>
 
-              <div className="form-grid-3-equal">
+              <details className="ux-extra-fields" open={!!editingGuestId}><summary>Compléter le profil et le parcours</summary><div className="ux-extra-content">
+<div className="form-grid-3-equal">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>DATE D'ARRIVÉE</label>
                   <input className="input" type="date" value={newGuest.arrivalDate || ""} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
@@ -1573,17 +1616,22 @@ export default function InvitesPage() {
                   <input type="checkbox" checked={newGuest.localChurch} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} />
                   <span style={{ fontSize: 13 }}>Déjà d'une église locale</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                
+              </div>
+
+              
+</div></details>
+<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <input type="checkbox" checked={newGuest.souhaiteEtreContacte !== false} onChange={e => setNewGuest({...newGuest, souhaiteEtreContacte: e.target.checked})} />
                   <span style={{ fontSize: 13, color: "var(--gold)", fontWeight: "bold" }}>Souhaite être contacté(e)</span>
                 </div>
-              </div>
-
-              <div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
+<div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
                 <button type="button" className="btn btn-outline" onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }}>Annuler</button>
-                <button type="submit" className="btn btn-primary">Enregistrer</button>
+                <button type="submit" className="btn btn-primary" disabled={isSaving}>{isSaving ? "Enregistrement…" : "Enregistrer"}</button>
               </div>
-            </form>
+            
+              </fieldset>
+</form>
           </div>
         </div>,
         document.body
@@ -1746,7 +1794,7 @@ export default function InvitesPage() {
                                       </div>
                                       <div>
                                         <div style={{ fontWeight: 600, color: "var(--cream)" }}>
-                                          {guest.civility} {guest.firstName} {guest.lastName.toUpperCase()}
+                                          <PersonButton person={guest} onClick={() => personView.openPerson(guest.id)} />
                                         </div>
                                         <div style={{ fontSize: 10, color: "var(--muted)" }}>{guest.age}</div>
                                       </div>
@@ -1892,7 +1940,7 @@ export default function InvitesPage() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <h3 style={{ fontSize: 14, fontWeight: 600 }}>{guest.firstName} {guest.lastName}</h3>
+                        <h3 style={{ fontSize: 14, fontWeight: 600 }}><PersonButton person={guest} onClick={() => personView.openPerson(guest.id)} /></h3>
                         {fidelised && <CheckCircle2 size={12} style={{ color: "var(--green)" }} />}
                         {((canAddOrEditInvites && !isActionBlocked) || (canDeleteInvites && !isActionBlocked)) && (
                           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -2561,4 +2609,8 @@ function SuiviToggle({ label, checked, onChange, disabled }: { label: string; ch
       <button className={`toggle ${checked ? "on" : ""}`} style={{ transform: "scale(0.65)", transformOrigin: "right", pointerEvents: "none" }} />
     </div>
   );
+}
+
+export default function Page() {
+  return <Suspense fallback={<p role="status">Chargement…</p>}><InvitesPage /></Suspense>;
 }

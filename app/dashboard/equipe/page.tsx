@@ -6,8 +6,10 @@ import { Users, UserPlus, Trash2, Mail, ShieldAlert, Loader2, CheckCircle2, Cloc
 import { supabase } from "@/lib/supabase";
 import { createIntegrationTeamMember, deactivateIntegrationTeamMember, listIntegrationTeam, updateIntegrationTeamMember } from "@/app/actions/auth";
 import { getActiveUserInfo } from "@/lib/client-session";
+import { useFeedback } from "@/components/experience/FeedbackProvider";
 
 export default function IntegrationTeamPage() {
+  const { notify, confirm } = useFeedback();
   const [userInfo, setUserInfo] = useState<any>(null);
   const [church, setChurch] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +71,7 @@ export default function IntegrationTeamPage() {
   const handleEditCounselor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editForm.firstName || !editForm.lastName || !editForm.email) {
-      alert("Veuillez remplir les champs obligatoires.");
+      notify("Veuillez remplir les champs obligatoires.");
       return;
     }
 
@@ -88,12 +90,12 @@ export default function IntegrationTeamPage() {
 
       if (!res.success) throw new Error(res.error);
 
-      alert("Informations du membre de l'équipe mises à jour avec succès !");
+      notify("Informations du membre de l'équipe mises à jour avec succès !");
       setIsEditing(false);
       await fetchTeam(church.id);
     } catch (err: any) {
       console.error("Error editing counselor:", err);
-      alert("Erreur lors de la modification : " + err.message);
+      notify("Erreur lors de la modification : " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -146,7 +148,7 @@ export default function IntegrationTeamPage() {
   const handleAddCounselor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCounselor.firstName || !newCounselor.lastName || !newCounselor.email || !newCounselor.accessCode) {
-      alert("Veuillez remplir tous les champs.");
+      notify("Veuillez remplir tous les champs.");
       return;
     }
 
@@ -155,7 +157,7 @@ export default function IntegrationTeamPage() {
       // Verify counselor doesn't already exist in team
       const existing = team.find(t => t.email.toLowerCase() === newCounselor.email.toLowerCase().trim());
       if (existing) {
-        alert("Un membre avec cet e-mail fait déjà partie de l'équipe.");
+        notify("Un membre avec cet e-mail fait déjà partie de l'équipe.");
         setSubmitting(false);
         return;
       }
@@ -171,7 +173,7 @@ export default function IntegrationTeamPage() {
 
       if (!res.success) throw new Error(res.error);
 
-      alert(res.requiresPrimaryPassword
+      notify(res.requiresPrimaryPassword
         ? "Membre ajouté. Son compte existant conserve son mot de passe personnel."
         : "Membre créé. Communiquez-lui son mot de passe initial par un canal privé.");
       
@@ -180,7 +182,7 @@ export default function IntegrationTeamPage() {
       await fetchTeam(church.id);
     } catch (err: any) {
       console.error("Error adding counselor:", err);
-      alert("Erreur lors de l'enregistrement: " + err.message);
+      notify("Erreur lors de l'enregistrement : " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -191,7 +193,7 @@ export default function IntegrationTeamPage() {
       ? "Annuler l'invitation de ce conseiller ?"
       : "Supprimer définitivement ce conseiller de votre équipe ? Il perdra tout accès à ses affectations.";
       
-    if (!confirm(confirmMsg)) return;
+    if (!await confirm(confirmMsg)) return;
 
     setLoading(true);
     try {
@@ -202,33 +204,12 @@ export default function IntegrationTeamPage() {
       });
       if (!deactivation.success) throw new Error(deactivation.error);
 
-      alert("Membre retire de l'equipe avec succes.");
+      notify("Membre retiré de l'équipe avec succès.");
       await fetchTeam(church.id);
       return;
-
-      if (member.status === "pending") {
-        const { error } = await supabase
-          .from("pending_counselors")
-          .delete()
-          .eq("id", member.id);
-        if (error) throw error;
-      } else {
-        // Delete counselor profile ( cascade will clean up or set null to invites.assigned_to )
-        const { error } = await supabase
-          .from("profiles")
-          .delete()
-          .eq("id", member.id);
-        if (error) throw error;
-        
-        // Also delete them from auth users if we could, but since we are client-side only,
-        // deleting the profile is enough to prevent login because profiles policies require profile row
-      }
-
-      alert("Conseiller supprimé avec succès.");
-      await fetchTeam(church.id);
     } catch (err: any) {
       console.error("Error deleting member:", err);
-      alert("Erreur: " + err.message);
+      notify("Erreur : " + err.message);
     } finally {
       setLoading(false);
     }

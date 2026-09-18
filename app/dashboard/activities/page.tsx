@@ -15,6 +15,7 @@ import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import type { ActivityType } from "@/types";
 import FastCheckIn from "@/components/activities/FastCheckIn";
 import { buildAttendanceUpdate, QuickAttendanceStatus } from "@/lib/attendance";
+import { useFeedback } from "@/components/experience/FeedbackProvider";
 
 // Types
 interface Activity {
@@ -43,10 +44,11 @@ interface Member {
 }
 
 // Mock Data (Empty for production)
-// Default activities to show if none are saved
 const DEFAULT_ACTIVITIES: Activity[] = [
-  { id: "culte", name: "Culte du Dimanche", day: 0, startTime: "10:00", endTime: "12:30", location: "Sanctuaire Principal" },
-  { id: "cdm", name: "CDM (Cellule Alpha)", day: 4, startTime: "19:00", endTime: "20:30", location: "Salles Annexes" },
+  { id: "culte", name: "Culte du Dimanche", day: 0, days: [0], startTime: "10:00", endTime: "12:30", location: "Sanctuaire Principal" },
+  { id: "cdm", name: "CDM", day: 4, days: [4], startTime: "19:00", endTime: "20:30", location: "Salles Annexes" },
+  { id: "evangelisation", name: "Évangélisation", day: 6, days: [6], startTime: "15:00", endTime: "17:00", location: "Sortie terrain" },
+  { id: "teach_and_pray", name: "Teach & Pray", day: 2, days: [2], startTime: "19:30", endTime: "21:00", location: "En ligne / Salles" },
 ];
 
 const INITIAL_MEMBERS: Member[] = [];
@@ -55,6 +57,7 @@ export default function ActivitiesPage() {
   const [activities, setActivities] = useState<Activity[]>(DEFAULT_ACTIVITIES);
   const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const { confirm, notify } = useFeedback();
   const [activeTab, setActiveTab] = useState<"attendance" | "schedule" | "stats">("attendance");
   const [attendanceViewMode, setAttendanceViewMode] = useState<"by-member" | "by-activity" | "by-year">("by-activity");
   const [isPresentationMode, setIsPresentationMode] = useState(false);
@@ -65,6 +68,10 @@ export default function ActivitiesPage() {
     const params = new URLSearchParams(window.location.search);
     if (smallScreen.matches && params.get("fastCheckIn") === "true") {
       setIsFastCheckInOpen(true);
+    }
+    const actParam = params.get("activityId");
+    if (actParam) {
+      setSelectedActivityId(actParam);
     }
     const closeOnLargeScreen = () => {
       if (!smallScreen.matches) setIsFastCheckInOpen(false);
@@ -258,30 +265,117 @@ export default function ActivitiesPage() {
           }
         }
         
-        // If still no activities, use defaults
+        // Normalize CDM activity name to remove "(Cellule Alpha)"
+        loadedActivities = loadedActivities.map(act => {
+          if (act.name && act.name.includes("Cellule Alpha")) {
+            return { ...act, name: "CDM" };
+          }
+          return act;
+        });
+
+        const normalizeStr = (s?: string) =>
+          (s || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .trim();
+
+        const isSameActivityKind = (a: { id?: string; name?: string }, b: { id?: string; name?: string }): boolean => {
+          if (a.id && b.id && a.id === b.id) return true;
+          const na = normalizeStr(a.name);
+          const nb = normalizeStr(b.name);
+          const ida = normalizeStr(a.id);
+          const idb = normalizeStr(b.id);
+          if (na && nb && na === nb) return true;
+
+          // Culte
+          const isCulteA = ida.includes("culte") || na.includes("culte");
+          const isCulteB = idb.includes("culte") || nb.includes("culte");
+          if (isCulteA && isCulteB) return true;
+
+          // Évangélisation / Sortie
+          const isEvangA = ida.includes("evang") || na.includes("evang") || na.includes("sortie");
+          const isEvangB = idb.includes("evang") || nb.includes("evang") || nb.includes("sortie");
+          if (isEvangA && isEvangB) return true;
+
+          // CDM / Cellule de maison
+          const isCdmA = ida.includes("cdm") || na.includes("cdm") || na.includes("cellule") || na.includes("maison");
+          const isCdmB = idb.includes("cdm") || nb.includes("cdm") || nb.includes("cellule") || nb.includes("maison");
+          if (isCdmA && isCdmB) return true;
+
+          // Teach & Pray
+          const isTeachA = ida.includes("teach") || na.includes("teach");
+          const isTeachB = idb.includes("teach") || nb.includes("teach");
+          if (isTeachA && isTeachB) return true;
+
+          return false;
+        };
+
+        // If no activities at all, use default starter set
         if (loadedActivities.length === 0) {
-          loadedActivities = DEFAULT_ACTIVITIES;
-        } else if (!loadedActivities.some(a => a.id === "culte" || a.name.toLowerCase().includes("culte"))) {
-          loadedActivities = [DEFAULT_ACTIVITIES[0], ...loadedActivities];
+          loadedActivities = [...DEFAULT_ACTIVITIES];
+        } else {
+          // If the user already created/configured activities, resolve any duplicate generic default activities
+          const deduplicated: Activity[] = [];
+          for (const act of loadedActivities) {
+            const isGenericDefault = ["culte", "cdm", "evangelisation", "teach_and_pray"].includes(act.id);
+            if (isGenericDefault) {
+              const hasCustom = loadedActivities.some(
+                other => other.id !== act.id && isSameActivityKind(other, act)
+              );
+              if (hasCustom) {
+                // Conflict resolved: drop the phantom generic activity in favor of the user's custom one
+                continue;
+              }
+            }
+            if (!deduplicated.some(existing => existing.id === act.id || isSameActivityKind(existing, act))) {
+              deduplicated.push(act);
+            }
+          }
+          loadedActivities = deduplicated;
         }
+
         setActivities(loadedActivities);
+        localStorage.setItem("local_activities", JSON.stringify(loadedActivities));
+
+        // Map any generic IDs to corresponding custom IDs to safely consolidate attendance
+        const genericToCustomMap: Record<string, string> = {};
+        for (const genericId of ["evangelisation", "cdm", "teach_and_pray", "culte"]) {
+          const custom = loadedActivities.find(a => a.id !== genericId && isSameActivityKind(a, { id: genericId, name: genericId }));
+          if (custom) {
+            genericToCustomMap[genericId] = custom.id;
+          }
+        }
 
         // 3. Fetch Members
         const { data: membersData } = await supabase.from("members").select("*").eq("bergerie_id", bergerieId);
 
         const allPeople: Member[] = (membersData || [])
-          .filter(m => !m.archived)
-          .map(m => ({
-          id: m.id,
-          firstName: m.first_name,
-          lastName: m.last_name,
-          civility: m.civility,
-          status: m.status || "Brebi",
-          isInvite: false,
-          archived: m.archived || false,
-          attendance: m.attendance || {},
-          dateEntree: m.date_entree || ""
-        }));
+          .filter(m => !m.archived && m.status !== "Externe")
+          .map(m => {
+            const memberAtt: Record<string, Record<string, any>> = { ...(m.attendance || {}) };
+            // Consolidate attendance if duplicate keys existed
+            for (const [genId, custId] of Object.entries(genericToCustomMap)) {
+              if (memberAtt[genId]) {
+                memberAtt[custId] = {
+                  ...(memberAtt[custId] || {}),
+                  ...memberAtt[genId],
+                };
+                delete memberAtt[genId];
+              }
+            }
+            return {
+              id: m.id,
+              firstName: m.first_name,
+              lastName: m.last_name,
+              civility: m.civility,
+              status: m.status || "Brebi",
+              isInvite: false,
+              archived: m.archived || false,
+              attendance: memberAtt,
+              dateEntree: m.date_entree || ""
+            };
+          });
 
         setMembers(allPeople);
 
@@ -1083,7 +1177,7 @@ export default function ActivitiesPage() {
                           if (isAlreadyCancelled) {
                             newCancelled = currentCancelled.filter(d => d !== selectedDate);
                           } else {
-                            if (!window.confirm(`Voulez-vous vraiment annuler la séance du ${formatDate(selectedDate)} ?`)) return;
+                            if (!await confirm(`Voulez-vous vraiment annuler la séance du ${formatDate(selectedDate)} ?`)) return;
                             newCancelled = [...currentCancelled, selectedDate];
                           }
                           
@@ -1190,7 +1284,7 @@ export default function ActivitiesPage() {
                           ? activeMembersOnDate.filter(m => !m.attendance[selectedActivityId || ""]?.[selectedDate]).length
                           : activeMembersOnDate.filter(m => m.attendance[selectedActivityId || ""]?.[selectedDate]).length
                         }
-                      </span> sur <span style={{ color: "var(--cream)" }}>{activeMembersOnDate.length}</span> fidèles
+                      </span> sur <span style={{ color: "var(--cream)" }}>{activeMembersOnDate.length}</span> brebis
                     </div>
                     <div style={{ display: "flex", gap: 10 }}>
                       <button 
@@ -1620,7 +1714,7 @@ export default function ActivitiesPage() {
                                           if (isAlreadyCancelled) {
                                             newCancelled = currentCancelled.filter(d => d !== date);
                                           } else {
-                                            if (!window.confirm(`Voulez-vous vraiment annuler la séance du ${formatDate(date)} ?`)) return;
+                                            if (!await confirm(`Voulez-vous vraiment annuler la séance du ${formatDate(date)} ?`)) return;
                                             newCancelled = [...currentCancelled, date];
                                           }
                                           

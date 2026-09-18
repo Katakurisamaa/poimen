@@ -377,7 +377,7 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                 { label: "Absences non justifiées", count: data.absences_non_justifiees, pctTot: `${metrics.pctTotalAbsencesNonJustifiees}%`, pctPart: "-" },
                 { label: "S.T.A.R en service", count: data.star_en_service, pctTot: `${metrics.pctTotalStarEnService}%`, pctPart: "-" },
                 { label: "Nombre de S.T.A.R", count: data.nombre_total_star, pctTot: `${metrics.pctTotalStar}%`, pctPart: "-" },
-                { label: "Participation à la réunion hebdomadaire", count: data.reunion_hebdomadaire, pctTot: `${metrics.pctTotalReunionHebdo}%`, pctPart: "-" },
+                { label: "Participation aux sorties d'évangélisation", count: data.reunion_hebdomadaire, pctTot: `${metrics.pctTotalReunionHebdo}%`, pctPart: "-" },
                 { label: "Nouveaux membres (depuis la semaine dernière)", count: data.nouveaux_membres, pctTot: `${metrics.pctTotalNouveauxMembres}%`, pctPart: "-" },
               ].map((row, idx) => (
                 <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? "#f8fafc" : "#ffffff", borderBottom: "1px solid #e2e8f0" }}>
@@ -783,7 +783,7 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
 
           <div>
             <div style={{ fontSize: 10.5, fontStyle: "italic", color: "#f1f5f9", lineHeight: 1.3 }}>
-              « {data.verset_texte || "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi les ouvriers travaillaient d'une main, et de l'autre ils tenaient leurs armes. Chacun bâtit à son endroit, et bâtit le mur."} »
+              « {data.verset_texte || "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi chacun travaillait d'une main, et de l'autre tenait son arme. Chacun bâtit à son endroit, et bâtit le mur."} »
             </div>
             <div style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", marginTop: 2 }}>
               {data.verset_ref || "Néhémie 4:11-12 (BDS)"}

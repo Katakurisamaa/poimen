@@ -1,0 +1,47 @@
+/* Shared rhythm for the authenticated workspace. Existing business views stay intact. */
+.experience-shell .main-area { transition: none; }
+.experience-shell .page-content { padding: 28px 32px 42px; }
+.experience-shell .page-title { font-size: clamp(24px, 3vw, 32px) !important; letter-spacing: -.04em !important; font-weight: 650 !important; text-shadow: none !important; }
+.experience-shell :is(h2,h3,h4) { text-shadow: none; }
+.experience-shell :is(.glass,.stat-card) { box-shadow: none !important; border-radius: 18px !important; }
+.experience-shell .btn { min-height: 44px; border-radius: 11px !important; font-size: 13px; }
+.experience-shell .btn:focus-visible, .experience-shell a:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
+.experience-shell .stat-card { padding: 20px; }
+.experience-shell .stat-value { font-size: 30px !important; }
+.ux-extra-fields { border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+.ux-extra-fields > summary { cursor: pointer; min-height: 32px; color: var(--cream); font-size: 13px; font-weight: 600; }
+.ux-extra-fields[open] > summary { margin-bottom: 18px; }
+.ux-extra-fields > .ux-extra-content { display: flex; flex-direction: column; gap: 16px; }
+.ux-form-error { padding: 12px 14px; border: 1px solid var(--red); border-radius: 12px; background: var(--red-glow); color: var(--cream); font-size: 13px; }
+.ux-list-context { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 15px; border: 1px solid var(--border); background: var(--surface-solid); border-radius: 12px; font-size: 13px; }
+.ux-list-context button { min-height: 44px; padding: 8px; background: transparent; border: 0; color: var(--gold); cursor: pointer; }
+.ux-form-help { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.ux-overview { border: 1px solid var(--border); border-radius: 18px; background: var(--surface-solid); padding: 20px; }
+.ux-overview > summary { cursor: pointer; color: var(--cream); font-size: 15px; font-weight: 600; min-height: 44px; }
+.ux-overview > summary span { display: block; color: var(--muted); font-size: 12px; font-weight: 400; margin: 6px 0 0 18px; }
+.ux-overview-content { display: flex; flex-direction: column; gap: 24px; margin-top: 24px; }
+@media (max-width: 1024px) {
+  .experience-shell .main-area { margin-left: 0 !important; width: 100% !important; max-width: 100vw !important; }
+  .experience-shell .page-content { padding: 20px 16px calc(100px + env(safe-area-inset-bottom)) !important; max-width: 100vw !important; overflow-x: hidden !important; }
+  .experience-shell .bento-2-1,
+  .experience-shell .bento-1-1,
+  .bento-2-1,
+  .bento-1-1 {
+    grid-template-columns: 1fr !important;
+  }
+}
+@media (max-width: 600px) {
+  .experience-shell .page-content { padding: 14px 10px calc(90px + env(safe-area-inset-bottom)) !important; }
+  .experience-shell .page-title { font-size: 22px !important; }
+  .experience-shell .stat-card { padding: 14px 12px; }
+  .experience-shell .stat-value { font-size: 24px !important; }
+  .experience-shell .bento-4,
+  .experience-shell .bento-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .experience-shell .glass,
+  .experience-shell .glass-flush {
+    border-radius: 14px !important;
+  }
+}

@@ -11,6 +11,8 @@ import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList, createFa
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 import { getActiveContext, getActiveSpaceType, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
+import TodayActions, { type TodayData } from "@/components/experience/TodayActions";
+import { useFeedback } from "@/components/experience/FeedbackProvider";
 
 const STATS = [
   { label: "Membres", value: "0", sub: "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
@@ -30,7 +32,9 @@ const ACTIVITIES: { title: string; type: ActivityType; date: string; time: strin
 
 const DEFAULT_ACTIVITIES = [
   { id: "culte", name: "Culte du Dimanche", day: 0, days: [0], startTime: "10:00", endTime: "12:30", location: "Sanctuaire Principal", startDate: "2026-03-29" },
-  { id: "cdm", name: "CDM (Cellule Alpha)", day: 4, days: [4], startTime: "19:00", endTime: "20:30", location: "Salles Annexes", startDate: "2026-03-29" },
+  { id: "cdm", name: "CDM", day: 4, days: [4], startTime: "19:00", endTime: "20:30", location: "Salles Annexes", startDate: "2026-03-29" },
+  { id: "evangelisation", name: "Évangélisation", day: 6, days: [6], startTime: "15:00", endTime: "17:00", location: "Sortie terrain", startDate: "2026-03-29" },
+  { id: "teach_and_pray", name: "Teach & Pray", day: 2, days: [2], startTime: "19:30", endTime: "21:00", location: "En ligne / Salles", startDate: "2026-03-29" },
 ];
 
 const AT_RISK: any[] = [];
@@ -40,6 +44,7 @@ const CHALLENGES: any[] = [];
 const OBJECTIVES: any[] = [];
 
 export default function DashboardPage() {
+  const { notify } = useFeedback();
   const [userInfo, setUserInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [church, setChurch] = useState<any>(null);
@@ -151,7 +156,7 @@ export default function DashboardPage() {
 
   const handleIntegrationLogin = async () => {
     if (!selectedIntegrationUser || !integrationCode) {
-      alert("Veuillez sélectionner votre nom et saisir votre code.");
+      notify("Veuillez sélectionner votre nom et saisir votre code.");
       return;
     }
 
@@ -161,7 +166,7 @@ export default function DashboardPage() {
     const churchConnectedEmail = localStorage.getItem("church_connected_email") || "";
 
     if (email !== churchConnectedEmail.toLowerCase().trim()) {
-      alert("Erreur de sécurité : L'adresse e-mail avec laquelle vous êtes connecté à l'église ne correspond pas à celle enregistrée pour ce responsable.");
+      notify("Erreur de sécurité : L'adresse e-mail avec laquelle vous êtes connecté à l'église ne correspond pas à celle enregistrée pour ce responsable.");
       setLoading(false);
       return;
     }
@@ -177,7 +182,7 @@ export default function DashboardPage() {
         const selectedUserObj = integrationList.find(item => item.email === email);
         if (selectedUserObj?.isHead || selectedUserObj?.isPending) {
           if (password !== selectedUserObj.code) {
-            alert("Code d'accès incorrect. Veuillez réessayer.");
+            notify("Code d'accès incorrect. Veuillez réessayer.");
             setLoading(false);
             return;
           }
@@ -195,14 +200,14 @@ export default function DashboardPage() {
         if (authError || !sessionData?.user) {
           const res = await adminSignUp(email, password);
           if (!res.success) {
-            alert(`Erreur d'accès : ${res.error}`);
+            notify(`Erreur d'accès : ${res.error}`);
             setLoading(false);
             return;
           }
 
           const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({ email, password });
           if (retryErr || !retryData?.user) {
-            alert(`Erreur de connexion : ${retryErr?.message || "Échec d'authentification."}`);
+            notify(`Erreur de connexion : ${retryErr?.message || "Échec d'authentification."}`);
             setLoading(false);
             return;
           }
@@ -217,7 +222,7 @@ export default function DashboardPage() {
         .single();
 
       if (profErr || !profile) {
-        alert("Erreur de profil : Impossible de charger votre profil d'intégration.");
+        notify("Erreur de profil : Impossible de charger votre profil d'intégration.");
         setLoading(false);
         return;
       }
@@ -259,14 +264,15 @@ export default function DashboardPage() {
       window.dispatchEvent(new Event("storage"));
       setLoading(false);
       
-      alert(`Bienvenue ${finalInfo.firstName} ! Connexion réussie au Département d'Intégration.`);
+      notify(`Bienvenue ${finalInfo.firstName} ! Connexion réussie au Département d'Intégration.`);
     } catch (e: any) {
-      alert(`Erreur inattendue : ${e.message}`);
+      notify(`Erreur inattendue : ${e.message}`);
       setLoading(false);
     }
   };
   const [rememberMe, setRememberMe] = useState(false);
   const [counts, setCounts] = useState({ members: 0, invites: 0 });
+  const [today, setToday] = useState<TodayData>({ status: "loading", pending: 0, unassigned: 0, contacts: [] });
   const [familyStats, setFamilyStats] = useState({
     membersCount: 0,
     invitesCount: 0,
@@ -293,6 +299,7 @@ export default function DashboardPage() {
   async function fetchCounts() {
     const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
     if (!myBergerie && !isIntegration) return;
+    setToday(previous => ({ ...previous, status: "loading" }));
     try {
       const userRoleVal = (userInfo?.role || "").toLowerCase().trim();
       const isOnlyResponsable = userRoleVal === "responsable" || userRoleVal === "responsable_de_brebi" || userRoleVal === "integration_conseiller";
@@ -434,11 +441,18 @@ export default function DashboardPage() {
 
       if (!isIntegration && mQuery) {
         const { data, error } = await mQuery;
-        members = (data || []).filter((m: any) => !m.archived);
+        members = (data || []).filter((m: any) => !m.archived && m.status !== "Externe");
         mErr = error;
       }
       const { data: rawInvites, error: iErr } = await iQuery;
       const invites = (rawInvites || []).filter((i: any) => !i.archived);
+      const pendingContacts = invites.filter((guest: any) => !guest.appel_abouti && guest.souhaite_etre_contacte !== false);
+      setToday({
+        status: iErr ? "error" : "ready",
+        pending: pendingContacts.length,
+        unassigned: invites.filter((guest: any) => isIntegration ? !guest.assigned_to : !guest.responsible || guest.responsible === "Non assigné").length,
+        contacts: pendingContacts.slice(0, 3).map((guest: any) => ({ id: guest.id, name: [guest.first_name, guest.last_name].filter(Boolean).join(" ") })),
+      });
       const { data: evangs, error: eErr } = await eQuery;
 
       if (mErr) console.error("Error fetching members:", mErr);
@@ -808,6 +822,7 @@ export default function DashboardPage() {
       setCounts({ members: mCount, invites: iCount });
 
     } catch {
+      setToday(previous => ({ ...previous, status: "error" }));
       console.error("Error fetching dashboard data");
     }
   }
@@ -1009,7 +1024,7 @@ export default function DashboardPage() {
   const handleCreateRequest = async () => {
     if (!church) return;
     if (!newBergerie.name || !newBergerie.firstName || !newBergerie.lastName || !newBergerie.email || !newBergerie.code) {
-      alert("Veuillez remplir tous les champs (Nom famille, Prénom, Nom, Email, Code).");
+      notify("Veuillez remplir tous les champs (Nom famille, Prénom, Nom, Email, Code).");
       return;
     }
     setLoading(true);
@@ -1034,7 +1049,7 @@ export default function DashboardPage() {
       .single();
 
     if (error) {
-      alert("Erreur lors de la création : " + error.message);
+      notify("Erreur lors de la création : " + error.message);
     } else {
       setPendingRequest(newBg);
 
@@ -1057,7 +1072,7 @@ export default function DashboardPage() {
       };
       localStorage.setItem("poimen_user_info", JSON.stringify(info));
       setUserInfo(info);
-      alert("Demande envoyée ! Un administrateur doit approuver votre famille avant de pouvoir y accéder.");
+      notify("Demande envoyée ! Un administrateur doit approuver votre famille avant de pouvoir y accéder.");
     }
     setIsCreating(false);
     setLoading(false);
@@ -1069,11 +1084,11 @@ export default function DashboardPage() {
 
   const confirmJoin = async () => {
     if (!selectedLeaderEmail) {
-      alert("Veuillez sélectionner votre nom.");
+      notify("Veuillez sélectionner votre nom.");
       return;
     }
     if (!registration.code) {
-      alert("Veuillez saisir votre code d'accès.");
+      notify("Veuillez saisir votre code d'accès.");
       return;
     }
     if (!selectedForJoin) return;
@@ -1085,7 +1100,7 @@ export default function DashboardPage() {
 
     // Security check: email must match church connected email
     if (email !== churchConnectedEmail.toLowerCase().trim()) {
-      alert("Erreur de sécurité : L'adresse e-mail avec laquelle vous êtes connecté à l'église ne correspond pas à celle enregistrée pour ce responsable.");
+      notify("Erreur de sécurité : L'adresse e-mail avec laquelle vous êtes connecté à l'église ne correspond pas à celle enregistrée pour ce responsable.");
       setLoading(false);
       return;
     }
@@ -1101,7 +1116,7 @@ export default function DashboardPage() {
       if (isAlreadyLoggedIn) {
         // Direct validation client-side by checking the code against selectedForJoin access code
         if (registration.code !== selectedForJoin.access_code) {
-          alert("Code d'accès de la famille invalide. Veuillez réessayer.");
+          notify("Code d'accès de la famille invalide. Veuillez réessayer.");
           setLoading(false);
           return;
         }
@@ -1123,7 +1138,7 @@ export default function DashboardPage() {
         if (authError || !sessionData?.user) {
           const res = await adminSignUp(email, password);
           if (!res.success) {
-            alert(`Erreur d'accès : ${res.error}`);
+            notify(`Erreur d'accès : ${res.error}`);
             setLoading(false);
             return;
           }
@@ -1135,7 +1150,7 @@ export default function DashboardPage() {
           });
 
           if (retryErr || !retryData?.user) {
-            alert(`Erreur de connexion : ${retryErr?.message || "Échec d'authentification."}`);
+            notify(`Erreur de connexion : ${retryErr?.message || "Échec d'authentification."}`);
             setLoading(false);
             return;
           }
@@ -1151,7 +1166,7 @@ export default function DashboardPage() {
         .single();
 
       if (profErr || !profile) {
-        alert("Erreur de profil : Impossible de charger votre profil de leader.");
+        notify("Erreur de profil : Impossible de charger votre profil de leader.");
         setLoading(false);
         return;
       }
@@ -1178,7 +1193,7 @@ export default function DashboardPage() {
       });
 
       if (!res.success || !res.context) {
-        alert(`Erreur lors de la création de la casquette : ${res.error}`);
+        notify(`Erreur lors de la création de la casquette : ${res.error}`);
         setLoading(false);
         return;
       }
@@ -1227,9 +1242,9 @@ export default function DashboardPage() {
       setSelectedForJoin(null);
       setLoading(false);
       
-      alert(`Bienvenue ${finalInfo.firstName} ! Connexion réussie en tant que ${userRoleForUI}.`);
+      notify(`Bienvenue ${finalInfo.firstName} ! Connexion réussie en tant que ${userRoleForUI}.`);
     } catch (e: any) {
-      alert(`Erreur inattendue : ${e.message}`);
+      notify(`Erreur inattendue : ${e.message}`);
       setLoading(false);
     }
   };
@@ -1722,57 +1737,11 @@ export default function DashboardPage() {
           </h2>
         </div>
 
-        {/* Quick Action Shortcuts Bar */}
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {isIntegration ? (
-            <>
-              {(userRoleVal === "integration_responsable" || userRoleVal === "integration_second") && (
-                <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/equipe"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(212,175,55,0.3)", color: "var(--gold-light)" }}>
-                  <Users size={14} /> Équipe
-                </button>
-              )}
-              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/invites"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(245,158,11,0.3)", color: "var(--orange)" }}>
-                <UserPlus size={14} /> Invités
-              </button>
-              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/affectation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(56,189,248,0.3)", color: "var(--sky)" }}>
-                <Users size={14} /> Affectations
-              </button>
-              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/evangelisation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(167,139,250,0.3)", color: "var(--purple-light)" }}>
-                <Target size={14} /> Évangélisation
-              </button>
-            </>
-          ) : (
-            <>
-              {isLeader && (
-                <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/bergerie"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(212,175,55,0.3)", color: "var(--gold-light)" }}>
-                  <CalendarCheck size={14} /> Appel & Présences
-                </button>
-              )}
-              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/affectation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(56,189,248,0.3)", color: "var(--sky)" }}>
-                <Users size={14} /> Mes Affectations
-              </button>
-              <button className="btn btn-outline btn-sm" onClick={() => window.location.href = "/dashboard/evangelisation"} style={{ height: 36, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(167,139,250,0.3)", color: "var(--purple-light)" }}>
-                <Target size={14} /> Évangélisation
-              </button>
-              <button 
-                className="btn btn-ghost btn-sm" 
-                style={{ height: 36 }}
-                onClick={() => {
-                  setMyBergerie(null);
-                  localStorage.removeItem("selected_family");
-                  localStorage.removeItem("poimen_active_context");
-                  localStorage.removeItem("poimen_user_info");
-                  localStorage.setItem("poimen_space_exited", "true");
-                  window.dispatchEvent(new Event("storage"));
-                }}
-              >
-                Changer de Famille
-              </button>
-            </>
-          )}
-        </div>
       </div>
 
+      <TodayActions data={today} upcoming={activitiesList.find(activity => activity.upcoming)} onRetry={() => void fetchCounts()} />
+
+      <details className="ux-overview"><summary>Vue d’ensemble et statistiques <span>Consulter les indicateurs</span></summary><div className="ux-overview-content">
       {/* Stat Cards */}
       <div className="bento bento-4 d1">
         {DYNAMIC_STATS.map((s, i) => {
@@ -1947,14 +1916,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      </div></details>
       {/* Activities + À risque */}
-      <div className="bento d3" style={{ gridTemplateColumns: isIntegration ? "1fr" : "2fr 1fr" }}>
+      <div className={`bento ${isIntegration ? "bento-1-1" : "bento-2-1"} d3`}>
         {!isIntegration && (
           <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-            <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)" }}>
+            <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)", flexWrap: "wrap", gap: 10 }}>
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Activités & Événements</span>
               {isLeader && (
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <button 
                     className="btn btn-primary btn-sm fast-checkin-mobile-shortcut" 
                     style={{ padding: "4px 10px", fontSize: 10, gap: 4 }} 
@@ -1970,20 +1940,20 @@ export default function DashboardPage() {
             </div>
             <div style={{ padding: "4px 0" }}>
               {activitiesList.length > 0 ? activitiesList.map((a, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: i < activitiesList.length - 1 || upcomingBirthdays.length > 0 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
-                  <div className="color-bar" style={{ background: "linear-gradient(180deg, var(--gold), var(--gold-light))", height: 38, width: 3, borderRadius: 2 }} />
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", borderBottom: i < activitiesList.length - 1 || upcomingBirthdays.length > 0 ? "1px solid rgba(212, 175, 55, 0.08)" : "none" }}>
+                  <div className="color-bar" style={{ background: "linear-gradient(180deg, var(--gold), var(--gold-light))", height: 38, width: 3, borderRadius: 2, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{a.title}</div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Calendar size={11} style={{ color: "var(--gold)" }} /> {a.date}</span>
                       <span>·</span>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Clock size={11} style={{ color: "var(--gold)" }} /> {a.time}</span>
                     </div>
                   </div>
                   {a.upcoming ? (
-                    <span className="badge badge-gold" style={{ fontSize: 9 }}>À venir</span>
+                    <span className="badge badge-gold" style={{ fontSize: 9, flexShrink: 0 }}>À venir</span>
                   ) : (
-                    <span style={{ fontSize: 14, fontWeight: 800, fontFamily: "var(--font-display)", color: (a.attendance ?? 0) >= 70 ? "var(--green)" : "var(--orange)" }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, fontFamily: "var(--font-display)", color: (a.attendance ?? 0) >= 70 ? "var(--green)" : "var(--orange)", flexShrink: 0 }}>
                       {a.attendance}%
                     </span>
                   )}
@@ -1995,7 +1965,7 @@ export default function DashboardPage() {
 
             {/* Upcoming Birthdays Section */}
             {upcomingBirthdays.length > 0 && (
-              <div style={{ borderTop: "1px solid rgba(212, 175, 55, 0.15)", padding: "18px 24px", background: "rgba(212, 175, 55, 0.02)" }}>
+              <div style={{ borderTop: "1px solid rgba(212, 175, 55, 0.15)", padding: "18px 20px", background: "rgba(212, 175, 55, 0.02)" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
                   <span>🎂 Anniversaires Proches</span>
                   <span className="badge badge-gold animate-bounce" style={{ fontSize: 9, padding: "2px 6px" }}>{upcomingBirthdays.length} proche(s)</span>
@@ -2003,10 +1973,10 @@ export default function DashboardPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {upcomingBirthdays.map((b, idx) => (
                     <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", padding: "10px 14px", borderRadius: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cream)" }}>{b.name}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cream)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                         <span style={{ fontSize: 11, color: "var(--muted)" }}>{b.date}</span>
                         <span className="badge badge-gold" style={{ fontSize: 9, padding: "2px 8px" }}>{b.relativeText}</span>
                       </div>
@@ -2019,7 +1989,7 @@ export default function DashboardPage() {
         )}
 
         <div className="glass glass-flush" style={{ border: isIntegration ? "1px solid rgba(139, 92, 246, 0.15)" : "1px solid rgba(212, 175, 55, 0.15)" }}>
-          <div style={{ padding: "18px 24px", borderBottom: isIntegration ? "1px solid rgba(139, 92, 246, 0.15)" : "1px solid rgba(212, 175, 55, 0.15)", background: "var(--surface)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ padding: "18px 20px", borderBottom: isIntegration ? "1px solid rgba(139, 92, 246, 0.15)" : "1px solid rgba(212, 175, 55, 0.15)", background: "var(--surface)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--red)" }}>
               ● {isIntegration ? "Alertes de Suivi Intégration" : "Alertes de Suivi FDD"}
             </span>
@@ -2027,15 +1997,15 @@ export default function DashboardPage() {
           </div>
           <div style={{ padding: "4px 0" }}>
             {atRiskList.length > 0 ? atRiskList.map((m, i) => (
-              <div key={i} style={{ padding: "16px 24px", borderBottom: i < atRiskList.length - 1 ? (isIntegration ? "1px solid rgba(139, 92, 246, 0.08)" : "1px solid rgba(212, 175, 55, 0.08)") : "none" }}>
+              <div key={i} style={{ padding: "16px 20px", borderBottom: i < atRiskList.length - 1 ? (isIntegration ? "1px solid rgba(139, 92, 246, 0.08)" : "1px solid rgba(212, 175, 55, 0.08)") : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-                  <div className="avatar avatar-gradient avatar-effect-pulse" style={{ width: 36, height: 36, fontSize: 12, color: "var(--red)", borderColor: "var(--red)" }}>{m.initials}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{m.name}</div>
+                  <div className="avatar avatar-gradient avatar-effect-pulse" style={{ width: 36, height: 36, fontSize: 12, color: "var(--red)", borderColor: "var(--red)", flexShrink: 0 }}>{m.initials}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{m.issue}</div>
                   </div>
                   {(isLeader || isIntegration) && (
-                    <button className="btn btn-ghost btn-sm" style={{ padding: "2px 8px", fontSize: 10 }} onClick={() => window.location.href = isIntegration ? `/dashboard/affectation` : `/dashboard/bergerie`}>
+                    <button className="btn btn-ghost btn-sm" style={{ padding: "2px 8px", fontSize: 10, flexShrink: 0 }} onClick={() => window.location.href = isIntegration ? `/dashboard/affectation` : `/dashboard/bergerie`}>
                       Relancer
                     </button>
                   )}

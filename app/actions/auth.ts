@@ -621,73 +621,119 @@ export async function autoAddLeaderToMembers(params: {
 
 export async function getIntegrationDropdownList(churchId: string) {
   try {
-    const permission = await assertCanReadIntegrationTeam(churchId);
-    if (!permission.ok) return { success: false, error: permission.error };
+    if (!isUuid(churchId)) return { success: false, error: "Église invalide." };
     const supabase = await getServiceSupabase();
-    const list: any[] = [];
 
-    // 1. Fetch pending counselors
-    const { data: pending, error: pendingErr } = await supabase
-      .from("pending_counselors")
-      .select("*")
-      .eq("church_id", churchId);
+    // 1. Fetch church to verify existence
+    const { data: church, error: churchErr } = await supabase
+      .from("churches")
+      .select("id, name, integration_email, integration_first_name, integration_last_name, archived")
+      .eq("id", churchId)
+      .maybeSingle();
 
-    if (!pendingErr && pending) {
-      pending.forEach((p: any) => {
-        list.push({
-          email: p.email.toLowerCase().trim(),
-          name: `${p.first_name} ${p.last_name}`,
-          role: p.role || "integration_counselor",
-          isPending: true
-        });
-      });
+    if (churchErr || !church || church.archived) {
+      return { success: false, error: "Église introuvable ou archivée." };
     }
 
-    // 2. Fetch active integration profiles
-    const { data: profiles, error: profilesErr } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("church_id", churchId)
-      .ilike("role", "integration_%");
+    const list: any[] = [];
 
-    if (!profilesErr && profiles) {
-      profiles.forEach((p: any) => {
-        list.push({
-          email: p.email.toLowerCase().trim(),
-          name: p.display_name,
-          role: p.role,
-          isProfile: true
-        });
+    // 2. Add department head from church
+    if (church.integration_email && church.integration_first_name) {
+      list.push({
+        email: church.integration_email.toLowerCase().trim(),
+        name: `${church.integration_first_name} ${church.integration_last_name || ""}`.trim(),
+        role: "integration_responsable"
       });
     }
 
     // 3. Fetch active integration contexts
     const { data: contexts, error: contextsErr } = await supabase
       .from("user_contexts")
-      .select("*")
+      .select("email, display_name, role")
       .eq("church_id", churchId)
       .eq("context_type", "integration")
-      .eq("active", true);
+      .eq("active", true)
+      .in("role", ["integration_responsable", "integration_second", "integration_conseiller"]);
 
     if (!contextsErr && contexts) {
       contexts.forEach((c: any) => {
-        list.push({
-          email: c.email.toLowerCase().trim(),
-          name: c.display_name,
-          role: c.role,
-          isContext: true
-        });
+        if (c.email) {
+          list.push({
+            email: c.email.toLowerCase().trim(),
+            name: c.display_name || c.email,
+            role: c.role,
+            isContext: true
+          });
+        }
       });
     }
 
-    // Remove duplicates by email
-    const uniqueList: any[] = [];
-    const emailsSeen = new Set<string>();
+    // 4. Fetch active integration profiles
+    const { data: profiles, error: profilesErr } = await supabase
+      .from("profiles")
+      .select("email, display_name, role")
+      .eq("church_id", churchId)
+      .eq("active", true)
+      .ilike("role", "integration_%");
+
+    if (!profilesErr && profiles) {
+      profiles.forEach((p: any) => {
+        if (p.email) {
+          list.push({
+            email: p.email.toLowerCase().trim(),
+            name: p.display_name || p.email,
+            role: p.role,
+            isProfile: true
+          });
+        }
+      });
+    }
+
+    // 5. Fetch pending counselors
+    const { data: pending, error: pendingErr } = await supabase
+      .from("pending_counselors")
+      .select("email, first_name, last_name, role")
+      .eq("church_id", churchId);
+
+    if (!pendingErr && pending) {
+      pending.forEach((p: any) => {
+        if (p.email) {
+          list.push({
+            email: p.email.toLowerCase().trim(),
+            name: `${p.first_name} ${p.last_name || ""}`.trim(),
+            role: p.role || "integration_conseiller",
+            isPending: true
+          });
+        }
+      });
+    }
+
+    // Deduplicate by email
+    const uniqueMap = new Map<string, any>();
     list.forEach(item => {
-      if (!emailsSeen.has(item.email)) {
-        emailsSeen.add(item.email);
-        uniqueList.push(item);
+      const email = item.email?.toLowerCase().trim();
+      if (email && !uniqueMap.has(email)) {
+        uniqueMap.set(email, {
+          email,
+          name: item.name || email,
+          role: item.role || "integration_conseiller"
+        });
       }
+    });
+
+    const uniqueList = Array.from(uniqueMap.values());
+
+    const roleRank = (role: string) => {
+      const r = (role || "").toLowerCase();
+      if (r === "integration_responsable") return 1;
+      if (r === "integration_second") return 2;
+      return 3;
+    };
+
+    uniqueList.sort((a, b) => {
+      const rankDiff = roleRank(a.role) - roleRank(b.role);
+      if (rankDiff !== 0) return rankDiff;
+      return (a.name || "").localeCompare(b.name || "", "fr", { sensitivity: "base" });
     });
 
     return { success: true, list: uniqueList };

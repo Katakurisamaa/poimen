@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Plus, MapPin, Key, Trash2, Edit2, Globe, ShieldCheck, Users, Link as LinkIcon, Check, Copy, X, CheckCircle2, XCircle, Church } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { createChurchInvitation } from "@/app/actions/church";
+import { useFeedback } from "@/components/experience/FeedbackProvider";
 
 export default function SuperAdminDashboard() {
   return (
@@ -15,6 +16,7 @@ export default function SuperAdminDashboard() {
 }
 
 function AdminContent() {
+  const { notify, confirm } = useFeedback();
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabParam = searchParams.get("tab");
@@ -86,14 +88,14 @@ function AdminContent() {
     try {
       const res = await createChurchInvitation();
       if (!res.success || !res.token) {
-        alert("Erreur lors de la création de l'invitation: " + (res.error || "Inconnue"));
+        notify("Erreur lors de la création de l'invitation : " + (res.error || "Inconnue"));
         return;
       }
       const origin = typeof window !== "undefined" ? window.location.origin : "https://poimen.org";
       setInviteLink(`${origin}/setup-church?token=${res.token}`);
       setIsInviting(true);
     } catch (err: any) {
-      alert("Erreur: " + err.message);
+      notify("Erreur : " + err.message);
     }
   };
 
@@ -105,7 +107,7 @@ function AdminContent() {
 
   const addChurch = async () => {
     if (!newChurch.name || !newChurch.access_code) {
-      alert("Veuillez remplir tous les champs obligatoires.");
+      notify("Veuillez remplir tous les champs obligatoires.");
       return;
     }
 
@@ -115,14 +117,15 @@ function AdminContent() {
       setChurches([...churches, { ...data[0], bergeries: [] }]);
       setIsAdding(false);
       setNewChurch({ name: "", city: "", country: "Belgique", access_code: "", integration_email: "", integration_access_code: "", integration_first_name: "", integration_last_name: "" });
+      notify("Église créée avec succès !");
     } else {
       console.error("Error creating church:", error);
       const isSchemaError = error?.message?.includes("column") || error?.message?.includes("access_code");
-      alert(
-        `Erreur: ${error?.message || "Inconnue"}\n\n` +
+      notify(
+        `Erreur : ${error?.message || "Inconnue"}. ` +
         (isSchemaError 
-          ? "Il semble que la table 'churches' n'est pas à jour. Exécutez le patch SQL (v2.0) dans votre éditeur Supabase." 
-          : "Vérifiez les politiques RLS sur la table 'churches' ou assurez-vous d'être bien connecté avec le compte Admin.")
+          ? "Il semble que la table 'churches' n'est pas à jour." 
+          : "Vérifiez les politiques RLS ou votre compte.")
       );
     }
   };
@@ -144,7 +147,7 @@ function AdminContent() {
 
   const updateChurch = async () => {
     if (!editingChurch.name || !editingChurch.access_code) {
-      alert("Veuillez remplir tous les champs obligatoires.");
+      notify("Veuillez remplir tous les champs obligatoires.");
       return;
     }
 
@@ -167,71 +170,63 @@ function AdminContent() {
       setChurches(churches.map(c => c.id === editingChurch.id ? { ...c, ...data[0] } : c));
       setIsEditing(false);
       setEditingChurch(null);
+      notify("Église modifiée avec succès !");
     } else {
       console.error("Error updating church:", error);
-      alert(`Erreur lors de la modification de l'église: ${error?.message || "Inconnue"}`);
+      notify(`Erreur lors de la modification de l'église : ${error?.message || "Inconnue"}`);
     }
   };
 
   const deleteChurch = async (id: string) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer cette église ? Tout le contenu rattaché (familles, membres, activités, invitations) sera définitivement supprimé en cascade.")) {
-      const { error } = await supabase.from("churches").delete().eq("id", id);
-      if (!error) {
-        setChurches(churches.filter(c => c.id !== id));
-      } else {
-        console.error("Error deleting church:", error);
-        alert(
-          `Erreur lors de la suppression de l'église : ${error.message}\n\n` +
-          "Assurez-vous que le patch SQL v1.9 a bien été appliqué dans votre éditeur Supabase pour autoriser cette suppression."
-        );
-      }
+    if (!await confirm("Êtes-vous sûr de vouloir supprimer cette église ? Tout le contenu rattaché (familles, membres, activités, invitations) sera définitivement supprimé en cascade.")) return;
+    const { error } = await supabase.from("churches").delete().eq("id", id);
+    if (!error) {
+      setChurches(churches.filter(c => c.id !== id));
+      notify("Église supprimée avec succès.");
+    } else {
+      console.error("Error deleting church:", error);
+      notify(`Erreur lors de la suppression de l'église : ${error.message}`);
     }
   };
 
   const deleteBergerie = async (id: string) => {
-    if (confirm("Supprimer cette Famille de Disciple ? Tout le contenu rattaché (membres, activités, invitations) sera définitivement supprimé.")) {
-      // Step 1: Disassociate any profiles referencing this bergerie
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ bergerie_id: null })
-        .eq("bergerie_id", id);
-        
-      if (profileError) {
-        console.warn("Could not auto-disassociate profiles from this bergerie:", profileError);
-      }
+    if (!await confirm("Supprimer cette Famille de Disciples ? Tout le contenu rattaché (membres, activités, invitations) sera définitivement supprimé.")) return;
+    // Step 1: Disassociate any profiles referencing this bergerie
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ bergerie_id: null })
+      .eq("bergerie_id", id);
+      
+    if (profileError) {
+      console.warn("Could not auto-disassociate profiles from this bergerie:", profileError);
+    }
 
-      // Step 2: Delete the bergerie
-      const { error } = await supabase.from("bergeries").delete().eq("id", id);
-      if (!error) {
-        setChurches(churches.map(c => ({
-          ...c,
-          bergeries: c.bergeries?.filter((b: any) => b.id !== id)
-        })));
-        setPendingBergeries(pendingBergeries.filter(b => b.id !== id));
-      } else {
-        console.error("Error deleting bergerie:", error);
-        alert(
-          `Erreur lors de la suppression de la Famille : ${error.message}\n\n` +
-          "Assurez-vous que le patch SQL v1.9 et v3.3 ont bien été appliqués dans votre éditeur Supabase pour autoriser cette action."
-        );
-      }
+    // Step 2: Delete the bergerie
+    const { error } = await supabase.from("bergeries").delete().eq("id", id);
+    if (!error) {
+      setChurches(churches.map(c => ({
+        ...c,
+        bergeries: c.bergeries?.filter((b: any) => b.id !== id)
+      })));
+      setPendingBergeries(pendingBergeries.filter(b => b.id !== id));
+      notify("Famille supprimée avec succès.");
+    } else {
+      console.error("Error deleting bergerie:", error);
+      notify(`Erreur lors de la suppression de la Famille : ${error.message}`);
     }
   };
 
   const approveBergerie = async (id: string) => {
     const pendingBg = pendingBergeries.find(b => b.id === id);
     if (!pendingBg) {
-      alert("Demande introuvable.");
+      notify("Demande introuvable.");
       return;
     }
 
     const { error: bgError } = await supabase.from("bergeries").update({ status: "active" }).eq("id", id);
     if (bgError) {
       console.error("Error approving bergerie:", bgError);
-      alert(
-        `Erreur lors de l'approbation de la Famille : ${bgError.message}\n\n` +
-        "Assurez-vous que le patch SQL v1.9 a bien été appliqué dans votre éditeur Supabase pour autoriser cette action."
-      );
+      notify(`Erreur lors de l'approbation de la Famille : ${bgError.message}`);
       return;
     }
 
