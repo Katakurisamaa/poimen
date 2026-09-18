@@ -774,21 +774,7 @@ h1,h2,h3,h4,h5,h6 {
 }
 
 .leader-card {
-  border: 1px solid rgba(212, 175, 55, 0.35) !important;
-  background: linear-gradient(135deg, rgba(26, 16, 48, 0.8), rgba(212, 175, 55, 0.08)) !important;
-  box-shadow: 0 12px 45px rgba(0, 0, 0, 0.3), 0 0 20px rgba(212, 175, 55, 0.08);
-}
-
-.leader-card::after {
-  content: 'BERGER';
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-  color: var(--gold);
-  opacity: 0.7;
+  border-left: 3.5px solid var(--gold) !important;
 }
 
 /* ═══════════════════════════════════════════
@@ -1790,8 +1776,6 @@ select.input option { background: var(--bg-deep); color: var(--cream); }
     background: rgba(212, 175, 55, 0.06);
   }
 
-  /* ─── Leader distinction: simplify on mobile ─── */
-  .leader-card::after { font-size: 7px; top: 8px; right: 8px; }
 }
 
 /* Mobile experience polish: make the app feel designed for touch, not compressed desktop. */

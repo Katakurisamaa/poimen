@@ -6,7 +6,7 @@ import {
   Search, Plus, Grid3X3, List, UserMinus, UserPlus, 
   ChevronDown, ChevronUp, XCircle, Loader2, Pencil, Eye,
   Trash2, Trash, RotateCcw, Archive, Table, Maximize2, Minimize2,
-  Filter, SlidersHorizontal
+  Filter, SlidersHorizontal, Phone
 } from "lucide-react";
 import { useRef } from "react";
 import { supabase } from "@/lib/supabase";
@@ -66,20 +66,44 @@ interface Activity {
   cancelledDates?: string[];
 }
 
-const INITIAL_ACTIVITIES: Activity[] = [
-  { id: "culte", name: "Culte du Dimanche", day: 0, startTime: "10:00", endTime: "12:30" },
-  { id: "cdm", name: "CDM", day: 4, startTime: "19:00", endTime: "20:30" },
-  { id: "evangelisation", name: "Évangélisation", day: 6, startTime: "15:00", endTime: "17:00" },
-  { id: "teach_and_pray", name: "Teach & Pray", day: 2, startTime: "19:30", endTime: "21:00" },
-];
-
 const INITIAL_DATA: M[] = [];
+
+const getRoleBadgeInfo = (status: string) => {
+  const s = (status || "").toLowerCase().trim();
+  if (s === "berger") return { label: "BERGER", className: "is-berger" };
+  if (s === "second") return { label: "SECOND", className: "is-second" };
+  if (s === "responsable") return { label: "RESPONSABLE", className: "is-responsable" };
+  if (s === "faiseur de disciple" || s === "fdd") return { label: "FDD", className: "is-fdd" };
+  return { label: (status || "BREBI").toUpperCase(), className: "is-brebi" };
+};
+
+const getAvatarClass = (status: string) => {
+  const s = (status || "").toLowerCase().trim();
+  if (s === "berger") return "is-berger";
+  if (s === "second") return "is-second";
+  if (s === "responsable") return "is-responsable";
+  if (s === "faiseur de disciple" || s === "fdd") return "is-fdd";
+  return "is-brebi";
+};
+
+const getEngagementRateClass = (engagement: number) => {
+  if (engagement >= 75) return "rate-high";
+  if (engagement >= 40) return "rate-medium";
+  return "rate-low";
+};
 
 const getEngagementColor = (engagement: number) => {
   if (engagement >= 75) return "var(--green)";
   if (engagement >= 45) return "var(--orange)";
   return "var(--red)";
 };
+
+const INITIAL_ACTIVITIES: Activity[] = [
+  { id: "culte", name: "Culte du Dimanche", day: 0, startTime: "10:00", endTime: "12:30" },
+  { id: "cdm", name: "CDM", day: 4, startTime: "19:00", endTime: "20:30" },
+  { id: "evangelisation", name: "Évangélisation", day: 6, startTime: "15:00", endTime: "17:00" },
+  { id: "teach_and_pray", name: "Teach & Pray", day: 2, startTime: "19:30", endTime: "21:00" },
+];
 
 function BergeriePage() {
   const { notify, confirm } = useFeedback();
@@ -1356,30 +1380,61 @@ function BergeriePage() {
           </div>
         </div>
       ) : view === "grid" ? (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(min(220px, 100%), 1fr))", gap:10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%), 1fr))", gap: 14 }}>
           {filtered.map((m) => {
             const engagement = calculateEngagement(m);
-            const color = getEngagementColor(engagement);
+            const rateClass = getEngagementRateClass(engagement);
+            const roleBadge = getRoleBadgeInfo(m.status);
+            const avatarClass = getAvatarClass(m.status);
             const isMainLeader = m.status === "Berger" || m.status === "Second";
 
             return (
-              <div key={m.id} className={`glass ${isMainLeader ? "leader-card" : ""}`} style={{ position:"relative" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14 }}>
-                  <div className="avatar" style={{ background:color.replace(')', '-glow)'), border:`1px solid ${color}`, color:color, width:36, height:36 }}>{m.firstName[0]}{m.lastName[0]}</div>
-                <div className="action-group">
-                  {isLeader && (
-                    <>
+              <div 
+                key={m.id} 
+                className={`member-card-item ${isMainLeader ? "leader-card" : ""}`}
+              >
+                {/* Top Row: Avatar + Identity + Role + Actions */}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+                    <div className={`member-card-avatar ${avatarClass}`}>
+                      {m.firstName?.[0] || ""}{m.lastName?.[0] || ""}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cream)", lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <PersonButton person={m} onClick={() => personView.openPerson(m.id)} />
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                        <span className={`member-role-badge ${roleBadge.className}`}>
+                          {roleBadge.label}
+                        </span>
+                        {m.is_conseiller && (
+                          <span className="member-role-badge is-conseiller">
+                            CONSEILLER
+                          </span>
+                        )}
+                        {m.est_star && (
+                          <span className="member-role-badge is-star">
+                            S.T.A.R
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  {canManageMembers && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 4 }}>
                       {showCorbeille ? (
                         <>
                           <button 
-                            className="btn-icon btn-icon-green" 
+                            className="member-action-btn member-action-btn-green" 
                             onClick={() => handleRestoreMember(m.id)} 
                             title="Restaurer"
                           >
                             <RotateCcw size={14} />
                           </button>
                           <button 
-                            className="btn-icon btn-icon-red" 
+                            className="member-action-btn member-action-btn-red" 
                             onClick={() => handlePermanentDelete(m.id)} 
                             title="Supprimer définitivement"
                           >
@@ -1389,7 +1444,7 @@ function BergeriePage() {
                       ) : (
                         <>
                           <button 
-                            className="btn-icon btn-icon-gold" 
+                            className="member-action-btn" 
                             onClick={() => {
                               setNewMember(m);
                               setIsConseillerChecked(m.is_conseiller || false);
@@ -1400,7 +1455,7 @@ function BergeriePage() {
                             <Pencil size={14} />
                           </button>
                           <button 
-                            className="btn-icon btn-icon-red" 
+                            className="member-action-btn member-action-btn-red" 
                             onClick={() => handleDeleteMember(m.id)}
                             title="Mettre à la corbeille"
                           >
@@ -1408,22 +1463,49 @@ function BergeriePage() {
                           </button>
                         </>
                       )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Meta Row: Civility · Age · Phone */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", marginTop: 12, flexWrap: "wrap" }}>
+                  {m.civility && <span>{m.civility}</span>}
+                  {m.civility && m.age && <span style={{ opacity: 0.5 }}>•</span>}
+                  {m.age && <span>{m.age} ans</span>}
+                  {m.phone && (
+                    <>
+                      <span style={{ opacity: 0.5 }}>•</span>
+                      <a 
+                        href={`tel:${m.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="member-phone-link"
+                        title="Appeler"
+                      >
+                        <Phone size={11} />
+                        <span>{m.phone}</span>
+                      </a>
                     </>
                   )}
                 </div>
-                </div>
-                <div style={{ marginBottom:12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ fontWeight:700, fontSize:15 }}><PersonButton person={m} onClick={() => personView.openPerson(m.id)} /></div>
-                    <span className="badge badge-sky" style={{ fontSize: 9 }}>{m.status.toUpperCase()}</span>
+
+                {/* Assiduité / Engagement Progress */}
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border-light, rgba(212, 175, 55, 0.08))" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: "var(--muted)" }}>
+                      Assiduité ce mois
+                    </span>
+                    <span className={`member-rate-pill ${rateClass}`}>
+                      {engagement}%
+                    </span>
                   </div>
-                  <div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{m.civility} · {m.age} · {m.phone}</div>
-                </div>
-                <div className="progress progress-thick" style={{ marginBottom:6 }}>
-                  <div className="progress-fill" style={{ width:`${engagement}%`, background:color }} />
-                </div>
-                <div style={{ display:"flex", justifyContent:"center", alignItems:"center" }}>
-                  <span style={{ fontSize:10, color:color, fontWeight:600 }}>Engagement (Ce mois) : {engagement}%</span>
+                  <div className="member-progress-track">
+                    <div 
+                      className={`member-progress-fill ${rateClass}`} 
+                      style={{ 
+                        width: `${Math.min(100, Math.max(0, engagement))}%`,
+                      }} 
+                    />
+                  </div>
                 </div>
               </div>
             );
@@ -2511,9 +2593,7 @@ function BergeriePage() {
           border-bottom: 1px solid rgba(212, 160, 60, 0.2) !important;
         }
         .leader-card {
-          border: 1px solid var(--gold) !important;
-          background: linear-gradient(145deg, rgba(212, 160, 60, 0.1), rgba(0, 0, 0, 0.4)) !important;
-          box-shadow: 0 8px 32px rgba(212, 160, 60, 0.1) !important;
+          border-left: 3.5px solid var(--gold) !important;
         }
 
         .bergerie-table-container {

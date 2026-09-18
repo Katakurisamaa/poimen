@@ -45,3 +45,374 @@
     border-radius: 14px !important;
   }
 }
+
+/* ─── Modern Member Cards (Bergerie & Disciples) ─── */
+.member-card-item {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  border-radius: 16px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface-solid) !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04) !important;
+}
+
+.member-card-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(212, 175, 55, 0.35) !important;
+}
+
+.member-card-item.leader-card {
+  border-left: 4px solid #b45309 !important;
+}
+
+html[data-theme="dark"] .member-card-item.leader-card,
+body[data-theme="dark"] .member-card-item.leader-card {
+  border-left: 4px solid var(--gold) !important;
+}
+
+.member-card-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  user-select: none;
+  transition: transform 0.2s ease;
+}
+
+.member-card-item:hover .member-card-avatar {
+  transform: scale(1.04);
+}
+
+/* Avatars with calibrated light & dark contrast */
+.member-card-avatar.is-berger {
+  background: rgba(180, 83, 9, 0.12);
+  color: #92400e;
+  border: 1.5px solid rgba(180, 83, 9, 0.32);
+}
+
+.member-card-avatar.is-second {
+  background: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
+  border: 1.5px solid rgba(124, 58, 237, 0.32);
+}
+
+.member-card-avatar.is-responsable {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0369a1;
+  border: 1.5px solid rgba(2, 132, 199, 0.32);
+}
+
+.member-card-avatar.is-fdd {
+  background: rgba(21, 128, 61, 0.12);
+  color: #15803d;
+  border: 1.5px solid rgba(21, 128, 61, 0.32);
+}
+
+.member-card-avatar.is-brebi {
+  background: rgba(100, 116, 139, 0.12);
+  color: #334155;
+  border: 1.5px solid rgba(100, 116, 139, 0.25);
+}
+
+html[data-theme="dark"] .member-card-avatar.is-berger,
+body[data-theme="dark"] .member-card-avatar.is-berger {
+  background: rgba(212, 175, 55, 0.2);
+  color: #f7e5b5;
+  border-color: rgba(212, 175, 55, 0.45);
+}
+
+html[data-theme="dark"] .member-card-avatar.is-second,
+body[data-theme="dark"] .member-card-avatar.is-second {
+  background: rgba(139, 92, 246, 0.2);
+  color: #c4b5fd;
+  border-color: rgba(139, 92, 246, 0.45);
+}
+
+html[data-theme="dark"] .member-card-avatar.is-responsable,
+body[data-theme="dark"] .member-card-avatar.is-responsable {
+  background: rgba(56, 189, 248, 0.2);
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+html[data-theme="dark"] .member-card-avatar.is-fdd,
+body[data-theme="dark"] .member-card-avatar.is-fdd {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+html[data-theme="dark"] .member-card-avatar.is-brebi,
+body[data-theme="dark"] .member-card-avatar.is-brebi {
+  background: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+/* Badges with calibrated light & dark contrast */
+.member-role-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 2.5px 7.5px;
+  border-radius: 6px;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.member-role-badge.is-berger {
+  background: rgba(180, 83, 9, 0.12);
+  color: #92400e;
+  border-color: rgba(180, 83, 9, 0.25);
+}
+
+.member-role-badge.is-second {
+  background: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
+  border-color: rgba(124, 58, 237, 0.25);
+}
+
+.member-role-badge.is-responsable {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0369a1;
+  border-color: rgba(2, 132, 199, 0.25);
+}
+
+.member-role-badge.is-fdd {
+  background: rgba(21, 128, 61, 0.12);
+  color: #15803d;
+  border-color: rgba(21, 128, 61, 0.25);
+}
+
+.member-role-badge.is-brebi {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+  border-color: rgba(100, 116, 139, 0.22);
+}
+
+.member-role-badge.is-star {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+  border-color: rgba(217, 119, 6, 0.25);
+}
+
+.member-role-badge.is-conseiller {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0369a1;
+  border-color: rgba(2, 132, 199, 0.25);
+}
+
+html[data-theme="dark"] .member-role-badge.is-berger,
+body[data-theme="dark"] .member-role-badge.is-berger {
+  background: rgba(212, 175, 55, 0.16);
+  color: #f7e5b5;
+  border-color: rgba(212, 175, 55, 0.35);
+}
+
+html[data-theme="dark"] .member-role-badge.is-second,
+body[data-theme="dark"] .member-role-badge.is-second {
+  background: rgba(139, 92, 246, 0.16);
+  color: #c4b5fd;
+  border-color: rgba(139, 92, 246, 0.35);
+}
+
+html[data-theme="dark"] .member-role-badge.is-responsable,
+body[data-theme="dark"] .member-role-badge.is-responsable {
+  background: rgba(56, 189, 248, 0.16);
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+html[data-theme="dark"] .member-role-badge.is-fdd,
+body[data-theme="dark"] .member-role-badge.is-fdd {
+  background: rgba(16, 185, 129, 0.16);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+html[data-theme="dark"] .member-role-badge.is-brebi,
+body[data-theme="dark"] .member-role-badge.is-brebi {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+html[data-theme="dark"] .member-role-badge.is-star,
+body[data-theme="dark"] .member-role-badge.is-star {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+html[data-theme="dark"] .member-role-badge.is-conseiller,
+body[data-theme="dark"] .member-role-badge.is-conseiller {
+  background: rgba(56, 189, 248, 0.16);
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+/* Phone link with high contrast */
+.member-phone-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #92400e;
+  text-decoration: none;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.member-phone-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+html[data-theme="dark"] .member-phone-link,
+body[data-theme="dark"] .member-phone-link {
+  color: var(--gold-light);
+}
+
+/* Engagement Rate Pill */
+.member-rate-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1.5px 7.5px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.member-rate-pill.rate-high {
+  color: #15803d;
+  background: rgba(21, 128, 61, 0.12);
+  border-color: rgba(21, 128, 61, 0.28);
+}
+
+.member-rate-pill.rate-medium {
+  color: #b45309;
+  background: rgba(217, 119, 6, 0.12);
+  border-color: rgba(217, 119, 6, 0.28);
+}
+
+.member-rate-pill.rate-low {
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+html[data-theme="dark"] .member-rate-pill.rate-high,
+body[data-theme="dark"] .member-rate-pill.rate-high {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+html[data-theme="dark"] .member-rate-pill.rate-medium,
+body[data-theme="dark"] .member-rate-pill.rate-medium {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+html[data-theme="dark"] .member-rate-pill.rate-low,
+body[data-theme="dark"] .member-rate-pill.rate-low {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* Action Buttons */
+.member-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(120, 113, 108, 0.08);
+  border: 1px solid rgba(120, 113, 108, 0.16);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.member-action-btn:hover {
+  background: rgba(180, 83, 9, 0.12);
+  color: #92400e;
+  border-color: rgba(180, 83, 9, 0.3);
+  transform: translateY(-1px);
+}
+
+html[data-theme="dark"] .member-action-btn:hover,
+body[data-theme="dark"] .member-action-btn:hover {
+  background: rgba(212, 175, 55, 0.15);
+  color: var(--gold);
+  border-color: rgba(212, 175, 55, 0.4);
+}
+
+.member-action-btn-red:hover {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+html[data-theme="dark"] .member-action-btn-red:hover,
+body[data-theme="dark"] .member-action-btn-red:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--red);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.member-action-btn-green:hover {
+  background: rgba(21, 128, 61, 0.12);
+  color: #15803d;
+  border-color: rgba(21, 128, 61, 0.3);
+}
+
+html[data-theme="dark"] .member-action-btn-green:hover,
+body[data-theme="dark"] .member-action-btn-green:hover {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--green);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+/* Progress Track and Fill */
+.member-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(120, 113, 108, 0.12);
+  overflow: hidden;
+  position: relative;
+}
+
+.member-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.member-progress-fill.rate-high {
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+}
+
+.member-progress-fill.rate-medium {
+  background: linear-gradient(90deg, #d97706, #f59e0b);
+}
+
+.member-progress-fill.rate-low {
+  background: linear-gradient(90deg, #dc2626, #ef4444);
+}
