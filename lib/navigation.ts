@@ -55,6 +55,9 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
     primary.push({ label: "Activités", href: "/dashboard/activities", icon: "calendar", description: "Calendrier et présences" });
     secondary.push({ label: "Rapports", href: "/dashboard/reporting", icon: "report", description: "Bilan et export des rapports" });
   }
+  if (integration) {
+    primary.push({ label: "Planning", href: "/dashboard/planning-integration", icon: "calendar", description: "Affectations et services du mois" });
+  }
   if (integrationLeader) secondary.push({ label: "Équipe", href: "/dashboard/equipe", icon: "team", description: "Responsables et conseillers" });
   if (familyLeader || integration || responsible) secondary.push({ label: "Évangélisation", href: "/dashboard/evangelisation", icon: "outreach", description: "Rencontres et sorties" });
   if (integration) secondary.push({ label: "Compte rendu de culte", href: "/cr-culte", icon: "report", description: "Préparer le compte rendu" });

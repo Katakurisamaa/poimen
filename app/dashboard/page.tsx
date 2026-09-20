@@ -113,44 +113,63 @@ export default function DashboardPage() {
     }
   }, [selectedForJoin]);
 
+  // Load integration team members when activeSpace is integration
+  useEffect(() => {
+    if (activeSpace === "integration") {
+      fetchIntegrationList();
+    }
+  }, [activeSpace, church]);
+
   const fetchIntegrationList = async () => {
-    if (!church) return;
+    const activeChurch = church || (typeof window !== "undefined" ? JSON.parse(localStorage.getItem("selected_church") || "null") : null);
+    if (!activeChurch?.id) return;
+
     try {
-      const list: any[] = [];
+      const res = await getIntegrationDropdownList(activeChurch.id);
+      const churchConnectedEmail = (typeof window !== "undefined" ? (localStorage.getItem("church_connected_email") || "") : "").toLowerCase().trim();
 
-      // 1. Add department head from church
-      if (church.integration_email && church.integration_first_name) {
-        list.push({
-          email: church.integration_email.toLowerCase().trim(),
-          name: `${church.integration_first_name} ${church.integration_last_name}`,
-          role: "integration_responsable",
-          isHead: true,
-          code: church.integration_access_code
-        });
-      }
-
-      // 2. Fetch the rest from server action
-      const res = await getIntegrationDropdownList(church.id);
-      if (res.success && res.list) {
-        list.push(...res.list);
-      }
-
-      // Remove duplicates by email
-      const uniqueList: any[] = [];
-      const emailsSeen = new Set<string>();
-      list.forEach(item => {
-        if (!emailsSeen.has(item.email)) {
-          emailsSeen.add(item.email);
-          uniqueList.push(item);
+      if (res.success && res.list && res.list.length > 0) {
+        setIntegrationList(res.list);
+        // Preselect the user who logged in at church connection if they are in the list, otherwise keep selected or pick first
+        const matchedMember = res.list.find((m: any) => m.email?.toLowerCase().trim() === churchConnectedEmail);
+        if (matchedMember) {
+          setSelectedIntegrationUser(matchedMember.email);
+        } else if (!selectedIntegrationUser || !res.list.some((m: any) => m.email === selectedIntegrationUser)) {
+          setSelectedIntegrationUser(res.list[0].email);
         }
-      });
-
-      setIntegrationList(uniqueList);
-      if (uniqueList.length > 0) {
-        setSelectedIntegrationUser(uniqueList[0].email);
+      } else {
+        // Fallback to department head from church
+        const fallbackList: any[] = [];
+        if (activeChurch.integration_email && activeChurch.integration_first_name) {
+          fallbackList.push({
+            email: activeChurch.integration_email.toLowerCase().trim(),
+            name: `${activeChurch.integration_first_name} ${activeChurch.integration_last_name || ""}`.trim(),
+            role: "integration_responsable",
+            isHead: true,
+            code: activeChurch.integration_access_code
+          });
+        }
+        setIntegrationList(fallbackList);
+        if (fallbackList.length > 0 && !selectedIntegrationUser) {
+          setSelectedIntegrationUser(fallbackList[0].email);
+        }
       }
     } catch (err) {
       console.error("Error fetching integration list:", err);
+      // Fallback to department head from church on error
+      if (activeChurch.integration_email && activeChurch.integration_first_name) {
+        const fallbackList = [{
+          email: activeChurch.integration_email.toLowerCase().trim(),
+          name: `${activeChurch.integration_first_name} ${activeChurch.integration_last_name || ""}`.trim(),
+          role: "integration_responsable",
+          isHead: true,
+          code: activeChurch.integration_access_code
+        }];
+        setIntegrationList(fallbackList);
+        if (!selectedIntegrationUser) {
+          setSelectedIntegrationUser(fallbackList[0].email);
+        }
+      }
     }
   };
 
@@ -1737,6 +1756,25 @@ export default function DashboardPage() {
           </h2>
         </div>
 
+        {isIntegration && (
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => window.location.href = "/dashboard/planning-integration"}
+            style={{
+              background: "linear-gradient(135deg, var(--gold), #b45309)",
+              border: "none",
+              color: "#000",
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 16px",
+              boxShadow: "0 2px 10px rgba(212, 175, 55, 0.2)"
+            }}
+          >
+            <Calendar size={16} /> Planning du Mois
+          </button>
+        )}
       </div>
 
       <TodayActions data={today} upcoming={activitiesList.find(activity => activity.upcoming)} onRetry={() => void fetchCounts()} />

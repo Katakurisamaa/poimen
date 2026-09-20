@@ -22,7 +22,7 @@ for (const [name, ink, accent] of [
   ['mono', 'currentColor', 'currentColor']
 ]) {
   const content = `<g>${pPath(accent)}<text x="24.5" y="32" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="700" font-size="28" fill="${ink}" letter-spacing="-0.6px">oimén</text></g>`;
-  await fs.writeFile(new URL(`public/brand/poimen-${name}.svg`, root), svg('0 0 130 36', content));
+  await fs.writeFile(new URL(`public/brand/poimen-${name}.svg`, root), svg('-1 -1 132 38', content));
 }
 
 await fs.writeFile(new URL('public/brand/poimen-symbol.svg', root), svg(POIMEN_P_VIEWBOX, pPath('currentColor')));

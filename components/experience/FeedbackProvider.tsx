@@ -26,7 +26,13 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [question, setQuestion] = useState<string | null>(null);
   const resolveRef = useRef<((value: boolean) => void) | null>(null);
   const sequence = useRef(0);
-  const notify = useCallback((message: string) => setNotices(previous => [...previous.slice(-2), { id: ++sequence.current, message }]), []);
+  const notify = useCallback((message: string) => {
+    const id = ++sequence.current;
+    setNotices(previous => [...previous.slice(-2), { id, message }]);
+    setTimeout(() => {
+      setNotices(previous => previous.filter(item => item.id !== id));
+    }, 3500);
+  }, []);
   const confirm = useCallback((message: string) => new Promise<boolean>(resolve => {
     resolveRef.current?.(false);
     resolveRef.current = resolve;

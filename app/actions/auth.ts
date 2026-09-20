@@ -1,5 +1,9 @@
 "use server";
 
+if (typeof process !== "undefined" && process.env) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
+
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
 import { SUPER_ADMIN_EMAIL, inferContextType, normalizeFamilyRole } from "@/lib/auth-contexts";
@@ -627,7 +631,7 @@ export async function getIntegrationDropdownList(churchId: string) {
     // 1. Fetch church to verify existence
     const { data: church, error: churchErr } = await supabase
       .from("churches")
-      .select("id, name, integration_email, integration_first_name, integration_last_name, archived")
+      .select("id, name, integration_email, integration_first_name, integration_last_name, integration_access_code, archived")
       .eq("id", churchId)
       .maybeSingle();
 
@@ -642,25 +646,41 @@ export async function getIntegrationDropdownList(churchId: string) {
       list.push({
         email: church.integration_email.toLowerCase().trim(),
         name: `${church.integration_first_name} ${church.integration_last_name || ""}`.trim(),
-        role: "integration_responsable"
+        role: "integration_responsable",
+        isHead: true,
+        code: church.integration_access_code
       });
     }
 
     // 3. Fetch active integration contexts
     const { data: contexts, error: contextsErr } = await supabase
       .from("user_contexts")
-      .select("email, display_name, role")
+      .select("user_id, email, display_name, role")
       .eq("church_id", churchId)
       .eq("context_type", "integration")
       .eq("active", true)
       .in("role", ["integration_responsable", "integration_second", "integration_conseiller"]);
 
+    const contextUserIds = [...new Set((contexts || []).map((c: any) => c.user_id).filter(Boolean))];
+    let contextProfiles: any[] = [];
+    if (contextUserIds.length) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, email, display_name")
+        .in("id", contextUserIds);
+      contextProfiles = profs || [];
+    }
+    const contextProfileMap = new Map(contextProfiles.map((p: any) => [p.id, p]));
+
     if (!contextsErr && contexts) {
       contexts.forEach((c: any) => {
-        if (c.email) {
+        const prof = contextProfileMap.get(c.user_id);
+        const email = (c.email || prof?.email)?.toLowerCase().trim();
+        const name = c.display_name || prof?.display_name || email;
+        if (email) {
           list.push({
-            email: c.email.toLowerCase().trim(),
-            name: c.display_name || c.email,
+            email,
+            name,
             role: c.role,
             isContext: true
           });
@@ -692,7 +712,7 @@ export async function getIntegrationDropdownList(churchId: string) {
     // 5. Fetch pending counselors
     const { data: pending, error: pendingErr } = await supabase
       .from("pending_counselors")
-      .select("email, first_name, last_name, role")
+      .select("email, first_name, last_name, role, access_code")
       .eq("church_id", churchId);
 
     if (!pendingErr && pending) {
@@ -702,7 +722,8 @@ export async function getIntegrationDropdownList(churchId: string) {
             email: p.email.toLowerCase().trim(),
             name: `${p.first_name} ${p.last_name || ""}`.trim(),
             role: p.role || "integration_conseiller",
-            isPending: true
+            isPending: true,
+            code: p.access_code
           });
         }
       });
@@ -716,7 +737,10 @@ export async function getIntegrationDropdownList(churchId: string) {
         uniqueMap.set(email, {
           email,
           name: item.name || email,
-          role: item.role || "integration_conseiller"
+          role: item.role || "integration_conseiller",
+          isHead: item.isHead,
+          isPending: item.isPending,
+          code: item.code
         });
       }
     });
