@@ -319,12 +319,9 @@ export default function DashboardPage() {
     const activeCtx = getActiveContext();
     const rClean = (userInfo?.role || "").toLowerCase().trim();
     const isIntegrationSpace = 
-      activeSpace === "integration" ||
       activeCtx?.context_type === "integration" ||
       userInfo?.context_type === "integration" ||
-      rClean.startsWith("integration_") ||
-      rClean === "conseiller" ||
-      userInfo?.isConseiller === true;
+      rClean.startsWith("integration_");
 
     if (!isIntegrationSpace && (!myBergerie || !myBergerie.id)) return;
     setToday(previous => ({ ...previous, status: "loading" }));
@@ -1014,15 +1011,12 @@ export default function DashboardPage() {
   const isIntegration = useMemo(() => {
     const activeContext = getActiveContext();
     const roleClean = (userInfo?.role || "").toLowerCase().trim();
-    return (
-      activeSpace === "integration" ||
+    return Boolean(
       activeContext?.context_type === "integration" ||
       userInfo?.context_type === "integration" ||
-      roleClean.startsWith("integration_") ||
-      roleClean === "conseiller" ||
-      userInfo?.isConseiller === true
+      roleClean.startsWith("integration_")
     );
-  }, [activeSpace, userInfo]);
+  }, [userInfo]);
 
   useEffect(() => {
     if (myBergerie?.id || isIntegration) {

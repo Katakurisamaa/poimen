@@ -1,0 +1,228 @@
+/* Shared visual foundation. Explicit theme selectors bridge the legacy global
+   rules; page layouts and print documents keep their own geometry. */
+html[data-theme="light"], html[data-theme="light"] body {
+  --bg: #f6f7f9;
+  --bg-deep: #eef0f4;
+  --surface: #ffffffed;
+  --surface-solid: #ffffff;
+  --card: #ffffff;
+  --card-hover: #fafbfc;
+  --border: #dce1e8;
+  --border-light: #e9edf2;
+  --card-border: var(--border);
+  --cream: #202938;
+  --cream-dim: #536174;
+  --muted: #657186;
+  --gold: #876017;
+  --gold-light: #775315;
+  --gold-glow: #a7791910;
+  --gold-glow-strong: #a7791924;
+  --green: #187451;
+  --red: #bc3546;
+  --orange: #966010;
+  --sky: #256ca8;
+  --violet: #7356b6;
+  --action-bg: #876017;
+  --action-ink: #ffffff;
+  --shadow-soft: 0 3px 16px #24334d06, 0 1px 3px #24334d04;
+  --shadow-dialog: 0 24px 80px #15223926;
+  --overlay: #17233866;
+}
+
+html[data-theme="dark"], html[data-theme="dark"] body {
+  --bg: #111722;
+  --bg-deep: #0c121c;
+  --surface: #192230ed;
+  --surface-solid: #192230;
+  --card: #192230;
+  --card-hover: #202c3d;
+  --border: #334154;
+  --border-light: #293548;
+  --card-border: var(--border);
+  --cream: #eef2f8;
+  --cream-dim: #bec9da;
+  --muted: #a0afc4;
+  --gold: #e7c77e;
+  --gold-light: #f2dca6;
+  --gold-glow: #e7c77e12;
+  --gold-glow-strong: #e7c77e26;
+  --green: #71d5ac;
+  --red: #ff96a0;
+  --orange: #edbc75;
+  --sky: #8cc8fa;
+  --violet: #c4adff;
+  --action-bg: #e7c77e;
+  --action-ink: #202938;
+  --shadow-soft: 0 3px 16px #00000012, 0 1px 3px #00000012;
+  --shadow-dialog: 0 24px 80px #00000066;
+  --overlay: #050a1499;
+}
+
+html[data-theme] body {
+  --on-light: var(--cream);
+  --on-light-muted: var(--cream-dim);
+  --on-dark: var(--action-ink);
+  --ink: var(--cream);
+  --ink-soft: var(--cream-dim);
+  --paper: var(--surface-solid);
+  --paper-soft: var(--surface);
+  --purple-light: var(--violet);
+  --green-glow: color-mix(in srgb, var(--green) 12%, transparent);
+  --red-glow: color-mix(in srgb, var(--red) 12%, transparent);
+  --orange-glow: color-mix(in srgb, var(--orange) 12%, transparent);
+  --sky-glow: color-mix(in srgb, var(--sky) 12%, transparent);
+  --violet-glow: color-mix(in srgb, var(--violet) 12%, transparent);
+  --radius: 18px;
+  --radius-sm: 12px;
+  --ease-ui: cubic-bezier(.2, .8, .2, 1);
+  background: var(--bg) !important;
+  color: var(--cream);
+  line-height: 1.5;
+}
+
+@media screen {
+  html[data-theme] body :is(.glass, .stat-card, .arch-card, .glass-card, .profile-card, .kanban-col) {
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: var(--shadow-soft) !important;
+    backdrop-filter: none;
+    transform: none;
+    transition: border-color 180ms ease, background-color 180ms ease;
+  }
+  html[data-theme] body :is(.glass, .stat-card, .arch-card)::before,
+  html[data-theme] body .stat-card::after { display: none; }
+  html[data-theme] body .page-title {
+    font-family: var(--font-body), sans-serif;
+    font-size: clamp(25px, 2.5vw, 36px) !important;
+    line-height: 1.2;
+    letter-spacing: -.045em !important;
+    font-weight: 700 !important;
+    color: var(--cream) !important;
+    background: none !important;
+    -webkit-text-fill-color: currentColor;
+    text-shadow: none !important;
+  }
+  html[data-theme] body .stat-value {
+    font-family: var(--font-body), sans-serif;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.04em;
+    color: var(--cream) !important;
+    background: none !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+  html[data-theme] body .stat-label { color: var(--muted); letter-spacing: .08em; }
+}
+
+/* Consistent controls, including older screens and portal forms. */
+html[data-theme] body .btn {
+  min-height: 44px;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 12px !important;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  justify-content: center;
+  text-shadow: none;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms var(--ease-ui);
+}
+html[data-theme] body .btn-primary,
+html[data-theme] body .modal-overlay :is(.custom-modal, .arch-card) .btn-primary {
+  background: var(--action-bg) !important;
+  color: var(--action-ink) !important;
+  border: 1px solid transparent !important;
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--action-bg) 16%, transparent) !important;
+}
+html[data-theme] body .btn-primary *,
+html[data-theme] body .modal-overlay :is(.custom-modal, .arch-card) .btn-primary * { color: inherit !important; }
+html[data-theme] body :is(.btn-ghost, .btn-outline, .btn-subtle),
+html[data-theme] body .modal-overlay .custom-modal :is(.btn-ghost, .btn-outline, .btn-subtle) {
+  background: var(--surface-solid) !important;
+  color: var(--cream) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+html[data-theme] body .btn::before { display: none; }
+html[data-theme] body :is(.btn, .btn-icon):disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+html[data-theme] body :is(.input, .search-bar-premium),
+html[data-theme] body .modal-overlay .custom-modal :is(.input, input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  background: var(--surface-solid) !important;
+  color: var(--cream) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 11px !important;
+  box-shadow: none !important;
+  min-height: 44px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+html[data-theme] body :is(.input, .search-bar-premium)::placeholder { color: var(--muted) !important; opacity: 1; }
+html[data-theme] body :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold) !important;
+  outline-offset: 3px;
+}
+html[data-theme] body :is(input, select, textarea) { accent-color: var(--gold); scroll-margin-block: 100px; }
+
+html[data-theme] body .modal-overlay {
+  padding: 24px !important;
+  background: var(--overlay) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+  animation: ui-fade-in 180ms ease both !important;
+}
+html[data-theme] body .custom-modal,
+html[data-theme] body .modal-overlay :is(.custom-modal, .arch-card) {
+  background: var(--surface-solid) !important;
+  color: var(--cream) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 24px !important;
+  padding: clamp(20px, 3vw, 32px) !important;
+  box-shadow: var(--shadow-dialog) !important;
+  max-height: calc(100dvh - 48px);
+  overscroll-behavior: contain;
+  animation: ui-enter 240ms var(--ease-ui) both !important;
+}
+html[data-theme] body .theme-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--surface-solid) !important;
+  color: var(--cream) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+html[data-theme] body .theme-toggle__icon { background: var(--gold-glow); color: var(--gold); border-radius: 8px; }
+html[data-theme] body .theme-toggle__icon svg { animation: ui-enter 200ms ease; }
+
+@media (hover: hover) and (pointer: fine) {
+  html[data-theme] body .btn:not(:disabled):hover { transform: translateY(-1px); filter: none; }
+  html[data-theme] body .btn-primary:not(:disabled):hover { background: color-mix(in srgb, var(--action-bg) 88%, var(--cream)) !important; }
+  html[data-theme] body :is(.btn-ghost, .btn-outline, .btn-subtle):not(:disabled):hover { background: var(--card-hover) !important; border-color: var(--muted) !important; }
+}
+html[data-theme] body .btn:not(:disabled):active { transform: scale(.98); }
+@media (hover: none) {
+  html[data-theme] body :is(.btn, .glass, .arch-card, .member-card-item):hover { transform: none; }
+}
+@media (max-width: 600px) {
+  html[data-theme] body .experience-shell .page-content { padding-inline: 16px !important; }
+  html[data-theme] body .modal-overlay { padding: 12px !important; padding-bottom: max(12px, env(safe-area-inset-bottom)) !important; }
+  html[data-theme] body .modal-overlay :is(.custom-modal, .arch-card) { border-radius: 20px !important; max-height: calc(100dvh - 24px - env(safe-area-inset-bottom)); }
+  html[data-theme] body :is(.input, .search-bar-premium),
+  html[data-theme] body .custom-modal :is(input, select, textarea) { font-size: 16px !important; }
+  html[data-theme] body :is(.btn-icon, .member-action-btn) { min-width: 44px; min-height: 44px; }
+}
+@keyframes ui-enter { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes ui-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  html[data-theme] body *, html[data-theme] body *::before, html[data-theme] body *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

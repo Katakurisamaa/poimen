@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Cormorant_Garamond } from "next/font/google";
 import ThemeToggle from "@/components/ThemeToggle";
 import "./globals.css";
+import "./design-system.css";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
