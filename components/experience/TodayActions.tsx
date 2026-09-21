@@ -28,6 +28,14 @@ export default function TodayActions({ data, upcoming, onRetry }: { data: TodayD
       </div>
       {data.contacts.length > 0 && <div className={styles.contactQueue}><span className={styles.kicker}>COMMENCER PAR UNE PERSONNE</span>{data.contacts.map(person => <Link key={person.id} href={`${peopleRoute}?person=${encodeURIComponent(person.id)}`}><span className={styles.avatar}>{person.name.split(" ").map(part => part[0]).slice(0, 2).join("")}</span><span><strong>{person.name}</strong><small>Premier contact à établir</small></span><ArrowRight size={17} /></Link>)}</div>}
     </>}
-    <div className={styles.quickActions}>{canCreateGuest && <Link href="/dashboard/invites?new=1"><UserPlus size={17} />Ajouter un invité</Link>}{hasReports && <Link href="/dashboard/reporting"><FileText size={17} />Rapport au pasteur</Link>}<Link href="/dashboard/affectation"><ArrowRight size={17} />Ouvrir mon suivi</Link></div>
+    <div className={styles.quickActions}>
+      {canCreateGuest && <Link href="/dashboard/invites?new=1"><UserPlus size={17} />Ajouter un invité</Link>}
+      {hasReports && <Link href="/dashboard/reporting"><FileText size={17} />Rapport au pasteur</Link>}
+      {!workspace.hasFamily ? (
+        <Link href="/dashboard/affectation"><ArrowRight size={17} />Ouvrir mes âmes</Link>
+      ) : (
+        <Link href="/dashboard/bergerie"><ArrowRight size={17} />Voir les membres</Link>
+      )}
+    </div>
   </section>;
 }

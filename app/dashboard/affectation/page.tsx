@@ -5,15 +5,40 @@ import { createPortal } from "react-dom";
 import { 
   Search, Plus, UserPlus, Filter, CheckCircle2, XCircle, X, 
   Calendar, MapPin, Mail, Phone, User as UserIcon,
-  ChevronDown, ChevronUp, MoreHorizontal, Loader2, ListChecks, BarChart3
+  ChevronDown, ChevronUp, MoreHorizontal, Loader2, ListChecks, BarChart3,
+  LayoutGrid, Table as TableIcon, Sparkles, RotateCcw, Eye
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { autoAddLeaderToMembers, listIntegrationTeam } from "@/app/actions/auth";
+import { autoAddLeaderToMembers, listIntegrationTeam, getIntegrationInvites, assignCounselorToGuest } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
 import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
 import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import styles from "./Affectation.module.css";
+
+const formatDisplayDate = (d?: string) => {
+  if (!d) return "—";
+  try {
+    const parts = d.split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+    }
+    return d;
+  } catch {
+    return d;
+  }
+};
+
+const getPcncStage = (g: Guest) => {
+  if (g.terminePCNC) return { label: "Terminé", color: "var(--green)" };
+  if (g.p301) return { label: "301", color: "var(--green)" };
+  if (g.p201) return { label: "201", color: "var(--orange)" };
+  if (g.p101) return { label: "101", color: "var(--sky)" };
+  if (g.pcnc) return { label: "001", color: "var(--violet)" };
+  if (g.interetFormation) return { label: "Intérêt", color: "var(--gold)" };
+  return { label: "Non débuté", color: "var(--muted)" };
+};
 
 
 
@@ -71,10 +96,77 @@ interface Guest {
   famille_disciple?: string;
   etatCivil?: string;
   souhaiteEtreContacte?: boolean;
+  created_by?: string | null;
 }
 
 const MOCK_RESPONSIBLES = ["Non assigné"];
 const STATUS_OPTIONS = ["Brebi", "Faiseur de Disciple", "Responsable", "Second", "Berger"];
+const DEFAULT_FAMILIES = [
+  "FAMILLE DE NOÉ",
+  "FAMILLE DE DAVID",
+  "FAMILLE CHARIS",
+  "FAMILLE IT'S TIME",
+  "FAMILLE GÉNÉRATION JOSUÉ",
+  "FAMILLE DE MOÏSE"
+];
+
+function mapDbGuestToGuest(g: any): Guest {
+  return {
+    id: g.id,
+    civility: g.civility,
+    firstName: g.first_name,
+    lastName: g.last_name,
+    age: g.age,
+    phone: g.phone,
+    email: g.email,
+    address: g.address,
+    arrivalDate: g.arrival_date,
+    event: g.event,
+    aps: g.aps,
+    localChurch: g.local_church,
+    responsible: g.responsible,
+    isInBergerie: g.is_in_bergerie,
+    status: g.status,
+    attendance: g.attendance || {},
+    appelAbouti: g.appel_abouti,
+    groupeWhatsapp: g.groupe_whatsapp,
+    prevuRevenir: g.prevu_revenir,
+    estRevenuCulte: g.est_revenu_culte,
+    rencontreEffectuee: g.rencontre_effectuee,
+    visiteDomicile: g.visite_domicile,
+    cocktailBienvenue: g.cocktail_bienvenue,
+    pcnc: g.pcnc,
+    p101: g.p101,
+    p201: g.p201,
+    p301: g.p301,
+    terminePCNC: g.termine_pcnc,
+    baptemeEau: g.bapteme_eau,
+    baptemeEsprit: g.bapteme_esprit,
+    veutServir: g.veut_servir,
+    devenuStar: g.devenu_star,
+    smsBienvenue: g.sms_bienvenue || false,
+    priere: g.priere || false,
+    interetEvenement: g.interet_evenement || false,
+    interetFormation: g.interet_formation || false,
+    aEteInvite: g.a_ete_invite || false,
+    parQui: g.par_qui || "",
+    interetCDM: g.interet_cdm || false,
+    integreCDM: g.integre_cdm || false,
+    prierePartage: g.priere_partage || false,
+    dansFamilleDisciple: g.dans_famille_disciple || false,
+    interetBapteme: g.interet_bapteme || false,
+    commentaire: g.commentaire || "",
+    commentaireSuivi: g.commentaire_suivi || "",
+    assigned_to: g.assigned_to,
+    church_id: g.church_id,
+    bergerie_id: g.bergerie_id,
+    famille_disciple: g.famille_disciple || "AUCUNE",
+    etatCivil: g.etat_civil || "Célibataire",
+    souhaiteEtreContacte: g.souhaite_etre_contacte !== false,
+    archived: g.archived || false,
+    created_by: g.created_by
+  };
+}
 
 function AffectationPage() {
   const { notify, confirm } = useFeedback();
@@ -89,9 +181,11 @@ function AffectationPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [currentView, setCurrentView] = useState<'list' | 'stats'>('list');
+  const [displayMode, setDisplayMode] = useState<'cards' | 'table'>('table');
   const [arrivalMonth, setArrivalMonth] = useState<string>("all");
   const [arrivalYear, setArrivalYear] = useState<string>("all");
   const [localChurchFilter, setLocalChurchFilter] = useState<string>("all");
+  const [familyFilter, setFamilyFilter] = useState<string>("all");
   const [userRole, setUserRole] = useState<string | null>(null);
   const userRoleClean = useMemo(() => (userRole || "").toLowerCase().trim(), [userRole]);
   const [userName, setUserName] = useState<string | null>(null);
@@ -103,6 +197,7 @@ function AffectationPage() {
   const personView = usePeopleView(guests);
   const [responsibles, setResponsibles] = useState<string[]>(["Non assigné"]);
   const [isConseiller, setIsConseiller] = useState(false);
+  const [canDispatchAll, setCanDispatchAll] = useState(false);
   const [counselors, setCounselors] = useState<{ id: string; display_name: string; email: string }[]>([]);
   const [activeBergeries, setActiveBergeries] = useState<{ id: string; name: string }[]>([]);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -110,21 +205,42 @@ function AffectationPage() {
   const [selectedBergerieId, setSelectedBergerieId] = useState<string>("");
   const [isTransferring, setIsTransferring] = useState(false);
 
+  const availableFamilies = useMemo(() => {
+    const list = [...DEFAULT_FAMILIES];
+    activeBergeries.forEach(b => {
+      const trimmed = (b.name || "").trim();
+      if (trimmed && !list.some(f => f.toLowerCase() === trimmed.toLowerCase())) {
+        list.push(trimmed);
+      }
+    });
+    return list;
+  }, [activeBergeries]);
+
   const isAuthorizedLeader = useMemo(() => {
     const role = userRoleClean;
     return (
       role === "berger" ||
       role.includes("second") ||
       role.includes("responsable") ||
-      role.includes("coordonnateur")
+      role.includes("coordonnateur") ||
+      role === "admin" ||
+      role === "super_admin"
+    );
+  }, [userRoleClean]);
+
+  const isIntegrationLeader = useMemo(() => {
+    const role = userRoleClean;
+    return (
+      role === "integration_responsable" ||
+      role === "integration_second" ||
+      role === "admin" ||
+      role === "super_admin"
     );
   }, [userRoleClean]);
 
   const canCreateOrDeleteInvites = useMemo(() => {
-    const role = userRoleClean;
-    const isIntegrationLeader = role === "integration_responsable" || role === "integration_second";
     return isIntegrationLeader;
-  }, [userRoleClean]);
+  }, [isIntegrationLeader]);
 
   const isIntegrationOrCounselor = useMemo(() => {
     return userRoleClean.startsWith("integration_") || userRoleClean === "conseiller" || isConseiller;
@@ -153,6 +269,7 @@ function AffectationPage() {
 
         const rLower = (parsed.role || "").toLowerCase().trim();
         setIsConseiller(parsed.isConseiller === true || rLower === "integration_conseiller" || rLower === "conseiller");
+        setCanDispatchAll(Boolean(parsed.canDispatchAll || parsed.metadata?.can_dispatch_all));
         
         const firstName = (parsed.firstName || "").trim();
         const lastName = (parsed.lastName || "").trim();
@@ -173,6 +290,12 @@ function AffectationPage() {
         console.error("Error parsing family info", e);
       }
     }
+    try {
+      const savedMode = localStorage.getItem("poimen_souls_display_mode") as "cards" | "table" | null;
+      if (savedMode === "cards" || savedMode === "table") {
+        setDisplayMode(savedMode);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -192,6 +315,16 @@ function AffectationPage() {
           display_name: t.name,
           email: t.email
         })));
+        const myEntry = res.team.find((t: any) => t.id === userId);
+        if (myEntry && myEntry.canDispatchAll !== undefined) {
+          const freshDisp = Boolean(myEntry.canDispatchAll);
+          setCanDispatchAll(prev => {
+            if (prev !== freshDisp) {
+              setTimeout(() => { fetchGuests(); }, 50);
+            }
+            return freshDisp;
+          });
+        }
       }
       
       const { data: bData, error: bError } = await supabase
@@ -251,8 +384,20 @@ function AffectationPage() {
     let query = supabase.from("invites").select("*");
     
     if (isIntegrationOrCounselor) {
-      if (churchId && userId) {
-        query = query.eq("church_id", churchId).eq("assigned_to", userId);
+      if (churchId) {
+        const res = await getIntegrationInvites(churchId);
+        if (res.success && res.invites) {
+          setGuests(res.invites.map(mapDbGuestToGuest));
+          if (res.canDispatchAll !== undefined) {
+            setCanDispatchAll(Boolean(res.canDispatchAll));
+          }
+          setLoading(false);
+          return;
+        }
+        query = query.eq("church_id", churchId);
+        if (userId && !canDispatchAll) {
+          query = query.eq("assigned_to", userId);
+        }
       } else {
         setGuests([]);
         setLoading(false);
@@ -273,61 +418,7 @@ function AffectationPage() {
     if (error) {
       console.error("Error fetching guests:", error);
     } else {
-      const mapped: Guest[] = (dbGuests || []).map(g => ({
-        id: g.id,
-        civility: g.civility,
-        firstName: g.first_name,
-        lastName: g.last_name,
-        age: g.age,
-        phone: g.phone,
-        email: g.email,
-        address: g.address,
-        arrivalDate: g.arrival_date,
-        event: g.event,
-        aps: g.aps,
-        localChurch: g.local_church,
-        responsible: g.responsible,
-        isInBergerie: g.is_in_bergerie,
-        status: g.status,
-        attendance: g.attendance || {},
-        appelAbouti: g.appel_abouti,
-        groupeWhatsapp: g.groupe_whatsapp,
-        prevuRevenir: g.prevu_revenir,
-        estRevenuCulte: g.est_revenu_culte,
-        rencontreEffectuee: g.rencontre_effectuee,
-        visiteDomicile: g.visite_domicile,
-        cocktailBienvenue: g.cocktail_bienvenue,
-        pcnc: g.pcnc,
-        p101: g.p101,
-        p201: g.p201,
-        p301: g.p301,
-        terminePCNC: g.termine_pcnc,
-        baptemeEau: g.bapteme_eau,
-        baptemeEsprit: g.bapteme_esprit,
-        veutServir: g.veut_servir,
-        devenuStar: g.devenu_star,
-        smsBienvenue: g.sms_bienvenue || false,
-        priere: g.priere || false,
-        interetEvenement: g.interet_evenement || false,
-        interetFormation: g.interet_formation || false,
-        aEteInvite: g.a_ete_invite || false,
-        parQui: g.par_qui || "",
-        interetCDM: g.interet_cdm || false,
-        integreCDM: g.integre_cdm || false,
-        prierePartage: g.priere_partage || false,
-        dansFamilleDisciple: g.dans_famille_disciple || false,
-        interetBapteme: g.interet_bapteme || false,
-        commentaire: g.commentaire || "",
-        commentaireSuivi: g.commentaire_suivi || "",
-        assigned_to: g.assigned_to,
-        church_id: g.church_id,
-        bergerie_id: g.bergerie_id,
-        archived: g.archived || false,
-        famille_disciple: g.famille_disciple || "AUCUNE",
-        etatCivil: g.etat_civil || "Célibataire",
-        souhaiteEtreContacte: g.souhaite_etre_contacte !== false
-      }));
-      setGuests(mapped);
+      setGuests((dbGuests || []).map(mapDbGuestToGuest));
     }
     setLoading(false);
   };
@@ -345,17 +436,53 @@ function AffectationPage() {
     }
   };
 
+  const handleUpdateFamily = async (guestId: string, newFamily: string) => {
+    const isNone = !newFamily || newFamily === "AUCUNE";
+    const matchedBergerie = !isNone ? activeBergeries.find(b => b.name.trim().toLowerCase() === newFamily.trim().toLowerCase()) : null;
+    
+    const updatePayload: Record<string, any> = {
+      famille_disciple: newFamily,
+      dans_famille_disciple: !isNone,
+    };
+    if (matchedBergerie) {
+      updatePayload.bergerie_id = matchedBergerie.id;
+    } else if (isNone) {
+      updatePayload.bergerie_id = null;
+    }
+
+    setGuests(prev => prev.map(g => g.id === guestId ? {
+      ...g,
+      famille_disciple: newFamily,
+      dansFamilleDisciple: !isNone,
+      ...(matchedBergerie ? { bergerie_id: matchedBergerie.id } : (isNone ? { bergerie_id: null } : {}))
+    } : g));
+
+    const { error } = await supabase.from("invites").update(updatePayload).eq("id", guestId);
+    if (error) {
+      notify("Erreur lors de l'affectation à la famille : " + error.message);
+    } else {
+      notify(isNone ? "L'âme n'est plus affectée à aucune famille." : `L'âme a été affectée à ${newFamily}`);
+    }
+  };
+
   const handleSelfAssign = async (guestId: string) => {
-    if (isIntegrationOrCounselor) {
+    if (isIntegrationOrCounselor || counselors.length > 0) {
       if (userId) {
+        const counselorObj = counselors.find(c => c.id === userId);
+        const myName = counselorObj?.display_name || userName || "";
+        const updatePayload: any = { assigned_to: userId };
+        if (myName) updatePayload.responsible = myName;
+
         const { error } = await supabase
           .from("invites")
-          .update({ assigned_to: userId })
+          .update(updatePayload)
           .eq("id", guestId);
         if (error) {
           notify("Erreur lors de l'affectation : " + error.message);
         } else {
-          setGuests(prev => prev.map(g => g.id === guestId ? { ...g, assigned_to: userId } : g));
+          setGuests(prev => prev.map(g => g.id === guestId ? { ...g, assigned_to: userId, ...(myName ? { responsible: myName } : {}) } : g));
+          notify("Âme affectée à vous-même avec succès !");
+          window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
         }
       }
     } else {
@@ -368,8 +495,47 @@ function AffectationPage() {
           notify("Erreur lors de l'affectation : " + error.message);
         } else {
           setGuests(prev => prev.map(g => g.id === guestId ? { ...g, responsible: userName } : g));
+          notify("Âme affectée à vous-même avec succès !");
+          window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
         }
       }
+    }
+  };
+
+  const handleAssignCounselor = async (guestId: string, counselorId: string | null) => {
+    const counselorObj = counselors.find(c => c.id === counselorId);
+    const respName = counselorObj ? counselorObj.display_name : (counselorId ? "" : "Non assigné");
+
+    setGuests(prev => prev.map(g => g.id === guestId ? {
+      ...g,
+      assigned_to: counselorId,
+      ...(respName ? { responsible: respName } : {})
+    } : g));
+
+    if (churchId) {
+      const serverRes = await assignCounselorToGuest({
+        churchId,
+        guestId,
+        counselorId
+      });
+      if (serverRes.success) {
+        notify(counselorObj ? `Âme affectée à ${counselorObj.display_name}` : "Affectation réinitialisée");
+        window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
+        return;
+      }
+    }
+
+    const updatePayload: Record<string, any> = { assigned_to: counselorId };
+    if (respName) {
+      updatePayload.responsible = respName;
+    }
+
+    const { error } = await supabase.from("invites").update(updatePayload).eq("id", guestId);
+    if (error) {
+      notify("Erreur lors de l'affectation : " + error.message);
+    } else {
+      notify(counselorObj ? `Âme affectée à ${counselorObj.display_name}` : "Affectation réinitialisée");
+      window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
     }
   };
 
@@ -416,7 +582,11 @@ function AffectationPage() {
     if (!guest) return;
 
     const newValue = !guest[field];
-    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, [field]: newValue } : g));
+    setGuests(prev => prev.map(g => g.id === guestId ? {
+      ...g,
+      [field]: newValue,
+      ...(field === "dansFamilleDisciple" && !newValue ? { famille_disciple: "AUCUNE", bergerie_id: null } : {})
+    } : g));
     
     const dbFieldMap: Record<string, string> = {
       appelAbouti: "appel_abouti",
@@ -447,7 +617,15 @@ function AffectationPage() {
       aEteInvite: "a_ete_invite"
     };
     const dbField = dbFieldMap[field as string] || field;
-    await supabase.from("invites").update({ [dbField]: newValue }).eq("id", guestId);
+    const updateObj: Record<string, any> = { [dbField]: newValue };
+    if (field === "dansFamilleDisciple" && !newValue) {
+      updateObj.famille_disciple = "AUCUNE";
+      updateObj.bergerie_id = null;
+    }
+    await supabase.from("invites").update(updateObj).eq("id", guestId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
+    }
   };
 
   const handleSaveGuest = async (e: React.FormEvent) => {
@@ -458,6 +636,8 @@ function AffectationPage() {
     setFormError("");
     try {
     if (!familyId && !churchId) return;
+
+    const existingGuest = editingGuestId ? guests.find(g => g.id === editingGuestId) : null;
 
     const payload: any = {
       civility: newGuest.civility,
@@ -479,23 +659,25 @@ function AffectationPage() {
       interet_cdm: newGuest.interetCDM,
       integre_cdm: newGuest.integreCDM,
       priere_partage: newGuest.prierePartage,
-      dans_famille_disciple: newGuest.dansFamilleDisciple,
+      dans_famille_disciple: !editingGuestId ? false : (existingGuest ? existingGuest.dansFamilleDisciple : false),
       interet_bapteme: newGuest.interetBapteme,
       commentaire: newGuest.commentaire,
       commentaire_suivi: newGuest.commentaireSuivi || "",
-      famille_disciple: newGuest.famille_disciple || "AUCUNE",
+      famille_disciple: !editingGuestId ? "AUCUNE" : (existingGuest ? (existingGuest.famille_disciple || "AUCUNE") : "AUCUNE"),
       etat_civil: newGuest.etatCivil || "Célibataire",
       souhaite_etre_contacte: newGuest.souhaiteEtreContacte !== false
     };
 
     if (isIntegrationOrCounselor) {
       payload.church_id = churchId;
-      payload.bergerie_id = null;
       if (!editingGuestId) {
+        payload.bergerie_id = null;
         payload.assigned_to = userId; // Auto-assign to current counselor on creation
+      } else {
+        payload.bergerie_id = existingGuest?.bergerie_id || null;
       }
     } else {
-      payload.bergerie_id = familyId;
+      payload.bergerie_id = existingGuest?.bergerie_id || familyId;
     }
 
     if (editingGuestId) {
@@ -816,8 +998,24 @@ function AffectationPage() {
       (localChurchFilter === "yes" && g.localChurch) || 
       (localChurchFilter === "no" && !g.localChurch);
 
-    return matchesSearch && matchesMonth && matchesYear && matchesLocalChurch;
+    const guestFamily = (g.famille_disciple || "AUCUNE").trim();
+    const matchesFamily = familyFilter === "all" ||
+      (familyFilter === "AUCUNE" ? (guestFamily === "AUCUNE" || !g.famille_disciple) : (guestFamily.toLowerCase() === familyFilter.toLowerCase()));
+
+    return matchesSearch && matchesMonth && matchesYear && matchesLocalChurch && matchesFamily;
   });
+
+  const isAnyFilterActive = useMemo(() => {
+    return search.trim() !== "" || arrivalMonth !== "all" || arrivalYear !== "all" || localChurchFilter !== "all" || familyFilter !== "all";
+  }, [search, arrivalMonth, arrivalYear, localChurchFilter, familyFilter]);
+
+  const resetAllFilters = () => {
+    setSearch("");
+    setArrivalMonth("all");
+    setArrivalYear("all");
+    setLocalChurchFilter("all");
+    setFamilyFilter("all");
+  };
 
   const brebisCount = filtered.filter(g => g.status === "Brebi").length;
   const callsSuccess = filtered.filter(g => g.appelAbouti).length;
@@ -878,9 +1076,9 @@ function AffectationPage() {
 
       <div className="page-header fade-in">
         <div>
-          <h2 className="page-title">Mon suivi</h2>
+          <h2 className="page-title">Mes âmes</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-            Suivi personnalisé et accompagnement spirituel de vos brebis affectées
+            Suivi personnalisé et accompagnement spirituel de vos âmes confiées
           </p>
         </div>
         {isIntegrationOrCounselor && (
@@ -888,7 +1086,7 @@ function AffectationPage() {
             setNewGuest({ ...newGuest, responsible: userName || "" });
             setIsAddModalOpen(true);
           }}>
-            <Plus size={14} /> Nouvelle Brebi
+            <Plus size={14} /> Nouvelle Âme
           </button>
         )}
       </div>
@@ -907,7 +1105,7 @@ function AffectationPage() {
           <span className="invite-view-icon"><ListChecks size={18} /></span>
           <span className="invite-view-copy">
             <span className="invite-view-title">Liste</span>
-            <span className="invite-view-subtitle">{filtered.length} brebis affectée{filtered.length > 1 ? "s" : ""}</span>
+            <span className="invite-view-subtitle">{filtered.length} âme{filtered.length > 1 ? "s" : ""} confiée{filtered.length > 1 ? "s" : ""}</span>
           </span>
         </button>
         <button 
@@ -962,7 +1160,7 @@ function AffectationPage() {
           {/* Main Key Stats */}
           <div className="bento bento-3">
             <div className="stat-card">
-              <span className="stat-label">Total Affectés</span>
+              <span className="stat-label">Total Âmes confiées</span>
               <div className="stat-value">{filtered.length}</div>
               <div className="stat-sub">{brebisCount} Brebis confirmées</div>
               <UserPlus className="stat-icon" size={24} style={{ color: "var(--gold)" }} />
@@ -1098,7 +1296,7 @@ function AffectationPage() {
                   <X size={20} />
                 </button>
                 <h2 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", color: "var(--gold-light)", marginBottom: 20, fontFamily: "var(--font-display)" }}>
-                  {editingGuestId ? "Modifier la Brebi" : "Enregistrer une Brebi"}
+                  {editingGuestId ? "Modifier l'âme" : "Enregistrer une nouvelle âme"}
                 </h2>
                 <form onSubmit={handleSaveGuest} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {formError && <p className="ux-form-error" role="alert">{formError}</p>}
@@ -1213,7 +1411,6 @@ function AffectationPage() {
                       <input type="checkbox" checked={newGuest.localChurch || false} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                       <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Déjà d'une église locale</span>
                     </div>
-                    
                   </div>
 
                   <div>
@@ -1250,73 +1447,507 @@ function AffectationPage() {
             document.body
           )}
 
-          {/* Filters */}
-          <div className="glass fade-in affectations-filters" style={{ padding: "16px 20px", display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
-            <div className="search-bar-container" style={{ position: "relative", flex: 2 }}>
-              <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-              <input className="input search-bar-premium" placeholder="Rechercher une brebi par nom ou prénom..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
-            
-            {/* Arrival Filters */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
-              <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.5px" }}>ARRIVÉE</span>
-              <select className="input" value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)} style={{ width: 110, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}>
-                <option value="all">Tous les mois</option>
-                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                  <option key={i} value={i}>{m}</option>
-                ))}
-              </select>
-              <select className="input" value={arrivalYear} onChange={e => setArrivalYear(e.target.value)} style={{ width: 80, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}>
-                <option value="all">Toutes</option>
-                {availableYears.map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+          {/* Modern Filters & Controls */}
+          <div className={`glass fade-in ${styles.filtersContainer}`}>
+            <div className={styles.filtersTop}>
+              <div className={styles.searchWrapper}>
+                <Search size={16} className={styles.searchIcon} />
+                <input 
+                  className={styles.searchInput} 
+                  placeholder="Rechercher par nom ou prénom..." 
+                  value={search} 
+                  onChange={(e) => setSearch(e.target.value)} 
+                />
+              </div>
+
+              <div className={styles.topControls}>
+                {/* View Switcher: Cartes vs Tableau */}
+                <div className={styles.viewModePillGroup}>
+                  <button 
+                    type="button"
+                    className={`${styles.viewModePill} ${displayMode === 'cards' ? styles.viewModePillActive : ''}`}
+                    onClick={() => {
+                      setDisplayMode('cards');
+                      try { localStorage.setItem("poimen_souls_display_mode", "cards"); } catch {}
+                    }}
+                    title="Affichage en cartes détaillées"
+                  >
+                    <LayoutGrid size={14} />
+                    <span>Cartes</span>
+                  </button>
+                  <button 
+                    type="button"
+                    className={`${styles.viewModePill} ${displayMode === 'table' ? styles.viewModePillActive : ''}`}
+                    onClick={() => {
+                      setDisplayMode('table');
+                      try { localStorage.setItem("poimen_souls_display_mode", "table"); } catch {}
+                    }}
+                    title="Affichage en tableau synthétique avec colonnes figées"
+                  >
+                    <TableIcon size={14} />
+                    <span>Tableau</span>
+                  </button>
+                </div>
+
+                <div className={styles.countBadge}>
+                  {filtered.length} âme{filtered.length > 1 ? "s" : ""}
+                </div>
+              </div>
             </div>
 
-            {/* Presence Display Filters */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
-              <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.5px" }}>PRÉSENCES</span>
-              <select 
-                className="input" 
-                value={selectedMonth} 
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                style={{ width: 110, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}
-              >
-                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                  <option key={i} value={i}>{m}</option>
-                ))}
-              </select>
-              <select 
-                className="input" 
-                value={selectedYear} 
-                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                style={{ width: 80, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}
-              >
-                {availableYears.map(y => (
-                  <option key={y} value={parseInt(y, 10)}>{y}</option>
-                ))}
-              </select>
-            </div>
+            {/* Horizontal Scrolling Filter Bar (Pill Capsules) */}
+            <div className={styles.filtersScroll}>
+              {/* Arrivée Filter */}
+              <div className={styles.filterChip}>
+                <span className={styles.filterLabel}><Calendar size={12} /> Arrivée</span>
+                <select 
+                  className={styles.filterSelect} 
+                  value={arrivalMonth} 
+                  onChange={e => setArrivalMonth(e.target.value)}
+                >
+                  <option value="all">Tous mois</option>
+                  {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                    <option key={i} value={i.toString()}>{m}</option>
+                  ))}
+                </select>
+                <select 
+                  className={styles.filterSelect} 
+                  value={arrivalYear} 
+                  onChange={e => setArrivalYear(e.target.value)}
+                >
+                  <option value="all">Toutes années</option>
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Local Church Filter */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface)", border: "1px solid var(--border)", padding: "4px 12px", borderRadius: 10 }}>
-              <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.5px" }}>ÉGLISE LOCALE</span>
-              <select 
-                className="input" 
-                value={localChurchFilter} 
-                onChange={e => setLocalChurchFilter(e.target.value)}
-                style={{ width: 120, fontSize: 11, padding: "4px 8px", background: "transparent", border: "none" }}
-              >
-                <option value="all">Tous</option>
-                <option value="yes">Avec église</option>
-                <option value="no">Sans église</option>
-              </select>
+              {/* Présences Calculation Period Filter */}
+              <div className={styles.filterChip}>
+                <span className={styles.filterLabel}>👁 Présences</span>
+                <select 
+                  className={styles.filterSelect} 
+                  value={selectedMonth} 
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                >
+                  {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                    <option key={i} value={i}>{m}</option>
+                  ))}
+                </select>
+                <select 
+                  className={styles.filterSelect} 
+                  value={selectedYear} 
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                >
+                  {availableYears.map(y => (
+                    <option key={y} value={parseInt(y, 10)}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Église Locale Filter */}
+              <div className={styles.filterChip}>
+                <span className={styles.filterLabel}>⛪ Église</span>
+                <select 
+                  className={styles.filterSelect} 
+                  value={localChurchFilter} 
+                  onChange={e => setLocalChurchFilter(e.target.value)}
+                >
+                  <option value="all">Tous (avec/sans)</option>
+                  <option value="no">Sans église locale</option>
+                  <option value="yes">Avec église locale</option>
+                </select>
+              </div>
+
+              {/* Famille Filter */}
+              <div className={styles.filterChip}>
+                <span className={styles.filterLabel}>👥 Famille</span>
+                <select 
+                  className={styles.filterSelect} 
+                  value={familyFilter} 
+                  onChange={e => setFamilyFilter(e.target.value)}
+                >
+                  <option value="all">Toutes familles</option>
+                  <option value="AUCUNE">AUCUNE (Non affectée)</option>
+                  {availableFamilies.map(fam => (
+                    <option key={fam} value={fam}>{fam}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Reset button if filters active */}
+              {isAnyFilterActive && (
+                <button 
+                  type="button" 
+                  className={styles.filterReset}
+                  onClick={resetAllFilters}
+                  title="Réinitialiser tous les filtres"
+                >
+                  <RotateCcw size={11} />
+                  <span>Réinitialiser</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* List */}
-          <div className="fade-in d1" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* List or Table View */}
+          {displayMode === 'table' ? (
+            <div className={`fade-in d1 ${styles.tableContainer}`}>
+              <div className={styles.tableMobileHint}>
+                <span>↔️ <strong>Astuce tactile :</strong> Faites défiler vers la droite pour voir toutes les colonnes. <em>Date d’arrivée</em>, <em>Nom</em> et <em>Prénom</em> restent figés à gauche.</span>
+                <span style={{ fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap" }}>{filtered.length} ligne{filtered.length > 1 ? "s" : ""}</span>
+              </div>
+
+              {filtered.length === 0 ? (
+                <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--muted)" }}>
+                  <p style={{ fontSize: 14, marginBottom: 12 }}>Aucune âme ne correspond aux critères sélectionnés.</p>
+                  {isAnyFilterActive && (
+                    <button type="button" className="btn btn-outline btn-sm" onClick={resetAllFilters}>
+                      <RotateCcw size={12} /> Réinitialiser les filtres
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <table className={styles.soulsTable}>
+                  <thead>
+                    <tr>
+                      <th className={`${styles.th} ${styles.stickyColDate}`}>Date d'arr.</th>
+                      <th className={`${styles.th} ${styles.stickyColNom}`}>Nom</th>
+                      <th className={`${styles.th} ${styles.stickyColPrenom}`}>Prénom</th>
+                      <th className={styles.th}>Téléphone</th>
+                      <th className={styles.th}>E-mail</th>
+                      <th className={styles.th}>Famille de disciples</th>
+                      <th className={styles.th}>Église locale</th>
+                      <th className={styles.th}>Événement</th>
+                      <th className={styles.th}>Appel abouti</th>
+                      <th className={styles.th}>PCNC</th>
+                      <th className={styles.th}>C.D.M</th>
+                      <th className={styles.th}>Fidélisé</th>
+                      <th className={styles.th}>Prés. Culte</th>
+                      <th className={styles.th}>Prés. C.D.M</th>
+                      <th className={styles.th}>Conseiller</th>
+                      <th className={styles.th} style={{ textAlign: "center" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((guest) => {
+                      const rateCDM = calculateRate(guest, thursdays);
+                      const rateCulte = calculateRate(guest, sundays);
+                      const fidelised = isFidelise(guest);
+                      const pcncStage = getPcncStage(guest);
+                      const isCreator = guest.created_by === userId;
+                      const canEditGuest = isIntegrationLeader || isAuthorizedLeader || isCreator || (!canDispatchAll && guest.assigned_to === userId);
+                      const isRestricted = isIntegrationOrCounselor
+                        ? guest.assigned_to !== userId
+                        : guest.responsible !== userName;
+
+                      return (
+                        <tr key={guest.id} className={styles.tr}>
+                          {/* Sticky 1: Date */}
+                          <td className={`${styles.td} ${styles.stickyColDate}`} style={{ color: "var(--cream-dim)", fontSize: 11 }}>
+                            {formatDisplayDate(guest.arrivalDate)}
+                          </td>
+
+                          {/* Sticky 2: Nom */}
+                          <td className={`${styles.td} ${styles.stickyColNom}`} title={guest.lastName}>
+                            <button 
+                              type="button" 
+                              onClick={() => personView.openPerson(guest.id)}
+                              style={{ background: "none", border: "none", color: "inherit", font: "inherit", fontWeight: 700, textAlign: "left", cursor: "pointer", padding: 0 }}
+                            >
+                              {guest.lastName}
+                            </button>
+                          </td>
+
+                          {/* Sticky 3: Prénom */}
+                          <td className={`${styles.td} ${styles.stickyColPrenom}`} title={guest.firstName}>
+                            <button 
+                              type="button" 
+                              onClick={() => personView.openPerson(guest.id)}
+                              style={{ background: "none", border: "none", color: "inherit", font: "inherit", fontWeight: 600, textAlign: "left", cursor: "pointer", padding: 0 }}
+                            >
+                              {guest.firstName}
+                            </button>
+                          </td>
+
+                          {/* Téléphone */}
+                          <td className={styles.td}>
+                            {guest.phone ? (
+                              <a href={`tel:${guest.phone}`} className={styles.phoneLink}>
+                                <Phone size={11} style={{ color: "var(--gold)" }} />
+                                <span>{guest.phone}</span>
+                              </a>
+                            ) : (
+                              <span style={{ color: "var(--muted)" }}>—</span>
+                            )}
+                          </td>
+
+                          {/* E-mail */}
+                          <td className={styles.td}>
+                            {guest.email ? (
+                              <a href={`mailto:${guest.email}`} className={styles.emailLink} title={guest.email}>
+                                <Mail size={11} style={{ color: "var(--sky)" }} />
+                                <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{guest.email}</span>
+                              </a>
+                            ) : (
+                              <span style={{ color: "var(--muted)" }}>—</span>
+                            )}
+                          </td>
+
+                          {/* Famille de disciples (interactive dropdown) */}
+                          <td className={styles.td}>
+                            <select 
+                              className={styles.familySelect}
+                              value={guest.famille_disciple || "AUCUNE"}
+                              disabled={isRestricted}
+                              onChange={(e) => handleUpdateFamily(guest.id, e.target.value)}
+                              style={{
+                                borderColor: (guest.famille_disciple && guest.famille_disciple !== "AUCUNE") ? "rgba(16, 185, 129, 0.4)" : "var(--border)",
+                                color: (guest.famille_disciple && guest.famille_disciple !== "AUCUNE") ? "var(--green)" : "var(--muted)"
+                              }}
+                            >
+                              <option value="AUCUNE">AUCUNE</option>
+                              {availableFamilies.map(fam => (
+                                <option key={fam} value={fam}>{fam}</option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* Église locale */}
+                          <td className={styles.td}>
+                            {guest.localChurch ? (
+                              <span className="badge badge-sky" style={{ fontSize: 9 }}>Avec église</span>
+                            ) : (
+                              <span className="badge badge-rose" style={{ fontSize: 9 }}>Sans église</span>
+                            )}
+                          </td>
+
+                          {/* Événement */}
+                          <td className={styles.td}>
+                            <span className="badge badge-violet" style={{ fontSize: 9 }}>
+                              {guest.event || "Culte"}
+                            </span>
+                          </td>
+
+                          {/* Appel abouti */}
+                          <td className={styles.td}>
+                            <button 
+                              type="button"
+                              className={`${styles.toggleBtn} ${guest.appelAbouti ? styles.toggleBtnActive : styles.toggleBtnInactive}`}
+                              disabled={isRestricted}
+                              onClick={() => toggleSuivi(guest.id, 'appelAbouti')}
+                              title={guest.appelAbouti ? "Appel abouti (cliquez pour basculer)" : "Appel non abouti (cliquez pour basculer)"}
+                            >
+                              {guest.appelAbouti ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                              <span>{guest.appelAbouti ? "Oui" : "Non"}</span>
+                            </button>
+                          </td>
+
+                          {/* Progression PCNC */}
+                          <td className={styles.td}>
+                            <span className="badge" style={{ fontSize: 9, color: pcncStage.color, borderColor: pcncStage.color, background: "rgba(255,255,255,0.02)" }}>
+                              {pcncStage.label}
+                            </span>
+                          </td>
+
+                          {/* C.D.M */}
+                          <td className={styles.td}>
+                            {guest.integreCDM ? (
+                              <span className="badge badge-green" style={{ fontSize: 9 }}>Intégré</span>
+                            ) : guest.interetCDM ? (
+                              <span className="badge badge-gold" style={{ fontSize: 9 }}>Intérêt</span>
+                            ) : (
+                              <span style={{ color: "var(--muted)", fontSize: 10 }}>Non</span>
+                            )}
+                          </td>
+
+                          {/* Fidélisé */}
+                          <td className={styles.td}>
+                            {fidelised ? (
+                              <span className="badge badge-gold" style={{ fontSize: 9, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                                <Sparkles size={9} /> Fidélisé
+                              </span>
+                            ) : (
+                              <span style={{ color: "var(--muted)", fontSize: 10 }}>En cours</span>
+                            )}
+                          </td>
+
+                          {/* Présences Culte */}
+                          <td className={styles.td}>
+                            <span style={{ fontWeight: 600, color: rateCulte >= 50 ? "var(--green)" : "var(--cream-dim)" }}>
+                              {rateCulte}%
+                            </span>
+                          </td>
+
+                          {/* Présences CDM */}
+                          <td className={styles.td}>
+                            <span style={{ fontWeight: 600, color: rateCDM >= 50 ? "var(--sky)" : "var(--cream-dim)" }}>
+                              {rateCDM}%
+                            </span>
+                          </td>
+
+                          {/* Conseiller / Affectation */}
+                          <td className={styles.td}>
+                            {(() => {
+                              const canAssignAny = isIntegrationLeader || canCreateOrDeleteInvites || canDispatchAll;
+                              const isCounselor = isConseiller || userRoleClean === "integration_conseiller" || userRoleClean === "conseiller";
+                              const isAssignedToMe = guest.assigned_to === userId || (!guest.assigned_to && guest.responsible === userName);
+                              const assignedCounselorName = counselors.find(c => c.id === guest.assigned_to)?.display_name || (guest.responsible && guest.responsible !== "Non assigné" ? guest.responsible : null);
+
+                              if (isIntegrationOrCounselor || counselors.length > 0) {
+                                if (canAssignAny) {
+                                  return (
+                                    <select
+                                      className={styles.familySelect}
+                                      value={guest.assigned_to || ""}
+                                      onChange={(e) => handleAssignCounselor(guest.id, e.target.value || null)}
+                                      title="Affecter à un conseiller"
+                                      style={{
+                                        borderColor: guest.assigned_to ? "rgba(212, 175, 55, 0.4)" : "var(--border)",
+                                        color: guest.assigned_to ? (guest.assigned_to === userId ? "var(--gold-light)" : "var(--cream)") : "var(--muted)",
+                                        cursor: "pointer",
+                                        maxWidth: 150,
+                                        fontSize: 11
+                                      }}
+                                    >
+                                      <option value="">Non assigné</option>
+                                      {counselors.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                          {c.display_name}{c.id === userId ? " (Moi)" : ""}
+                                        </option>
+                                      ))}
+                                      {guest.assigned_to && !counselors.some(c => c.id === guest.assigned_to) && (
+                                        <option value={guest.assigned_to}>
+                                          {assignedCounselorName || "Conseiller assigné"}
+                                        </option>
+                                      )}
+                                    </select>
+                                  );
+                                }
+
+                                if (isCounselor) {
+                                  if (!guest.assigned_to && (!guest.responsible || guest.responsible === "Non assigné")) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        className="btn btn-primary btn-xs"
+                                        onClick={() => handleSelfAssign(guest.id)}
+                                        style={{
+                                          fontSize: 10,
+                                          padding: "3px 8px",
+                                          borderRadius: 6,
+                                          whiteSpace: "nowrap"
+                                        }}
+                                        title="M'affecter cette âme"
+                                      >
+                                        + M'affecter
+                                      </button>
+                                    );
+                                  }
+
+                                  if (isAssignedToMe) {
+                                    return (
+                                      <span style={{ 
+                                        color: "var(--gold-light)", 
+                                        fontWeight: 600, 
+                                        fontSize: 11,
+                                        background: "rgba(212, 175, 55, 0.12)",
+                                        padding: "3px 8px",
+                                        borderRadius: 6,
+                                        border: "1px solid rgba(212, 175, 55, 0.25)",
+                                        display: "inline-block"
+                                      }}>
+                                        Moi
+                                      </span>
+                                    );
+                                  }
+
+                                  return (
+                                    <span style={{ fontSize: 11, color: "var(--cream-dim)" }}>
+                                      {assignedCounselorName || "Non assigné"}
+                                    </span>
+                                  );
+                                }
+
+                                return (
+                                  <span style={{ fontSize: 11, color: "var(--cream-dim)" }}>
+                                    {assignedCounselorName || "Non assigné"}
+                                  </span>
+                                );
+                              }
+
+                              // Mode bergerie / famille où responsible est utilisé
+                              if (isAuthorizedLeader && responsibles.length > 0) {
+                                return (
+                                  <select
+                                    className={styles.familySelect}
+                                    value={guest.responsible || "Non assigné"}
+                                    onChange={async (e) => {
+                                      const newResp = e.target.value;
+                                      setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, responsible: newResp } : g));
+                                      await supabase.from("invites").update({ responsible: newResp }).eq("id", guest.id);
+                                      window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId: guest.id } }));
+                                    }}
+                                    style={{
+                                      borderColor: (guest.responsible && guest.responsible !== "Non assigné") ? "rgba(212, 175, 55, 0.4)" : "var(--border)",
+                                      color: (guest.responsible && guest.responsible !== "Non assigné") ? "var(--cream)" : "var(--muted)",
+                                      cursor: "pointer",
+                                      maxWidth: 150,
+                                      fontSize: 11
+                                    }}
+                                  >
+                                    <option value="Non assigné">Non assigné</option>
+                                    {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
+                                    {guest.responsible && guest.responsible !== "Non assigné" && !responsibles.includes(guest.responsible) && (
+                                      <option key={guest.responsible} value={guest.responsible}>{guest.responsible}</option>
+                                    )}
+                                  </select>
+                                );
+                              }
+
+                              return (
+                                <span style={{ fontSize: 11, color: "var(--cream-dim)" }}>
+                                  {guest.responsible || "Non assigné"}
+                                </span>
+                              );
+                            })()}
+                          </td>
+
+                          {/* Actions */}
+                          <td className={styles.td} style={{ textAlign: "center" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <button 
+                                type="button"
+                                className="btn-icon btn-icon-gold"
+                                onClick={() => personView.openPerson(guest.id)}
+                                title="Voir la fiche complète"
+                                style={{ width: 28, height: 28 }}
+                              >
+                                <Eye size={13} />
+                              </button>
+                              {canEditGuest && (
+                                <button 
+                                  type="button"
+                                  className="btn-icon btn-icon-gold"
+                                  onClick={() => openEditModal(guest)}
+                                  title="Modifier les informations"
+                                  style={{ width: 28, height: 28 }}
+                                >
+                                  <MoreHorizontal size={13} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ) : (
+            /* Cards View */
+            <div className="fade-in d1" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {filtered.map((guest) => {
               const rateCDM = calculateRate(guest, thursdays);
               const rateCulte = calculateRate(guest, sundays);
@@ -1409,40 +2040,23 @@ function AffectationPage() {
                             </div>
                           </div>
                           
-                          {!isIntegrationOrCounselor && (
-                            <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-                              <button 
-                                className="btn btn-primary btn-sm" 
-                                disabled
-                                style={{ width: "100%", background: "linear-gradient(135deg, var(--gold) 0%, #b8973b 100%)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, opacity: 0.5, cursor: "not-allowed" }}
-                                title="Fonctionnalité désactivée temporairement"
-                              >
-                                {guest.bergerie_id ? "Changer de famille" : "Confier à une famille"}
-                              </button>
-                              
-                              <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,175,55,0.15)" }}>
-                                <label className="form-label" style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est affecté(e) à la famille</label>
-                                <select 
-                                  className="input" 
-                                  value={guest.famille_disciple || "AUCUNE"} 
-                                  onChange={async (e) => {
-                                    const newFamily = e.target.value;
-                                    setGuests(prev => prev.map(g => g.id === guest.id ? {...g, famille_disciple: newFamily} : g));
-                                    await supabase.from("invites").update({ famille_disciple: newFamily }).eq("id", guest.id);
-                                  }} 
-                                  style={{ width: "100%", fontSize: 12 }}
-                                >
-                                  <option value="AUCUNE">AUCUNE</option>
-                                  <option value="FAMILLE DE NOÉ">FAMILLE DE NOÉ</option>
-                                  <option value="FAMILLE DE DAVID">FAMILLE DE DAVID</option>
-                                  <option value="FAMILLE CHARIS">FAMILLE CHARIS</option>
-                                  <option value="FAMILLE IT'S TIME">FAMILLE IT'S TIME</option>
-                                  <option value="FAMILLE GÉNÉRATION JOSUÉ">FAMILLE GÉNÉRATION JOSUÉ</option>
-                                  <option value="FAMILLE DE MOÏSE">FAMILLE DE MOÏSE</option>
-                                </select>
-                              </div>
-                            </div>
-                          )}
+                          <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,175,55,0.15)", borderRadius: 10, padding: "12px 14px", marginTop: 14 }}>
+                            <label className="form-label" style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>
+                              Affectation Famille de Disciples
+                            </label>
+                            <select 
+                              className="input" 
+                              value={guest.famille_disciple || "AUCUNE"} 
+                              disabled={isRestricted}
+                              onChange={(e) => handleUpdateFamily(guest.id, e.target.value)} 
+                              style={{ width: "100%", fontSize: 12, cursor: isRestricted ? "not-allowed" : "pointer" }}
+                            >
+                              <option value="AUCUNE">AUCUNE (Non affecté)</option>
+                              {availableFamilies.map(fam => (
+                                <option key={fam} value={fam}>{fam}</option>
+                              ))}
+                            </select>
+                          </div>
 
                           {guest.bergerie_id && (
                             <button 
@@ -1586,6 +2200,11 @@ function AffectationPage() {
                             <SuiviToggle label="Intérêt C.D.M" checked={guest.interetCDM} onChange={() => toggleSuivi(guest.id, 'interetCDM')} disabled={isRestricted} />
                             <SuiviToggle label="A intégré C.D.M" checked={guest.integreCDM} onChange={() => toggleSuivi(guest.id, 'integreCDM')} disabled={isRestricted} />
                             <SuiviToggle label="Famille Disciple" checked={guest.dansFamilleDisciple} onChange={() => toggleSuivi(guest.id, 'dansFamilleDisciple')} disabled={isRestricted} />
+                            {guest.famille_disciple && guest.famille_disciple !== "AUCUNE" && (
+                              <div style={{ fontSize: 10, color: "var(--gold-light)", fontWeight: 600, paddingLeft: 22, marginTop: -4 }}>
+                                ↳ {guest.famille_disciple}
+                              </div>
+                            )}
                             <SuiviToggle label="Intérêt Baptême" checked={guest.interetBapteme} onChange={() => toggleSuivi(guest.id, 'interetBapteme')} disabled={isRestricted} />
                             <SuiviToggle label="Cocktail Bienvenue" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, 'cocktailBienvenue')} disabled={isRestricted} />
                           </div>
@@ -1637,6 +2256,7 @@ function AffectationPage() {
               );
             })}
           </div>
+        )}
 
           {/* Transfer Modal */}
           {typeof window !== "undefined" && isTransferModalOpen && transferringGuest && createPortal(

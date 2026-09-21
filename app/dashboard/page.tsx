@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Users, CalendarCheck, AlertTriangle, Target, TrendingUp, TrendingDown, Calendar, Clock, MessageSquare, ChevronRight, Plus, MapPin, Shield, Loader2, CheckCircle2, Clock3, Search, User, Phone, X, UserPlus, CalendarDays, Eye, EyeOff, Home, Zap } from "lucide-react";
 import { motion } from "framer-motion";
@@ -316,17 +316,26 @@ export default function DashboardPage() {
   });
 
   async function fetchCounts() {
-    const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
-    if (!myBergerie && !isIntegration) return;
+    const activeCtx = getActiveContext();
+    const rClean = (userInfo?.role || "").toLowerCase().trim();
+    const isIntegrationSpace = 
+      activeSpace === "integration" ||
+      activeCtx?.context_type === "integration" ||
+      userInfo?.context_type === "integration" ||
+      rClean.startsWith("integration_") ||
+      rClean === "conseiller" ||
+      userInfo?.isConseiller === true;
+
+    if (!isIntegrationSpace && (!myBergerie || !myBergerie.id)) return;
     setToday(previous => ({ ...previous, status: "loading" }));
     try {
-      const userRoleVal = (userInfo?.role || "").toLowerCase().trim();
-      const isOnlyResponsable = userRoleVal === "responsable" || userRoleVal === "responsable_de_brebi" || userRoleVal === "integration_conseiller";
-      const userNameStr = `${userInfo?.firstName} ${userInfo?.lastName}`;
-      const currentChurchId = church?.id || userInfo?.church_id;
+      const userRoleVal = rClean;
+      const isOnlyResponsable = userRoleVal === "responsable" || userRoleVal === "responsable_de_brebi" || userRoleVal === "integration_conseiller" || userRoleVal === "conseiller";
+      const userNameStr = `${userInfo?.firstName || ""} ${userInfo?.lastName || ""}`.trim();
+      const currentChurchId = church?.id || userInfo?.church_id || activeCtx?.church_id;
 
       let configuredActivities = DEFAULT_ACTIVITIES;
-      if (!isIntegration && myBergerie?.id) {
+      if (!isIntegrationSpace && myBergerie?.id) {
         const { data: bgData } = await supabase
           .from("bergeries")
           .select("activities")
@@ -431,22 +440,24 @@ export default function DashboardPage() {
       let members: any[] = [];
       let mErr: any = null;
 
-      if (isIntegration) {
-        const res = await listIntegrationTeam(currentChurchId);
-        if (res.success && res.team) {
-          members = res.team;
-        } else {
-          mErr = { message: res.error || "Failed to fetch integration team" };
+      if (isIntegrationSpace) {
+        if (currentChurchId) {
+          const res = await listIntegrationTeam(currentChurchId);
+          if (res.success && res.team) {
+            members = res.team;
+          } else {
+            mErr = res.error ? { message: res.error } : null;
+          }
+          iQuery = supabase.from("invites").select("*").eq("church_id", currentChurchId).eq("archived", false);
+          if (isOnlyResponsable) {
+            iQuery = iQuery.eq("assigned_to", userInfo?.id || "");
+          }
+          eQuery = supabase.from("evangelisations").select("*").eq("church_id", currentChurchId).is("bergerie_id", null);
+          if (isOnlyResponsable) {
+            eQuery = eQuery.eq("created_by", userInfo?.id || "");
+          }
         }
-        iQuery = supabase.from("invites").select("*").eq("church_id", currentChurchId).eq("archived", false);
-        if (isOnlyResponsable) {
-          iQuery = iQuery.eq("assigned_to", userInfo?.id || "");
-        }
-        eQuery = supabase.from("evangelisations").select("*").eq("church_id", currentChurchId).is("bergerie_id", null);
-        if (isOnlyResponsable) {
-          eQuery = eQuery.eq("created_by", userInfo?.id || "");
-        }
-      } else {
+      } else if (myBergerie?.id) {
         mQuery = supabase.from("members").select("*").eq("bergerie_id", myBergerie.id);
         iQuery = supabase.from("invites").select("*").eq("bergerie_id", myBergerie.id);
         eQuery = supabase.from("evangelisations").select("*").eq("bergerie_id", myBergerie.id);
@@ -458,25 +469,25 @@ export default function DashboardPage() {
         }
       }
 
-      if (!isIntegration && mQuery) {
+      if (!isIntegrationSpace && mQuery) {
         const { data, error } = await mQuery;
         members = (data || []).filter((m: any) => !m.archived && m.status !== "Externe");
         mErr = error;
       }
-      const { data: rawInvites, error: iErr } = await iQuery;
+      const { data: rawInvites, error: iErr } = iQuery ? await iQuery : { data: [], error: null };
       const invites = (rawInvites || []).filter((i: any) => !i.archived);
       const pendingContacts = invites.filter((guest: any) => !guest.appel_abouti && guest.souhaite_etre_contacte !== false);
       setToday({
         status: iErr ? "error" : "ready",
         pending: pendingContacts.length,
-        unassigned: invites.filter((guest: any) => isIntegration ? !guest.assigned_to : !guest.responsible || guest.responsible === "Non assigné").length,
+        unassigned: invites.filter((guest: any) => isIntegrationSpace ? !guest.assigned_to : !guest.responsible || guest.responsible === "Non assigné").length,
         contacts: pendingContacts.slice(0, 3).map((guest: any) => ({ id: guest.id, name: [guest.first_name, guest.last_name].filter(Boolean).join(" ") })),
       });
-      const { data: evangs, error: eErr } = await eQuery;
+      const { data: evangs, error: eErr } = eQuery ? await eQuery : { data: [], error: null };
 
-      if (mErr) console.error("Error fetching members:", mErr);
-      if (iErr) console.error("Error fetching invites:", iErr);
-      if (eErr) console.error("Error fetching evangelisations:", eErr);
+      if (mErr) console.warn("Error fetching members:", mErr?.message || mErr);
+      if (iErr) console.warn("Error fetching invites:", iErr?.message || iErr);
+      if (eErr) console.warn("Error fetching evangelisations:", eErr?.message || eErr);
 
       const mCount = members?.length || 0;
       const iCount = invites?.length || 0;
@@ -487,7 +498,7 @@ export default function DashboardPage() {
       const calculatedAtRisk: any[] = [];
       const calculatedActivities: any[] = [];
 
-      if (isIntegration) {
+      if (isIntegrationSpace) {
         if (invites) {
           invites.forEach(g => {
             if (g.is_in_bergerie || g.dans_famille_disciple) {
@@ -1000,15 +1011,27 @@ export default function DashboardPage() {
     }, 0);
   }, []);
 
+  const isIntegration = useMemo(() => {
+    const activeContext = getActiveContext();
+    const roleClean = (userInfo?.role || "").toLowerCase().trim();
+    return (
+      activeSpace === "integration" ||
+      activeContext?.context_type === "integration" ||
+      userInfo?.context_type === "integration" ||
+      roleClean.startsWith("integration_") ||
+      roleClean === "conseiller" ||
+      userInfo?.isConseiller === true
+    );
+  }, [activeSpace, userInfo]);
+
   useEffect(() => {
-    const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
-    if (myBergerie || isIntegration) {
+    if (myBergerie?.id || isIntegration) {
       setTimeout(() => {
         fetchCounts();
       }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myBergerie, userInfo]);
+  }, [myBergerie, userInfo, isIntegration]);
 
   useEffect(() => {
     if (isCreating || selectedForJoin) {
@@ -1024,9 +1047,8 @@ export default function DashboardPage() {
     };
   }, [isCreating, selectedForJoin]);
 
-  const isIntegration = (userInfo?.role || "").toLowerCase().trim().startsWith("integration_");
   const userRoleVal = (userInfo?.role || "").toLowerCase().trim();
-  const isOnlyResponsable = userRoleVal.includes("responsable") || userRoleVal === "integration_conseiller";
+  const isOnlyResponsable = userRoleVal.includes("responsable") || userRoleVal === "integration_conseiller" || userRoleVal === "conseiller";
 
   const DYNAMIC_STATS = isIntegration ? [
     { label: "Équipe", value: String(familyStats.membersCount), sub: "Membres actifs", trend: "up", color: "var(--gold-light)", icon: Users },

@@ -12,6 +12,7 @@ export type UserContextRecord = {
   bergerie_id?: string | null;
   display_name?: string | null;
   active?: boolean | null;
+  metadata?: Record<string, any> | null;
 };
 
 export function normalizeFamilyRole(role?: string | null) {
@@ -57,6 +58,8 @@ export function contextToUserInfo(context: UserContextRecord) {
     email: context.email,
     role,
     isConseiller: role.toLowerCase().includes("conseiller"),
+    canDispatchAll: Boolean(context.metadata?.can_dispatch_all),
+    metadata: context.metadata || {},
     firstName,
     lastName,
     church_id: context.church_id || null,

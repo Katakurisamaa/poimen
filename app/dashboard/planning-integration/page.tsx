@@ -18,6 +18,7 @@ import { getPlanningIntegration, savePlanningIntegration } from "@/app/actions/p
 import { getIntegrationDropdownList } from "@/app/actions/auth";
 import { getMonthWeeks, getNextWeekPeriod } from "@/lib/planning-dates";
 import styles from "@/components/integration/PlanningIntegration.module.css";
+import IntegrationSubNav from "@/components/integration/IntegrationSubNav";
 
 // Empty default – weeks are always auto-generated (never pre-filled)
 const buildDefaultData = (
@@ -468,6 +469,7 @@ export default function PlanningIntegrationPage() {
 
   return (
     <div className={styles.container}>
+      <IntegrationSubNav />
       
       {/* ── TOP ACTION BAR ── */}
       <header className={styles.headerBar}>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Users, UserPlus, Trash2, Mail, ShieldAlert, Loader2, CheckCircle2, Clock3, Plus, X, Pencil } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { createIntegrationTeamMember, deactivateIntegrationTeamMember, listIntegrationTeam, updateIntegrationTeamMember } from "@/app/actions/auth";
+import { createIntegrationTeamMember, deactivateIntegrationTeamMember, listIntegrationTeam, updateIntegrationTeamMember, setCounselorDispatchPermission } from "@/app/actions/auth";
 import { getActiveUserInfo } from "@/lib/client-session";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 
@@ -23,7 +23,8 @@ export default function IntegrationTeamPage() {
     lastName: "",
     email: "",
     accessCode: "",
-    role: "integration_conseiller"
+    role: "integration_conseiller",
+    canDispatchAll: false
   });
   
   const [newCounselor, setNewCounselor] = useState({
@@ -63,9 +64,34 @@ export default function IntegrationTeamPage() {
       lastName,
       email: member.email,
       accessCode: "",
-      role: member.role === "Responsable" ? "integration_responsable" : member.role === "Second" ? "integration_second" : "integration_conseiller"
+      role: member.role === "Responsable" ? "integration_responsable" : member.role === "Second" ? "integration_second" : "integration_conseiller",
+      canDispatchAll: Boolean(member.canDispatchAll)
     });
     setIsEditing(true);
+  };
+
+  const handleToggleDispatchPermission = async (member: any) => {
+    if (!church?.id || !member.contextId) return;
+    const nextVal = !member.canDispatchAll;
+    
+    // Optimistic local state update
+    setTeam(prev => prev.map(m => m.id === member.id ? { ...m, canDispatchAll: nextVal } : m));
+    
+    const res = await setCounselorDispatchPermission({
+      churchId: church.id,
+      contextId: member.contextId,
+      canDispatchAll: nextVal
+    });
+
+    if (!res.success) {
+      setTeam(prev => prev.map(m => m.id === member.id ? { ...m, canDispatchAll: !nextVal } : m));
+      notify("Erreur lors de la mise à jour de la délégation : " + res.error);
+    } else {
+      notify(nextVal 
+        ? `Délégation accordée à ${member.name} : accès à tous les invités et affectation globale activés.` 
+        : `Délégation retirée pour ${member.name}.`
+      );
+    }
   };
 
   const handleEditCounselor = async (e: React.FormEvent) => {
@@ -85,7 +111,8 @@ export default function IntegrationTeamPage() {
         lastName: editForm.lastName,
         email: editForm.email,
         accessCode: editForm.accessCode || undefined,
-        role: editForm.role
+        role: editForm.role,
+        canDispatchAll: editForm.role === "integration_conseiller" ? editForm.canDispatchAll : undefined
       });
 
       if (!res.success) throw new Error(res.error);
@@ -284,6 +311,7 @@ export default function IntegrationTeamPage() {
                   <tr style={{ borderBottom: "1px solid rgba(212,175,55,0.1)", textAlign: "left" }}>
                     <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Nom & Prénom</th>
                     <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Rôle</th>
+                    <th style={{ padding: "14px 20px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1, textAlign: "center" }}>Délégation d'affectation</th>
                     <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Statut</th>
                     <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1, textAlign: "center" }}>Charge active</th>
                     <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Enregistré le</th>
@@ -307,6 +335,41 @@ export default function IntegrationTeamPage() {
                         </div>
                       </td>
                       <td style={{ padding: "16px 24px", fontSize: 13, color: "var(--cream-dim)" }}>{member.role}</td>
+                      <td style={{ padding: "16px 20px", textAlign: "center" }}>
+                        {member.role === "Responsable" || member.role === "Second" ? (
+                          <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600, background: "rgba(212,175,55,0.08)", padding: "4px 10px", borderRadius: 12 }}>
+                            Leader (Total)
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDispatchPermission(member)}
+                            title={member.canDispatchAll ? "Cliquer pour révoquer la délégation (ce conseiller ne verra plus que ses propres âmes)" : "Cliquer pour accorder la délégation (permettra à ce conseiller de voir tous les invités et de les affecter)"}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "4px 12px",
+                              borderRadius: 20,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                              background: member.canDispatchAll ? "rgba(212, 175, 55, 0.15)" : "rgba(255, 255, 255, 0.04)",
+                              border: member.canDispatchAll ? "1px solid rgba(212, 175, 55, 0.4)" : "1px solid var(--border)",
+                              color: member.canDispatchAll ? "var(--gold-light)" : "var(--muted)"
+                            }}
+                          >
+                            <span style={{ 
+                              width: 7, 
+                              height: 7, 
+                              borderRadius: "50%", 
+                              background: member.canDispatchAll ? "var(--green)" : "var(--muted)" 
+                            }} />
+                            <span>{member.canDispatchAll ? "Voir & Affecter tout" : "Restreint"}</span>
+                          </button>
+                        )}
+                      </td>
                       <td style={{ padding: "16px 24px" }}>
                         {member.status === "active" ? (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--green)", background: "rgba(16,185,129,0.1)", padding: "4px 10px", borderRadius: 12, fontWeight: 600 }}>
@@ -470,6 +533,25 @@ export default function IntegrationTeamPage() {
                   <option value="integration_responsable">Responsable Intégration</option>
                 </select>
               </div>
+
+              {editForm.role === "integration_conseiller" && (
+                <div style={{ background: "rgba(212, 175, 55, 0.05)", border: "1px solid rgba(212, 175, 55, 0.2)", borderRadius: 8, padding: 12 }}>
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                    <input 
+                      type="checkbox" 
+                      checked={editForm.canDispatchAll} 
+                      onChange={e => setEditForm({...editForm, canDispatchAll: e.target.checked})}
+                      style={{ marginTop: 2, accentColor: "var(--gold)" }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cream)" }}>Délégation d'affectation globale</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                        Permet à ce conseiller de voir tous les invités de l'église et de les affecter aux autres. Il ne pourra cependant faire aucune modification sur ceux-ci, sauf ceux qu'il a lui-même encodé.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              )}
               <div>
                 <p className="form-label">L’adresse de connexion et le mot de passe sont gérés par le titulaire du compte.</p>
               </div>

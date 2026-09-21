@@ -50,13 +50,21 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
   const secondary: NavItem[] = [];
   if (familyLeader || integration || counselor) primary.push({ label: "Accueil", href: "/dashboard", icon: "home", description: "Vos priorités du jour" });
   if (familyLeader || canSeeGuests) primary.push({ label: familyLeader ? "Membres" : "Invités", href: familyLeader ? "/dashboard/bergerie" : "/dashboard/invites", icon: "people", description: familyLeader ? "Membres de la bergerie" : "Invités et parcours d’intégration", matches: familyLeader ? ["/dashboard/bergerie", "/dashboard/invites"] : ["/dashboard/invites"] });
-  primary.push({ label: "Suivi", href: "/dashboard/affectation", icon: "followup", description: "Les personnes qui vous sont confiées" });
+  if (!access.hasFamily && (integration || counselor)) {
+    primary.push({ label: "Mes âmes", href: "/dashboard/affectation", icon: "followup", description: "Les personnes qui vous sont confiées" });
+  }
   if (familyLeader) {
     primary.push({ label: "Activités", href: "/dashboard/activities", icon: "calendar", description: "Calendrier et présences" });
     secondary.push({ label: "Rapports", href: "/dashboard/reporting", icon: "report", description: "Bilan et export des rapports" });
   }
   if (integration) {
-    primary.push({ label: "Planning", href: "/dashboard/planning-integration", icon: "calendar", description: "Affectations et services du mois" });
+    primary.push({
+      label: "Planning",
+      href: "/dashboard/planning-integration",
+      icon: "calendar",
+      description: "Services du mois et plan de positionnement",
+      matches: ["/dashboard/planning-integration", "/dashboard/positionnement-integration"]
+    });
   }
   if (integrationLeader) secondary.push({ label: "Équipe", href: "/dashboard/equipe", icon: "team", description: "Responsables et conseillers" });
   if (familyLeader || integration || responsible) secondary.push({ label: "Évangélisation", href: "/dashboard/evangelisation", icon: "outreach", description: "Rencontres et sorties" });

@@ -35,12 +35,42 @@ function Navigation({ mobileOpen, onToggleMobile }: Props) {
     dialog.showModal();
     return () => { dialog.close(); document.body.style.overflow = previousOverflow; };
   }, [open]);
+  const [uncontactedCount, setUncontactedCount] = useState(0);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      setUncontactedCount(e.detail?.count || 0);
+    };
+    window.addEventListener("poimen:uncontacted-count", handler);
+    return () => window.removeEventListener("poimen:uncontacted-count", handler);
+  }, []);
+
   if (!workspace.active) return null;
   const active = (item: NavItem) => isNavigationActive(item, pathname, params.get("tab"));
   const links = (items: NavItem[], detailed = false) => items.map(item => {
     const Icon = ICONS[item.icon];
+    const isAffectation = item.href === "/dashboard/affectation";
     return <Link key={item.href} href={item.href} className={`${styles.navLink} ${active(item) ? styles.selected : ""}`} aria-current={active(item) ? "page" : undefined} onClick={close}>
-      <Icon size={20} /><span>{item.label}{detailed && <small>{item.description}</small>}</span>
+      <Icon size={20} />
+      <span>
+        {item.label}
+        {isAffectation && uncontactedCount > 0 && (
+          <span style={{
+            marginLeft: 8,
+            padding: "1px 7px",
+            borderRadius: 999,
+            background: "#DC2626",
+            color: "#FFFFFF",
+            fontSize: 10,
+            fontWeight: 800,
+            display: "inline-block",
+            boxShadow: "0 2px 6px rgba(220, 38, 38, 0.4)"
+          }}>
+            {uncontactedCount}
+          </span>
+        )}
+        {detailed && <small>{item.description}</small>}
+      </span>
     </Link>;
   });
   const signOut = async () => {
@@ -62,7 +92,37 @@ function Navigation({ mobileOpen, onToggleMobile }: Props) {
       <div className={styles.railAccount}><span className={styles.avatar}>{workspace.name.split(" ").map(part => part[0]).slice(0, 2).join("") || "P"}</span><div><strong>{workspace.name || "Mon compte"}</strong><small>{roleLabel(workspace.role)}</small></div><button type="button" className={styles.iconButton} aria-label="Se déconnecter" disabled={signingOut} onClick={() => void signOut()}><LogOut size={18} /></button></div>
     </aside>
     <nav className={`${styles.bottomNav} ${styles.ui}`} aria-label="Navigation principale mobile">
-      {primary.map(item => { const Icon = ICONS[item.icon]; return <Link key={item.href} href={item.href} className={active(item) && !open ? styles.selected : ""} aria-current={active(item) ? "page" : undefined}><Icon size={21} /><span>{item.label}</span></Link>; })}
+      {primary.map(item => {
+        const Icon = ICONS[item.icon];
+        const isAffectation = item.href === "/dashboard/affectation";
+        return (
+          <Link key={item.href} href={item.href} className={active(item) && !open ? styles.selected : ""} aria-current={active(item) ? "page" : undefined} style={{ position: "relative" }}>
+            <Icon size={21} />
+            {isAffectation && uncontactedCount > 0 && (
+              <span style={{
+                position: "absolute",
+                top: 4,
+                right: "22%",
+                background: "#DC2626",
+                color: "#FFFFFF",
+                fontSize: 9,
+                fontWeight: 800,
+                borderRadius: 999,
+                minWidth: 16,
+                height: 16,
+                padding: "0 4px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 6px rgba(220, 38, 38, 0.6)"
+              }}>
+                {uncontactedCount}
+              </span>
+            )}
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
       <button type="button" className={open || secondary.some(active) ? styles.selected : ""} aria-label="Plus de rubriques" aria-haspopup="dialog" aria-expanded={open} onClick={() => setMoreOpen(true)}><MoreHorizontal size={22} /><span>Plus</span></button>
     </nav>
     <dialog ref={dialogRef} className={`${styles.menuDialog} ${styles.ui}`} aria-labelledby="more-title" onCancel={event => { event.preventDefault(); close(); }}>

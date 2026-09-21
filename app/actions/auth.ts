@@ -186,7 +186,8 @@ async function assertCanReadIntegrationTeam(churchId: string) {
     return { ok: true, user };
   }
 
-  const { data: memberships, error: membershipError } = await serverSupabase.from("user_contexts")
+  const supabase = await getServiceSupabase();
+  const { data: memberships, error: membershipError } = await supabase.from("user_contexts")
     .select("role, active").eq("user_id", user.id).eq("church_id", churchId).eq("context_type", "integration");
   if (membershipError) return { ok: false, error: "Vérification des droits impossible." };
   if (memberships?.length) {
@@ -195,7 +196,7 @@ async function assertCanReadIntegrationTeam(churchId: string) {
       : { ok: false, error: "Accès désactivé." };
   }
 
-  const { data: profile } = await serverSupabase
+  const { data: profile } = await supabase
     .from("profiles")
     .select("role, church_id")
     .eq("id", user.id)
@@ -207,7 +208,7 @@ async function assertCanReadIntegrationTeam(churchId: string) {
     return { ok: true, user };
   }
 
-  const { data: context } = await serverSupabase
+  const { data: context } = await supabase
     .from("user_contexts")
     .select("role, church_id")
     .eq("user_id", user.id)
@@ -275,6 +276,8 @@ export async function listIntegrationTeam(churchId: string) {
         email: context.email || profile?.email,
         name: context.display_name || profile?.display_name || context.email,
         role: context.role === "integration_responsable" ? "Responsable" : context.role === "integration_second" ? "Second" : "Conseiller",
+        roleKey: context.role,
+        canDispatchAll: Boolean(context.metadata?.can_dispatch_all),
         status: "active",
         workload: workloadMap[context.user_id] || 0,
         createdAt: context.created_at || profile?.created_at
@@ -775,6 +778,7 @@ export async function updateIntegrationTeamMember(params: {
   email: string;
   accessCode?: string;
   role: string;
+  canDispatchAll?: boolean;
 }) {
   if (!params || !validTeamInput(params) || !isUuid(params.userId) || !isUuid(params.contextId)) {
     return { success: false, error: "Membre invalide." };
@@ -789,7 +793,7 @@ export async function updateIntegrationTeamMember(params: {
 
   // An organisation manager may edit membership, never global account credentials.
   const { data: target, error: targetError } = await supabase.from("user_contexts")
-    .select("id, email, role")
+    .select("id, email, role, metadata")
     .eq("id", params.contextId).eq("user_id", params.userId)
     .eq("church_id", params.churchId).eq("context_type", "integration").single();
   if (targetError || !target) return { success: false, error: "Membre introuvable dans cette église." };
@@ -801,13 +805,21 @@ export async function updateIntegrationTeamMember(params: {
   }
 
   // 2. Update user_contexts
+  const contextUpdatePayload: Record<string, any> = {
+    email: cleanEmail,
+    display_name: displayName,
+    role: role
+  };
+  if (params.canDispatchAll !== undefined) {
+    contextUpdatePayload.metadata = {
+      ...(target.metadata || {}),
+      can_dispatch_all: Boolean(params.canDispatchAll)
+    };
+  }
+
   const { error: contextError } = await supabase
     .from("user_contexts")
-    .update({
-      email: cleanEmail,
-      display_name: displayName,
-      role: role
-    })
+    .update(contextUpdatePayload)
     .eq("id", params.contextId)
     .eq("user_id", params.userId)
     .eq("church_id", params.churchId)
@@ -1002,3 +1014,141 @@ export async function createFamilyUserContext(params: {
     return { success: false, error: err.message };
   }
 }
+
+export async function setCounselorDispatchPermission(params: {
+  churchId: string;
+  contextId: string;
+  canDispatchAll: boolean;
+}) {
+  const permission = await assertCanManageIntegrationTeam(params.churchId);
+  if (!permission.ok) return { success: false, error: permission.error };
+
+  const supabase = await getServiceSupabase();
+  const { data: target, error: targetError } = await supabase
+    .from("user_contexts")
+    .select("id, metadata, role, display_name")
+    .eq("id", params.contextId)
+    .eq("church_id", params.churchId)
+    .eq("context_type", "integration")
+    .single();
+
+  if (targetError || !target) {
+    return { success: false, error: "Membre introuvable." };
+  }
+
+  const newMeta = {
+    ...(target.metadata || {}),
+    can_dispatch_all: Boolean(params.canDispatchAll)
+  };
+
+  const { error: updateError } = await supabase
+    .from("user_contexts")
+    .update({ metadata: newMeta })
+    .eq("id", params.contextId);
+
+  if (updateError) return { success: false, error: updateError.message };
+  return { 
+    success: true, 
+    canDispatchAll: Boolean(params.canDispatchAll), 
+    memberName: target.display_name || "Conseiller" 
+  };
+}
+
+export async function getIntegrationInvites(churchId: string) {
+  const serverSupabase = await createServerClient();
+  const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
+  if (authErr || !user) return { success: false, error: "Non authentifié." };
+
+  const permission = await assertCanReadIntegrationTeam(churchId);
+  if (!permission.ok) return { success: false, error: permission.error };
+
+  const supabase = await getServiceSupabase();
+  const { data: contexts } = await supabase
+    .from("user_contexts")
+    .select("role, metadata, active")
+    .eq("user_id", user.id)
+    .eq("church_id", churchId)
+    .eq("context_type", "integration")
+    .eq("active", true);
+
+  const isLeader = (contexts || []).some(c => ["integration_responsable", "integration_second"].includes(c.role)) || user.email?.toLowerCase().trim() === SUPER_ADMIN_EMAIL;
+  const hasDispatchAll = (contexts || []).some(c => Boolean(c.metadata?.can_dispatch_all));
+
+  let query = supabase.from("invites").select("*").eq("church_id", churchId);
+  if (!isLeader && !hasDispatchAll) {
+    query = query.or(`created_by.eq.${user.id},assigned_to.eq.${user.id}`);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
+  if (error) return { success: false, error: error.message };
+  return { success: true, invites: data || [], canDispatchAll: hasDispatchAll || isLeader };
+}
+
+export async function assignCounselorToGuest(params: {
+  churchId: string;
+  guestId: string;
+  counselorId: string | null;
+}) {
+  const serverSupabase = await createServerClient();
+  const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
+  if (authErr || !user) return { success: false, error: "Non authentifié." };
+
+  const permission = await assertCanReadIntegrationTeam(params.churchId);
+  if (!permission.ok) return { success: false, error: permission.error };
+
+  const supabase = await getServiceSupabase();
+  const { data: contexts } = await supabase
+    .from("user_contexts")
+    .select("role, metadata, active")
+    .eq("user_id", user.id)
+    .eq("church_id", params.churchId)
+    .eq("context_type", "integration")
+    .eq("active", true);
+
+  const isLeader = (contexts || []).some(c => ["integration_responsable", "integration_second"].includes(c.role)) || user.email?.toLowerCase().trim() === SUPER_ADMIN_EMAIL;
+  const hasDispatchAll = (contexts || []).some(c => Boolean(c.metadata?.can_dispatch_all));
+  const isSelfAssign = params.counselorId === user.id;
+
+  if (!isLeader && !hasDispatchAll && !isSelfAssign) {
+    return { success: false, error: "Vous n'avez pas l'autorisation d'affecter cette âme à un tiers." };
+  }
+
+  let respName = "";
+  if (params.counselorId) {
+    const { data: cProfile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", params.counselorId)
+      .maybeSingle();
+    
+    if (cProfile?.display_name) {
+      respName = cProfile.display_name;
+    } else {
+      const { data: cContext } = await supabase
+        .from("user_contexts")
+        .select("display_name")
+        .eq("user_id", params.counselorId)
+        .eq("church_id", params.churchId)
+        .eq("context_type", "integration")
+        .maybeSingle();
+      respName = cContext?.display_name || "";
+    }
+  } else {
+    respName = "Non assigné";
+  }
+
+  const updatePayload: Record<string, any> = { assigned_to: params.counselorId };
+  if (respName) {
+    updatePayload.responsible = respName;
+  }
+
+  const { error: updateError } = await supabase
+    .from("invites")
+    .update(updatePayload)
+    .eq("id", params.guestId)
+    .eq("church_id", params.churchId);
+
+  if (updateError) return { success: false, error: updateError.message };
+  return { success: true, responsible: respName };
+}
+

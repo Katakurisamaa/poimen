@@ -120,7 +120,8 @@
 @media (max-width: 1024px) {
   .rail { display: none; }
   .bottomNav { position: fixed; inset: auto 0 0; z-index: 60; display: flex; justify-content: space-around; gap: 2px; padding: 7px max(8px, env(safe-area-inset-right)) max(7px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-top: 1px solid var(--ux-line); background: var(--surface-solid); }
-  .bottomNav > a, .bottomNav > button { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; flex: 1; min-width: 0; max-width: 150px; min-height: 53px; border: 0; border-radius: 12px; color: var(--ux-muted); background: transparent; font-size: 10px; }
+  .bottomNav > a, .bottomNav > button { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; flex: 1; min-width: 0; max-width: 150px; min-height: 53px; border: 0; border-radius: 12px; color: var(--ux-muted); background: transparent; font-size: 10px; padding: 2px 2px; }
+  .bottomNav span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; text-align: center; }
   .bottomNav > .selected { color: var(--gold); background: var(--gold-glow); font-weight: 650; }
   .mobileMenu { display: inline-flex; }
   .topbar { min-height: 70px; padding: 9px 130px 9px 20px; gap: 10px; }

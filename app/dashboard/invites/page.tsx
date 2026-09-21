@@ -7,16 +7,17 @@ import {
   Calendar, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2,
   Trash2, Trash, RotateCcw, Pencil, Archive, AlertTriangle,
-  ListChecks, BarChart3, Home
+  ListChecks, BarChart3, Home, LayoutGrid, Table as TableIcon, Eye, Check
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { autoAddLeaderToMembers, listIntegrationTeam } from "@/app/actions/auth";
+import { autoAddLeaderToMembers, listIntegrationTeam, getIntegrationInvites, assignCounselorToGuest } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
 import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
 import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import PeopleNavigation from "@/components/experience/PeopleNavigation";
+import styles from "../affectation/Affectation.module.css";
 
 
 interface Guest {
@@ -101,6 +102,64 @@ const FAMILY_COLORS: Record<string, { main: string; glow: string; border: string
   "AUCUNE": { main: "var(--muted)", glow: "rgba(148, 163, 184, 0.02)", border: "rgba(148, 163, 184, 0.12)" },
 };
 
+function mapDbGuestToGuest(g: any): Guest {
+  return {
+    id: g.id,
+    civility: g.civility,
+    firstName: g.first_name,
+    lastName: g.last_name,
+    age: g.age,
+    phone: g.phone,
+    email: g.email,
+    address: g.address,
+    arrivalDate: g.arrival_date,
+    event: g.event,
+    aps: g.aps,
+    localChurch: g.local_church,
+    responsible: g.responsible,
+    assigned_to: g.assigned_to,
+    church_id: g.church_id,
+    bergerie_id: g.bergerie_id,
+    isInBergerie: g.is_in_bergerie,
+    status: g.status,
+    attendance: g.attendance || {},
+    appelAbouti: g.appel_abouti,
+    groupeWhatsapp: g.groupe_whatsapp,
+    prevuRevenir: g.prevu_revenir,
+    estRevenuCulte: g.est_revenu_culte,
+    rencontreEffectuee: g.rencontre_effectuee,
+    visiteDomicile: g.visite_domicile,
+    cocktailBienvenue: g.cocktail_bienvenue,
+    pcnc: g.pcnc,
+    p101: g.p101,
+    p201: g.p201,
+    p301: g.p301,
+    terminePCNC: g.termine_pcnc,
+    baptemeEau: g.bapteme_eau,
+    baptemeEsprit: g.bapteme_esprit,
+    veutServir: g.veut_servir,
+    devenuStar: g.devenu_star,
+    smsBienvenue: g.sms_bienvenue || false,
+    priere: g.priere || false,
+    interetEvenement: g.interet_evenement || false,
+    interetFormation: g.interet_formation || false,
+    aEteInvite: g.a_ete_invite || false,
+    parQui: g.par_qui || "",
+    interetCDM: g.interet_cdm || false,
+    integreCDM: g.integre_cdm || false,
+    prierePartage: g.priere_partage || false,
+    dansFamilleDisciple: g.dans_famille_disciple || false,
+    interetBapteme: g.interet_bapteme || false,
+    commentaire: g.commentaire || "",
+    commentaireSuivi: g.commentaire_suivi || "",
+    archived: g.archived || false,
+    created_by: g.created_by,
+    famille_disciple: g.famille_disciple || "AUCUNE",
+    etatCivil: g.etat_civil || "Célibataire",
+    souhaiteEtreContacte: g.souhaite_etre_contacte !== false
+  };
+}
+
 function InvitesPage() {
   const { notify, confirm } = useFeedback();
   const saveLock = useRef(false);
@@ -147,6 +206,17 @@ function InvitesPage() {
   const [arrivalMonth, setArrivalMonth] = useState<string>("all");
   const [arrivalYear, setArrivalYear] = useState<string>("all");
   const [localChurchFilter, setLocalChurchFilter] = useState<string>("all");
+  const [familyFilter, setFamilyFilter] = useState<string>("all");
+  const [displayMode, setDisplayMode] = useState<"cards" | "table">("cards");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("poimen_invites_display_mode");
+      if (saved === "cards" || saved === "table") {
+        setDisplayMode(saved);
+      }
+    } catch {}
+  }, []);
   const [userRole, setUserRole] = useState<string | null>(null);
   const userRoleClean = useMemo(() => (userRole || "").toLowerCase().trim(), [userRole]);
   const canAddOrEditInvites = 
@@ -175,6 +245,7 @@ function InvitesPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isConseiller, setIsConseiller] = useState(false);
+  const [canDispatchAll, setCanDispatchAll] = useState(false);
   const [showCorbeille, setShowCorbeille] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -212,6 +283,7 @@ function InvitesPage() {
         setUserId(parsed.id);
         const rLower = (parsed.role || "").toLowerCase().trim();
         setIsConseiller(parsed.isConseiller === true || rLower === "integration_conseiller" || rLower === "conseiller");
+        setCanDispatchAll(Boolean(parsed.canDispatchAll || parsed.metadata?.can_dispatch_all));
         
         let cId = parsed.church_id;
         if (!cId) {
@@ -244,7 +316,7 @@ function InvitesPage() {
   }, []);
 
   useEffect(() => {
-    if (familyId || (userRoleClean.startsWith("integration_") && churchId)) {
+    if (familyId || (isIntegrationOrCounselor && churchId)) {
       fetchGuests();
       fetchResponsibles();
       syncUserRole();
@@ -266,7 +338,7 @@ function InvitesPage() {
         supabase.removeChannel(channel);
       };
     }
-  }, [familyId, userRole, churchId]);
+  }, [familyId, isIntegrationOrCounselor, churchId]);
 
   const syncUserRole = async () => {
     const activeContext = getActiveContext();
@@ -311,7 +383,7 @@ function InvitesPage() {
   };
 
   const fetchResponsibles = async () => {
-    if (userRoleClean.startsWith("integration_")) {
+    if (isIntegrationOrCounselor) {
       if (!churchId) return;
       const res = await listIntegrationTeam(churchId);
       if (res.success && res.team) {
@@ -320,6 +392,16 @@ function InvitesPage() {
           display_name: t.name,
           email: t.email
         })));
+        const myEntry = res.team.find((t: any) => t.id === userId);
+        if (myEntry && myEntry.canDispatchAll !== undefined) {
+          const freshDisp = Boolean(myEntry.canDispatchAll);
+          setCanDispatchAll(prev => {
+            if (prev !== freshDisp) {
+              setTimeout(() => { fetchGuests(); }, 50);
+            }
+            return freshDisp;
+          });
+        }
       }
       return;
     }
@@ -383,10 +465,19 @@ function InvitesPage() {
     setLoading(true);
     let query = supabase.from("invites").select("*");
     
-    if (userRoleClean.startsWith("integration_")) {
+    if (isIntegrationOrCounselor) {
       if (churchId) {
+        const res = await getIntegrationInvites(churchId);
+        if (res.success && res.invites) {
+          setGuests(res.invites.map(mapDbGuestToGuest));
+          if (res.canDispatchAll !== undefined) {
+            setCanDispatchAll(Boolean(res.canDispatchAll));
+          }
+          setLoading(false);
+          return;
+        }
         query = query.eq("church_id", churchId);
-        if ((userRoleClean === "integration_conseiller" || userRoleClean === "conseiller") && userId) {
+        if ((userRoleClean === "integration_conseiller" || userRoleClean === "conseiller") && userId && !canDispatchAll) {
           query = query.or(`created_by.eq.${userId},assigned_to.eq.${userId}`);
         }
       } else {
@@ -410,62 +501,7 @@ function InvitesPage() {
     if (error) {
       console.error("Error fetching guests:", error);
     } else {
-      const mapped: Guest[] = (dbGuests || []).map(g => ({
-        id: g.id,
-        civility: g.civility,
-        firstName: g.first_name,
-        lastName: g.last_name,
-        age: g.age,
-        phone: g.phone,
-        email: g.email,
-        address: g.address,
-        arrivalDate: g.arrival_date,
-        event: g.event,
-        aps: g.aps,
-        localChurch: g.local_church,
-        responsible: g.responsible,
-        assigned_to: g.assigned_to,
-        church_id: g.church_id,
-        bergerie_id: g.bergerie_id,
-        isInBergerie: g.is_in_bergerie,
-        status: g.status,
-        attendance: g.attendance || {},
-        appelAbouti: g.appel_abouti,
-        groupeWhatsapp: g.groupe_whatsapp,
-        prevuRevenir: g.prevu_revenir,
-        estRevenuCulte: g.est_revenu_culte,
-        rencontreEffectuee: g.rencontre_effectuee,
-        visiteDomicile: g.visite_domicile,
-        cocktailBienvenue: g.cocktail_bienvenue,
-        pcnc: g.pcnc,
-        p101: g.p101,
-        p201: g.p201,
-        p301: g.p301,
-        terminePCNC: g.termine_pcnc,
-        baptemeEau: g.bapteme_eau,
-        baptemeEsprit: g.bapteme_esprit,
-        veutServir: g.veut_servir,
-        devenuStar: g.devenu_star,
-        smsBienvenue: g.sms_bienvenue || false,
-        priere: g.priere || false,
-        interetEvenement: g.interet_evenement || false,
-        interetFormation: g.interet_formation || false,
-        aEteInvite: g.a_ete_invite || false,
-        parQui: g.par_qui || "",
-        interetCDM: g.interet_cdm || false,
-        integreCDM: g.integre_cdm || false,
-        prierePartage: g.priere_partage || false,
-        dansFamilleDisciple: g.dans_famille_disciple || false,
-        interetBapteme: g.interet_bapteme || false,
-        commentaire: g.commentaire || "",
-        commentaireSuivi: g.commentaire_suivi || "",
-        archived: g.archived || false,
-        created_by: g.created_by,
-        famille_disciple: g.famille_disciple || "AUCUNE",
-        etatCivil: g.etat_civil || "Célibataire",
-        souhaiteEtreContacte: g.souhaite_etre_contacte !== false
-      }));
-      setGuests(mapped);
+      setGuests((dbGuests || []).map(mapDbGuestToGuest));
     }
     setLoading(false);
   };
@@ -557,6 +593,9 @@ function InvitesPage() {
 
     const dbField = dbFieldMap[field as string] || field;
     await supabase.from("invites").update({ [dbField]: newValue }).eq("id", guestId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
+    }
   };
 
   const handleSaveGuest = async (e: React.FormEvent) => {
@@ -588,11 +627,11 @@ function InvitesPage() {
       interet_cdm: newGuest.interetCDM,
       integre_cdm: newGuest.integreCDM,
       priere_partage: newGuest.prierePartage,
-      dans_famille_disciple: newGuest.dansFamilleDisciple,
+      dans_famille_disciple: editingGuestId ? (newGuest.dansFamilleDisciple || false) : false,
       interet_bapteme: newGuest.interetBapteme,
       commentaire: newGuest.commentaire,
       commentaire_suivi: newGuest.commentaireSuivi || "",
-      famille_disciple: newGuest.famille_disciple || "AUCUNE",
+      famille_disciple: editingGuestId ? (newGuest.famille_disciple || "AUCUNE") : "AUCUNE",
       etat_civil: newGuest.etatCivil || "Célibataire",
       souhaite_etre_contacte: newGuest.souhaiteEtreContacte !== false
     };
@@ -784,16 +823,23 @@ function InvitesPage() {
   };
 
   const handleSelfAssign = async (guestId: string) => {
-    if (userRoleClean.startsWith("integration_")) {
+    if (userRoleClean.startsWith("integration_") || counselors.length > 0) {
       if (userId) {
+        const counselorObj = counselors.find(c => c.id === userId);
+        const myName = counselorObj?.display_name || userName || "";
+        const updatePayload: any = { assigned_to: userId };
+        if (myName) updatePayload.responsible = myName;
+
         const { error } = await supabase
           .from("invites")
-          .update({ assigned_to: userId })
+          .update(updatePayload)
           .eq("id", guestId);
         if (error) {
           notify("Erreur lors de l'affectation : " + error.message);
         } else {
-          setGuests(prev => prev.map(g => g.id === guestId ? { ...g, assigned_to: userId } : g));
+          setGuests(prev => prev.map(g => g.id === guestId ? { ...g, assigned_to: userId, ...(myName ? { responsible: myName } : {}) } : g));
+          notify("Âme affectée à vous-même avec succès !");
+          window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
         }
       }
     } else {
@@ -806,8 +852,47 @@ function InvitesPage() {
           notify("Erreur lors de l'affectation : " + error.message);
         } else {
           setGuests(prev => prev.map(g => g.id === guestId ? { ...g, responsible: userName } : g));
+          notify("Âme affectée à vous-même avec succès !");
+          window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
         }
       }
+    }
+  };
+
+  const handleAssignCounselor = async (guestId: string, counselorId: string | null) => {
+    const counselorObj = counselors.find(c => c.id === counselorId);
+    const respName = counselorObj ? counselorObj.display_name : (counselorId ? "" : "Non assigné");
+
+    setGuests(prev => prev.map(g => g.id === guestId ? {
+      ...g,
+      assigned_to: counselorId,
+      ...(respName ? { responsible: respName } : {})
+    } : g));
+
+    if (churchId) {
+      const serverRes = await assignCounselorToGuest({
+        churchId,
+        guestId,
+        counselorId
+      });
+      if (serverRes.success) {
+        notify(counselorObj ? `Âme affectée à ${counselorObj.display_name}` : "Affectation réinitialisée");
+        window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
+        return;
+      }
+    }
+
+    const updatePayload: Record<string, any> = { assigned_to: counselorId };
+    if (respName) {
+      updatePayload.responsible = respName;
+    }
+
+    const { error } = await supabase.from("invites").update(updatePayload).eq("id", guestId);
+    if (error) {
+      notify("Erreur lors de l'affectation : " + error.message);
+    } else {
+      notify(counselorObj ? `Âme affectée à ${counselorObj.display_name}` : "Affectation réinitialisée");
+      window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
     }
   };
 
@@ -961,9 +1046,18 @@ function InvitesPage() {
       const matchesLocalChurch = localChurchFilter === "all" || 
         (localChurchFilter === "yes" && g.localChurch) || 
         (localChurchFilter === "no" && !g.localChurch);
-      return matchSearch && matchArchived && matchesLocalChurch;
+      const matchesFamily = familyFilter === "all" || 
+        (familyFilter === "AUCUNE" ? (!g.famille_disciple || g.famille_disciple === "AUCUNE") : g.famille_disciple === familyFilter);
+      
+      const guestDate = g.arrivalDate ? new Date(g.arrivalDate) : null;
+      const guestMonth = guestDate ? guestDate.getMonth().toString() : "";
+      const guestYear = guestDate ? guestDate.getFullYear().toString() : "";
+      const matchesArrivalMonth = arrivalMonth === "all" || guestMonth === arrivalMonth;
+      const matchesArrivalYear = arrivalYear === "all" || guestYear === arrivalYear;
+
+      return matchSearch && matchArchived && matchesLocalChurch && matchesFamily && matchesArrivalMonth && matchesArrivalYear;
     });
-  }, [guests, search, showCorbeille, localChurchFilter, personView.filter, userRole]);
+  }, [guests, search, showCorbeille, localChurchFilter, familyFilter, arrivalMonth, arrivalYear, personView.filter, userRole]);
 
   const canModifyInvites = useMemo(() => {
     if (!userRole) return false;
@@ -1092,6 +1186,60 @@ function InvitesPage() {
   
   const archivedGuests = guests.filter(g => g.archived);
 
+  const availableFamilies = useMemo(() => {
+    return FAMILY_KEYS.filter(f => f !== "AUCUNE");
+  }, []);
+
+  const isAnyFilterActive = search !== "" || 
+    arrivalMonth !== "all" || 
+    arrivalYear !== "all" || 
+    localChurchFilter !== "all" || 
+    familyFilter !== "all" || 
+    showCorbeille;
+
+  const resetAllFilters = () => {
+    setSearch("");
+    setArrivalMonth("all");
+    setArrivalYear("all");
+    setLocalChurchFilter("all");
+    setFamilyFilter("all");
+    setShowCorbeille(false);
+  };
+
+  const formatDisplayDate = (dStr: string) => {
+    if (!dStr) return "—";
+    try {
+      const parts = dStr.split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+      }
+      return dStr;
+    } catch {
+      return dStr;
+    }
+  };
+
+  const getPcncStage = (g: Guest) => {
+    if (g.terminePCNC) return { label: "Terminé", color: "var(--green)", bg: "rgba(16, 185, 129, 0.15)" };
+    if (g.p301) return { label: "P.301", color: "var(--gold)", bg: "rgba(212, 175, 55, 0.15)" };
+    if (g.p201) return { label: "P.201", color: "var(--sky)", bg: "rgba(56, 189, 248, 0.15)" };
+    if (g.p101) return { label: "P.101", color: "var(--violet)", bg: "rgba(139, 92, 246, 0.15)" };
+    if (g.pcnc) return { label: "Inscrit", color: "var(--muted)", bg: "rgba(255, 255, 255, 0.08)" };
+    return null;
+  };
+
+  const handleUpdateFamily = async (guestId: string, newFamily: string) => {
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, famille_disciple: newFamily } : g));
+    try {
+      const { error } = await supabase.from("invites").update({ famille_disciple: newFamily }).eq("id", guestId);
+      if (error) {
+        console.error("Error updating family assignment:", error);
+      }
+    } catch (e) {
+      console.error("Exception updating family:", e);
+    }
+  };
+
   if (!mounted || loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: 50 }}>
@@ -1115,8 +1263,17 @@ function InvitesPage() {
       {personView.requestedId && !personView.selected && !loading && <div className="ux-list-context"><span>Cette fiche n’est pas disponible dans la liste actuelle.</span><button type="button" onClick={personView.closePerson}>Fermer</button></div>}
       {personView.selected && <PersonPanel person={personView.selected} kind="guest" onClose={personView.closePerson} onContinue={() => { setExpandedId(personView.selected!.id); setSearch(personView.selected!.firstName + " " + personView.selected!.lastName); setCurrentView("list"); }} />}
       {personView.filter && <div className="ux-list-context"><span>{personView.filter === "contact" ? "Premiers contacts à établir" : "Invités sans responsable"}</span><button type="button" onClick={personView.clearFilter}>Afficher tout</button></div>}
+      {/* Delegation active banner */}
+      {canDispatchAll && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller") && (
+        <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.35)", display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 16 }}>✨</span>
+          <span style={{ fontSize: 12, color: "var(--gold-light)", fontWeight: 600 }}>
+            Délégation active — Vous avez l'autorisation accordée par le responsable de voir tous les invités et de les affecter aux conseillers. Les modifications de fiches restent strictement limitées à vos propres encodages.
+          </span>
+        </div>
+      )}
       {/* Global Read-only banner */}
-      {!canDeleteInvites && !isConseiller && (
+      {!canDeleteInvites && !isConseiller && !canDispatchAll && (
         <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(212,160,60,0.08)", border: "1px solid rgba(212,160,60,0.25)", display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 16 }}>👁️</span>
           <span style={{ fontSize: 12, color: "var(--gold-light)", fontWeight: 600 }}>
@@ -1128,7 +1285,7 @@ function InvitesPage() {
       )}
       <div className="page-header">
         <div>
-          <h2 className="page-title">{isConseiller ? "Ajouter un Invité" : "Invités"}</h2>
+          <h2 className="page-title">{isConseiller && !canDispatchAll ? "Ajouter un Invité" : "Invités"}</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
             Gestion et suivi des nouveaux arrivants
           </p>
@@ -1637,55 +1794,149 @@ function InvitesPage() {
         document.body
       )}
 
-      {/* Search & Filters */}
-      <div className="glass-compact affectations-filters" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
-        <div className="search-bar-container" style={{ position: "relative", flex: 2 }}>
-          <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-          <input className="input search-bar-premium" placeholder="Rechercher par nom..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      {/* Modern Filters & Controls */}
+      <div className={`glass fade-in ${styles.filtersContainer}`}>
+        <div className={styles.filtersTop}>
+          <div className={styles.searchWrapper}>
+            <Search size={16} className={styles.searchIcon} />
+            <input 
+              className={styles.searchInput} 
+              placeholder="Rechercher par nom ou prénom..." 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+            />
+          </div>
+
+          <div className={styles.topControls}>
+            {/* View Switcher: Cartes vs Tableau */}
+            {currentView === 'list' && (
+              <div className={styles.viewModePillGroup}>
+                <button 
+                  type="button"
+                  className={`${styles.viewModePill} ${displayMode === 'cards' ? styles.viewModePillActive : ''}`}
+                  onClick={() => {
+                    setDisplayMode('cards');
+                    try { localStorage.setItem("poimen_invites_display_mode", "cards"); } catch {}
+                  }}
+                  title="Affichage en cartes détaillées"
+                >
+                  <LayoutGrid size={14} />
+                  <span>Cartes</span>
+                </button>
+                <button 
+                  type="button"
+                  className={`${styles.viewModePill} ${displayMode === 'table' ? styles.viewModePillActive : ''}`}
+                  onClick={() => {
+                    setDisplayMode('table');
+                    try { localStorage.setItem("poimen_invites_display_mode", "table"); } catch {}
+                  }}
+                  title="Affichage en tableau synthétique avec colonnes figées"
+                >
+                  <TableIcon size={14} />
+                  <span>Tableau</span>
+                </button>
+              </div>
+            )}
+
+            <div className={styles.countBadge}>
+              {filtered.length} invité{filtered.length > 1 ? "s" : ""}
+            </div>
+          </div>
         </div>
 
-        {!isConseiller && (
-          <>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
-              <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600 }}>ARRIVÉE :</span>
-              <select className="input" value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)} style={{ width: 100, fontSize: 11, padding: "4px 8px" }}>
-                <option value="all">Tous les mois</option>
-                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                  <option key={i} value={i.toString()}>{m}</option>
-                ))}
-              </select>
-              <select className="input" value={arrivalYear} onChange={e => setArrivalYear(e.target.value)} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
-                <option value="all">Toutes</option>
-                {availableYears.map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
+        {/* Horizontal Scrolling Filter Bar (Pill Capsules) */}
+        <div className={styles.filtersScroll}>
+          {/* Arrivée Filter */}
+          <div className={styles.filterChip}>
+            <span className={styles.filterLabel}><Calendar size={12} /> Arrivée</span>
+            <select 
+              className={styles.filterSelect} 
+              value={arrivalMonth} 
+              onChange={e => setArrivalMonth(e.target.value)}
+            >
+              <option value="all">Tous mois</option>
+              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                <option key={i} value={i.toString()}>{m}</option>
+              ))}
+            </select>
+            <select 
+              className={styles.filterSelect} 
+              value={arrivalYear} 
+              onChange={e => setArrivalYear(e.target.value)}
+            >
+              <option value="all">Toutes années</option>
+              {availableYears.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
 
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
-              <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 600 }}>PRÉSENCES :</span>
-              <select className="input" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} style={{ width: 100, fontSize: 11, padding: "4px 8px" }}>
-                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                  <option key={i} value={i}>{m}</option>
-                ))}
-              </select>
-              <select className="input" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} style={{ width: 80, fontSize: 11, padding: "4px 8px" }}>
-                {availableYears.map(y => (
-                  <option key={y} value={parseInt(y, 10)}>{y}</option>
-                ))}
-              </select>
-            </div>
+          {/* Présences Calculation Period Filter */}
+          <div className={styles.filterChip}>
+            <span className={styles.filterLabel}>👁 Présences</span>
+            <select 
+              className={styles.filterSelect} 
+              value={selectedMonth} 
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+            >
+              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
+                <option key={i} value={i}>{m}</option>
+              ))}
+            </select>
+            <select 
+              className={styles.filterSelect} 
+              value={selectedYear} 
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            >
+              {availableYears.map(y => (
+                <option key={y} value={parseInt(y, 10)}>{y}</option>
+              ))}
+            </select>
+          </div>
 
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "4px 12px", borderRadius: 8 }}>
-              <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>ÉGLISE LOCALE :</span>
-              <select className="input" value={localChurchFilter} onChange={e => setLocalChurchFilter(e.target.value)} style={{ width: 130, fontSize: 11, padding: "4px 8px" }}>
-                <option value="all">Tous</option>
-                <option value="yes">Avec église</option>
-                <option value="no">Sans église</option>
-              </select>
-            </div>
-          </>
-        )}
+          {/* Église Locale Filter */}
+          <div className={styles.filterChip}>
+            <span className={styles.filterLabel}>⛪ Église</span>
+            <select 
+              className={styles.filterSelect} 
+              value={localChurchFilter} 
+              onChange={e => setLocalChurchFilter(e.target.value)}
+            >
+              <option value="all">Tous (avec/sans)</option>
+              <option value="no">Sans église locale</option>
+              <option value="yes">Avec église locale</option>
+            </select>
+          </div>
+
+          {/* Famille Filter */}
+          <div className={styles.filterChip}>
+            <span className={styles.filterLabel}>👥 Famille</span>
+            <select 
+              className={styles.filterSelect} 
+              value={familyFilter} 
+              onChange={e => setFamilyFilter(e.target.value)}
+            >
+              <option value="all">Toutes familles</option>
+              <option value="AUCUNE">AUCUNE (Non affectée)</option>
+              {availableFamilies.map(fam => (
+                <option key={fam} value={fam}>{fam}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Reset button if filters active */}
+          {isAnyFilterActive && (
+            <button 
+              type="button" 
+              className={styles.filterReset}
+              onClick={resetAllFilters}
+              title="Réinitialiser tous les filtres"
+            >
+              <RotateCcw size={11} />
+              <span>Réinitialiser</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* List or Families View */}
@@ -1909,20 +2160,404 @@ function InvitesPage() {
             );
           })}
         </div>
+      ) : displayMode === 'table' ? (
+        /* Tableau View with Frozen Columns */
+        <div className={`fade-in d1 ${styles.tableContainer}`}>
+          <div className={styles.tableMobileHint}>
+            <span>↔️ <strong>Astuce tactile :</strong> Faites défiler vers la droite pour voir toutes les colonnes. <em>Date d’arrivée</em>, <em>Nom</em> et <em>Prénom</em> restent figés à gauche.</span>
+            <span style={{ fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap" }}>{filtered.length} ligne{filtered.length > 1 ? "s" : ""}</span>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--muted)" }}>
+              <p style={{ fontSize: 14, marginBottom: 12 }}>Aucun invité ne correspond aux critères sélectionnés.</p>
+              {isAnyFilterActive && (
+                <button type="button" className="btn btn-outline btn-sm" onClick={resetAllFilters}>
+                  <RotateCcw size={12} /> Réinitialiser les filtres
+                </button>
+              )}
+            </div>
+          ) : (
+            <table className={styles.soulsTable}>
+              <thead>
+                <tr>
+                  <th className={`${styles.th} ${styles.stickyColDate}`}>Date d'arr.</th>
+                  <th className={`${styles.th} ${styles.stickyColNom}`}>Nom</th>
+                  <th className={`${styles.th} ${styles.stickyColPrenom}`}>Prénom</th>
+                  <th className={styles.th}>Téléphone</th>
+                  <th className={styles.th}>E-mail</th>
+                  <th className={styles.th}>Famille de disciples</th>
+                  <th className={styles.th}>Église locale</th>
+                  <th className={styles.th}>Événement</th>
+                  <th className={styles.th}>Appel abouti</th>
+                  <th className={styles.th}>PCNC</th>
+                  <th className={styles.th}>C.D.M</th>
+                  <th className={styles.th}>Fidélisé</th>
+                  <th className={styles.th}>Prés. Culte</th>
+                  <th className={styles.th}>Prés. C.D.M</th>
+                  <th className={styles.th}>Conseiller</th>
+                  <th className={styles.th} style={{ textAlign: "center" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((guest) => {
+                  const rateCDM = calculateRate(guest, thursdays);
+                  const rateCulte = calculateRate(guest, sundays);
+                  const fidelised = isFidelise(guest);
+                  const pcncStage = getPcncStage(guest);
+                  const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "admin" || userRoleClean === "super_admin";
+                  const isCreator = guest.created_by === userId;
+                  const isAssignedCounselor = guest.assigned_to === userId && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller");
+                  // Conseillers avec délégation : ne peuvent modifier que ceux qu'ils ont eux-mêmes encodé
+                  const canEdit = isIntegrationLeader || canModifyInvites || isCreator || (!canDispatchAll && isAssignedCounselor);
+
+                  return (
+                    <tr key={guest.id} className={styles.tr}>
+                      {/* Sticky 1: Date */}
+                      <td className={`${styles.td} ${styles.stickyColDate}`} style={{ color: "var(--cream-dim)", fontSize: 11 }}>
+                        {formatDisplayDate(guest.arrivalDate)}
+                      </td>
+
+                      {/* Sticky 2: Nom */}
+                      <td className={`${styles.td} ${styles.stickyColNom}`} title={guest.lastName}>
+                        <button 
+                          type="button" 
+                          onClick={() => personView.openPerson(guest.id)}
+                          style={{ background: "none", border: "none", color: "inherit", font: "inherit", fontWeight: 700, textAlign: "left", cursor: "pointer", padding: 0 }}
+                        >
+                          {guest.lastName}
+                        </button>
+                      </td>
+
+                      {/* Sticky 3: Prénom */}
+                      <td className={`${styles.td} ${styles.stickyColPrenom}`} title={guest.firstName}>
+                        <button 
+                          type="button" 
+                          onClick={() => personView.openPerson(guest.id)}
+                          style={{ background: "none", border: "none", color: "inherit", font: "inherit", fontWeight: 600, textAlign: "left", cursor: "pointer", padding: 0 }}
+                        >
+                          {guest.firstName}
+                        </button>
+                      </td>
+
+                      {/* Téléphone */}
+                      <td className={styles.td}>
+                        {guest.phone ? (
+                          <a href={`tel:${guest.phone}`} className={styles.phoneLink}>
+                            <Phone size={11} style={{ color: "var(--gold)" }} />
+                            <span>{guest.phone}</span>
+                          </a>
+                        ) : (
+                          <span style={{ color: "var(--muted)" }}>—</span>
+                        )}
+                      </td>
+
+                      {/* E-mail */}
+                      <td className={styles.td}>
+                        {guest.email ? (
+                          <a href={`mailto:${guest.email}`} className={styles.emailLink} title={guest.email}>
+                            <Mail size={11} style={{ color: "var(--sky)" }} />
+                            <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{guest.email}</span>
+                          </a>
+                        ) : (
+                          <span style={{ color: "var(--muted)" }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Famille de disciples (interactive dropdown) */}
+                      <td className={styles.td}>
+                        <select 
+                          className={styles.familySelect}
+                          value={guest.famille_disciple || "AUCUNE"}
+                          disabled={!canEdit}
+                          onChange={(e) => handleUpdateFamily(guest.id, e.target.value)}
+                          style={{
+                            borderColor: (guest.famille_disciple && guest.famille_disciple !== "AUCUNE") ? "rgba(16, 185, 129, 0.4)" : "var(--border)",
+                            color: (guest.famille_disciple && guest.famille_disciple !== "AUCUNE") ? "var(--green)" : "var(--muted)",
+                            cursor: canEdit ? "pointer" : "not-allowed",
+                            opacity: canEdit ? 1 : 0.7
+                          }}
+                        >
+                          <option value="AUCUNE">AUCUNE</option>
+                          {availableFamilies.map(fam => (
+                            <option key={fam} value={fam}>{fam}</option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* Église locale */}
+                      <td className={styles.td}>
+                        {guest.localChurch ? (
+                          <span className="badge badge-sky" style={{ fontSize: 9 }}>Avec église</span>
+                        ) : (
+                          <span className="badge badge-rose" style={{ fontSize: 9 }}>Sans église</span>
+                        )}
+                      </td>
+
+                      {/* Événement */}
+                      <td className={styles.td}>
+                        <span className="badge badge-violet" style={{ fontSize: 9 }}>
+                          {guest.event || "Culte"}
+                        </span>
+                      </td>
+
+                      {/* Appel abouti (quick interactive toggle) */}
+                      <td className={styles.td}>
+                        <button
+                          type="button"
+                          className={`${styles.toggleBtn} ${guest.appelAbouti ? styles.toggleBtnActive : styles.toggleBtnInactive}`}
+                          disabled={!canEdit}
+                          onClick={() => toggleSuivi(guest.id, 'appelAbouti')}
+                          title={canEdit ? (guest.appelAbouti ? "Marquer non abouti" : "Marquer appel abouti") : "Non autorisé"}
+                        >
+                          {guest.appelAbouti ? <Check size={10} /> : <X size={10} />}
+                          <span>{guest.appelAbouti ? "Oui" : "Non"}</span>
+                        </button>
+                      </td>
+
+                      {/* PCNC Progression */}
+                      <td className={styles.td}>
+                        {pcncStage ? (
+                          <span 
+                            style={{ 
+                              fontSize: 10, 
+                              fontWeight: 700, 
+                              padding: "2px 7px", 
+                              borderRadius: 6,
+                              background: pcncStage.bg, 
+                              color: pcncStage.color,
+                              display: "inline-block"
+                            }}
+                          >
+                            {pcncStage.label}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--muted)", fontSize: 10 }}>Non inscrit</span>
+                        )}
+                      </td>
+
+                      {/* C.D.M */}
+                      <td className={styles.td}>
+                        {guest.integreCDM ? (
+                          <span className="badge badge-emerald" style={{ fontSize: 9 }}>Intégré</span>
+                        ) : guest.interetCDM ? (
+                          <span className="badge badge-amber" style={{ fontSize: 9 }}>Intéressé</span>
+                        ) : (
+                          <span style={{ color: "var(--muted)", fontSize: 10 }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Fidélisé */}
+                      <td className={styles.td}>
+                        {fidelised ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--green)", fontWeight: 700, fontSize: 11 }}>
+                            <CheckCircle2 size={12} />
+                            <span>Oui</span>
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--muted)", fontSize: 10 }}>Non</span>
+                        )}
+                      </td>
+
+                      {/* Présence Culte */}
+                      <td className={styles.td}>
+                        <span style={{ 
+                          fontSize: 11, 
+                          fontWeight: 700,
+                          color: rateCulte >= 50 ? "var(--green)" : rateCulte >= 25 ? "var(--gold)" : "var(--muted)"
+                        }}>
+                          {rateCulte}%
+                        </span>
+                      </td>
+
+                      {/* Présence C.D.M */}
+                      <td className={styles.td}>
+                        <span style={{ 
+                          fontSize: 11, 
+                          fontWeight: 700,
+                          color: rateCDM >= 50 ? "var(--green)" : rateCDM >= 25 ? "var(--gold)" : "var(--muted)"
+                        }}>
+                          {rateCDM}%
+                        </span>
+                      </td>
+
+                      {/* Conseiller / Affectation */}
+                      <td className={styles.td}>
+                        {(() => {
+                          const canAssignAny = isIntegrationLeader || canModifyInvites || canDispatchAll;
+                          const isCounselor = userRoleClean === "integration_conseiller" || userRoleClean === "conseiller";
+                          const isAssignedToMe = guest.assigned_to === userId || (!guest.assigned_to && guest.responsible === userName);
+                          const assignedCounselorName = counselors.find(c => c.id === guest.assigned_to)?.display_name || (guest.responsible && guest.responsible !== "Non assigné" ? guest.responsible : null);
+
+                          if (userRoleClean.startsWith("integration_") || counselors.length > 0) {
+                            if (canAssignAny) {
+                              return (
+                                <select
+                                  className={styles.familySelect}
+                                  value={guest.assigned_to || ""}
+                                  onChange={(e) => handleAssignCounselor(guest.id, e.target.value || null)}
+                                  title="Affecter à un conseiller"
+                                  style={{
+                                    borderColor: guest.assigned_to ? "rgba(212, 175, 55, 0.4)" : "var(--border)",
+                                    color: guest.assigned_to ? (guest.assigned_to === userId ? "var(--gold-light)" : "var(--cream)") : "var(--muted)",
+                                    cursor: "pointer",
+                                    maxWidth: 150,
+                                    fontSize: 11
+                                  }}
+                                >
+                                  <option value="">Non assigné</option>
+                                  {counselors.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.display_name}{c.id === userId ? " (Moi)" : ""}
+                                    </option>
+                                  ))}
+                                  {guest.assigned_to && !counselors.some(c => c.id === guest.assigned_to) && (
+                                    <option value={guest.assigned_to}>
+                                      {assignedCounselorName || "Conseiller assigné"}
+                                    </option>
+                                  )}
+                                </select>
+                              );
+                            }
+
+                            if (isCounselor) {
+                              if (!guest.assigned_to && (!guest.responsible || guest.responsible === "Non assigné")) {
+                                return (
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-xs"
+                                    onClick={() => handleSelfAssign(guest.id)}
+                                    style={{
+                                      fontSize: 10,
+                                      padding: "3px 8px",
+                                      borderRadius: 6,
+                                      whiteSpace: "nowrap"
+                                    }}
+                                    title="M'affecter cette âme"
+                                  >
+                                    + M'affecter
+                                  </button>
+                                );
+                              }
+
+                              if (isAssignedToMe) {
+                                return (
+                                  <span style={{ 
+                                    color: "var(--gold-light)", 
+                                    fontWeight: 600, 
+                                    fontSize: 11,
+                                    background: "rgba(212, 175, 55, 0.12)",
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                    border: "1px solid rgba(212, 175, 55, 0.25)",
+                                    display: "inline-block"
+                                  }}>
+                                    Moi
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <span style={{ fontSize: 11, color: "var(--cream-dim)" }}>
+                                  {assignedCounselorName || "Non assigné"}
+                                </span>
+                              );
+                            }
+
+                            return (
+                              <span style={{ fontSize: 11, color: "var(--cream-dim)" }}>
+                                {assignedCounselorName || "Non assigné"}
+                              </span>
+                            );
+                          }
+
+                          // Mode bergerie / famille où responsible est utilisé
+                          if (canEdit && responsibles.length > 0) {
+                            return (
+                              <select
+                                className={styles.familySelect}
+                                value={guest.responsible || "Non assigné"}
+                                onChange={async (e) => {
+                                  const newResp = e.target.value;
+                                  setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, responsible: newResp } : g));
+                                  await supabase.from("invites").update({ responsible: newResp }).eq("id", guest.id);
+                                  window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId: guest.id } }));
+                                }}
+                                style={{
+                                  borderColor: (guest.responsible && guest.responsible !== "Non assigné") ? "rgba(212, 175, 55, 0.4)" : "var(--border)",
+                                  color: (guest.responsible && guest.responsible !== "Non assigné") ? "var(--cream)" : "var(--muted)",
+                                  cursor: "pointer",
+                                  maxWidth: 150,
+                                  fontSize: 11
+                                }}
+                              >
+                                <option value="Non assigné">Non assigné</option>
+                                {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
+                                {guest.responsible && guest.responsible !== "Non assigné" && !responsibles.includes(guest.responsible) && (
+                                  <option key={guest.responsible} value={guest.responsible}>{guest.responsible}</option>
+                                )}
+                              </select>
+                            );
+                          }
+
+                          return (
+                            <span style={{ fontSize: 11, color: "var(--cream-dim)" }}>
+                              {guest.responsible || "Non assigné"}
+                            </span>
+                          );
+                        })()}
+                      </td>
+
+                      {/* Actions */}
+                      <td className={styles.td} style={{ textAlign: "center" }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <button 
+                            type="button"
+                            className="btn-icon btn-icon-gold"
+                            onClick={() => personView.openPerson(guest.id)}
+                            title="Voir la fiche complète"
+                            style={{ width: 28, height: 28 }}
+                          >
+                            <Eye size={13} />
+                          </button>
+                          {canAddOrEditInvites && canEdit && (
+                            <button 
+                              type="button"
+                              className="btn-icon btn-icon-gold"
+                              onClick={() => openEditModal(guest)}
+                              title="Modifier les informations"
+                              style={{ width: 28, height: 28 }}
+                            >
+                              <MoreHorizontal size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       ) : (
+        /* Cards View */
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filtered.map((guest) => {
             const rateCDM = calculateRate(guest, thursdays);
             const rateCulte = calculateRate(guest, sundays);
             const fidelised = isFidelise(guest);
             const isExpanded = expandedId === guest.id;
-            const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second";
-            const isRestricted = !isIntegrationLeader;
-            const isActionBlocked = !isIntegrationLeader && guest.assigned_to !== userId && guest.created_by !== userId;
+            const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "admin" || userRoleClean === "super_admin";
+            const isCreator = guest.created_by === userId;
+            const canEditCard = isIntegrationLeader || canModifyInvites || isCreator || (!canDispatchAll && guest.assigned_to === userId);
+            const canAssignAny = isIntegrationLeader || canModifyInvites || canDispatchAll;
+            const isRestricted = !isIntegrationLeader && !canDispatchAll;
+            const isActionBlocked = !isIntegrationLeader && !canDispatchAll && guest.assigned_to !== userId && !isCreator;
             const isUnassigned = !guest.assigned_to;
-            // Follow-up information can only be edited by the assigned counselor
-            const isEditBlocked = isUnassigned || guest.assigned_to !== userId;
-            const isAttendanceBlocked = isUnassigned || guest.assigned_to !== userId;
+            // Follow-up information can only be edited by creator, or assigned counselor without delegation
+            const isEditBlocked = !canEditCard;
+            const isAttendanceBlocked = !canEditCard;
 
             return (
               <div key={guest.id} id={`guest-card-${guest.id}`} className="glass-flush" style={{ overflow: "hidden" }}>
@@ -2151,7 +2786,7 @@ function InvitesPage() {
                               })()
                             )}
                             
-                            {canModifyInvites && (
+                            {(canModifyInvites || canAssignAny) && (
                               <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
                                 <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>
                                   {userRoleClean.startsWith("integration_") ? "Assigner à un conseiller" : "Affectation"}
@@ -2161,16 +2796,12 @@ function InvitesPage() {
                                     <select 
                                       className="input" 
                                       value={guest.assigned_to || ""} 
-                                      onChange={async (e) => {
-                                        const newAssignee = e.target.value || null;
-                                        setGuests(prev => prev.map(g => g.id === guest.id ? {...g, assigned_to: newAssignee} : g));
-                                        await supabase.from("invites").update({ assigned_to: newAssignee }).eq("id", guest.id);
-                                      }} 
+                                      onChange={(e) => handleAssignCounselor(guest.id, e.target.value || null)} 
                                       style={{ flex: 1, fontSize: 12 }}
                                     >
                                       <option value="">Non assigné</option>
                                       {counselors.map(c => (
-                                        <option key={c.id} value={c.id}>{c.display_name}</option>
+                                        <option key={c.id} value={c.id}>{c.display_name}{c.id === userId ? " (Moi)" : ""}</option>
                                       ))}
                                     </select>
                                   ) : (

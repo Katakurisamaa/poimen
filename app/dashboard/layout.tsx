@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { SUPER_ADMIN_EMAIL, contextToUserInfo } from "@/lib/auth-contexts";
+import SoulContactReminder from "@/components/experience/SoulContactReminder";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -104,6 +105,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const activeContextMatchesSession = activeContext?.user_id === session?.user?.id;
 
       if (session?.user && activeContextMatchesSession && !spaceExited) {
+        try {
+          const ctxQuery = activeContext.id
+            ? supabase.from("user_contexts").select("*").eq("id", activeContext.id).maybeSingle()
+            : supabase.from("user_contexts").select("*").eq("user_id", session.user.id).eq("context_type", activeContext.context_type).maybeSingle();
+          const { data: freshCtx } = await ctxQuery;
+          if (freshCtx) {
+            activeContext = freshCtx;
+            localStorage.setItem("poimen_active_context", JSON.stringify(freshCtx));
+          }
+        } catch (e) {
+          console.error("Error refreshing active context:", e);
+        }
+
         const infoObj = contextToUserInfo(activeContext);
         localStorage.setItem("poimen_user_info", JSON.stringify(infoObj));
 
@@ -254,6 +268,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className={`main-area ${isFullWidth ? "full-width" : ""}`}>
         <Header onMenuClick={() => setMobileOpen(!mobileOpen)} />
         <main className="page-content">
+          <SoulContactReminder />
           {children}
         </main>
       </div>
