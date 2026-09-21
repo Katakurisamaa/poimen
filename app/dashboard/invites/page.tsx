@@ -217,19 +217,67 @@ function InvitesPage() {
       }
     } catch {}
   }, []);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const info = getActiveUserInfo();
+    if (info?.role) return info.role;
+    try {
+      const s = localStorage.getItem("poimen_user_info");
+      return s ? JSON.parse(s)?.role || null : null;
+    } catch { return null; }
+  });
   const userRoleClean = useMemo(() => (userRole || "").toLowerCase().trim(), [userRole]);
   const canAddOrEditInvites = 
     userRoleClean === "integration_responsable" || 
     userRoleClean === "integration_second" ||
     userRoleClean === "integration_conseiller" ||
     userRoleClean === "conseiller";
-  const [userName, setUserName] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [familyId, setFamilyId] = useState<string | null>(null);
-  const [churchId, setChurchId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const info = getActiveUserInfo();
+    if (info?.firstName || info?.lastName) {
+      return [info.firstName, info.lastName].filter(Boolean).join(" ");
+    }
+    try {
+      const s = localStorage.getItem("poimen_user_info");
+      if (s) {
+        const parsed = JSON.parse(s);
+        return [parsed.firstName, parsed.lastName].filter(Boolean).join(" ") || null;
+      }
+      return null;
+    } catch { return null; }
+  });
+  const [userId, setUserId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const info = getActiveUserInfo();
+    if (info?.id) return info.id;
+    try {
+      const s = localStorage.getItem("poimen_user_info");
+      return s ? JSON.parse(s)?.id || null : null;
+    } catch { return null; }
+  });
+  const [familyId, setFamilyId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const ctx = getActiveContext();
+    if (ctx?.context_type === "integration") return null;
+    try {
+      const s = localStorage.getItem("selected_family");
+      return s ? JSON.parse(s)?.id || null : null;
+    } catch { return null; }
+  });
+  const [churchId, setChurchId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const info = getActiveUserInfo();
+    if (info?.church_id) return info.church_id;
+    const ctx = getActiveContext();
+    if (ctx?.church_id) return ctx.church_id;
+    try {
+      const s = localStorage.getItem("selected_church");
+      return s ? JSON.parse(s)?.id || null : null;
+    } catch { return null; }
+  });
   const [loading, setLoading] = useState(true);
-  const [guests, setGuests] = useState<Guest[]>(MOCK_GUESTS);
+  const [guests, setGuests] = useState<Guest[]>([]);
   const personView = usePeopleView(guests);
   const { createRequested, acknowledgeCreate } = personView;
   useEffect(() => {
@@ -244,8 +292,17 @@ function InvitesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [isConseiller, setIsConseiller] = useState(false);
-  const [canDispatchAll, setCanDispatchAll] = useState(false);
+  const [isConseiller, setIsConseiller] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const info = getActiveUserInfo();
+    const rLower = (info?.role || "").toLowerCase().trim();
+    return info?.isConseiller === true || rLower === "integration_conseiller" || rLower === "conseiller";
+  });
+  const [canDispatchAll, setCanDispatchAll] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const info = getActiveUserInfo();
+    return Boolean(info?.canDispatchAll || (info as any)?.metadata?.can_dispatch_all);
+  });
   const [showCorbeille, setShowCorbeille] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -347,8 +404,9 @@ function InvitesPage() {
     if (!userEmail) return;
 
     if (activeContext) {
-      setUserRole(userInfo.role);
-      localStorage.setItem("poimen_user_info", JSON.stringify(userInfo));
+      if (userRole !== userInfo.role) {
+        setUserRole(userInfo.role);
+      }
       return;
     }
 
@@ -360,8 +418,10 @@ function InvitesPage() {
       .single();
 
     if (!profErr && profData) {
-      console.log("Synchronized role from profiles:", profData.role);
-      setUserRole(profData.role);
+      if (userRole !== profData.role) {
+        console.log("Synchronized role from profiles:", profData.role);
+        setUserRole(profData.role);
+      }
       const updatedInfo = { ...userInfo, role: profData.role };
       localStorage.setItem("poimen_user_info", JSON.stringify(updatedInfo));
       return;
@@ -394,13 +454,7 @@ function InvitesPage() {
         })));
         const myEntry = res.team.find((t: any) => t.id === userId);
         if (myEntry && myEntry.canDispatchAll !== undefined) {
-          const freshDisp = Boolean(myEntry.canDispatchAll);
-          setCanDispatchAll(prev => {
-            if (prev !== freshDisp) {
-              setTimeout(() => { fetchGuests(); }, 50);
-            }
-            return freshDisp;
-          });
+          setCanDispatchAll(Boolean(myEntry.canDispatchAll));
         }
       }
       return;
@@ -461,49 +515,53 @@ function InvitesPage() {
     }
   };
 
+  const isFetchingRef = useRef(false);
   const fetchGuests = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     setLoading(true);
-    let query = supabase.from("invites").select("*");
-    
-    if (isIntegrationOrCounselor) {
-      if (churchId) {
-        const res = await getIntegrationInvites(churchId);
-        if (res.success && res.invites) {
-          setGuests(res.invites.map(mapDbGuestToGuest));
-          if (res.canDispatchAll !== undefined) {
-            setCanDispatchAll(Boolean(res.canDispatchAll));
+    try {
+      let query = supabase.from("invites").select("*");
+      
+      if (isIntegrationOrCounselor) {
+        if (churchId) {
+          const res = await getIntegrationInvites(churchId);
+          if (res.success && res.invites) {
+            setGuests(res.invites.map(mapDbGuestToGuest));
+            if (res.canDispatchAll !== undefined) {
+              setCanDispatchAll(Boolean(res.canDispatchAll));
+            }
+            return;
           }
-          setLoading(false);
+          query = query.eq("church_id", churchId);
+          if ((userRoleClean === "integration_conseiller" || userRoleClean === "conseiller") && userId && !canDispatchAll) {
+            query = query.or(`created_by.eq.${userId},assigned_to.eq.${userId}`);
+          }
+        } else {
           return;
         }
-        query = query.eq("church_id", churchId);
-        if ((userRoleClean === "integration_conseiller" || userRoleClean === "conseiller") && userId && !canDispatchAll) {
-          query = query.or(`created_by.eq.${userId},assigned_to.eq.${userId}`);
-        }
       } else {
-        setLoading(false);
-        return;
-      }
-    } else {
-      if (familyId) {
-        query = query.eq("bergerie_id", familyId);
-        if (userRoleClean === "conseiller" && userId) {
-          query = query.or(`created_by.eq.${userId},assigned_to.eq.${userId}`);
+        if (familyId) {
+          query = query.eq("bergerie_id", familyId);
+          if (userRoleClean === "conseiller" && userId) {
+            query = query.or(`created_by.eq.${userId},assigned_to.eq.${userId}`);
+          }
+        } else {
+          return;
         }
-      } else {
-        setLoading(false);
-        return;
       }
-    }
 
-    const { data: dbGuests, error } = await query.order("created_at", { ascending: false });
+      const { data: dbGuests, error } = await query.order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching guests:", error);
-    } else {
-      setGuests((dbGuests || []).map(mapDbGuestToGuest));
+      if (error) {
+        console.error("Error fetching guests:", error);
+      } else {
+        setGuests((dbGuests || []).map(mapDbGuestToGuest));
+      }
+    } finally {
+      isFetchingRef.current = false;
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const [newGuest, setNewGuest] = useState<Partial<Guest>>({
