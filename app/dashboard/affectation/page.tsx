@@ -1707,7 +1707,7 @@ function AffectationPage() {
                           <td className={styles.td}>
                             <div className={styles.cellStack}>
                               {guest.phone ? <a href={"tel:" + guest.phone} className={styles.phoneLink}><Phone size={13} />{guest.phone}</a> : <span className={styles.cellMuted}>Téléphone non renseigné</span>}
-                              {guest.email && <a href={"mailto:" + guest.email} className={styles.emailLink}><Mail size={13} /><span>{guest.email}</span></a>}
+                              {guest.email && <a href={"mailto:" + guest.email} className={styles.emailLink} title={guest.email}><Mail size={13} /><span>{guest.email}</span></a>}
                             </div>
                           </td>
                           {showTableDetails && <>
@@ -1715,6 +1715,7 @@ function AffectationPage() {
                           <td className={styles.td}>
                             <select 
                               className={styles.familySelect}
+                              aria-label={"Famille de disciples de " + guest.firstName + " " + guest.lastName}
                               value={guest.famille_disciple || "AUCUNE"}
                               disabled={isRestricted}
                               onChange={(e) => handleUpdateFamily(guest.id, e.target.value)}

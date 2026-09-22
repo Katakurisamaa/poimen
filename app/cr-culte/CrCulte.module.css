@@ -593,3 +593,12 @@
   color: var(--cream);
   font-weight: 700;
 }
+
+/* Application controls; report exports keep their original layout. */
+:global(html[data-theme]) .tabSwitcher { background: var(--bg-deep); border-color: var(--border); }
+:global(html[data-theme]) .tabSwitcher .tabBtn { min-height: 44px; color: var(--muted); }
+:global(html[data-theme]) .tabSwitcher .tabBtnActive { background: var(--surface-solid) !important; color: var(--gold) !important; box-shadow: var(--shadow-soft); }
+:global(html[data-theme]) .formCard { border-color: var(--border); box-shadow: var(--shadow-soft); }
+:global(html[data-theme]) .formCard :is(input, select, textarea) { background: var(--surface-solid); color: var(--cream); border-radius: 9px; }
+:global(html[data-theme]) .btnSubmit { background: var(--action-bg); color: var(--action-ink); }
+@media (max-width: 600px) { .formCard :is(input, select, textarea) { font-size: 16px; } }

@@ -501,7 +501,7 @@ Bénédictions ✨❤️`;
                       >
                         <option value="" disabled>Sélectionnez l'église…</option>
                         {churches.map(c => (
-                          <option key={c.id} value={c.id}>{c.name} ({c.city})</option>
+                          <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </select>
                     </div>

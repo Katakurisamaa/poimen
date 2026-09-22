@@ -1548,10 +1548,114 @@
 
 
 /* Editor controls use theme tokens; the export document is unchanged. */
-:global(html[data-theme]) .headerBar .tabSwitcher { background: var(--bg-deep); border-color: var(--border); }
-:global(html[data-theme]) .headerBar .tabBtn { color: var(--muted); min-height: 44px; }
-:global(html[data-theme]) .headerBar .tabBtnActive { background: var(--surface-solid); color: var(--gold); box-shadow: var(--shadow-soft); }
-:global(html[data-theme]) .headerBar .btnAction { min-height: 44px; border-radius: 10px; }
-:global(html[data-theme]) .headerBar .btnPrimary { background: var(--action-bg); color: var(--action-ink); border-color: transparent; }
-:global(html[data-theme]) .container .textInput { background: var(--surface-solid); color: var(--cream); border-color: var(--border); border-radius: 9px; }
+:global(html[data-theme]) .headerBar .backLink {
+  min-height: 40px;
+  height: 40px;
+  border-radius: 10px;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+:global(html[data-theme]) .headerBar .dateInputWrapper {
+  background: var(--bg-deep) !important;
+  border: 1px solid var(--border) !important;
+  min-height: 40px;
+  height: 40px;
+  border-radius: 10px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  color-scheme: dark;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+:global(html[data-theme="light"]) .headerBar .dateInputWrapper {
+  background: #ffffff !important;
+  border-color: var(--border) !important;
+  color-scheme: light;
+}
+:global(html[data-theme]) .headerBar .dateInputWrapper:hover {
+  border-color: rgba(212, 175, 55, 0.4) !important;
+}
+:global(html[data-theme]) .headerBar .dateInputWrapper:focus-within {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 0 1px var(--gold-glow) !important;
+}
+:global(html[data-theme]) .headerBar .dateIcon {
+  color: var(--gold);
+}
+:global(html[data-theme]) .headerBar .dateInput,
+:global(html[data-theme]) .headerBar .dateInput::-webkit-datetime-edit,
+:global(html[data-theme]) .headerBar .dateInput::-webkit-datetime-edit-fields-wrapper,
+:global(html[data-theme]) .headerBar .dateInput::-webkit-datetime-edit-text,
+:global(html[data-theme]) .headerBar .dateInput::-webkit-datetime-edit-month-field,
+:global(html[data-theme]) .headerBar .dateInput::-webkit-datetime-edit-day-field,
+:global(html[data-theme]) .headerBar .dateInput::-webkit-datetime-edit-year-field {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--cream) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color-scheme: dark;
+}
+:global(html[data-theme="light"]) .headerBar .dateInput,
+:global(html[data-theme="light"]) .headerBar .dateInput::-webkit-datetime-edit,
+:global(html[data-theme="light"]) .headerBar .dateInput::-webkit-datetime-edit-fields-wrapper,
+:global(html[data-theme="light"]) .headerBar .dateInput::-webkit-datetime-edit-text,
+:global(html[data-theme="light"]) .headerBar .dateInput::-webkit-datetime-edit-month-field,
+:global(html[data-theme="light"]) .headerBar .dateInput::-webkit-datetime-edit-day-field,
+:global(html[data-theme="light"]) .headerBar .dateInput::-webkit-datetime-edit-year-field {
+  color: #1c1917 !important;
+  color-scheme: light;
+}
+
+:global(html[data-theme]) .headerBar .tabSwitcher {
+  background: var(--bg-deep) !important;
+  border: 1px solid var(--border) !important;
+  min-height: 40px;
+  height: 40px;
+  border-radius: 10px;
+  padding: 3px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 3px;
+}
+:global(html[data-theme]) .headerBar .tabBtn {
+  color: var(--muted);
+  min-height: unset !important;
+  height: 100% !important;
+  border: none;
+  border-radius: 7px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+:global(html[data-theme]) .headerBar .tabBtnActive {
+  background: var(--surface-solid) !important;
+  color: var(--gold) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-soft);
+}
+
+:global(html[data-theme]) .headerBar .btnAction {
+  min-height: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+:global(html[data-theme]) .headerBar .btnPrimary {
+  background: var(--action-bg);
+  color: var(--action-ink);
+  border-color: transparent;
+}
+:global(html[data-theme]) .container .textInput {
+  background: var(--surface-solid);
+  color: var(--cream);
+  border-color: var(--border);
+  border-radius: 9px;
+}
 @media (max-width: 600px) { .container .textInput { font-size: 16px; } }
