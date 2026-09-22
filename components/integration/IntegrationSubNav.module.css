@@ -82,3 +82,9 @@
     gap: 5px;
   }
 }
+
+/* Shared workspace palette, outside the printable documents. */
+:global(html[data-theme]) .pillGroup { background: var(--bg-deep) !important; border-color: var(--border) !important; box-shadow: none !important; }
+:global(html[data-theme]) .pill { color: var(--muted) !important; min-height: 44px; transition: background-color 180ms ease, color 180ms ease; }
+:global(html[data-theme]) .pillActive { background: var(--surface-solid) !important; color: var(--gold) !important; box-shadow: var(--shadow-soft) !important; }
+@media (max-width: 420px) { .pill { white-space: normal; text-align: center; line-height: 1.3; } }

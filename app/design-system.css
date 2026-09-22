@@ -114,6 +114,44 @@ html[data-theme] body {
   html[data-theme] body .stat-label { color: var(--muted); letter-spacing: .08em; }
 }
 
+/* View selectors share one hierarchy across the business screens. */
+html[data-theme] body :is(.activity-view-switcher, .invite-view-switcher, .reporting-tab-switcher) {
+  background: var(--bg-deep) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+  border-radius: 16px !important;
+}
+html[data-theme] body :is(.activity-view-option, .invite-view-option, .reporting-tab-btn) {
+  background: transparent !important;
+  color: var(--cream-dim) !important;
+  border: 1px solid transparent !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+html[data-theme] body :is(.activity-view-option, .invite-view-option, .reporting-tab-btn).active {
+  background: var(--surface-solid) !important;
+  color: var(--gold) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+html[data-theme] body :is(.activity-view-option, .invite-view-option) :is(.activity-view-title, .invite-view-title),
+html[data-theme] body :is(.activity-view-option, .invite-view-option).active :is(.activity-view-title, .invite-view-title) {
+  color: var(--cream) !important;
+}
+html[data-theme] body :is(.activity-view-option, .invite-view-option) :is(.activity-view-subtitle, .invite-view-subtitle),
+html[data-theme] body :is(.activity-view-option, .invite-view-option).active :is(.activity-view-subtitle, .invite-view-subtitle) {
+  color: var(--muted) !important;
+}
+html[data-theme] body :is(.activity-view-option, .invite-view-option) :is(.activity-view-icon, .invite-view-icon),
+html[data-theme] body :is(.activity-view-option, .invite-view-option).active :is(.activity-view-icon, .invite-view-icon) {
+  background: var(--gold-glow) !important;
+  color: var(--gold) !important;
+  box-shadow: none !important;
+}
+html[data-theme] body :is(.activity-view-option, .invite-view-option) :is(.activity-view-icon, .invite-view-icon) svg,
+html[data-theme] body :is(.activity-view-option, .invite-view-option).active :is(.activity-view-icon, .invite-view-icon) svg * { color: inherit !important; }
+
 /* Consistent controls, including older screens and portal forms. */
 html[data-theme] body .btn {
   min-height: 44px;

@@ -182,6 +182,7 @@ function AffectationPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [currentView, setCurrentView] = useState<'list' | 'stats'>('list');
   const [displayMode, setDisplayMode] = useState<'cards' | 'table'>('table');
+  const [showTableDetails, setShowTableDetails] = useState(false);
   const [arrivalMonth, setArrivalMonth] = useState<string>("all");
   const [arrivalYear, setArrivalYear] = useState<string>("all");
   const [localChurchFilter, setLocalChurchFilter] = useState<string>("all");
@@ -1537,7 +1538,7 @@ function AffectationPage() {
                       setDisplayMode('table');
                       try { localStorage.setItem("poimen_souls_display_mode", "table"); } catch {}
                     }}
-                    title="Affichage en tableau synthétique avec colonnes figées"
+                    title="Tableau de suivi avec identité fixe"
                   >
                     <TableIcon size={14} />
                     <span>Tableau</span>
@@ -1648,10 +1649,13 @@ function AffectationPage() {
           {/* List or Table View */}
           {displayMode === 'table' ? (
             <div className={`fade-in d1 ${styles.tableContainer}`}>
-              <div className={styles.tableMobileHint}>
-                <span>↔️ <strong>Astuce tactile :</strong> Faites défiler vers la droite pour voir toutes les colonnes. <em>Date d’arrivée</em>, <em>Nom</em> et <em>Prénom</em> restent figés à gauche.</span>
-                <span style={{ fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap" }}>{filtered.length} ligne{filtered.length > 1 ? "s" : ""}</span>
+              <div className={styles.tableToolbar}>
+                <div><strong>Tableau de suivi</strong><span>{filtered.length} personne{filtered.length > 1 ? "s" : ""} · {showTableDetails ? "Vue détaillée" : "Vue essentielle"}</span></div>
+                <button type="button" className={styles.detailToggle} aria-pressed={showTableDetails} onClick={() => setShowTableDetails(value => !value)}>
+                  <TableIcon size={15} /> {showTableDetails ? "Vue essentielle" : "Plus de détails"}
+                </button>
               </div>
+              <p className={styles.tableMobileHint}>Faites défiler le tableau horizontalement. Le nom reste visible ; sélectionnez-le pour ouvrir la fiche.</p>
 
               {filtered.length === 0 ? (
                 <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--muted)" }}>
@@ -1663,25 +1667,21 @@ function AffectationPage() {
                   )}
                 </div>
               ) : (
+                <div className={styles.tableScroll} role="region" aria-label="Tableau de suivi des âmes, défilement horizontal" tabIndex={0}>
                 <table className={styles.soulsTable}>
+                  <caption className={styles.srOnly}>Personnes confiées, coordonnées, parcours et présences. Les présences correspondent à la période sélectionnée.</caption>
                   <thead>
                     <tr>
-                      <th className={`${styles.th} ${styles.stickyColDate}`}>Date d'arr.</th>
-                      <th className={`${styles.th} ${styles.stickyColNom}`}>Nom</th>
-                      <th className={`${styles.th} ${styles.stickyColPrenom}`}>Prénom</th>
-                      <th className={styles.th}>Téléphone</th>
-                      <th className={styles.th}>E-mail</th>
-                      <th className={styles.th}>Famille de disciples</th>
-                      <th className={styles.th}>Église locale</th>
-                      <th className={styles.th}>Événement</th>
-                      <th className={styles.th}>Appel abouti</th>
-                      <th className={styles.th}>PCNC</th>
-                      <th className={styles.th}>C.D.M</th>
-                      <th className={styles.th}>Fidélisé</th>
-                      <th className={styles.th}>Prés. Culte</th>
-                      <th className={styles.th}>Prés. C.D.M</th>
-                      <th className={styles.th}>Conseiller</th>
-                      <th className={styles.th} style={{ textAlign: "center" }}>Actions</th>
+                      <th scope="col" className={styles.identityCell}>Personne</th>
+                      <th scope="col" className={styles.th}>Coordonnées</th>
+                      {showTableDetails && <th scope="col" className={styles.th}>Famille de disciples</th>}
+                      {showTableDetails && <th scope="col" className={styles.th}>Église locale</th>}
+                      {showTableDetails && <th scope="col" className={styles.th}>Événement</th>}
+                      <th scope="col" className={styles.th}>Appel abouti</th>
+                      <th scope="col" className={styles.th}>Parcours</th>
+                      <th scope="col" className={styles.th}>Présences</th>
+                      <th scope="col" className={styles.th}>Conseiller</th>
+                      <th scope="col" className={styles.th}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1698,57 +1698,19 @@ function AffectationPage() {
 
                       return (
                         <tr key={guest.id} className={styles.tr}>
-                          {/* Sticky 1: Date */}
-                          <td className={`${styles.td} ${styles.stickyColDate}`} style={{ color: "var(--cream-dim)", fontSize: 11 }}>
-                            {formatDisplayDate(guest.arrivalDate)}
-                          </td>
-
-                          {/* Sticky 2: Nom */}
-                          <td className={`${styles.td} ${styles.stickyColNom}`} title={guest.lastName}>
-                            <button 
-                              type="button" 
-                              onClick={() => personView.openPerson(guest.id)}
-                              style={{ background: "none", border: "none", color: "inherit", font: "inherit", fontWeight: 700, textAlign: "left", cursor: "pointer", padding: 0 }}
-                            >
-                              {guest.lastName}
+                          <th scope="row" className={styles.identityCell}>
+                            <button type="button" className={styles.personName} onClick={() => personView.openPerson(guest.id)} aria-label={"Ouvrir la fiche de " + guest.firstName + " " + guest.lastName}>
+                              {guest.firstName} {guest.lastName}
                             </button>
-                          </td>
-
-                          {/* Sticky 3: Prénom */}
-                          <td className={`${styles.td} ${styles.stickyColPrenom}`} title={guest.firstName}>
-                            <button 
-                              type="button" 
-                              onClick={() => personView.openPerson(guest.id)}
-                              style={{ background: "none", border: "none", color: "inherit", font: "inherit", fontWeight: 600, textAlign: "left", cursor: "pointer", padding: 0 }}
-                            >
-                              {guest.firstName}
-                            </button>
-                          </td>
-
-                          {/* Téléphone */}
+                            <span className={styles.arrivalDate}>Arrivée · {formatDisplayDate(guest.arrivalDate)}</span>
+                          </th>
                           <td className={styles.td}>
-                            {guest.phone ? (
-                              <a href={`tel:${guest.phone}`} className={styles.phoneLink}>
-                                <Phone size={11} style={{ color: "var(--gold)" }} />
-                                <span>{guest.phone}</span>
-                              </a>
-                            ) : (
-                              <span style={{ color: "var(--muted)" }}>—</span>
-                            )}
+                            <div className={styles.cellStack}>
+                              {guest.phone ? <a href={"tel:" + guest.phone} className={styles.phoneLink}><Phone size={13} />{guest.phone}</a> : <span className={styles.cellMuted}>Téléphone non renseigné</span>}
+                              {guest.email && <a href={"mailto:" + guest.email} className={styles.emailLink}><Mail size={13} /><span>{guest.email}</span></a>}
+                            </div>
                           </td>
-
-                          {/* E-mail */}
-                          <td className={styles.td}>
-                            {guest.email ? (
-                              <a href={`mailto:${guest.email}`} className={styles.emailLink} title={guest.email}>
-                                <Mail size={11} style={{ color: "var(--sky)" }} />
-                                <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{guest.email}</span>
-                              </a>
-                            ) : (
-                              <span style={{ color: "var(--muted)" }}>—</span>
-                            )}
-                          </td>
-
+                          {showTableDetails && <>
                           {/* Famille de disciples (interactive dropdown) */}
                           <td className={styles.td}>
                             <select 
@@ -1784,6 +1746,7 @@ function AffectationPage() {
                             </span>
                           </td>
 
+                          </>}
                           {/* Appel abouti */}
                           <td className={styles.td}>
                             <button 
@@ -1798,47 +1761,18 @@ function AffectationPage() {
                             </button>
                           </td>
 
-                          {/* Progression PCNC */}
                           <td className={styles.td}>
-                            <span className="badge" style={{ fontSize: 9, color: pcncStage.color, borderColor: pcncStage.color, background: "rgba(255,255,255,0.02)" }}>
-                              {pcncStage.label}
-                            </span>
+                            <div className={styles.cellStack}>
+                              <span className={styles.stageBadge} style={{ color: pcncStage.color, borderColor: pcncStage.color }}>{pcncStage.label}</span>
+                              <span className={styles.cellMuted}>C.D.M · {guest.integreCDM ? "Intégré" : guest.interetCDM ? "Intérêt" : "Non intégré"}</span>
+                              {fidelised ? <span className={styles.loyalBadge}><Sparkles size={12} /> Fidélisé</span> : <span className={styles.cellMuted}>Fidélisation en cours</span>}
+                            </div>
                           </td>
-
-                          {/* C.D.M */}
                           <td className={styles.td}>
-                            {guest.integreCDM ? (
-                              <span className="badge badge-green" style={{ fontSize: 9 }}>Intégré</span>
-                            ) : guest.interetCDM ? (
-                              <span className="badge badge-gold" style={{ fontSize: 9 }}>Intérêt</span>
-                            ) : (
-                              <span style={{ color: "var(--muted)", fontSize: 10 }}>Non</span>
-                            )}
-                          </td>
-
-                          {/* Fidélisé */}
-                          <td className={styles.td}>
-                            {fidelised ? (
-                              <span className="badge badge-gold" style={{ fontSize: 9, display: "inline-flex", alignItems: "center", gap: 3 }}>
-                                <Sparkles size={9} /> Fidélisé
-                              </span>
-                            ) : (
-                              <span style={{ color: "var(--muted)", fontSize: 10 }}>En cours</span>
-                            )}
-                          </td>
-
-                          {/* Présences Culte */}
-                          <td className={styles.td}>
-                            <span style={{ fontWeight: 600, color: rateCulte >= 50 ? "var(--green)" : "var(--cream-dim)" }}>
-                              {rateCulte}%
-                            </span>
-                          </td>
-
-                          {/* Présences CDM */}
-                          <td className={styles.td}>
-                            <span style={{ fontWeight: 600, color: rateCDM >= 50 ? "var(--sky)" : "var(--cream-dim)" }}>
-                              {rateCDM}%
-                            </span>
+                            <div className={styles.attendancePair}>
+                              <span>Culte <strong style={{ color: rateCulte >= 50 ? "var(--green)" : "var(--cream)" }}>{rateCulte}%</strong></span>
+                              <span>C.D.M <strong style={{ color: rateCDM >= 50 ? "var(--sky)" : "var(--cream)" }}>{rateCDM}%</strong></span>
+                            </div>
                           </td>
 
                           {/* Conseiller / Affectation */}
@@ -1998,6 +1932,7 @@ function AffectationPage() {
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           ) : (

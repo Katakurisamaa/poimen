@@ -676,3 +676,61 @@
   border-color: #B8860B !important;
   background: #FFFFFF !important;
 }
+
+/* Essential follow-up table: one fixed identity column, grouped information. */
+.tableContainer { overflow: hidden; background: var(--surface-solid); box-shadow: var(--shadow-soft); border-radius: 18px; }
+.tableToolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px 12px; }
+.tableToolbar > div { display: flex; flex-direction: column; gap: 4px; }
+.tableToolbar strong { font-size: 15px; color: var(--cream); }
+.tableToolbar span { font-size: 12px; color: var(--muted); }
+.detailToggle { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-solid); color: var(--cream); font-size: 12px; cursor: pointer; }
+.detailToggle[aria-pressed="true"] { background: var(--gold-glow); color: var(--gold); border-color: var(--gold); }
+.tableMobileHint { display: block; margin: 0; padding: 0 20px 16px; background: transparent; border: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.tableScroll { width: 100%; overflow: auto; max-height: min(680px, 72dvh); overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--muted) var(--bg); }
+.soulsTable { min-width: 1000px; font-size: 13px; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:global(html[data-theme]) .tableContainer .th,
+:global(html[data-theme]) .tableContainer thead .identityCell { background: var(--bg) !important; color: var(--muted) !important; padding: 13px 16px; font-size: 11px; letter-spacing: .04em; text-transform: none; border-bottom: 1px solid var(--border) !important; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
+:global(html[data-theme]) .tableContainer .td { padding: 18px 16px; background: var(--surface-solid); color: var(--cream) !important; border-bottom: 1px solid var(--border-light) !important; }
+.identityCell { position: sticky; left: 0; min-width: 200px; width: 200px; max-width: 200px; z-index: 1; padding: 18px 20px; background: var(--surface-solid); border-bottom: 1px solid var(--border-light); border-right: 1px solid var(--border); text-align: left; font-weight: 400; box-shadow: 5px 0 10px -8px #0005; }
+:global(html[data-theme]) .tableContainer thead .identityCell { z-index: 3; }
+:global(html[data-theme]) .tableContainer .tr:hover :is(.td, .identityCell),
+:global(html[data-theme]) .tableContainer .tr:focus-within :is(.td, .identityCell) { background: var(--card-hover) !important; }
+.personName { display: block; max-width: 100%; min-height: 36px; padding: 3px 0; background: none; border: 0; font: inherit; font-weight: 650; color: var(--cream); text-align: left; line-height: 1.45; overflow-wrap: anywhere; cursor: pointer; }
+.personName:hover { text-decoration: underline; text-underline-offset: 4px; }
+.arrivalDate { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.cellStack { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.cellMuted { color: var(--muted); font-size: 11px; }
+:global(html[data-theme]) .tableContainer :is(.phoneLink, .emailLink) { color: var(--cream-dim) !important; min-height: 24px; gap: 7px; }
+.emailLink span { display: inline-block; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.stageBadge { display: inline-flex; padding: 3px 8px; border: 1px solid; border-radius: 6px; font-size: 11px; }
+.loyalBadge { display: inline-flex; gap: 5px; align-items: center; font-size: 11px; color: var(--gold); }
+.attendancePair { display: grid; gap: 10px; min-width: 90px; font-size: 11px; color: var(--muted); }
+.attendancePair > span { display: flex; justify-content: space-between; gap: 18px; }
+.attendancePair strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+:global(html[data-theme]) .tableContainer .familySelect { background: var(--surface-solid) !important; border-color: var(--border) !important; color: var(--cream) !important; min-height: 40px; border-radius: 9px !important; }
+.tableContainer .toggleBtn { min-height: 40px; padding: 8px 10px; font-size: 12px; border-radius: 8px; }
+.tableContainer :global(.btn-icon) { min-width: 40px; min-height: 40px; border-radius: 9px; }
+.tableContainer :is(button, select):disabled { cursor: default !important; opacity: .65; }
+:global(html[data-theme]) .filtersContainer { background: var(--surface-solid) !important; border-color: var(--border) !important; box-shadow: var(--shadow-soft) !important; }
+:global(html[data-theme]) .searchInput { background: var(--bg) !important; color: var(--cream) !important; min-height: 44px; }
+:global(html[data-theme]) .searchInput::placeholder { color: var(--muted) !important; }
+:global(html[data-theme]) .viewModePillGroup { background: var(--bg) !important; border-color: var(--border) !important; box-shadow: none !important; }
+:global(html[data-theme]) .viewModePill { color: var(--muted) !important; min-height: 36px; }
+:global(html[data-theme]) .viewModePillActive { background: var(--surface-solid) !important; color: var(--gold) !important; box-shadow: var(--shadow-soft) !important; }
+@media (max-width: 600px) {
+  .tableToolbar { padding: 16px 14px 10px; gap: 10px; align-items: flex-start; }
+  .tableToolbar strong { font-size: 14px; }
+  .tableToolbar span { font-size: 11px; }
+  .detailToggle { max-width: 145px; flex-shrink: 0; font-size: 11px; }
+  .tableMobileHint { padding: 0 14px 14px; font-size: 11px; }
+  .identityCell { min-width: 148px; width: 148px; max-width: 148px; padding: 14px 12px; }
+  .personName { font-size: 13px; min-height: 44px; }
+  .arrivalDate { font-size: 10px; }
+  .soulsTable { min-width: 920px; }
+  :global(html[data-theme]) .tableContainer .td { padding: 14px 12px; }
+  :global(html[data-theme]) .tableContainer .familySelect { min-height: 44px; font-size: 16px !important; }
+  .tableContainer .toggleBtn, .tableContainer :global(.btn-icon) { min-height: 44px; min-width: 44px; }
+  :global(html[data-theme]) .tableContainer :is(.phoneLink, .emailLink) { min-height: 36px; }
+  .tableScroll { max-height: 65dvh; }
+}

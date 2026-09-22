@@ -1070,3 +1070,14 @@
   width: 100%;
   max-width: 500px;
 }
+
+/* Controls share the application palette; document styles stay independent. */
+:global(html[data-theme]) .headerBar .tabSwitcher { background: var(--bg-deep); border-color: var(--border); }
+:global(html[data-theme]) .headerBar .tabBtn { color: var(--muted); min-height: 44px; }
+:global(html[data-theme]) .headerBar .tabBtnActive { background: var(--surface-solid); color: var(--gold); box-shadow: var(--shadow-soft); }
+:global(html[data-theme]) .headerBar .btnAction { min-height: 44px; border-radius: 10px; }
+:global(html[data-theme]) .headerBar .btnSave { background: var(--action-bg); color: var(--action-ink); border-color: transparent; }
+:global(html[data-theme]) .headerBar .btnExport { background: var(--surface-solid); color: var(--cream); border-color: var(--border); }
+:global(html[data-theme]) .container .textInput { background: var(--surface-solid); color: var(--cream); border-color: var(--border); border-radius: 9px; }
+:global(html[data-theme]) .headerBar .monthInput { background: transparent; color: var(--cream); }
+@media (max-width: 600px) { .container .textInput, .headerBar .monthInput { font-size: 16px; } }
