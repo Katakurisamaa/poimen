@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Cormorant_Garamond } from "next/font/google";
 import ThemeToggle from "@/components/ThemeToggle";
+import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 import "./design-system.css";
 
@@ -18,15 +19,30 @@ const cormorant = Cormorant_Garamond({
   weight: ["600", "700"],
 });
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 5,
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0a0d14" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f9fa" },
+  ],
 };
 
 export const metadata: Metadata = {
   title: "Poimén — Gestion des Familles de Disciples",
   description:
     "Plateforme de suivi et gestion des Familles de Disciples pour les églises ICC.",
+  applicationName: "Poimén",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Poimén",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -44,6 +60,7 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         {children}
         <ThemeToggle />
+        <PwaRegister />
       </body>
     </html>
   );
