@@ -231,13 +231,13 @@ export default function LandingPage() {
             gap: 14, 
             padding: "14px 24px",
             borderRadius: "50px",
-            border: isSearchFocused ? "1px solid var(--gold)" : "1px solid rgba(212, 175, 55, 0.22)",
-            background: "var(--surface)",
-            boxShadow: isSearchFocused ? "0 0 20px rgba(212, 175, 55, 0.2), 0 8px 32px rgba(0,0,0,0.4)" : "0 8px 32px rgba(0,0,0,0.3)",
+            border: isSearchFocused ? "1px solid var(--action-bg)" : "1px solid var(--border)",
+            background: "var(--surface-solid)",
+            boxShadow: isSearchFocused ? "0 0 20px rgba(231, 199, 126, 0.15), 0 8px 32px rgba(0,0,0,0.3)" : "0 8px 32px rgba(0,0,0,0.2)",
             transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
           }}
         >
-          <Search size={20} style={{ color: "var(--gold-light)", opacity: isSearchFocused ? 1 : 0.6, transition: "opacity 0.2s", flexShrink: 0 }} />
+          <Search size={20} style={{ color: isSearchFocused ? "var(--action-bg)" : "var(--muted)", transition: "color 0.2s", flexShrink: 0 }} />
           <input 
             type="text" 
             placeholder="Rechercher une église..." 

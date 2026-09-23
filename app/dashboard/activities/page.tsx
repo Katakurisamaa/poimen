@@ -1068,13 +1068,13 @@ export default function ActivitiesPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* View Mode Switcher */}
           <div style={{ display: "flex", justifyContent: "center" }}>
-            <div className="glass-compact" style={{ display: "flex", gap: 4, padding: 4, borderRadius: 12, border: "1px solid rgba(212,175,55,0.08)" }}>
+            <div className="glass-compact" style={{ display: "flex", gap: 4, padding: 4, borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface-solid)" }}>
               <button 
                 onClick={() => setAttendanceViewMode("by-activity")}
                 style={{ 
                   padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 700, transition: "all 0.3s",
-                  background: attendanceViewMode === "by-activity" ? "var(--gold)" : "transparent",
-                  color: attendanceViewMode === "by-activity" ? "var(--bg)" : "var(--muted)",
+                  background: attendanceViewMode === "by-activity" ? "var(--action-bg)" : "transparent",
+                  color: attendanceViewMode === "by-activity" ? "var(--action-ink)" : "var(--muted)",
                   border: "none", cursor: "pointer",
                   display: "flex", alignItems: "center", gap: 6
                 }}
@@ -1085,8 +1085,8 @@ export default function ActivitiesPage() {
                 onClick={() => setAttendanceViewMode("by-member")}
                 style={{ 
                   padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 700, transition: "all 0.3s",
-                  background: attendanceViewMode === "by-member" ? "var(--gold)" : "transparent",
-                  color: attendanceViewMode === "by-member" ? "var(--bg)" : "var(--muted)",
+                  background: attendanceViewMode === "by-member" ? "var(--action-bg)" : "transparent",
+                  color: attendanceViewMode === "by-member" ? "var(--action-ink)" : "var(--muted)",
                   border: "none", cursor: "pointer",
                   display: "flex", alignItems: "center", gap: 6
                 }}
@@ -1098,8 +1098,8 @@ export default function ActivitiesPage() {
                 onClick={() => setAttendanceViewMode("by-year")}
                 style={{ 
                   padding: "8px 20px", borderRadius: 8, fontSize: 12, fontWeight: 700, transition: "all 0.3s",
-                  background: attendanceViewMode === "by-year" ? "var(--gold)" : "transparent",
-                  color: attendanceViewMode === "by-year" ? "var(--bg)" : "var(--muted)",
+                  background: attendanceViewMode === "by-year" ? "var(--action-bg)" : "transparent",
+                  color: attendanceViewMode === "by-year" ? "var(--action-ink)" : "var(--muted)",
                   border: "none", cursor: "pointer",
                   display: "flex", alignItems: "center", gap: 6
                 }}

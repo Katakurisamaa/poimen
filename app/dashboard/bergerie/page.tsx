@@ -1114,8 +1114,8 @@ function BergeriePage() {
             style={{ 
               display: "flex", alignItems: "center", gap: 6,
               padding: "6px 12px", borderRadius: 8, border: "none", 
-              background: view === "list" ? "var(--gold-glow)" : "transparent", 
-              color: view === "list" ? "var(--gold)" : "var(--muted)", 
+              background: view === "list" ? "var(--action-bg)" : "transparent", 
+              color: view === "list" ? "var(--action-ink)" : "var(--muted)", 
               fontSize: 12, fontWeight: view === "list" ? 700 : 500,
               cursor: "pointer", transition: "all 0.2s ease"
             }} 
@@ -1131,8 +1131,8 @@ function BergeriePage() {
             style={{ 
               display: "flex", alignItems: "center", gap: 6,
               padding: "6px 12px", borderRadius: 8, border: "none", 
-              background: view === "grid" ? "var(--gold-glow)" : "transparent", 
-              color: view === "grid" ? "var(--gold)" : "var(--muted)", 
+              background: view === "grid" ? "var(--action-bg)" : "transparent", 
+              color: view === "grid" ? "var(--action-ink)" : "var(--muted)", 
               fontSize: 12, fontWeight: view === "grid" ? 700 : 500,
               cursor: "pointer", transition: "all 0.2s ease"
             }} 
@@ -1149,8 +1149,8 @@ function BergeriePage() {
             style={{ 
               display: "flex", alignItems: "center", gap: 6,
               padding: "6px 12px", borderRadius: 8, border: "none", 
-              background: view === "table" ? "var(--gold-glow)" : "transparent", 
-              color: view === "table" ? "var(--gold)" : "var(--muted)", 
+              background: view === "table" ? "var(--action-bg)" : "transparent", 
+              color: view === "table" ? "var(--action-ink)" : "var(--muted)", 
               fontSize: 12, fontWeight: view === "table" ? 700 : 500,
               cursor: "pointer", transition: "all 0.2s ease"
             }} 

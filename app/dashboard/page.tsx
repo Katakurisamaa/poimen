@@ -1612,20 +1612,20 @@ export default function DashboardPage() {
         {/* Modal: Access Code Connection */}
         {typeof window !== "undefined" && selectedForJoin && createPortal(
           <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center", padding: "20px" }}>
-            <div style={{ position: "absolute", inset: 0, background: "rgba(2,1,6,0.85)", backdropFilter: "blur(12px)" }} onClick={() => setSelectedForJoin(null)} />
-            <div className="arch-card" style={{ width: "100%", maxWidth: 420, padding: "40px 36px", position: "relative", zIndex: 101, border: "1.5px solid rgba(212, 175, 55, 0.35)", boxShadow: "0 30px 70px rgba(0, 0, 0, 0.8), 0 0 40px rgba(139, 92, 246, 0.15)", display: "flex", flexDirection: "column" }}>
+            <div style={{ position: "absolute", inset: 0, background: "var(--overlay)", backdropFilter: "blur(8px)" }} onClick={() => setSelectedForJoin(null)} />
+            <div className="custom-modal arch-card" style={{ width: "100%", maxWidth: 420, padding: "36px 32px", position: "relative", zIndex: 101, border: "1px solid var(--border)", background: "var(--surface-solid)", boxShadow: "var(--shadow-dialog)", display: "flex", flexDirection: "column" }}>
               <button onClick={() => setSelectedForJoin(null)} style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", transition: "color 0.2s ease" }} onMouseEnter={e => e.currentTarget.style.color = "var(--cream)"} onMouseLeave={e => e.currentTarget.style.color = "var(--muted)"}><X size={20} /></button>
               
               <div style={{ textAlign: "center", marginBottom: 24 }}>
-                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--gold-glow)", border: "1px solid rgba(212,175,55,0.25)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", margin: "0 auto 12px" }}>
+                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--bg-deep)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--action-bg)", margin: "0 auto 12px" }}>
                   <Shield size={20} />
                 </div>
-                <h3 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Authentification</h3>
+                <h3 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--cream)" }}>Authentification</h3>
                 <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Saisissez vos identifiants pour entrer dans la bergerie</p>
               </div>
 
-              <div style={{ marginBottom: 20, padding: "10px 14px", borderRadius: 8, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.2)", display: "flex", alignItems: "center", gap: 8 }}>
-                <Users size={14} style={{ color: "var(--gold)" }} />
+              <div style={{ marginBottom: 20, padding: "10px 14px", borderRadius: 10, background: "var(--bg-deep)", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
+                <Users size={14} style={{ color: "var(--action-bg)" }} />
                 <span style={{ fontSize: 12, color: "var(--cream)", fontWeight: 600 }}>Famille : <strong>{selectedForJoin.name}</strong></span>
               </div>
 
