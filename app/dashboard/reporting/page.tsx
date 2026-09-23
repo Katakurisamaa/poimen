@@ -9,8 +9,7 @@ import { getAttendanceStatus, usesExplicitAttendance } from "@/lib/attendance";
 import {
   Download, RefreshCw, Save, Check, AlertCircle, FileText,
   Calendar, Upload, Eye, Edit3, Church, Users,
-  ChevronLeft, ChevronRight, Bookmark,
-  ZoomIn, ZoomOut, Maximize2, Minimize2, Expand, Image as ImageIcon, X
+  ChevronLeft, ChevronRight, Bookmark, Image as ImageIcon
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -40,9 +39,6 @@ export default function ReportingPage() {
   const [previewScale, setPreviewScale] = useState(1);
   const [previewHeight, setPreviewHeight] = useState(0);
   const [downloadingImage, setDownloadingImage] = useState(false);
-  const [zoomMode, setZoomMode] = useState<"fit" | "full" | "custom">("fit");
-  const [customZoom, setCustomZoom] = useState(1);
-  const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
 
   // Helper to format French date for Sunday
   const formatFrenchDate = (dateStr: string) => {
@@ -561,17 +557,14 @@ export default function ReportingPage() {
     loadFamilyAndMemberStats();
   }, []);
 
-  const effectiveScale = zoomMode === "fit" ? previewScale : (zoomMode === "full" ? 1 : customZoom);
-
   useEffect(() => {
     if (activeTab !== "preview") return;
 
     const updatePreviewSize = () => {
       const viewportWidth = previewViewportRef.current?.clientWidth || 880;
-      const nextScale = Math.min(1, Math.max(0.25, (viewportWidth - 8) / 880));
+      const nextScale = Math.min(1, Math.max(0.25, (viewportWidth - 4) / 880));
       setPreviewScale(nextScale);
-      const currentScale = zoomMode === "fit" ? nextScale : (zoomMode === "full" ? 1 : customZoom);
-      setPreviewHeight((reportRef.current?.offsetHeight || 750) * currentScale);
+      setPreviewHeight((reportRef.current?.offsetHeight || 0) * nextScale);
     };
 
     updatePreviewSize();
@@ -579,7 +572,7 @@ export default function ReportingPage() {
     if (previewViewportRef.current) observer.observe(previewViewportRef.current);
     if (reportRef.current) observer.observe(reportRef.current);
     return () => observer.disconnect();
-  }, [activeTab, zoomMode, customZoom]);
+  }, [activeTab]);
 
   // Update date handler
   const handleDateChange = (newDate: string) => {
@@ -1492,164 +1485,26 @@ export default function ReportingPage() {
         </div>
       )}
 
-      {/* ── PREVIEW BANNER & INTERACTIVE ZOOM TOOLBAR (when on preview tab) ── */}
+      {/* ── PREVIEW BANNER (when on preview tab) ── */}
       {activeTab === "preview" && (
-        <div className="reporting-preview-banner-wrap" style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
-          {/* Main Toolbar */}
+        <div className="reporting-preview-banner-wrap" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginBottom: 16 }}>
           <div
-            className="reporting-preview-toolbar glass-card"
+            className="reporting-preview-banner"
             style={{
               padding: "10px 16px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 12,
-              borderRadius: "12px",
-              background: "linear-gradient(135deg, rgba(18, 12, 38, 0.95) 0%, rgba(10, 6, 22, 0.98) 100%)",
+              backgroundColor: "rgba(212, 175, 55, 0.1)",
               border: "1px solid rgba(212, 175, 55, 0.3)",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-            }}
-          >
-            {/* Left: View Mode Toggle */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600, marginRight: 2 }}>
-                Affichage :
-              </span>
-              <button
-                type="button"
-                onClick={() => setZoomMode("fit")}
-                className={`btn btn-sm ${zoomMode === "fit" ? "btn-primary" : "btn-outline"}`}
-                style={{ fontSize: 12, padding: "5px 10px", display: "flex", alignItems: "center", gap: 5 }}
-                title="Ajuster à la largeur de l'écran (vue globale)"
-              >
-                <Minimize2 size={13} />
-                Ajuster
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setZoomMode("full");
-                  setCustomZoom(1);
-                }}
-                className={`btn btn-sm ${zoomMode === "full" ? "btn-primary" : "btn-outline"}`}
-                style={{ fontSize: 12, padding: "5px 12px", display: "flex", alignItems: "center", gap: 5, fontWeight: 700 }}
-                title="Afficher en taille réelle 100% (grand et net sur mobile avec défilement)"
-              >
-                <Maximize2 size={13} />
-                100% Lisible
-              </button>
-            </div>
-
-            {/* Center: Zoom Stepper */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                backgroundColor: "rgba(255,255,255,0.05)",
-                padding: "3px 8px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setZoomMode("custom");
-                  setCustomZoom((prev) => Math.max(0.35, Number((prev - 0.15).toFixed(2))));
-                }}
-                className="btn btn-ghost btn-sm"
-                style={{ padding: "4px 6px", height: 26, minWidth: 26, color: "var(--cream)" }}
-                title="Dézoomer"
-              >
-                <ZoomOut size={14} />
-              </button>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 800,
-                  color: "var(--gold)",
-                  minWidth: 46,
-                  textAlign: "center",
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {Math.round(effectiveScale * 100)}%
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setZoomMode("custom");
-                  setCustomZoom((prev) => Math.min(1.8, Number((prev + 0.15).toFixed(2))));
-                }}
-                className="btn btn-ghost btn-sm"
-                style={{ padding: "4px 6px", height: 26, minWidth: 26, color: "var(--cream)" }}
-                title="Zoomer"
-              >
-                <ZoomIn size={14} />
-              </button>
-            </div>
-
-            {/* Right: Fullscreen & Quick Export */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomZoom(1);
-                  setIsFullscreenPreview(true);
-                }}
-                className="btn btn-outline btn-sm"
-                style={{ fontSize: 12, padding: "5px 11px", display: "flex", alignItems: "center", gap: 5 }}
-                title="Ouvrir le rapport en visionneuse plein écran"
-              >
-                <Expand size={13} />
-                Plein écran
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                disabled={downloadingPdf}
-                className="btn btn-primary btn-sm"
-                style={{ fontSize: 12, padding: "5px 12px", display: "flex", alignItems: "center", gap: 5 }}
-              >
-                <Download size={13} />
-                PDF HD
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadImage}
-                disabled={downloadingImage}
-                className="btn btn-outline btn-sm"
-                style={{ fontSize: 12, padding: "5px 10px", borderColor: "rgba(212,175,55,0.4)" }}
-                title="Exporter l'image HD pour WhatsApp"
-              >
-                <ImageIcon size={13} color="var(--gold)" />
-              </button>
-            </div>
-          </div>
-
-          {/* Helper hint for mobile devices */}
-          <div
-            style={{
-              padding: "7px 14px",
-              backgroundColor: "rgba(212, 175, 55, 0.08)",
-              border: "1px dashed rgba(212, 175, 55, 0.25)",
               borderRadius: "8px",
-              fontSize: 12,
+              fontSize: 13,
               color: "var(--gold-light)",
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
               gap: 8,
             }}
           >
+            <FileText size={16} />
             <span>
-              💡 <strong>Astuce mobile :</strong> Activez <strong>« 100% Lisible »</strong> pour lire chaque chiffre en grand et balayez avec le doigt de gauche à droite.
-            </span>
-            <span style={{ fontSize: 11, color: "var(--muted)" }}>
-              Le PDF téléchargé s'affiche automatiquement en grand format plein écran sans bandes blanches.
+              Aperçu officiel du rapport. Cliquez sur <strong>« Télécharger en PDF »</strong> pour générer le document à transmettre à la hiérarchie pastorale.
             </span>
           </div>
         </div>
@@ -1663,14 +1518,13 @@ export default function ReportingPage() {
           activeTab === "preview"
             ? {
                 width: "100%",
-                overflowX: effectiveScale >= 0.75 || zoomMode === "full" ? "auto" : "hidden",
-                overflowY: "visible",
-                padding: "16px 0 40px",
+                overflowX: "auto",
+                overflowY: "hidden",
+                padding: "10px 0 30px",
                 display: "flex",
-                justifyContent: effectiveScale < 0.95 && zoomMode === "fit" ? "center" : "flex-start",
+                justifyContent: "center",
                 WebkitOverflowScrolling: "touch",
-                height: previewHeight ? previewHeight + 50 : undefined,
-                borderRadius: "14px",
+                height: previewHeight ? previewHeight + 40 : undefined,
               }
             : {
                 position: "fixed",
@@ -1687,143 +1541,14 @@ export default function ReportingPage() {
           className="reporting-preview-stage"
           style={{
             width: 880,
-            minWidth: 880,
             flex: "0 0 880px",
-            transform: activeTab === "preview" ? `scale(${effectiveScale})` : undefined,
-            transformOrigin: effectiveScale < 0.95 && zoomMode === "fit" ? "top center" : "top left",
-            margin: effectiveScale < 0.95 && zoomMode === "fit" ? "0 auto" : "0 8px",
-            transition: "transform 0.15s ease-out",
+            transform: activeTab === "preview" ? `scale(${previewScale})` : undefined,
+            transformOrigin: "top center",
           }}
         >
           <ReportingTemplate data={formData} containerRef={reportRef} />
         </div>
       </div>
-
-      {/* ── FULLSCREEN MODAL VIEWER ── */}
-      {isFullscreenPreview && (
-        <div
-          className="modal-overlay"
-          style={{
-            zIndex: 100000,
-            backgroundColor: "rgba(3, 2, 8, 0.95)",
-            backdropFilter: "blur(14px)",
-            padding: 0,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          {/* Top Fullscreen Header */}
-          <div
-            style={{
-              width: "100%",
-              padding: "12px 20px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              backgroundColor: "rgba(10, 6, 22, 0.95)",
-              borderBottom: "1px solid rgba(212, 175, 55, 0.25)",
-              flexWrap: "wrap",
-              gap: 12,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--cream)" }}>
-              <FileText size={18} color="var(--gold)" />
-              <span style={{ fontWeight: 700, fontSize: 14 }}>
-                Visionneuse Plein Écran • {formData.nom_famille}
-              </span>
-              <span style={{ fontSize: 12, color: "var(--gold)", fontWeight: 700 }}>
-                ({Math.round(customZoom * 100)}%)
-              </span>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setCustomZoom((prev) => Math.max(0.4, Number((prev - 0.15).toFixed(2))))}
-                className="btn btn-outline btn-sm"
-                style={{ padding: "6px 10px" }}
-                title="Dézoomer"
-              >
-                <ZoomOut size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setCustomZoom(1)}
-                className="btn btn-outline btn-sm"
-                style={{ padding: "6px 12px", fontSize: 12, fontWeight: 700 }}
-              >
-                100%
-              </button>
-              <button
-                type="button"
-                onClick={() => setCustomZoom((prev) => Math.min(2.0, Number((prev + 0.15).toFixed(2))))}
-                className="btn btn-outline btn-sm"
-                style={{ padding: "6px 10px" }}
-                title="Zoomer"
-              >
-                <ZoomIn size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                disabled={downloadingPdf}
-                className="btn btn-primary btn-sm"
-                style={{ padding: "6px 14px", display: "flex", alignItems: "center", gap: 6 }}
-              >
-                <Download size={14} />
-                PDF HD
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadImage}
-                disabled={downloadingImage}
-                className="btn btn-outline btn-sm"
-                style={{ padding: "6px 14px", display: "flex", alignItems: "center", gap: 6 }}
-              >
-                <ImageIcon size={14} />
-                Image HD
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsFullscreenPreview(false)}
-                className="btn-icon"
-                style={{ marginLeft: 6, color: "var(--cream)", padding: "4px" }}
-                title="Fermer la visionneuse"
-              >
-                <X size={22} />
-              </button>
-            </div>
-          </div>
-
-          {/* Fullscreen Scrollable Area */}
-          <div
-            style={{
-              flex: 1,
-              width: "100%",
-              overflow: "auto",
-              padding: "24px 16px 40px",
-              display: "flex",
-              justifyContent: customZoom <= 1 ? "center" : "flex-start",
-              WebkitOverflowScrolling: "touch",
-            }}
-          >
-            <div
-              style={{
-                width: 880,
-                minWidth: 880,
-                flex: "0 0 880px",
-                transform: `scale(${customZoom})`,
-                transformOrigin: customZoom <= 1 ? "top center" : "top left",
-                margin: customZoom <= 1 ? "0 auto" : "0 16px",
-                boxShadow: "0 25px 70px rgba(0,0,0,0.8)",
-                borderRadius: "6px",
-              }}
-            >
-              <ReportingTemplate data={formData} />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
