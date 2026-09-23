@@ -212,8 +212,6 @@ html[data-theme] body .modal-overlay {
   -webkit-backdrop-filter: blur(6px) !important;
   animation: ui-fade-in 180ms ease both !important;
   overflow: hidden !important;
-  overscroll-behavior: none !important;
-  touch-action: none !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;

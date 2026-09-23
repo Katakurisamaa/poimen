@@ -2102,30 +2102,10 @@ select.input option { background: var(--bg-deep); color: var(--cream); }
    Obsidian & Celestial Gold Theme
    ═══════════════════════════════════════════ */
 
-/* Universal Background Scroll Lock when any modal is open */
+/* Clean background scroll lock when a modal overlay is active */
 html:has(.modal-overlay),
-body:has(.modal-overlay),
-html.modal-locked,
-body.modal-locked {
+body:has(.modal-overlay) {
   overflow: hidden !important;
-  overscroll-behavior: none !important;
-  touch-action: none !important;
-  height: 100% !important;
-}
-
-html:has(.modal-overlay) .app-shell,
-body:has(.modal-overlay) .app-shell,
-html.modal-locked .app-shell,
-body.modal-locked .app-shell {
-  pointer-events: none !important;
-  user-select: none !important;
-}
-
-html:has(.modal-overlay) .modal-overlay,
-body:has(.modal-overlay) .modal-overlay,
-html.modal-locked .modal-overlay,
-body.modal-locked .modal-overlay {
-  pointer-events: auto !important;
 }
 
 /* Overlay with blur, centered flex layout, and zero background bleed */
@@ -2145,8 +2125,6 @@ body.modal-locked .modal-overlay {
   padding: 16px !important;
   animation: fadeInOverlay 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
   overflow: hidden !important;
-  overscroll-behavior: none !important;
-  touch-action: none !important;
 }
 
 /* Perfect responsive modal container */
