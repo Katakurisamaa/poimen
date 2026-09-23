@@ -8,7 +8,7 @@ import {
   HelpCircle, Eye, Trash2, ArrowRightLeft, MessageSquare, AlertCircle,
   Heart, Flame, UserPlus
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { supabase, getSafeSession } from "@/lib/supabase";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
@@ -161,8 +161,8 @@ export default function EvangelisationPage() {
       let resolvedRole = simulatedRole;
 
       try {
-        // Try to get the live auth session (getSession is local, doesn't make network calls)
-        const { data: { session } } = await supabase.auth.getSession();
+        // Try to get the live auth session safely
+        const session = await getSafeSession();
         const authUid = session?.user?.id;
         const authEmail = session?.user?.email;
 
@@ -433,7 +433,7 @@ export default function EvangelisationPage() {
 
     try {
       // 1. Resolve auth user ID and email
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSafeSession();
       const activeContext = getActiveContext();
       const activeUserInfo = getActiveUserInfo();
       const isActiveIntegrationSubmit = activeContext?.context_type === "integration";

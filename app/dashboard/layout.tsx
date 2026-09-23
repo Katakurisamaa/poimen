@@ -7,7 +7,7 @@ import { FeedbackProvider } from "@/components/experience/FeedbackProvider";
 import "./experience.css";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, getSafeSession } from "@/lib/supabase";
 import { SUPER_ADMIN_EMAIL, contextToUserInfo } from "@/lib/auth-contexts";
 import SoulContactReminder from "@/components/experience/SoulContactReminder";
 
@@ -31,16 +31,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return;
       }
 
-      // 2. Fetch the active session from Supabase to prevent localStorage spoofing
-      // Wait up to 2s for Supabase Auth to restore the session from its own storage on page refresh
-      let session = null;
-      for (let i = 0; i < 20; i++) {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        if (currentSession) {
-          session = currentSession;
-          break;
+      // 2. Fetch the active session safely from Supabase to prevent localStorage spoofing
+      // and gracefully handle expired / revoked refresh tokens without raising AuthApiError
+      let session = await getSafeSession();
+      if (!session) {
+        for (let i = 0; i < 5; i++) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          session = await getSafeSession();
+          if (session) break;
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
       }
       
       let superAdminDetected = false;

@@ -4,7 +4,7 @@ import PoimenLogo from "@/components/brand/PoimenLogo";
 
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, LogIn, MapPin, AlertCircle, ShieldCheck, Users, UserRoundCheck } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { supabase, getSafeUser } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { adminSignUp } from "@/app/actions/auth";
 import { contextLabel, contextToUserInfo, inferContextType, type UserContextRecord } from "@/lib/auth-contexts";
@@ -25,7 +25,7 @@ export default function LoginPage() {
   useEffect(() => {
     const checkActiveSession = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getSafeUser();
         if (user) {
           setLoading(true);
           const cleanEmail = user.email?.toLowerCase().trim() || "";

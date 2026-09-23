@@ -6,7 +6,7 @@ import { Users, CalendarCheck, AlertTriangle, Target, TrendingUp, TrendingDown, 
 import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
-import { supabase } from "@/lib/supabase";
+import { supabase, getSafeUser } from "@/lib/supabase";
 import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList, createFamilyUserContext, listIntegrationTeam } from "@/app/actions/auth";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 import { getActiveContext, getActiveSpaceType, getActiveUserInfo } from "@/lib/client-session";
@@ -195,7 +195,7 @@ export default function DashboardPage() {
       let sessionData = null;
       let authError = null;
 
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const currentUser = await getSafeUser();
       const isAlreadyLoggedIn = currentUser && currentUser.email?.toLowerCase().trim() === email;
 
       if (isAlreadyLoggedIn) {
@@ -1089,7 +1089,7 @@ export default function DashboardPage() {
     } else {
       setPendingRequest(newBg);
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getSafeUser();
       if (user) {
         await supabase.from("profiles").update({
           bergerie_id: newBg.id,
@@ -1146,7 +1146,7 @@ export default function DashboardPage() {
       let sessionData = null;
       let authError = null;
 
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const currentUser = await getSafeUser();
       const isAlreadyLoggedIn = currentUser && currentUser.email?.toLowerCase().trim() === email;
 
       if (isAlreadyLoggedIn) {

@@ -7,7 +7,7 @@ import {
   Eye, EyeOff, LogOut
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabase";
+import { supabase, getSafeSession } from "@/lib/supabase";
 import { getActiveUserInfo } from "@/lib/client-session";
 
 const AGE_RANGES = [
@@ -273,7 +273,7 @@ export default function ProfilePage() {
       }
 
       // Check if email is changing in Supabase Auth
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSafeSession();
       const currentUser = session?.user;
 
       let emailMessage = "";
