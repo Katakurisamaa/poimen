@@ -257,10 +257,10 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
               <div style={{ marginBottom: 3 }}>{badge.icon}</div>
               <div
                 style={{
-                  fontSize: 7.5,
+                  fontSize: 8.5,
                   fontWeight: 800,
                   letterSpacing: 0.3,
-                  lineHeight: 1.15,
+                  lineHeight: 1.2,
                   textTransform: "uppercase",
                   whiteSpace: "pre-line",
                   opacity: 0.95,
@@ -284,7 +284,7 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
             >
               <div
                 style={{
-                  fontSize: 22,
+                  fontSize: 23,
                   fontWeight: 900,
                   lineHeight: 1,
                   color: "#0c0d22",
@@ -294,7 +294,7 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
               </div>
               <div
                 style={{
-                  fontSize: 9.5,
+                  fontSize: 10.5,
                   fontWeight: 700,
                   color: "#334155",
                   marginTop: 2,
@@ -316,7 +316,7 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
               backgroundColor: "#0a0f1d",
               color: "#ffffff",
               fontWeight: 800,
-              fontSize: 11,
+              fontSize: 12,
               padding: "8px 12px",
               letterSpacing: 0.5,
               textTransform: "uppercase",
@@ -325,7 +325,7 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
             DÉTAIL DES PARTICIPATIONS & ENGAGEMENT
           </div>
 
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
             <thead>
               <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1" }}>
                 <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 800, color: "#0f172a" }}>INDICATEURS</th>
@@ -667,13 +667,13 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 10, color: "#1e293b" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "#1e293b", lineHeight: 1.35 }}>
             {(data.points_cles && data.points_cles.filter(p => p && p.trim()).length > 0 
               ? data.points_cles.filter(p => p && p.trim()) 
               : getIntelligentKeyPoints(data, metrics)
             ).map((point, idx) => (
               <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                <CheckCircle2 size={12} color="#059669" style={{ marginTop: 1.5, flexShrink: 0 }} />
+                <CheckCircle2 size={13} color="#059669" style={{ marginTop: 2, flexShrink: 0 }} />
                 <span>{point}</span>
               </div>
             ))}
@@ -693,7 +693,7 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
         >
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
             <span style={{ fontSize: 13 }}>🎯</span>
-            <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.5, textTransform: "uppercase", color: "#ffffff" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 900, letterSpacing: 0.5, textTransform: "uppercase", color: "#ffffff" }}>
               PLAN D'ACTION — ON PASSE À L'ACTION !
             </span>
           </div>
@@ -710,7 +710,7 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
 
               if (actionsList.length === 0) {
                 return (
-                  <div style={{ fontSize: 10, color: "#94a3b8", fontStyle: "italic", padding: "6px 0" }}>
+                  <div style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", padding: "6px 0" }}>
                     Aucune action définie pour cette semaine.
                   </div>
                 );
@@ -720,12 +720,12 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                 <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div
                     style={{
-                      width: 18,
-                      height: 18,
+                      width: 19,
+                      height: 19,
                       borderRadius: "50%",
                       backgroundColor: "#ea580c",
                       color: "#ffffff",
-                      fontSize: 10,
+                      fontSize: 10.5,
                       fontWeight: 900,
                       display: "flex",
                       alignItems: "center",
@@ -735,7 +735,7 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                   >
                     {idx + 1}
                   </div>
-                  <span style={{ fontSize: 10, color: "#e2e8f0", fontWeight: 500 }}>
+                  <span style={{ fontSize: 11, color: "#e2e8f0", fontWeight: 500 }}>
                     {text}
                   </span>
                 </div>
@@ -782,10 +782,10 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
           </div>
 
           <div>
-            <div style={{ fontSize: 10.5, fontStyle: "italic", color: "#f1f5f9", lineHeight: 1.3 }}>
+            <div style={{ fontSize: 11, fontStyle: "italic", color: "#f1f5f9", lineHeight: 1.35 }}>
               « {data.verset_texte || "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi chacun travaillait d'une main, et de l'autre tenait son arme. Chacun bâtit à son endroit, et bâtit le mur."} »
             </div>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "#fbbf24", marginTop: 2 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 800, color: "#fbbf24", marginTop: 2 }}>
               {data.verset_ref || "Néhémie 4:11-12 (BDS)"}
             </div>
           </div>

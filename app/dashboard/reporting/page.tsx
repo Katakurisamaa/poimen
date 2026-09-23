@@ -9,7 +9,8 @@ import { getAttendanceStatus, usesExplicitAttendance } from "@/lib/attendance";
 import {
   Download, RefreshCw, Save, Check, AlertCircle, FileText,
   Calendar, Upload, Eye, Edit3, Church, Users,
-  ChevronLeft, ChevronRight, Bookmark
+  ChevronLeft, ChevronRight, Bookmark,
+  ZoomIn, ZoomOut, Maximize2, Minimize2, Expand, Image as ImageIcon, X
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -38,6 +39,10 @@ export default function ReportingPage() {
   const previewViewportRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
   const [previewHeight, setPreviewHeight] = useState(0);
+  const [downloadingImage, setDownloadingImage] = useState(false);
+  const [zoomMode, setZoomMode] = useState<"fit" | "full" | "custom">("fit");
+  const [customZoom, setCustomZoom] = useState(1);
+  const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
 
   // Helper to format French date for Sunday
   const formatFrenchDate = (dateStr: string) => {
@@ -556,14 +561,17 @@ export default function ReportingPage() {
     loadFamilyAndMemberStats();
   }, []);
 
+  const effectiveScale = zoomMode === "fit" ? previewScale : (zoomMode === "full" ? 1 : customZoom);
+
   useEffect(() => {
     if (activeTab !== "preview") return;
 
     const updatePreviewSize = () => {
       const viewportWidth = previewViewportRef.current?.clientWidth || 880;
-      const nextScale = Math.min(1, Math.max(0.25, (viewportWidth - 4) / 880));
+      const nextScale = Math.min(1, Math.max(0.25, (viewportWidth - 8) / 880));
       setPreviewScale(nextScale);
-      setPreviewHeight((reportRef.current?.offsetHeight || 0) * nextScale);
+      const currentScale = zoomMode === "fit" ? nextScale : (zoomMode === "full" ? 1 : customZoom);
+      setPreviewHeight((reportRef.current?.offsetHeight || 750) * currentScale);
     };
 
     updatePreviewSize();
@@ -571,7 +579,7 @@ export default function ReportingPage() {
     if (previewViewportRef.current) observer.observe(previewViewportRef.current);
     if (reportRef.current) observer.observe(reportRef.current);
     return () => observer.disconnect();
-  }, [activeTab]);
+  }, [activeTab, zoomMode, customZoom]);
 
   // Update date handler
   const handleDateChange = (newDate: string) => {
@@ -673,7 +681,7 @@ export default function ReportingPage() {
     }
   };
 
-  // Export to PDF
+  // Export to Full-Frame High-Definition PDF (snug fit without empty vertical white bands)
   const handleDownloadPdf = async () => {
     const printElement = document.getElementById("reporting-print-container") || reportRef.current;
     if (!printElement) {
@@ -685,25 +693,10 @@ export default function ReportingPage() {
 
     try {
       const dataUrl = await toPng(printElement, {
-        pixelRatio: 2,
+        pixelRatio: 2.5,
         backgroundColor: "#ffffff",
         cacheBust: true,
       });
-
-      // 2. Create PDF in Portrait A4 (210mm x 297mm)
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
-      const pdfWidth = 210;
-      const pdfHeight = 297;
-
-      // Clean margins
-      const margin = 5;
-      const availW = pdfWidth - margin * 2;
-      const availH = pdfHeight - margin * 2;
 
       // Wait for image dimensions
       const img = new Image();
@@ -713,28 +706,62 @@ export default function ReportingPage() {
         img.onerror = reject;
       });
 
-      // Scale to fit both width and height within available area
-      let printW = availW;
-      let printH = (img.height * printW) / img.width;
+      // Snug Full-Frame Landscape: 297mm base width (A4 landscape)
+      // Height is calculated proportionally to match the exact report aspect ratio
+      const targetW = 297;
+      const margin = 4;
+      const printW = targetW - margin * 2;
+      const printH = (img.height * printW) / img.width;
+      const targetH = Math.round(printH + margin * 2);
 
-      if (printH > availH) {
-        printH = availH;
-        printW = (img.width * printH) / img.height;
-      }
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: [targetW, targetH],
+      });
 
-      const leftOffset = margin + (availW - printW) / 2;
-      const topOffset = margin + (availH - printH) / 2;
-
-      pdf.addImage(dataUrl, "PNG", leftOffset, topOffset, printW, printH, undefined, "FAST");
+      pdf.addImage(dataUrl, "PNG", margin, margin, printW, printH, undefined, "FAST");
 
       const safeFamilyName = (formData.nom_famille || "Famille")
         .replace(/[^a-zA-Z0-9_-]/g, "_");
       pdf.save(`Rapport_FDD_${safeFamilyName}_${formData.date_rapport}.pdf`);
+      notify("Rapport PDF généré en plein cadre haute lisibilité !");
     } catch (err) {
       console.error("PDF generation error:", err);
       notify("Une erreur est survenue lors de la génération du PDF. Veuillez réessayer.");
     } finally {
       setDownloadingPdf(false);
+    }
+  };
+
+  // Export to HD PNG Image (ideal for direct WhatsApp and mobile sharing)
+  const handleDownloadImage = async () => {
+    const printElement = document.getElementById("reporting-print-container") || reportRef.current;
+    if (!printElement) {
+      notify("Erreur : le modèle de rapport n'a pas été trouvé.");
+      return;
+    }
+
+    setDownloadingImage(true);
+
+    try {
+      const dataUrl = await toPng(printElement, {
+        pixelRatio: 2.5,
+        backgroundColor: "#ffffff",
+        cacheBust: true,
+      });
+
+      const safeFamilyName = (formData.nom_famille || "Famille").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const link = document.createElement("a");
+      link.download = `Rapport_FDD_${safeFamilyName}_${formData.date_rapport}.png`;
+      link.href = dataUrl;
+      link.click();
+      notify("Image HD générée avec succès pour partage WhatsApp !");
+    } catch (err) {
+      console.error("Image generation error:", err);
+      notify("Une erreur est survenue lors de la génération de l'image.");
+    } finally {
+      setDownloadingImage(false);
     }
   };
 
@@ -859,9 +886,21 @@ export default function ReportingPage() {
             disabled={downloadingPdf}
             className="btn btn-primary"
             style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+            title="Télécharger le rapport officiel au format PDF"
           >
             <Download size={15} />
             {downloadingPdf ? "Génération PDF..." : "Télécharger en PDF"}
+          </button>
+
+          <button
+            onClick={handleDownloadImage}
+            disabled={downloadingImage}
+            className="btn btn-outline"
+            style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, borderColor: "rgba(212, 175, 55, 0.4)" }}
+            title="Télécharger une image HD (PNG) prête pour WhatsApp"
+          >
+            <ImageIcon size={15} color="var(--gold)" />
+            {downloadingImage ? "Génération image..." : "Image HD (WhatsApp)"}
           </button>
         </div>
       </div>
@@ -1453,26 +1492,164 @@ export default function ReportingPage() {
         </div>
       )}
 
-      {/* ── PREVIEW BANNER (when on preview tab) ── */}
+      {/* ── PREVIEW BANNER & INTERACTIVE ZOOM TOOLBAR (when on preview tab) ── */}
       {activeTab === "preview" && (
-        <div className="reporting-preview-banner-wrap" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, marginBottom: 16 }}>
+        <div className="reporting-preview-banner-wrap" style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+          {/* Main Toolbar */}
           <div
-            className="reporting-preview-banner"
+            className="reporting-preview-toolbar glass-card"
             style={{
               padding: "10px 16px",
-              backgroundColor: "rgba(212, 175, 55, 0.1)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+              borderRadius: "12px",
+              background: "linear-gradient(135deg, rgba(18, 12, 38, 0.95) 0%, rgba(10, 6, 22, 0.98) 100%)",
               border: "1px solid rgba(212, 175, 55, 0.3)",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            }}
+          >
+            {/* Left: View Mode Toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600, marginRight: 2 }}>
+                Affichage :
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoomMode("fit")}
+                className={`btn btn-sm ${zoomMode === "fit" ? "btn-primary" : "btn-outline"}`}
+                style={{ fontSize: 12, padding: "5px 10px", display: "flex", alignItems: "center", gap: 5 }}
+                title="Ajuster à la largeur de l'écran (vue globale)"
+              >
+                <Minimize2 size={13} />
+                Ajuster
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setZoomMode("full");
+                  setCustomZoom(1);
+                }}
+                className={`btn btn-sm ${zoomMode === "full" ? "btn-primary" : "btn-outline"}`}
+                style={{ fontSize: 12, padding: "5px 12px", display: "flex", alignItems: "center", gap: 5, fontWeight: 700 }}
+                title="Afficher en taille réelle 100% (grand et net sur mobile avec défilement)"
+              >
+                <Maximize2 size={13} />
+                100% Lisible
+              </button>
+            </div>
+
+            {/* Center: Zoom Stepper */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: "rgba(255,255,255,0.05)",
+                padding: "3px 8px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setZoomMode("custom");
+                  setCustomZoom((prev) => Math.max(0.35, Number((prev - 0.15).toFixed(2))));
+                }}
+                className="btn btn-ghost btn-sm"
+                style={{ padding: "4px 6px", height: 26, minWidth: 26, color: "var(--cream)" }}
+                title="Dézoomer"
+              >
+                <ZoomOut size={14} />
+              </button>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 800,
+                  color: "var(--gold)",
+                  minWidth: 46,
+                  textAlign: "center",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {Math.round(effectiveScale * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setZoomMode("custom");
+                  setCustomZoom((prev) => Math.min(1.8, Number((prev + 0.15).toFixed(2))));
+                }}
+                className="btn btn-ghost btn-sm"
+                style={{ padding: "4px 6px", height: 26, minWidth: 26, color: "var(--cream)" }}
+                title="Zoomer"
+              >
+                <ZoomIn size={14} />
+              </button>
+            </div>
+
+            {/* Right: Fullscreen & Quick Export */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomZoom(1);
+                  setIsFullscreenPreview(true);
+                }}
+                className="btn btn-outline btn-sm"
+                style={{ fontSize: 12, padding: "5px 11px", display: "flex", alignItems: "center", gap: 5 }}
+                title="Ouvrir le rapport en visionneuse plein écran"
+              >
+                <Expand size={13} />
+                Plein écran
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={downloadingPdf}
+                className="btn btn-primary btn-sm"
+                style={{ fontSize: 12, padding: "5px 12px", display: "flex", alignItems: "center", gap: 5 }}
+              >
+                <Download size={13} />
+                PDF HD
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadImage}
+                disabled={downloadingImage}
+                className="btn btn-outline btn-sm"
+                style={{ fontSize: 12, padding: "5px 10px", borderColor: "rgba(212,175,55,0.4)" }}
+                title="Exporter l'image HD pour WhatsApp"
+              >
+                <ImageIcon size={13} color="var(--gold)" />
+              </button>
+            </div>
+          </div>
+
+          {/* Helper hint for mobile devices */}
+          <div
+            style={{
+              padding: "7px 14px",
+              backgroundColor: "rgba(212, 175, 55, 0.08)",
+              border: "1px dashed rgba(212, 175, 55, 0.25)",
               borderRadius: "8px",
-              fontSize: 13,
+              fontSize: 12,
               color: "var(--gold-light)",
               display: "flex",
               alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
               gap: 8,
             }}
           >
-            <FileText size={16} />
             <span>
-              Aperçu officiel du rapport. Cliquez sur <strong>« Télécharger en PDF »</strong> pour générer le document à transmettre à la hiérarchie pastorale.
+              💡 <strong>Astuce mobile :</strong> Activez <strong>« 100% Lisible »</strong> pour lire chaque chiffre en grand et balayez avec le doigt de gauche à droite.
+            </span>
+            <span style={{ fontSize: 11, color: "var(--muted)" }}>
+              Le PDF téléchargé s'affiche automatiquement en grand format plein écran sans bandes blanches.
             </span>
           </div>
         </div>
@@ -1486,11 +1663,14 @@ export default function ReportingPage() {
           activeTab === "preview"
             ? {
                 width: "100%",
-                overflow: "hidden",
-                padding: "10px 0 30px",
+                overflowX: effectiveScale >= 0.75 || zoomMode === "full" ? "auto" : "hidden",
+                overflowY: "visible",
+                padding: "16px 0 40px",
                 display: "flex",
-                justifyContent: "center",
-                height: previewHeight ? previewHeight + 40 : undefined,
+                justifyContent: effectiveScale < 0.95 && zoomMode === "fit" ? "center" : "flex-start",
+                WebkitOverflowScrolling: "touch",
+                height: previewHeight ? previewHeight + 50 : undefined,
+                borderRadius: "14px",
               }
             : {
                 position: "fixed",
@@ -1507,14 +1687,143 @@ export default function ReportingPage() {
           className="reporting-preview-stage"
           style={{
             width: 880,
+            minWidth: 880,
             flex: "0 0 880px",
-            transform: activeTab === "preview" ? `scale(${previewScale})` : undefined,
-            transformOrigin: "top center",
+            transform: activeTab === "preview" ? `scale(${effectiveScale})` : undefined,
+            transformOrigin: effectiveScale < 0.95 && zoomMode === "fit" ? "top center" : "top left",
+            margin: effectiveScale < 0.95 && zoomMode === "fit" ? "0 auto" : "0 8px",
+            transition: "transform 0.15s ease-out",
           }}
         >
           <ReportingTemplate data={formData} containerRef={reportRef} />
         </div>
       </div>
+
+      {/* ── FULLSCREEN MODAL VIEWER ── */}
+      {isFullscreenPreview && (
+        <div
+          className="modal-overlay"
+          style={{
+            zIndex: 100000,
+            backgroundColor: "rgba(3, 2, 8, 0.95)",
+            backdropFilter: "blur(14px)",
+            padding: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Top Fullscreen Header */}
+          <div
+            style={{
+              width: "100%",
+              padding: "12px 20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              backgroundColor: "rgba(10, 6, 22, 0.95)",
+              borderBottom: "1px solid rgba(212, 175, 55, 0.25)",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--cream)" }}>
+              <FileText size={18} color="var(--gold)" />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>
+                Visionneuse Plein Écran • {formData.nom_famille}
+              </span>
+              <span style={{ fontSize: 12, color: "var(--gold)", fontWeight: 700 }}>
+                ({Math.round(customZoom * 100)}%)
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setCustomZoom((prev) => Math.max(0.4, Number((prev - 0.15).toFixed(2))))}
+                className="btn btn-outline btn-sm"
+                style={{ padding: "6px 10px" }}
+                title="Dézoomer"
+              >
+                <ZoomOut size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCustomZoom(1)}
+                className="btn btn-outline btn-sm"
+                style={{ padding: "6px 12px", fontSize: 12, fontWeight: 700 }}
+              >
+                100%
+              </button>
+              <button
+                type="button"
+                onClick={() => setCustomZoom((prev) => Math.min(2.0, Number((prev + 0.15).toFixed(2))))}
+                className="btn btn-outline btn-sm"
+                style={{ padding: "6px 10px" }}
+                title="Zoomer"
+              >
+                <ZoomIn size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={downloadingPdf}
+                className="btn btn-primary btn-sm"
+                style={{ padding: "6px 14px", display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <Download size={14} />
+                PDF HD
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadImage}
+                disabled={downloadingImage}
+                className="btn btn-outline btn-sm"
+                style={{ padding: "6px 14px", display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <ImageIcon size={14} />
+                Image HD
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFullscreenPreview(false)}
+                className="btn-icon"
+                style={{ marginLeft: 6, color: "var(--cream)", padding: "4px" }}
+                title="Fermer la visionneuse"
+              >
+                <X size={22} />
+              </button>
+            </div>
+          </div>
+
+          {/* Fullscreen Scrollable Area */}
+          <div
+            style={{
+              flex: 1,
+              width: "100%",
+              overflow: "auto",
+              padding: "24px 16px 40px",
+              display: "flex",
+              justifyContent: customZoom <= 1 ? "center" : "flex-start",
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
+            <div
+              style={{
+                width: 880,
+                minWidth: 880,
+                flex: "0 0 880px",
+                transform: `scale(${customZoom})`,
+                transformOrigin: customZoom <= 1 ? "top center" : "top left",
+                margin: customZoom <= 1 ? "0 auto" : "0 16px",
+                boxShadow: "0 25px 70px rgba(0,0,0,0.8)",
+                borderRadius: "6px",
+              }}
+            >
+              <ReportingTemplate data={formData} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
