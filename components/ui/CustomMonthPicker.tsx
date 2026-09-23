@@ -54,7 +54,7 @@ export default function CustomMonthPicker({
 
   // Mobile viewport detection
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 640);
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);

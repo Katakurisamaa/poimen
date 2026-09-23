@@ -132,7 +132,7 @@
 }
 
 /* Mobile modal sheet */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .dropdownMobile {
     position: fixed;
     top: auto;

@@ -1036,23 +1036,30 @@ export default function ActivitiesPage() {
           )}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {!(activeTab === "attendance" && attendanceViewMode === "by-year") ? (
-            <CustomMonthPicker
-              value={`${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`}
-              onChange={(ym) => {
-                const [y, m] = ym.split("-").map(Number);
-                setSelectedYear(y);
-                setSelectedMonth(m - 1);
-              }}
-            />
-          ) : (
-            <CustomSelect
-              value={String(selectedYear)}
-              onChange={(val) => setSelectedYear(parseInt(val, 10))}
-              options={yearsRange.map(y => ({ value: String(y), label: String(y) }))}
-            />
-          )}
+        <div className="activity-period-bar">
+          <span className="activity-period-label">
+            <Calendar size={14} style={{ color: "var(--gold)" }} /> Période :
+          </span>
+          <div className="activity-period-picker-container">
+            {!(activeTab === "attendance" && attendanceViewMode === "by-year") ? (
+              <CustomMonthPicker
+                className="activity-period-custom-picker"
+                value={`${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`}
+                onChange={(ym) => {
+                  const [y, m] = ym.split("-").map(Number);
+                  setSelectedYear(y);
+                  setSelectedMonth(m - 1);
+                }}
+              />
+            ) : (
+              <CustomSelect
+                className="activity-period-custom-picker"
+                value={String(selectedYear)}
+                onChange={(val) => setSelectedYear(parseInt(val, 10))}
+                options={yearsRange.map(y => ({ value: String(y), label: String(y) }))}
+              />
+            )}
+          </div>
         </div>
       </div>
 

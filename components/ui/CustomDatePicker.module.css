@@ -81,7 +81,7 @@
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(212, 175, 55, 0.2);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .calendarMobile {
     position: fixed;
     top: auto;

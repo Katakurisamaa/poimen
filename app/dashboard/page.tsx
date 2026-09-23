@@ -1641,10 +1641,10 @@ export default function DashboardPage() {
                       value={selectedLeaderEmail}
                       onChange={setSelectedLeaderEmail}
                       placeholder="Sélectionnez votre Nom + Prénom…"
+                      searchable={familyLeaders.length >= 8}
                       options={familyLeaders.map(m => ({
                         value: m.email,
                         label: `${m.civility || ""} ${m.first_name} ${m.last_name}`.trim(),
-                        sublabel: m.email,
                         badge: m.role || undefined
                       }))}
                     />
