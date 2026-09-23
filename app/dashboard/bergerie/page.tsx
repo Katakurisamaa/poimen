@@ -1192,77 +1192,119 @@ function BergeriePage() {
             {/* 1. Baptisé */}
             <div>
               <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Baptisé(e)</label>
-              <select className="input" value={filterBaptise} onChange={e => setFilterBaptise(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
-                <option value="all">Tous</option>
-                <option value="yes">Oui</option>
-                <option value="no">Non</option>
-              </select>
+              <CustomSelect
+                size="sm"
+                value={filterBaptise}
+                onChange={setFilterBaptise}
+                searchable={false}
+                options={[
+                  { value: "all", label: "Tous" },
+                  { value: "yes", label: "Oui" },
+                  { value: "no", label: "Non" }
+                ]}
+              />
             </div>
 
             {/* 2. P.C.N.C (formations) */}
             <div>
               <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>P.C.N.C</label>
-              <select className="input" value={filterPCNC} onChange={e => setFilterPCNC(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
-                <option value="all">Toutes</option>
-                <option value="001">Classe 001</option>
-                <option value="101">Classe 101</option>
-                <option value="201">Classe 201</option>
-                <option value="301">Classe 301</option>
-                <option value="none">Aucune</option>
-              </select>
+              <CustomSelect
+                size="sm"
+                value={filterPCNC}
+                onChange={setFilterPCNC}
+                searchable={false}
+                options={[
+                  { value: "all", label: "Toutes" },
+                  { value: "001", label: "Classe 001" },
+                  { value: "101", label: "Classe 101" },
+                  { value: "201", label: "Classe 201" },
+                  { value: "301", label: "Classe 301" },
+                  { value: "none", label: "Aucune" }
+                ]}
+              />
             </div>
 
             {/* 3. Date d'entrée (juste le mois) */}
             <div>
               <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Mois d'entrée</label>
-              <select className="input" value={filterEntreeMois} onChange={e => setFilterEntreeMois(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
-                <option value="all">Tous</option>
-                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                  <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>
-                ))}
-              </select>
+              <CustomSelect
+                size="sm"
+                value={filterEntreeMois}
+                onChange={setFilterEntreeMois}
+                searchable={false}
+                options={[
+                  { value: "all", label: "Tous les mois" },
+                  ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                    value: String(i + 1).padStart(2, '0'),
+                    label: m
+                  }))
+                ]}
+              />
             </div>
 
             {/* 4. Anniversaire (juste le mois) */}
             <div>
               <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Mois d'anniv.</label>
-              <select className="input" value={filterAnnivMois} onChange={e => setFilterAnnivMois(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
-                <option value="all">Tous</option>
-                {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                  <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>
-                ))}
-              </select>
+              <CustomSelect
+                size="sm"
+                value={filterAnnivMois}
+                onChange={setFilterAnnivMois}
+                searchable={false}
+                options={[
+                  { value: "all", label: "Tous les mois" },
+                  ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                    value: String(i + 1).padStart(2, '0'),
+                    label: m
+                  }))
+                ]}
+              />
             </div>
 
             {/* 5. S.T.A.R */}
             <div>
               <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>S.T.A.R</label>
-              <select className="input" value={filterStar} onChange={e => setFilterStar(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
-                <option value="all">Tous</option>
-                <option value="yes">Oui</option>
-                <option value="no">Non</option>
-              </select>
+              <CustomSelect
+                size="sm"
+                value={filterStar}
+                onChange={setFilterStar}
+                searchable={false}
+                options={[
+                  { value: "all", label: "Tous" },
+                  { value: "yes", label: "Oui" },
+                  { value: "no", label: "Non" }
+                ]}
+              />
             </div>
 
             {/* 6. C.D.M */}
             <div>
               <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Est dans une C.D.M</label>
-              <select className="input" value={filterCDM} onChange={e => setFilterCDM(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
-                <option value="all">Tous</option>
-                <option value="yes">Oui</option>
-                <option value="no">Non</option>
-              </select>
+              <CustomSelect
+                size="sm"
+                value={filterCDM}
+                onChange={setFilterCDM}
+                searchable={false}
+                options={[
+                  { value: "all", label: "Tous" },
+                  { value: "yes", label: "Oui" },
+                  { value: "no", label: "Non" }
+                ]}
+              />
             </div>
 
             {/* 7. Profession */}
             <div>
               <label className="label" style={{ marginBottom: 4, fontSize: 10 }}>Profession</label>
-              <select className="input" value={filterProfession} onChange={e => setFilterProfession(e.target.value)} style={{ fontSize: 11, height: 36, padding: "0 8px" }}>
-                <option value="all">Toutes</option>
-                {uniqueProfessions.map((p: string) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
+              <CustomSelect
+                size="sm"
+                value={filterProfession}
+                onChange={setFilterProfession}
+                searchable={true}
+                options={[
+                  { value: "all", label: "Toutes les professions" },
+                  ...uniqueProfessions.map((p: string) => ({ value: p, label: p }))
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -1303,22 +1345,15 @@ function BergeriePage() {
                           {m.is_conseiller && (
                             <div style={{ fontSize: 8, padding: "2px 6px", borderRadius: 4, background: "rgba(91,168,224,0.15)", color: "var(--sky)", fontWeight: 700, letterSpacing: 0.5 }}>CONSEILLER</div>
                           )}
-                          <select 
-                            value={m.status} 
-                            onChange={(e) => updateStatus(m.id, e.target.value)}
+                          <CustomSelect
+                            size="sm"
+                            style={{ width: 125 }}
+                            value={m.status}
+                            onChange={(val) => updateStatus(m.id, val)}
                             disabled={!isLeader}
-                            className="input"
-                            style={{ 
-                              width: "auto",
-                              fontSize: 10, 
-                              padding: "2px 4px", 
-                              height: 24,
-                              opacity: isLeader ? 1 : 0.6,
-                              cursor: isLeader ? "pointer" : "default"
-                            }}
-                          >
-                            {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
+                            searchable={false}
+                            options={STATUS_OPTIONS.map(opt => ({ value: opt, label: opt }))}
+                          />
                         </div>
                       </td>
                       <td className="hide-mobile" style={{ color:"var(--muted)" }}>{m.age}</td>
@@ -1590,64 +1625,42 @@ function BergeriePage() {
                   <th style={{ minWidth: 140 }}>Téléphone</th>
 
                   {/* Date d'entrée avec filtre mois */}
-                  <th style={{ minWidth: 140 }}>
+                  <th style={{ minWidth: 160 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <span>Date d'entrée</span>
-                      <select
+                      <CustomSelect
+                        size="sm"
+                        style={{ width: 110 }}
                         value={filterEntreeMois}
-                        onChange={(e) => setFilterEntreeMois(e.target.value)}
-                        style={{
-                          fontSize: 10,
-                          padding: "2px 4px",
-                          borderRadius: 4,
-                          background: filterEntreeMois !== "all" ? "var(--gold)" : "var(--card)",
-                          color: filterEntreeMois !== "all" ? "var(--bg)" : "var(--gold)",
-                          border: `1px solid ${filterEntreeMois !== "all" ? "var(--gold)" : "var(--border)"}`,
-                          fontWeight: 700,
-                          cursor: "pointer"
-                        }}
-                        title="Filtrer par mois d'entrée"
-                      >
-                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Mois (Tous)</option>
-                        <option value="01" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Janvier</option>
-                        <option value="02" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Février</option>
-                        <option value="03" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Mars</option>
-                        <option value="04" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Avril</option>
-                        <option value="05" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Mai</option>
-                        <option value="06" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Juin</option>
-                        <option value="07" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Juillet</option>
-                        <option value="08" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Août</option>
-                        <option value="09" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Septembre</option>
-                        <option value="10" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Octobre</option>
-                        <option value="11" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Novembre</option>
-                        <option value="12" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Décembre</option>
-                      </select>
+                        onChange={setFilterEntreeMois}
+                        searchable={false}
+                        options={[
+                          { value: "all", label: "Mois (Tous)" },
+                          ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                            value: String(i + 1).padStart(2, '0'),
+                            label: m
+                          }))
+                        ]}
+                      />
                     </div>
                   </th>
 
                   {/* Est Baptisé avec filtre Oui/Non */}
-                  <th style={{ minWidth: 120 }}>
+                  <th style={{ minWidth: 140 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <span>Est Baptisé</span>
-                      <select
+                      <CustomSelect
+                        size="sm"
+                        style={{ width: 85 }}
                         value={filterBaptise}
-                        onChange={(e) => setFilterBaptise(e.target.value)}
-                        style={{
-                          fontSize: 10,
-                          padding: "2px 4px",
-                          borderRadius: 4,
-                          background: filterBaptise !== "all" ? "var(--gold)" : "var(--card)",
-                          color: filterBaptise !== "all" ? "var(--bg)" : "var(--gold)",
-                          border: `1px solid ${filterBaptise !== "all" ? "var(--gold)" : "var(--border)"}`,
-                          fontWeight: 700,
-                          cursor: "pointer"
-                        }}
-                        title="Filtrer par Baptême"
-                      >
-                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
-                        <option value="yes" style={{ background: "var(--surface-solid)", color: "var(--green)" }}>Oui</option>
-                        <option value="no" style={{ background: "var(--surface-solid)", color: "var(--red)" }}>Non</option>
-                      </select>
+                        onChange={setFilterBaptise}
+                        searchable={false}
+                        options={[
+                          { value: "all", label: "Tous" },
+                          { value: "yes", label: "Oui" },
+                          { value: "no", label: "Non" }
+                        ]}
+                      />
                     </div>
                   </th>
 
@@ -1655,55 +1668,39 @@ function BergeriePage() {
                   <th style={{ minWidth: 200 }}>Commentaire Baptême (Raison)</th>
 
                   {/* C.D.M avec filtre Oui/Non */}
-                  <th style={{ minWidth: 110 }}>
+                  <th style={{ minWidth: 130 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <span>C.D.M</span>
-                      <select
+                      <CustomSelect
+                        size="sm"
+                        style={{ width: 85 }}
                         value={filterCDM}
-                        onChange={(e) => setFilterCDM(e.target.value)}
-                        style={{
-                          fontSize: 10,
-                          padding: "2px 4px",
-                          borderRadius: 4,
-                          background: filterCDM !== "all" ? "var(--gold)" : "var(--card)",
-                          color: filterCDM !== "all" ? "var(--bg)" : "var(--gold)",
-                          border: `1px solid ${filterCDM !== "all" ? "var(--gold)" : "var(--border)"}`,
-                          fontWeight: 700,
-                          cursor: "pointer"
-                        }}
-                        title="Filtrer par C.D.M"
-                      >
-                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
-                        <option value="yes" style={{ background: "var(--surface-solid)", color: "var(--green)" }}>Oui</option>
-                        <option value="no" style={{ background: "var(--surface-solid)", color: "var(--red)" }}>Non</option>
-                      </select>
+                        onChange={setFilterCDM}
+                        searchable={false}
+                        options={[
+                          { value: "all", label: "Tous" },
+                          { value: "yes", label: "Oui" },
+                          { value: "no", label: "Non" }
+                        ]}
+                      />
                     </div>
                   </th>
 
                   {/* Pilote CDM avec filtre liste des pilotes */}
-                  <th style={{ minWidth: 160 }}>
+                  <th style={{ minWidth: 180 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <span>Pilote CDM</span>
-                      <select
+                      <CustomSelect
+                        size="sm"
+                        style={{ width: 120 }}
                         value={filterPilote}
-                        onChange={(e) => setFilterPilote(e.target.value)}
-                        style={{
-                          fontSize: 10,
-                          padding: "2px 4px",
-                          borderRadius: 4,
-                          background: filterPilote !== "all" ? "var(--gold)" : "var(--card)",
-                          color: filterPilote !== "all" ? "var(--bg)" : "var(--gold)",
-                          border: `1px solid ${filterPilote !== "all" ? "var(--gold)" : "var(--border)"}`,
-                          fontWeight: 700,
-                          cursor: "pointer"
-                        }}
-                        title="Filtrer par Pilote CDM"
-                      >
-                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
-                        {uniquePilotes.map(p => (
-                          <option key={p} value={p} style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>{p}</option>
-                        ))}
-                      </select>
+                        onChange={setFilterPilote}
+                        searchable={true}
+                        options={[
+                          { value: "all", label: "Tous" },
+                          ...uniquePilotes.map(p => ({ value: p, label: p }))
+                        ]}
+                      />
                     </div>
                   </th>
 
@@ -1711,31 +1708,24 @@ function BergeriePage() {
                   <th style={{ minWidth: 200 }}>Commentaire CDM (Raison)</th>
 
                   {/* P.C.N.C avec filtre formations */}
-                  <th style={{ minWidth: 180 }}>
+                  <th style={{ minWidth: 160 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <span>P.C.N.C</span>
-                      <select
+                      <CustomSelect
+                        size="sm"
+                        style={{ width: 95 }}
                         value={filterPCNC}
-                        onChange={(e) => setFilterPCNC(e.target.value)}
-                        style={{
-                          fontSize: 10,
-                          padding: "2px 4px",
-                          borderRadius: 4,
-                          background: filterPCNC !== "all" ? "var(--gold)" : "var(--card)",
-                          color: filterPCNC !== "all" ? "var(--bg)" : "var(--gold)",
-                          border: `1px solid ${filterPCNC !== "all" ? "var(--gold)" : "var(--border)"}`,
-                          fontWeight: 700,
-                          cursor: "pointer"
-                        }}
-                        title="Filtrer par Formation PCNC"
-                      >
-                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
-                        <option value="none" style={{ background: "var(--surface-solid)", color: "var(--orange)" }}>Aucune</option>
-                        <option value="001" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>001</option>
-                        <option value="101" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>101</option>
-                        <option value="201" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>201</option>
-                        <option value="301" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>301</option>
-                      </select>
+                        onChange={setFilterPCNC}
+                        searchable={false}
+                        options={[
+                          { value: "all", label: "Tous" },
+                          { value: "none", label: "Aucune" },
+                          { value: "001", label: "001" },
+                          { value: "101", label: "101" },
+                          { value: "201", label: "201" },
+                          { value: "301", label: "301" }
+                        ]}
+                      />
                     </div>
                   </th>
 
@@ -1743,55 +1733,39 @@ function BergeriePage() {
                   <th style={{ minWidth: 200 }}>Commentaire PCNC (Raison)</th>
 
                   {/* Est S.T.A.R avec filtre Oui/Non */}
-                  <th style={{ minWidth: 120 }}>
+                  <th style={{ minWidth: 140 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <span>Est S.T.A.R</span>
-                      <select
+                      <CustomSelect
+                        size="sm"
+                        style={{ width: 85 }}
                         value={filterStar}
-                        onChange={(e) => setFilterStar(e.target.value)}
-                        style={{
-                          fontSize: 10,
-                          padding: "2px 4px",
-                          borderRadius: 4,
-                          background: filterStar !== "all" ? "var(--gold)" : "var(--card)",
-                          color: filterStar !== "all" ? "var(--bg)" : "var(--gold)",
-                          border: `1px solid ${filterStar !== "all" ? "var(--gold)" : "var(--border)"}`,
-                          fontWeight: 700,
-                          cursor: "pointer"
-                        }}
-                        title="Filtrer par STAR"
-                      >
-                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
-                        <option value="yes" style={{ background: "var(--surface-solid)", color: "var(--sky)" }}>Oui</option>
-                        <option value="no" style={{ background: "var(--surface-solid)", color: "var(--red)" }}>Non</option>
-                      </select>
+                        onChange={setFilterStar}
+                        searchable={false}
+                        options={[
+                          { value: "all", label: "Tous" },
+                          { value: "yes", label: "Oui" },
+                          { value: "no", label: "Non" }
+                        ]}
+                      />
                     </div>
                   </th>
 
                   {/* Département S.T.A.R avec filtre liste départements */}
-                  <th style={{ minWidth: 160 }}>
+                  <th style={{ minWidth: 190 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                       <span>Département S.T.A.R</span>
-                      <select
+                      <CustomSelect
+                        size="sm"
+                        style={{ width: 130 }}
                         value={filterDeptStar}
-                        onChange={(e) => setFilterDeptStar(e.target.value)}
-                        style={{
-                          fontSize: 10,
-                          padding: "2px 4px",
-                          borderRadius: 4,
-                          background: filterDeptStar !== "all" ? "var(--gold)" : "var(--card)",
-                          color: filterDeptStar !== "all" ? "var(--bg)" : "var(--gold)",
-                          border: `1px solid ${filterDeptStar !== "all" ? "var(--gold)" : "var(--border)"}`,
-                          fontWeight: 700,
-                          cursor: "pointer"
-                        }}
-                        title="Filtrer par Département STAR"
-                      >
-                        <option value="all" style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>Tous</option>
-                        {uniqueDeptStars.map(d => (
-                          <option key={d} value={d} style={{ background: "var(--surface-solid)", color: "var(--cream)" }}>{d}</option>
-                        ))}
-                      </select>
+                        onChange={setFilterDeptStar}
+                        searchable={true}
+                        options={[
+                          { value: "all", label: "Tous" },
+                          ...uniqueDeptStars.map(d => ({ value: d, label: d }))
+                        ]}
+                      />
                     </div>
                   </th>
 
@@ -2145,11 +2119,16 @@ function BergeriePage() {
               <div className="form-grid-3">
                 <div>
                   <label className="label">Civilité</label>
-                  <select className="input" value={newMember.civility} onChange={e => setNewMember({...newMember, civility: e.target.value})}>
-                    <option value="M.">M.</option>
-                    <option value="Mme.">Mme.</option>
-                    <option value="Mlle.">Mlle.</option>
-                  </select>
+                  <CustomSelect
+                    value={newMember.civility || "M."}
+                    onChange={val => setNewMember({...newMember, civility: val})}
+                    searchable={false}
+                    options={[
+                      { value: "M.", label: "M." },
+                      { value: "Mme.", label: "Mme." },
+                      { value: "Mlle.", label: "Mlle." }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="label">Prénom</label>
@@ -2174,16 +2153,21 @@ function BergeriePage() {
                 </div>
                 <div>
                   <label className="label">Âge</label>
-                  <select className="input" value={newMember.age} onChange={e => setNewMember({...newMember, age: e.target.value})}>
-                    <option value="Moins de 18 ans">Moins de 18 ans</option>
-                    <option value="18-25 ans">18-25 ans</option>
-                    <option value="26-30 ans">26-30 ans</option>
-                    <option value="31-35 ans">31-35 ans</option>
-                    <option value="36-40 ans">36-40 ans</option>
-                    <option value="41-45 ans">41-45 ans</option>
-                    <option value="46-50 ans">46-50 ans</option>
-                    <option value="Plus de 50 ans">Plus de 50 ans</option>
-                  </select>
+                  <CustomSelect
+                    value={newMember.age || "26-30 ans"}
+                    onChange={val => setNewMember({...newMember, age: val})}
+                    searchable={false}
+                    options={[
+                      { value: "Moins de 18 ans", label: "Moins de 18 ans" },
+                      { value: "18-25 ans", label: "18-25 ans" },
+                      { value: "26-30 ans", label: "26-30 ans" },
+                      { value: "31-35 ans", label: "31-35 ans" },
+                      { value: "36-40 ans", label: "36-40 ans" },
+                      { value: "41-45 ans", label: "41-45 ans" },
+                      { value: "46-50 ans", label: "46-50 ans" },
+                      { value: "Plus de 50 ans", label: "Plus de 50 ans" }
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -2211,14 +2195,19 @@ function BergeriePage() {
               <div className="form-grid-2">
                 <div>
                   <label className="label">État Civil</label>
-                  <select className="input" value={newMember.etat_civil || "Célibataire"} onChange={e => setNewMember({...newMember, etat_civil: e.target.value})}>
-                    <option value="Célibataire">Célibataire</option>
-                    <option value="Marié(e)">Marié(e)</option>
-                    <option value="En couple">En couple</option>
-                    <option value="Séparé(e)">Séparé(e)</option>
-                    <option value="Veuf(ve)">Veuf(ve)</option>
-                    <option value="Divorcé(e)">Divorcé(e)</option>
-                  </select>
+                  <CustomSelect
+                    value={newMember.etat_civil || "Célibataire"}
+                    onChange={val => setNewMember({...newMember, etat_civil: val})}
+                    searchable={false}
+                    options={[
+                      { value: "Célibataire", label: "Célibataire" },
+                      { value: "Marié(e)", label: "Marié(e)" },
+                      { value: "En couple", label: "En couple" },
+                      { value: "Séparé(e)", label: "Séparé(e)" },
+                      { value: "Veuf(ve)", label: "Veuf(ve)" },
+                      { value: "Divorcé(e)", label: "Divorcé(e)" }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="label">Anniversaire (JJ/MM)</label>
@@ -2462,12 +2451,19 @@ function BergeriePage() {
                       ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
                           <label className="label">SÉLECTIONNER UN MEMBRE ACTIF</label>
-                          <select className="input" value={selectedConseillerId} onChange={e => setSelectedConseillerId(e.target.value)}>
-                            <option value="">-- Choisir --</option>
-                            {potentialConseillers.map(c => (
-                              <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.status})</option>
-                            ))}
-                          </select>
+                          <CustomSelect
+                            value={selectedConseillerId}
+                            onChange={setSelectedConseillerId}
+                            searchable={true}
+                            placeholder="-- Choisir un membre --"
+                            options={[
+                              { value: "", label: "-- Choisir --" },
+                              ...potentialConseillers.map(c => ({
+                                value: c.id,
+                                label: `${c.firstName} ${c.lastName} (${c.status})`
+                              }))
+                            ]}
+                          />
                         </div>
                       )}
                       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -2492,10 +2488,15 @@ function BergeriePage() {
                       <div className="form-grid-3" style={{ marginBottom: 12 }}>
                         <div>
                           <label className="label">CIV.</label>
-                          <select className="input" value={newMember.civility} onChange={e => setNewMember({...newMember, civility: e.target.value})}>
-                            <option value="M.">M.</option>
-                            <option value="Mme.">Mme.</option>
-                          </select>
+                          <CustomSelect
+                            value={newMember.civility || "M."}
+                            onChange={val => setNewMember({...newMember, civility: val})}
+                            searchable={false}
+                            options={[
+                              { value: "M.", label: "M." },
+                              { value: "Mme.", label: "Mme." }
+                            ]}
+                          />
                         </div>
                         <div>
                           <label className="label">PRÉNOM</label>
