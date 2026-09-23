@@ -19,6 +19,7 @@ import { getIntegrationDropdownList } from "@/app/actions/auth";
 import { getMonthWeeks, getNextWeekPeriod } from "@/lib/planning-dates";
 import styles from "@/components/integration/PlanningIntegration.module.css";
 import IntegrationSubNav from "@/components/integration/IntegrationSubNav";
+import CustomMonthPicker from "@/components/ui/CustomMonthPicker";
 
 // Empty default – weeks are always auto-generated (never pre-filled)
 const buildDefaultData = (
@@ -85,7 +86,7 @@ function ClearableInput({
 }
 
 export default function PlanningIntegrationPage() {
-  const { notify } = useFeedback();
+  const { notify, confirm } = useFeedback();
   const reportRef = useRef<HTMLDivElement>(null);
 
   const [church, setChurch] = useState<any>(null);
@@ -216,8 +217,9 @@ export default function PlanningIntegrationPage() {
   };
 
   // Reset current month to empty weeks (clears localStorage)
-  const handleReset = () => {
-    if (!window.confirm(`Réinitialiser le planning de ce mois ? Toutes les affectations seront effacées.`)) return;
+  const handleReset = async () => {
+    const ok = await confirm("Réinitialiser le planning de ce mois ? Toutes les affectations seront effacées.");
+    if (!ok) return;
     const churchId = church?.id || "default";
     const localKey = `poimen_planning_integration_${churchId}_${selectedMonth}`;
     localStorage.removeItem(localKey);
@@ -491,15 +493,10 @@ export default function PlanningIntegrationPage() {
         {/* Toolbar */}
         <div className={styles.actionsToolbar}>
           {/* Month Picker */}
-          <div className={styles.monthInputWrapper}>
-            <Calendar size={15} className={styles.monthIcon} />
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => handleMonthChange(e.target.value)}
-              className={styles.monthInput}
-            />
-          </div>
+          <CustomMonthPicker
+            value={selectedMonth}
+            onChange={handleMonthChange}
+          />
 
           {/* Segmented Switcher */}
           <div className={styles.tabSwitcher}>

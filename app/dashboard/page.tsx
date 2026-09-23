@@ -13,6 +13,7 @@ import { getActiveContext, getActiveSpaceType, getActiveUserInfo } from "@/lib/c
 import { filterElapsedDateKeys } from "@/lib/date-utils";
 import TodayActions, { type TodayData } from "@/components/experience/TodayActions";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import CustomSelect from "@/components/ui/CustomSelect";
 
 const STATS = [
   { label: "Membres", value: "0", sub: "Total actifs", trend: "up", color: "var(--gold-light)", icon: Users },
@@ -1636,16 +1637,17 @@ export default function DashboardPage() {
                       Aucun responsable enregistré (Berger, Second ou Responsable de brebis) dans cette famille.
                     </div>
                   ) : (
-                    <select 
-                      className="input" 
-                      value={selectedLeaderEmail} 
-                      onChange={e => setSelectedLeaderEmail(e.target.value)}
-                      style={{ height: 42, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(212, 175, 55, 0.25)" }}
-                    >
-                      {familyLeaders.map(m => (
-                        <option key={m.id} value={m.email}>{m.civility} {m.first_name} {m.last_name}</option>
-                      ))}
-                    </select>
+                    <CustomSelect
+                      value={selectedLeaderEmail}
+                      onChange={setSelectedLeaderEmail}
+                      placeholder="Sélectionnez votre Nom + Prénom…"
+                      options={familyLeaders.map(m => ({
+                        value: m.email,
+                        label: `${m.civility || ""} ${m.first_name} ${m.last_name}`.trim(),
+                        sublabel: m.email,
+                        badge: m.role || undefined
+                      }))}
+                    />
                   )}
                 </div>
                 <div>

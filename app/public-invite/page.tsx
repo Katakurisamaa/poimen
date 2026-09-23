@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
+import CustomSelect from "@/components/ui/CustomSelect";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 export default function PublicInvitePage() {
   const [churches, setChurches] = useState<any[]>([]);
@@ -251,19 +253,18 @@ export default function PublicInvitePage() {
                 <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>ÉGLISE LOCALE *</label>
                 <div style={{ position: "relative" }}>
                   <Church size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--gold)", opacity: 0.7 }} />
-                  <select 
-                    className="input" 
-                    value={selectedChurchId} 
-                    onChange={e => setSelectedChurchId(e.target.value)}
+                  <CustomSelect
+                    value={selectedChurchId}
+                    onChange={setSelectedChurchId}
                     disabled={isUrlLocked}
-                    style={{ paddingLeft: 42 }}
-                    required
-                  >
-                    <option value="" disabled>Sélectionnez votre église...</option>
-                    {churches.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.city})</option>
-                    ))}
-                  </select>
+                    placeholder="Sélectionnez votre église..."
+                    icon={<Church size={16} />}
+                    options={churches.map(c => ({
+                      value: c.id,
+                      label: c.name,
+                      sublabel: c.city || undefined
+                    }))}
+                  />
                 </div>
               </div>
 
@@ -338,16 +339,11 @@ export default function PublicInvitePage() {
               <div className="form-grid-3" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 16 }}>
                 <div>
                   <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>DATE D'ARRIVÉE</label>
-                  <div style={{ position: "relative" }}>
-                    <Calendar size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)", opacity: 0.7 }} />
-                    <input 
-                      className="input" 
-                      type="date" 
-                      value={formData.arrivalDate} 
-                      onChange={e => setFormData({...formData, arrivalDate: e.target.value})} 
-                      style={{ paddingLeft: 42 }}
-                    />
-                  </div>
+                  <CustomDatePicker
+                    value={formData.arrivalDate}
+                    onChange={val => setFormData({ ...formData, arrivalDate: val })}
+                    placeholder="Sélectionner la date"
+                  />
                 </div>
                 <div>
                   <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>TRANCHE D'ÂGE</label>

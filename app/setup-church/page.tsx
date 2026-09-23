@@ -14,6 +14,7 @@ function SetupChurchContent() {
 
   const [step, setStep] = useState<"form" | "success">("form");
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [church, setChurch] = useState({
     name: "",
@@ -113,10 +114,11 @@ function SetupChurchContent() {
               style={{ width: "100%", justifyContent: "center" }}
               onClick={() => {
                 navigator.clipboard.writeText(church.access_code);
-                alert("Code copié !");
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2500);
               }}
             >
-              Copier le code d'accès
+              {copied ? "Code copié !" : "Copier le code d'accès"}
             </button>
           </div>
         </div>

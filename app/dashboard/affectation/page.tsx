@@ -16,6 +16,7 @@ import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
 import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import styles from "./Affectation.module.css";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 const formatDisplayDate = (d?: string) => {
   if (!d) return "—";
@@ -1402,7 +1403,11 @@ function AffectationPage() {
 <div className="form-grid-3-equal">
                     <div>
                       <label className="form-label">DATE D'ARRIVÉE</label>
-                      <input className="input" type="date" value={newGuest.arrivalDate || ""} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
+                      <CustomDatePicker 
+                        value={newGuest.arrivalDate || ""} 
+                        onChange={val => setNewGuest({...newGuest, arrivalDate: val})} 
+                        placeholder="Sélectionner la date"
+                      />
                     </div>
                     <div>
                       <label className="form-label">ÂGE</label>

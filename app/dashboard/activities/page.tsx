@@ -16,6 +16,8 @@ import type { ActivityType } from "@/types";
 import FastCheckIn from "@/components/activities/FastCheckIn";
 import { buildAttendanceUpdate, QuickAttendanceStatus } from "@/lib/attendance";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import CustomSelect from "@/components/ui/CustomSelect";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 // Types
 interface Activity {
@@ -1147,20 +1149,21 @@ export default function ActivitiesPage() {
               <div className="glass" style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, alignItems: "end", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
                 <div>
                    <label className="form-label" style={{ marginBottom: 8 }}>Activité</label>
-                   <select 
-                     className="input w-full" 
-                     value={selectedActivityId || ""} 
-                     onChange={(e) => {
-                       const id = e.target.value;
+                   <CustomSelect
+                     value={selectedActivityId || ""}
+                     onChange={(id) => {
                        setSelectedActivityId(id);
                        if (activityDates[id]?.length > 0) {
                          setSelectedDate(activityDates[id][0]);
                        }
                      }}
-                     style={{ height: 42 }}
-                   >
-                     {activeActivitiesForPeriod.map(a => <option key={a.id} value={a.id} style={{ background: "var(--bg)", color: "var(--cream)" }}>{a.name}</option>)}
-                   </select>
+                     placeholder="Choisir une activité…"
+                     options={activeActivitiesForPeriod.map(a => ({
+                       value: a.id,
+                       label: a.name,
+                       badge: a.location || undefined
+                     }))}
+                   />
                 </div>
                 <div>
                   <label className="form-label" style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1206,25 +1209,19 @@ export default function ActivitiesPage() {
                       </button>
                     )}
                   </label>
-                  <select 
-                    className="input w-full" 
-                    value={selectedDate} 
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    style={{ 
-                      height: 42,
-                      borderColor: activeActivity?.cancelledDates?.includes(selectedDate) ? "rgba(239, 68, 68, 0.4)" : "var(--border)",
-                      color: activeActivity?.cancelledDates?.includes(selectedDate) ? "var(--red)" : "var(--cream)"
-                    }}
-                  >
-                    {(activityDates[selectedActivityId || ""] || []).map(d => {
+                  <CustomSelect
+                    value={selectedDate}
+                    onChange={setSelectedDate}
+                    placeholder="Choisir une date de séance…"
+                    options={(activityDates[selectedActivityId || ""] || []).map(d => {
                       const isCancelled = activeActivity?.cancelledDates?.includes(d);
-                      return (
-                        <option key={d} value={d} style={{ background: "var(--bg)", color: isCancelled ? "var(--red)" : "var(--cream)" }}>
-                          {formatDate(d)}{isCancelled ? " ⚠️ (ANNULÉ)" : ""}
-                        </option>
-                      );
+                      return {
+                        value: d,
+                        label: formatDate(d),
+                        badge: isCancelled ? "⚠️ Annulé" : undefined
+                      };
                     })}
-                  </select>
+                  />
                 </div>
                 <div style={{ position: "relative" }}>
                   <label className="form-label" style={{ marginBottom: 8 }}>Rechercher un membre</label>
@@ -1235,16 +1232,15 @@ export default function ActivitiesPage() {
                 </div>
                 <div>
                   <label className="form-label" style={{ marginBottom: 8 }}>Statut de présence</label>
-                  <select 
-                    className="input w-full" 
-                    value={presenceFilter} 
-                    onChange={(e) => setPresenceFilter(e.target.value as any)}
-                    style={{ height: 42 }}
-                  >
-                    <option value="all" style={{ background: "var(--bg)", color: "var(--cream)" }}>Tous</option>
-                    <option value="present" style={{ background: "var(--bg)", color: "var(--cream)" }}>Présents</option>
-                    <option value="absent" style={{ background: "var(--bg)", color: "var(--cream)" }}>Absents</option>
-                  </select>
+                  <CustomSelect
+                    value={presenceFilter}
+                    onChange={(val) => setPresenceFilter(val as any)}
+                    options={[
+                      { value: "all", label: "Tous les statuts" },
+                      { value: "present", label: "Présents" },
+                      { value: "absent", label: "Absents" },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -1584,25 +1580,20 @@ export default function ActivitiesPage() {
                 <div className="glass" style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, alignItems: "end", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
                   <div>
                     <label className="form-label" style={{ marginBottom: 8 }}>Activité</label>
-                    <select 
-                      className="input w-full" 
-                      value={selectedActivityId || ""} 
-                      onChange={(e) => setSelectedActivityId(e.target.value)}
-                      style={{ height: 42 }}
-                    >
-                      {activities.map(a => <option key={a.id} value={a.id} style={{ background: "var(--bg)", color: "var(--cream)" }}>{a.name}</option>)}
-                    </select>
+                    <CustomSelect
+                      value={selectedActivityId || ""}
+                      onChange={setSelectedActivityId}
+                      placeholder="Choisir une activité…"
+                      options={activities.map(a => ({ value: a.id, label: a.name }))}
+                    />
                   </div>
                   <div>
                     <label className="form-label" style={{ marginBottom: 8 }}>Année</label>
-                    <select 
-                      className="input w-full" 
-                      value={selectedYear} 
-                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                      style={{ height: 42 }}
-                    >
-                      {yearsRange.map(y => <option key={y} value={y} style={{ background: "var(--bg)", color: "var(--cream)" }}>{y}</option>)}
-                    </select>
+                    <CustomSelect
+                      value={String(selectedYear)}
+                      onChange={(val) => setSelectedYear(parseInt(val, 10))}
+                      options={yearsRange.map(y => ({ value: String(y), label: String(y) }))}
+                    />
                   </div>
                   <div style={{ position: "relative" }}>
                     <label className="form-label" style={{ marginBottom: 8 }}>Rechercher un membre</label>
@@ -2137,11 +2128,10 @@ export default function ActivitiesPage() {
 
               <div>
                 <label className="label">Date de début de l'activité</label>
-                <input 
-                  className="input" 
-                  type="date" 
-                  value={newActivity.startDate || "2026-03-29"} 
-                  onChange={e => setNewActivity({...newActivity, startDate: e.target.value})} 
+                <CustomDatePicker
+                  value={newActivity.startDate || "2026-03-29"}
+                  onChange={(val) => setNewActivity({ ...newActivity, startDate: val })}
+                  placeholder="Sélectionnez la date de début"
                 />
               </div>
 

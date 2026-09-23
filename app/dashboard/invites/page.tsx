@@ -18,6 +18,7 @@ import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import PeopleNavigation from "@/components/experience/PeopleNavigation";
 import styles from "../affectation/Affectation.module.css";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 
 interface Guest {
@@ -1725,7 +1726,11 @@ function InvitesPage() {
 <div className="form-grid-3-equal">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>DATE D'ARRIVÉE</label>
-                  <input className="input" type="date" value={newGuest.arrivalDate || ""} onChange={e => setNewGuest({...newGuest, arrivalDate: e.target.value})} />
+                  <CustomDatePicker 
+                    value={newGuest.arrivalDate || ""} 
+                    onChange={val => setNewGuest({...newGuest, arrivalDate: val})} 
+                    placeholder="Sélectionner la date"
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÂGE</label>

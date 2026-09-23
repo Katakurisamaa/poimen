@@ -15,6 +15,8 @@ import Header from "@/components/layout/Header";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import "@/app/dashboard/experience.css";
 import styles from "./CrCulte.module.css";
+import CustomSelect from "@/components/ui/CustomSelect";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 interface CRCulteData {
   id?: string;
@@ -491,34 +493,26 @@ Bénédictions ✨❤️`;
                 <div className={styles.grid2}>
                   <div className={styles.fieldGroup}>
                     <label className={styles.fieldLabel}>Église Locale *</label>
-                    <div className={styles.inputIconWrapper}>
-                      <Church size={16} className={styles.inputIcon} />
-                      <select
-                        className={styles.selectInput}
-                        value={selectedChurchId}
-                        onChange={e => setSelectedChurchId(e.target.value)}
-                        required
-                      >
-                        <option value="" disabled>Sélectionnez l'église…</option>
-                        {churches.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <CustomSelect
+                      value={selectedChurchId}
+                      onChange={setSelectedChurchId}
+                      placeholder="Sélectionnez l'église…"
+                      icon={<Church size={16} />}
+                      options={churches.map(c => ({
+                        value: c.id,
+                        label: c.name,
+                        sublabel: c.city || undefined,
+                      }))}
+                    />
                   </div>
 
                   <div className={styles.fieldGroup}>
                     <label className={styles.fieldLabel}>Date du Culte *</label>
-                    <div className={styles.inputIconWrapper}>
-                      <Calendar size={16} className={styles.inputIcon} />
-                      <input
-                        type="date"
-                        className={styles.textInput}
-                        value={formData.date_culte}
-                        onChange={e => setFormData({ ...formData, date_culte: e.target.value })}
-                        required
-                      />
-                    </div>
+                    <CustomDatePicker
+                      value={formData.date_culte}
+                      onChange={(val) => setFormData({ ...formData, date_culte: val })}
+                      placeholder="Sélectionnez la date du culte"
+                    />
                   </div>
                 </div>
 
@@ -758,16 +752,11 @@ Bénédictions ✨❤️`;
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <div style={{ position: "relative" }}>
-                  <Calendar size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-                  <input
-                    type="date"
-                    className={styles.textInput}
-                    style={{ height: 34, fontSize: 12, paddingLeft: 30, width: 150 }}
-                    value={filterDate}
-                    onChange={e => setFilterDate(e.target.value)}
-                  />
-                </div>
+                <CustomDatePicker
+                  value={filterDate}
+                  onChange={setFilterDate}
+                  placeholder="Filtrer par date"
+                />
                 {filterDate && (
                   <button
                     type="button"

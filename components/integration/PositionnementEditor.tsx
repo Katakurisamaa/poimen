@@ -25,6 +25,7 @@ import Header from "@/components/layout/Header";
 import "@/app/dashboard/experience.css";
 import styles from "./Positionnement.module.css";
 import IntegrationSubNav from "@/components/integration/IntegrationSubNav";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 // Helper to get next Sunday date (or today if Sunday) in "YYYY-MM-DD"
 function getNextSundayDate(): string {
@@ -533,15 +534,10 @@ Bénédictions à tous pour le service ! ✨`;
           {/* Top Row: Date Picker & Tab Switcher */}
           <div className={styles.toolbarTopRow}>
             {/* Date Picker (Sunday) */}
-            <div className={styles.dateInputWrapper}>
-              <Calendar size={13} className={styles.dateIcon} />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => handleDateChange(e.target.value)}
-                className={styles.dateInput}
-              />
-            </div>
+            <CustomDatePicker
+              value={selectedDate}
+              onChange={handleDateChange}
+            />
 
             {/* Segmented Switcher */}
             <div className={styles.tabSwitcher}>
