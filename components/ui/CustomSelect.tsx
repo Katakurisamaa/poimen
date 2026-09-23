@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check, Search, X } from "lucide-react";
 import styles from "./CustomSelect.module.css";
 
@@ -22,6 +23,7 @@ export interface CustomSelectProps {
   className?: string;
   style?: React.CSSProperties;
   ariaLabel?: string;
+  size?: "sm" | "md";
 }
 
 export default function CustomSelect({
@@ -35,11 +37,14 @@ export default function CustomSelect({
   className,
   style,
   ariaLabel,
+  size = "md",
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Detect mobile viewport for bottom sheet rendering
@@ -52,6 +57,35 @@ export default function CustomSelect({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Calculate dropdown positioning relative to trigger
+  const updatePosition = () => {
+    if (wrapperRef.current && !isMobile) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const minW = Math.max(rect.width, size === "sm" ? 170 : 220);
+      let left = rect.left;
+      if (left + minW > window.innerWidth - 12) {
+        left = window.innerWidth - minW - 12;
+      }
+      setDropdownPos({
+        top: rect.bottom + 6,
+        left: Math.max(12, left),
+        width: minW,
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
+    }
+  }, [open, isMobile]);
+
   // Handle outside click & escape key
   useEffect(() => {
     if (!open) return;
@@ -63,7 +97,13 @@ export default function CustomSelect({
     };
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -71,10 +111,8 @@ export default function CustomSelect({
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("mousedown", handleClickOutside);
 
-    // Focus search on open
-    setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 50);
+    // CRITICAL: NEVER auto-focus searchInputRef on open so the on-screen keyboard
+    // is never triggered unintentionally on mobile devices.
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
@@ -87,8 +125,8 @@ export default function CustomSelect({
     return options.find((opt) => opt.value === value);
   }, [options, value]);
 
-  // Should show search input? (true if explicit or >= 6 options)
-  const shouldShowSearch = searchable !== undefined ? searchable : options.length >= 6;
+  // Should show search input? (only if explicitly set or if list is large >= 8)
+  const shouldShowSearch = searchable !== undefined ? searchable : options.length >= 8;
 
   // Filtered options based on query
   const filteredOptions = useMemo(() => {
@@ -115,7 +153,7 @@ export default function CustomSelect({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
-        className={`${styles.trigger} ${open ? styles.triggerActive : ""}`}
+        className={`${styles.trigger} ${size === "sm" ? styles.triggerSm : ""} ${open ? styles.triggerActive : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel || placeholder}
@@ -126,17 +164,25 @@ export default function CustomSelect({
             {selectedOption ? selectedOption.label : placeholder}
           </span>
         </div>
-        <ChevronDown size={16} className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} />
+        <ChevronDown size={size === "sm" ? 12 : 16} className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} />
       </button>
 
-      {/* Popover / Mobile Sheet */}
-      {open && (
+      {/* Popover / Mobile Sheet rendered via Portal to prevent any parent overflow clipping */}
+      {open && typeof document !== "undefined" && createPortal(
         <>
           {/* Backdrop for mobile */}
           {isMobile && <div className={styles.backdrop} onClick={() => setOpen(false)} />}
 
           <div
+            ref={dropdownRef}
             className={`${styles.dropdown} ${isMobile ? styles.dropdownMobile : ""}`}
+            style={!isMobile ? {
+              position: "fixed",
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+              zIndex: 99999,
+            } : { zIndex: 99999 }}
             role="listbox"
           >
             {isMobile && <div className={styles.dragHandle} />}
@@ -196,7 +242,8 @@ export default function CustomSelect({
               )}
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

@@ -17,6 +17,8 @@ import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
 import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import PeopleNavigation from "@/components/experience/PeopleNavigation";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
+import CustomSelect from "@/components/ui/CustomSelect";
 
 
 const STATUS_OPTIONS = ["Brebi", "Faiseur de Disciple", "Responsable", "Second", "Berger"];
@@ -2270,18 +2272,20 @@ function BergeriePage() {
               <div className="form-grid-2">
                 <div>
                   <label className="label">Date d'entrée</label>
-                  <input 
-                    className="input" 
-                    type="date" 
+                  <CustomDatePicker
                     value={newMember.date_entree || new Date().toISOString().split('T')[0]} 
-                    onChange={e => setNewMember({...newMember, date_entree: e.target.value})} 
+                    onChange={val => setNewMember({...newMember, date_entree: val})} 
+                    placeholder="Sélectionner la date"
                   />
                 </div>
                 <div>
                   <label className="label">Statut</label>
-                  <select className="input" value={newMember.status} onChange={e => setNewMember({...newMember, status: e.target.value})}>
-                    {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
+                  <CustomSelect
+                    value={newMember.status || "Brebi"}
+                    onChange={val => setNewMember({...newMember, status: val})}
+                    searchable={false}
+                    options={STATUS_OPTIONS.map(opt => ({ value: opt, label: opt }))}
+                  />
                 </div>
               </div>
 

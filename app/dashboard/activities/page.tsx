@@ -18,6 +18,7 @@ import { buildAttendanceUpdate, QuickAttendanceStatus } from "@/lib/attendance";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import CustomSelect from "@/components/ui/CustomSelect";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
+import CustomMonthPicker from "@/components/ui/CustomMonthPicker";
 
 // Types
 interface Activity {
@@ -1035,20 +1036,23 @@ export default function ActivitiesPage() {
           )}
         </div>
 
-        <div className="glass activity-period-picker">
-          <Calendar size={14} className="text-[var(--gold)]" />
-          {!(activeTab === "attendance" && attendanceViewMode === "by-year") && (
-            <select className="input-minimal" value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))}>
-              {displayedMonths.map(m => (
-                <option key={m.index} value={m.index} style={{ background: "var(--bg)", color: "var(--cream)" }}>{m.name}</option>
-              ))}
-            </select>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {!(activeTab === "attendance" && attendanceViewMode === "by-year") ? (
+            <CustomMonthPicker
+              value={`${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`}
+              onChange={(ym) => {
+                const [y, m] = ym.split("-").map(Number);
+                setSelectedYear(y);
+                setSelectedMonth(m - 1);
+              }}
+            />
+          ) : (
+            <CustomSelect
+              value={String(selectedYear)}
+              onChange={(val) => setSelectedYear(parseInt(val, 10))}
+              options={yearsRange.map(y => ({ value: String(y), label: String(y) }))}
+            />
           )}
-          <select className="input-minimal" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
-            {yearsRange.map(y => (
-              <option key={y} value={y} style={{ background: "var(--bg)", color: "var(--cream)" }}>{y}</option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -1158,6 +1162,7 @@ export default function ActivitiesPage() {
                        }
                      }}
                      placeholder="Choisir une activité…"
+                     searchable={false}
                      options={activeActivitiesForPeriod.map(a => ({
                        value: a.id,
                        label: a.name,
@@ -1213,6 +1218,7 @@ export default function ActivitiesPage() {
                     value={selectedDate}
                     onChange={setSelectedDate}
                     placeholder="Choisir une date de séance…"
+                    searchable={false}
                     options={(activityDates[selectedActivityId || ""] || []).map(d => {
                       const isCancelled = activeActivity?.cancelledDates?.includes(d);
                       return {
@@ -1584,6 +1590,7 @@ export default function ActivitiesPage() {
                       value={selectedActivityId || ""}
                       onChange={setSelectedActivityId}
                       placeholder="Choisir une activité…"
+                      searchable={false}
                       options={activities.map(a => ({ value: a.id, label: a.name }))}
                     />
                   </div>
@@ -1592,6 +1599,7 @@ export default function ActivitiesPage() {
                     <CustomSelect
                       value={String(selectedYear)}
                       onChange={(val) => setSelectedYear(parseInt(val, 10))}
+                      searchable={false}
                       options={yearsRange.map(y => ({ value: String(y), label: String(y) }))}
                     />
                   </div>

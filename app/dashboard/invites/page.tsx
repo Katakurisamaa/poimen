@@ -19,6 +19,7 @@ import { useFeedback } from "@/components/experience/FeedbackProvider";
 import PeopleNavigation from "@/components/experience/PeopleNavigation";
 import styles from "../affectation/Affectation.module.css";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
+import CustomSelect from "@/components/ui/CustomSelect";
 
 
 interface Guest {
@@ -1441,34 +1442,73 @@ function InvitesPage() {
       {/* Filters in Stats View */}
       {currentView === 'stats' && (
         <div className="glass" style={{ padding: "12px 20px", display: "flex", gap: 15, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>ARRIVÉE</span>
-            <select className="input" style={{ width: 120, fontSize: 12 }} value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)}>
-              <option value="all">Tous les mois</option>
-              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i.toString()}>{m}</option>)}
-            </select>
-            <select className="input" style={{ width: 90, fontSize: 12 }} value={arrivalYear} onChange={e => setArrivalYear(e.target.value)}>
-              <option value="all">Toutes années</option>
-              {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 135 }}
+              value={arrivalMonth}
+              onChange={setArrivalMonth}
+              searchable={false}
+              options={[
+                { value: "all", label: "Tous les mois" },
+                ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                  value: i.toString(),
+                  label: m
+                }))
+              ]}
+            />
+            <CustomSelect
+              size="sm"
+              style={{ width: 115 }}
+              value={arrivalYear}
+              onChange={setArrivalYear}
+              searchable={false}
+              options={[
+                { value: "all", label: "Toutes années" },
+                ...availableYears.map(y => ({ value: y, label: y }))
+              ]}
+            />
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>PRÉSENCES</span>
-            <select className="input" style={{ width: 130, fontSize: 12 }} value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}>
-              <option value="-1">Tous les mois</option>
-              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i.toString()}>{m}</option>)}
-            </select>
-            <select className="input" style={{ width: 90, fontSize: 12 }} value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))}>
-              {availableYears.map(y => <option key={y} value={parseInt(y, 10)}>{y}</option>)}
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 135 }}
+              value={selectedMonth.toString()}
+              onChange={val => setSelectedMonth(parseInt(val, 10))}
+              searchable={false}
+              options={[
+                { value: "-1", label: "Tous les mois" },
+                ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                  value: i.toString(),
+                  label: m
+                }))
+              ]}
+            />
+            <CustomSelect
+              size="sm"
+              style={{ width: 100 }}
+              value={selectedYear.toString()}
+              onChange={val => setSelectedYear(parseInt(val, 10))}
+              searchable={false}
+              options={availableYears.map(y => ({ value: y, label: y }))}
+            />
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>ÉGLISE LOCALE</span>
-            <select className="input" style={{ width: 145, fontSize: 12 }} value={localChurchFilter} onChange={e => setLocalChurchFilter(e.target.value)}>
-              <option value="all">Tous (avec/sans)</option>
-              <option value="yes">Avec église</option>
-              <option value="no">Sans église</option>
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 160 }}
+              value={localChurchFilter}
+              onChange={setLocalChurchFilter}
+              searchable={false}
+              options={[
+                { value: "all", label: "Tous (avec/sans)" },
+                { value: "yes", label: "Avec église" },
+                { value: "no", label: "Sans église" }
+              ]}
+            />
           </div>
         </div>
       )}
@@ -1679,10 +1719,15 @@ function InvitesPage() {
               <div className="form-grid-3">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>CIVILITÉ</label>
-                  <select className="input" value={newGuest.civility || "M."} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
-                    <option value="M.">M.</option>
-                    <option value="Mme.">Mme.</option>
-                  </select>
+                  <CustomSelect
+                    value={newGuest.civility || "M."}
+                    onChange={val => setNewGuest({...newGuest, civility: val})}
+                    searchable={false}
+                    options={[
+                      { value: "M.", label: "M." },
+                      { value: "Mme.", label: "Mme." }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>NOM</label>
@@ -1711,14 +1756,19 @@ function InvitesPage() {
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÉTAT CIVIL</label>
-                  <select className="input" value={newGuest.etatCivil || "Célibataire"} onChange={e => setNewGuest({...newGuest, etatCivil: e.target.value})}>
-                    <option value="Marié(e)">Marié(e)</option>
-                    <option value="Séparé(e)">Séparé(e)</option>
-                    <option value="Divorcé(e)">Divorcé(e)</option>
-                    <option value="Veuf(ve)">Veuf(ve)</option>
-                    <option value="En couple">En couple</option>
-                    <option value="Célibataire">Célibataire</option>
-                  </select>
+                  <CustomSelect
+                    value={newGuest.etatCivil || "Célibataire"}
+                    onChange={val => setNewGuest({...newGuest, etatCivil: val})}
+                    searchable={false}
+                    options={[
+                      { value: "Marié(e)", label: "Marié(e)" },
+                      { value: "Séparé(e)", label: "Séparé(e)" },
+                      { value: "Divorcé(e)", label: "Divorcé(e)" },
+                      { value: "Veuf(ve)", label: "Veuf(ve)" },
+                      { value: "En couple", label: "En couple" },
+                      { value: "Célibataire", label: "Célibataire" }
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -1734,26 +1784,36 @@ function InvitesPage() {
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÂGE</label>
-                  <select className="input" value={newGuest.age || "26-30 ans"} onChange={e => setNewGuest({...newGuest, age: e.target.value})}>
-                    <option value="Moins de 18 ans">Moins de 18 ans</option>
-                    <option value="18-25 ans">18-25 ans</option>
-                    <option value="26-30 ans">26-30 ans</option>
-                    <option value="31-35 ans">31-35 ans</option>
-                    <option value="36-40 ans">36-40 ans</option>
-                    <option value="41-45 ans">41-45 ans</option>
-                    <option value="46-50 ans">46-50 ans</option>
-                    <option value="Plus de 50 ans">Plus de 50 ans</option>
-                  </select>
+                  <CustomSelect
+                    value={newGuest.age || "26-30 ans"}
+                    onChange={val => setNewGuest({...newGuest, age: val})}
+                    searchable={false}
+                    options={[
+                      { value: "Moins de 18 ans", label: "Moins de 18 ans" },
+                      { value: "18-25 ans", label: "18-25 ans" },
+                      { value: "26-30 ans", label: "26-30 ans" },
+                      { value: "31-35 ans", label: "31-35 ans" },
+                      { value: "36-40 ans", label: "36-40 ans" },
+                      { value: "41-45 ans", label: "41-45 ans" },
+                      { value: "46-50 ans", label: "46-50 ans" },
+                      { value: "Plus de 50 ans", label: "Plus de 50 ans" }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÉVÉNEMENT</label>
-                  <select className="input" value={newGuest.event || "Culte"} onChange={e => setNewGuest({...newGuest, event: e.target.value})}>
-                    <option value="Culte">Culte</option>
-                    <option value="Baptême">Baptême</option>
-                    <option value="Évangélisation">Évangélisation</option>
-                    <option value="Séminaire">Séminaire</option>
-                    <option value="Autre">Autre</option>
-                  </select>
+                  <CustomSelect
+                    value={newGuest.event || "Culte"}
+                    onChange={val => setNewGuest({...newGuest, event: val})}
+                    searchable={false}
+                    options={[
+                      { value: "Culte", label: "Culte" },
+                      { value: "Baptême", label: "Baptême" },
+                      { value: "Évangélisation", label: "Évangélisation" },
+                      { value: "Séminaire", label: "Séminaire" },
+                      { value: "Autre", label: "Autre" }
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -1765,20 +1825,17 @@ function InvitesPage() {
               {!userRoleClean.startsWith("integration_") && (
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>RESPONSABLE ASSIGNÉ</label>
-                  <select 
-                    className="input" 
-                    value={newGuest.responsible || "Non assigné"} 
-                    onChange={e => setNewGuest({...newGuest, responsible: e.target.value})}
+                  <CustomSelect
+                    value={newGuest.responsible || "Non assigné"}
+                    onChange={val => setNewGuest({...newGuest, responsible: val})}
                     disabled={isConseiller}
-                  >
-                    <option value="Non assigné">Non assigné</option>
-                    {responsibles.filter(r => r !== "Non assigné").map(r => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                    {newGuest.responsible && newGuest.responsible !== "Non assigné" && !responsibles.includes(newGuest.responsible) && (
-                      <option key={newGuest.responsible} value={newGuest.responsible}>{newGuest.responsible}</option>
-                    )}
-                  </select>
+                    searchable={responsibles.length >= 8}
+                    options={[
+                      { value: "Non assigné", label: "Non assigné" },
+                      ...responsibles.filter(r => r !== "Non assigné").map(r => ({ value: r, label: r })),
+                      ...(newGuest.responsible && newGuest.responsible !== "Non assigné" && !responsibles.includes(newGuest.responsible) ? [{ value: newGuest.responsible, label: newGuest.responsible }] : [])
+                    ]}
+                  />
                 </div>
               )}
 
@@ -1912,79 +1969,92 @@ function InvitesPage() {
           {/* Arrivée Filter */}
           <div className={styles.filterChip}>
             <span className={styles.filterLabel}><Calendar size={12} /> Arrivée</span>
-            <select 
-              className={styles.filterSelect} 
-              value={arrivalMonth} 
-              onChange={e => setArrivalMonth(e.target.value)}
-            >
-              <option value="all">Tous mois</option>
-              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                <option key={i} value={i.toString()}>{m}</option>
-              ))}
-            </select>
-            <select 
-              className={styles.filterSelect} 
-              value={arrivalYear} 
-              onChange={e => setArrivalYear(e.target.value)}
-            >
-              <option value="all">Toutes années</option>
-              {availableYears.map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 110 }}
+              value={arrivalMonth}
+              onChange={setArrivalMonth}
+              searchable={false}
+              options={[
+                { value: "all", label: "Tous mois" },
+                ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                  value: i.toString(),
+                  label: m
+                }))
+              ]}
+            />
+            <CustomSelect
+              size="sm"
+              style={{ width: 100 }}
+              value={arrivalYear}
+              onChange={setArrivalYear}
+              searchable={false}
+              options={[
+                { value: "all", label: "Toutes années" },
+                ...availableYears.map(y => ({ value: y, label: y }))
+              ]}
+            />
           </div>
 
           {/* Présences Calculation Period Filter */}
           <div className={styles.filterChip}>
             <span className={styles.filterLabel}>👁 Présences</span>
-            <select 
-              className={styles.filterSelect} 
-              value={selectedMonth} 
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            >
-              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                <option key={i} value={i}>{m}</option>
-              ))}
-            </select>
-            <select 
-              className={styles.filterSelect} 
-              value={selectedYear} 
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            >
-              {availableYears.map(y => (
-                <option key={y} value={parseInt(y, 10)}>{y}</option>
-              ))}
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 110 }}
+              value={selectedMonth.toString()}
+              onChange={val => setSelectedMonth(parseInt(val, 10))}
+              searchable={false}
+              options={[
+                { value: "-1", label: "Tous mois" },
+                ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                  value: i.toString(),
+                  label: m
+                }))
+              ]}
+            />
+            <CustomSelect
+              size="sm"
+              style={{ width: 90 }}
+              value={selectedYear.toString()}
+              onChange={val => setSelectedYear(parseInt(val, 10))}
+              searchable={false}
+              options={availableYears.map(y => ({ value: y, label: y }))}
+            />
           </div>
 
           {/* Église Locale Filter */}
           <div className={styles.filterChip}>
             <span className={styles.filterLabel}>⛪ Église</span>
-            <select 
-              className={styles.filterSelect} 
-              value={localChurchFilter} 
-              onChange={e => setLocalChurchFilter(e.target.value)}
-            >
-              <option value="all">Tous (avec/sans)</option>
-              <option value="no">Sans église locale</option>
-              <option value="yes">Avec église locale</option>
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 135 }}
+              value={localChurchFilter}
+              onChange={setLocalChurchFilter}
+              searchable={false}
+              options={[
+                { value: "all", label: "Tous (avec/sans)" },
+                { value: "no", label: "Sans église" },
+                { value: "yes", label: "Avec église" }
+              ]}
+            />
           </div>
 
           {/* Famille Filter */}
           <div className={styles.filterChip}>
             <span className={styles.filterLabel}>👥 Famille</span>
-            <select 
-              className={styles.filterSelect} 
-              value={familyFilter} 
-              onChange={e => setFamilyFilter(e.target.value)}
-            >
-              <option value="all">Toutes familles</option>
-              <option value="AUCUNE">AUCUNE (Non affectée)</option>
-              {availableFamilies.map(fam => (
-                <option key={fam} value={fam}>{fam}</option>
-              ))}
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 145 }}
+              value={familyFilter}
+              onChange={setFamilyFilter}
+              searchable={availableFamilies.length >= 8}
+              options={[
+                { value: "all", label: "Toutes familles" },
+                { value: "AUCUNE", label: "AUCUNE (Non affectée)" },
+                ...availableFamilies.map(fam => ({ value: fam, label: fam }))
+              ]}
+            />
           </div>
 
           {/* Reset button if filters active */}

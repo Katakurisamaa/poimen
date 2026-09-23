@@ -25,6 +25,21 @@
   outline: none;
 }
 
+.triggerSm {
+  min-height: 28px !important;
+  height: 28px !important;
+  padding: 2px 8px !important;
+  font-size: 11px !important;
+  border-radius: 6px !important;
+  gap: 6px !important;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(212, 175, 55, 0.2);
+}
+
+.triggerSm .triggerContent {
+  gap: 6px;
+}
+
 :global(html[data-theme="light"]) .trigger {
   background: #ffffff;
   color: #1c1917;

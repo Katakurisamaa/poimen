@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import styles from "./CustomDatePicker.module.css";
 
@@ -30,7 +31,9 @@ export default function CustomDatePicker({
 }: CustomDatePickerProps) {
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // Parse current selected date
   const parsedDate = useMemo(() => {
@@ -63,6 +66,34 @@ export default function CustomDatePicker({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Calculate popover positioning
+  const updatePosition = () => {
+    if (wrapperRef.current && !isMobile) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const popoverWidth = 290;
+      let left = rect.left;
+      if (left + popoverWidth > window.innerWidth - 12) {
+        left = window.innerWidth - popoverWidth - 12;
+      }
+      setPopoverPos({
+        top: rect.bottom + 6,
+        left: Math.max(12, left),
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
+    }
+  }, [open, isMobile]);
+
   // Outside click & escape listeners
   useEffect(() => {
     if (!open) return;
@@ -70,7 +101,13 @@ export default function CustomDatePicker({
       if (e.key === "Escape") setOpen(false);
     };
     const handleClickOutside = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -109,14 +146,11 @@ export default function CustomDatePicker({
     const lastDayOfMonth = new Date(viewYear, viewMonth + 1, 0);
     const numDays = lastDayOfMonth.getDate();
 
-    // In JS, getDay() returns 0 for Sunday, 1 for Monday, etc.
-    // In French week (Monday-first), Monday = 0, Sunday = 6
     let startingDayIndex = firstDayOfMonth.getDay() - 1;
     if (startingDayIndex === -1) startingDayIndex = 6;
 
     const days: ({ day: number; dateStr: string; isSunday: boolean; isToday: boolean; isSelected: boolean } | null)[] = [];
 
-    // Empty lead cells
     for (let i = 0; i < startingDayIndex; i++) {
       days.push(null);
     }
@@ -182,13 +216,20 @@ export default function CustomDatePicker({
         <span className={!parsedDate ? styles.placeholder : ""}>{formattedDisplay}</span>
       </button>
 
-      {/* Popover / Mobile Sheet */}
-      {open && (
+      {/* Popover / Mobile Sheet rendered via Portal to prevent any parent overflow clipping */}
+      {open && typeof document !== "undefined" && createPortal(
         <>
           {isMobile && <div className={styles.backdrop} onClick={() => setOpen(false)} />}
 
           <div
+            ref={popoverRef}
             className={`${styles.calendarPopover} ${isMobile ? styles.calendarMobile : ""}`}
+            style={!isMobile ? {
+              position: "fixed",
+              top: popoverPos.top,
+              left: popoverPos.left,
+              zIndex: 99999,
+            } : { zIndex: 99999 }}
             role="dialog"
             aria-label="Choisir une date"
           >
@@ -257,7 +298,8 @@ export default function CustomDatePicker({
               </button>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

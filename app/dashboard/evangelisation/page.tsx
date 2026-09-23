@@ -11,6 +11,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 interface Evangelisation {
   id: string;
@@ -923,22 +924,20 @@ export default function EvangelisationPage() {
           <div className="evang-date-range" style={{ display: "flex", gap: 12, flex: "1 1 300px", alignItems: "center", flexWrap: "wrap" }}>
             <div className="evang-date-filter" style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
               <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>Du</span>
-              <input 
-                type="date" 
-                className="input" 
+              <CustomDatePicker 
                 value={filterStartDate} 
-                onChange={(e) => setFilterStartDate(e.target.value)} 
-                style={{ fontSize: 12, padding: "8px 12px" }}
+                onChange={setFilterStartDate} 
+                placeholder="Date de début"
+                style={{ width: "100%" }}
               />
             </div>
             <div className="evang-date-filter" style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
               <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>Au</span>
-              <input 
-                type="date" 
-                className="input" 
+              <CustomDatePicker 
                 value={filterEndDate} 
-                onChange={(e) => setFilterEndDate(e.target.value)} 
-                style={{ fontSize: 12, padding: "8px 12px" }}
+                onChange={setFilterEndDate} 
+                placeholder="Date de fin"
+                style={{ width: "100%" }}
               />
             </div>
 
@@ -1490,12 +1489,10 @@ export default function EvangelisationPage() {
               {/* Date of Evangelisation */}
               <div className="evang-date-field">
                 <label className="form-label">DATE DE L'ÉVANGÉLISATION *</label>
-                <input 
-                  type="date"
-                  className="input" 
-                  required 
+                <CustomDatePicker 
                   value={formData.evangelisation_date || ""} 
-                  onChange={e => setFormData({...formData, evangelisation_date: e.target.value})} 
+                  onChange={val => setFormData({...formData, evangelisation_date: val})} 
+                  placeholder="Sélectionner la date"
                 />
               </div>
 

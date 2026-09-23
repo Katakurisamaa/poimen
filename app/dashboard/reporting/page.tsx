@@ -14,6 +14,8 @@ import {
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import CustomSelect from "@/components/ui/CustomSelect";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 function isAttendancePresent(val: any): boolean {
   if (val === true || val === 1 || val === "present") return true;
@@ -916,36 +918,34 @@ export default function ReportingPage() {
 
               {/* Sunday dropdown filter */}
               <div style={{ marginBottom: 14 }}>
-                <label className="form-label" style={{ fontWeight: 700, color: "var(--gold-light)" }}>
+                <label className="form-label" style={{ fontWeight: 700, color: "var(--gold-light)", marginBottom: 6, display: "block" }}>
                   Choisir le Dimanche du Culte
                 </label>
-                <select
-                  className="input"
+                <CustomSelect
                   value={formData.date_rapport}
-                  onChange={(e) => handleDateChange(e.target.value)}
-                  style={{ fontWeight: 600, fontSize: 13.5 }}
-                >
-                  {getRecentSundays(12).map((s) => (
-                    <option key={s.isoDate} value={s.isoDate}>
-                      {s.label} {s.isLatest ? "★ (Dernier dimanche)" : ""}
-                    </option>
-                  ))}
-                  {!getRecentSundays(12).some(s => s.isoDate === formData.date_rapport) && (
-                    <option value={formData.date_rapport}>
-                      {formData.date_libelle || formData.date_rapport} (Date personnalisée)
-                    </option>
-                  )}
-                </select>
+                  onChange={handleDateChange}
+                  searchable={false}
+                  options={[
+                    ...getRecentSundays(12).map((s) => ({
+                      value: s.isoDate,
+                      label: s.label,
+                      badge: s.isLatest ? "Dernier dimanche" : undefined,
+                    })),
+                    ...(!getRecentSundays(12).some(s => s.isoDate === formData.date_rapport) ? [{
+                      value: formData.date_rapport,
+                      label: `${formData.date_libelle || formData.date_rapport} (Date personnalisée)`,
+                    }] : [])
+                  ]}
+                />
               </div>
 
               <div className="reporting-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
-                  <label className="form-label">Date exacte (calendrier)</label>
-                  <input
-                    type="date"
-                    className="input"
+                  <label className="form-label" style={{ marginBottom: 6, display: "block" }}>Date exacte (calendrier)</label>
+                  <CustomDatePicker
                     value={formData.date_rapport}
-                    onChange={(e) => handleDateChange(e.target.value)}
+                    onChange={handleDateChange}
+                    placeholder="Sélectionner la date"
                   />
                 </div>
                 <div>

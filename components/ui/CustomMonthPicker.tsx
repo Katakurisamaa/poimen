@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import styles from "./CustomMonthPicker.module.css";
 
@@ -28,7 +29,9 @@ export default function CustomMonthPicker({
 }: CustomMonthPickerProps) {
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // Parse current selected value
   const parsed = useMemo(() => {
@@ -57,6 +60,34 @@ export default function CustomMonthPicker({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Calculate popover positioning
+  const updatePosition = () => {
+    if (wrapperRef.current && !isMobile) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const popoverWidth = 290;
+      let left = rect.left;
+      if (left + popoverWidth > window.innerWidth - 12) {
+        left = window.innerWidth - popoverWidth - 12;
+      }
+      setPopoverPos({
+        top: rect.bottom + 6,
+        left: Math.max(12, left),
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
+    }
+  }, [open, isMobile]);
+
   // Outside click & escape listeners
   useEffect(() => {
     if (!open) return;
@@ -64,7 +95,13 @@ export default function CustomMonthPicker({
       if (e.key === "Escape") setOpen(false);
     };
     const handleClickOutside = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -111,13 +148,20 @@ export default function CustomMonthPicker({
         <span className={!parsed ? styles.placeholder : ""}>{formattedDisplay}</span>
       </button>
 
-      {/* Popover / Mobile Sheet */}
-      {open && (
+      {/* Popover / Mobile Sheet rendered via Portal to prevent parent overflow clipping */}
+      {open && typeof document !== "undefined" && createPortal(
         <>
           {isMobile && <div className={styles.backdrop} onClick={() => setOpen(false)} />}
 
           <div
+            ref={popoverRef}
             className={`${styles.popover} ${isMobile ? styles.popoverMobile : ""}`}
+            style={!isMobile ? {
+              position: "fixed",
+              top: popoverPos.top,
+              left: popoverPos.left,
+              zIndex: 99999,
+            } : { zIndex: 99999 }}
             role="dialog"
             aria-label="Choisir un mois"
           >
@@ -172,7 +216,8 @@ export default function CustomMonthPicker({
               </button>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

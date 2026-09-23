@@ -17,6 +17,7 @@ import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import styles from "./Affectation.module.css";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
+import CustomSelect from "@/components/ui/CustomSelect";
 
 const formatDisplayDate = (d?: string) => {
   if (!d) return "—";
@@ -1180,34 +1181,73 @@ function AffectationPage() {
       {/* Filters in Stats View */}
       {currentView === 'stats' && (
         <div className="glass fade-in" style={{ padding: "16px 24px", display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>ARRIVÉE</span>
-            <select className="input" style={{ width: 130, fontSize: 12, padding: "8px 12px" }} value={arrivalMonth} onChange={e => setArrivalMonth(e.target.value)}>
-              <option value="all">Tous les mois</option>
-              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i.toString()}>{m}</option>)}
-            </select>
-            <select className="input" style={{ width: 100, fontSize: 12, padding: "8px 12px" }} value={arrivalYear} onChange={e => setArrivalYear(e.target.value)}>
-              <option value="all">Toutes années</option>
-              {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 135 }}
+              value={arrivalMonth}
+              onChange={setArrivalMonth}
+              searchable={false}
+              options={[
+                { value: "all", label: "Tous les mois" },
+                ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                  value: i.toString(),
+                  label: m
+                }))
+              ]}
+            />
+            <CustomSelect
+              size="sm"
+              style={{ width: 115 }}
+              value={arrivalYear}
+              onChange={setArrivalYear}
+              searchable={false}
+              options={[
+                { value: "all", label: "Toutes années" },
+                ...availableYears.map(y => ({ value: y, label: y }))
+              ]}
+            />
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>PRÉSENCES</span>
-            <select className="input" style={{ width: 130, fontSize: 12, padding: "8px 12px" }} value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))}>
-              <option value="-1">Tous les mois</option>
-              {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => <option key={m} value={i}>{m}</option>)}
-            </select>
-            <select className="input" style={{ width: 100, fontSize: 12, padding: "8px 12px" }} value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))}>
-              {availableYears.map(y => <option key={y} value={parseInt(y, 10)}>{y}</option>)}
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 135 }}
+              value={selectedMonth.toString()}
+              onChange={val => setSelectedMonth(parseInt(val, 10))}
+              searchable={false}
+              options={[
+                { value: "-1", label: "Tous les mois" },
+                ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                  value: i.toString(),
+                  label: m
+                }))
+              ]}
+            />
+            <CustomSelect
+              size="sm"
+              style={{ width: 100 }}
+              value={selectedYear.toString()}
+              onChange={val => setSelectedYear(parseInt(val, 10))}
+              searchable={false}
+              options={availableYears.map(y => ({ value: y, label: y }))}
+            />
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>ÉGLISE LOCALE</span>
-            <select className="input" style={{ width: 155, fontSize: 12, padding: "8px 12px" }} value={localChurchFilter} onChange={e => setLocalChurchFilter(e.target.value)}>
-              <option value="all">Tous (avec/sans)</option>
-              <option value="yes">Avec église</option>
-              <option value="no">Sans église</option>
-            </select>
+            <CustomSelect
+              size="sm"
+              style={{ width: 160 }}
+              value={localChurchFilter}
+              onChange={setLocalChurchFilter}
+              searchable={false}
+              options={[
+                { value: "all", label: "Tous (avec/sans)" },
+                { value: "yes", label: "Avec église" },
+                { value: "no", label: "Sans église" }
+              ]}
+            />
           </div>
         </div>
       )}
@@ -1363,11 +1403,16 @@ function AffectationPage() {
                   <div className="form-grid-3">
                     <div>
                       <label className="form-label">CIVILITÉ</label>
-                      <select className="input" value={newGuest.civility || "M."} onChange={e => setNewGuest({...newGuest, civility: e.target.value})}>
-                        <option value="M.">M.</option>
-                        <option value="Mme.">Mme.</option>
-                        <option value="Mlle.">Mlle.</option>
-                      </select>
+                      <CustomSelect
+                        value={newGuest.civility || "M."}
+                        onChange={val => setNewGuest({...newGuest, civility: val})}
+                        searchable={false}
+                        options={[
+                          { value: "M.", label: "M." },
+                          { value: "Mme.", label: "Mme." },
+                          { value: "Mlle.", label: "Mlle." }
+                        ]}
+                      />
                     </div>
                     <div>
                       <label className="form-label">NOM</label>
@@ -1389,14 +1434,19 @@ function AffectationPage() {
                     </div>
                     <div>
                       <label className="form-label">ÉTAT CIVIL</label>
-                      <select className="input" value={newGuest.etatCivil || "Célibataire"} onChange={e => setNewGuest({...newGuest, etatCivil: e.target.value})}>
-                        <option value="Marié(e)">Marié(e)</option>
-                        <option value="Séparé(e)">Séparé(e)</option>
-                        <option value="Divorcé(e)">Divorcé(e)</option>
-                        <option value="Veuf(ve)">Veuf(ve)</option>
-                        <option value="En couple">En couple</option>
-                        <option value="Célibataire">Célibataire</option>
-                      </select>
+                      <CustomSelect
+                        value={newGuest.etatCivil || "Célibataire"}
+                        onChange={val => setNewGuest({...newGuest, etatCivil: val})}
+                        searchable={false}
+                        options={[
+                          { value: "Marié(e)", label: "Marié(e)" },
+                          { value: "Séparé(e)", label: "Séparé(e)" },
+                          { value: "Divorcé(e)", label: "Divorcé(e)" },
+                          { value: "Veuf(ve)", label: "Veuf(ve)" },
+                          { value: "En couple", label: "En couple" },
+                          { value: "Célibataire", label: "Célibataire" }
+                        ]}
+                      />
                     </div>
                   </div>
                   <details className="ux-extra-fields" open={!!editingGuestId}><summary>Compléter le profil et le parcours</summary><div className="ux-extra-content">
@@ -1411,24 +1461,34 @@ function AffectationPage() {
                     </div>
                     <div>
                       <label className="form-label">ÂGE</label>
-                      <select className="input" value={newGuest.age || "26-30"} onChange={e => setNewGuest({...newGuest, age: e.target.value})}>
-                        <option value="< 18">Moins de 18 ans</option>
-                        <option value="18-25">18-25 ans</option>
-                        <option value="26-30">26-30 ans</option>
-                        <option value="31-40">31-40 ans</option>
-                        <option value="41-50">41-50 ans</option>
-                        <option value="> 50">Plus de 50 ans</option>
-                      </select>
+                      <CustomSelect
+                        value={newGuest.age || "26-30"}
+                        onChange={val => setNewGuest({...newGuest, age: val})}
+                        searchable={false}
+                        options={[
+                          { value: "< 18", label: "Moins de 18 ans" },
+                          { value: "18-25", label: "18-25 ans" },
+                          { value: "26-30", label: "26-30 ans" },
+                          { value: "31-40", label: "31-40 ans" },
+                          { value: "41-50", label: "41-50 ans" },
+                          { value: "> 50", label: "Plus de 50 ans" }
+                        ]}
+                      />
                     </div>
                     <div>
                       <label className="form-label">ÉVÉNEMENT</label>
-                      <select className="input" value={newGuest.event || "Culte"} onChange={e => setNewGuest({...newGuest, event: e.target.value})}>
-                        <option value="Culte">Culte</option>
-                        <option value="Baptême">Baptême</option>
-                        <option value="Évangélisation">Évangélisation</option>
-                        <option value="Séminaire">Séminaire</option>
-                        <option value="Autre">Autre</option>
-                      </select>
+                      <CustomSelect
+                        value={newGuest.event || "Culte"}
+                        onChange={val => setNewGuest({...newGuest, event: val})}
+                        searchable={false}
+                        options={[
+                          { value: "Culte", label: "Culte" },
+                          { value: "Baptême", label: "Baptême" },
+                          { value: "Évangélisation", label: "Évangélisation" },
+                          { value: "Séminaire", label: "Séminaire" },
+                          { value: "Autre", label: "Autre" }
+                        ]}
+                      />
                     </div>
                   </div>
                   <div className="form-grid-2">
@@ -1561,79 +1621,92 @@ function AffectationPage() {
               {/* Arrivée Filter */}
               <div className={styles.filterChip}>
                 <span className={styles.filterLabel}><Calendar size={12} /> Arrivée</span>
-                <select 
-                  className={styles.filterSelect} 
-                  value={arrivalMonth} 
-                  onChange={e => setArrivalMonth(e.target.value)}
-                >
-                  <option value="all">Tous mois</option>
-                  {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                    <option key={i} value={i.toString()}>{m}</option>
-                  ))}
-                </select>
-                <select 
-                  className={styles.filterSelect} 
-                  value={arrivalYear} 
-                  onChange={e => setArrivalYear(e.target.value)}
-                >
-                  <option value="all">Toutes années</option>
-                  {availableYears.map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
+                <CustomSelect
+                  size="sm"
+                  style={{ width: 110 }}
+                  value={arrivalMonth}
+                  onChange={setArrivalMonth}
+                  searchable={false}
+                  options={[
+                    { value: "all", label: "Tous mois" },
+                    ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                      value: i.toString(),
+                      label: m
+                    }))
+                  ]}
+                />
+                <CustomSelect
+                  size="sm"
+                  style={{ width: 100 }}
+                  value={arrivalYear}
+                  onChange={setArrivalYear}
+                  searchable={false}
+                  options={[
+                    { value: "all", label: "Toutes années" },
+                    ...availableYears.map(y => ({ value: y, label: y }))
+                  ]}
+                />
               </div>
 
               {/* Présences Calculation Period Filter */}
               <div className={styles.filterChip}>
                 <span className={styles.filterLabel}>👁 Présences</span>
-                <select 
-                  className={styles.filterSelect} 
-                  value={selectedMonth} 
-                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                >
-                  {["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => (
-                    <option key={i} value={i}>{m}</option>
-                  ))}
-                </select>
-                <select 
-                  className={styles.filterSelect} 
-                  value={selectedYear} 
-                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                >
-                  {availableYears.map(y => (
-                    <option key={y} value={parseInt(y, 10)}>{y}</option>
-                  ))}
-                </select>
+                <CustomSelect
+                  size="sm"
+                  style={{ width: 110 }}
+                  value={selectedMonth.toString()}
+                  onChange={val => setSelectedMonth(parseInt(val, 10))}
+                  searchable={false}
+                  options={[
+                    { value: "-1", label: "Tous mois" },
+                    ...["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"].map((m, i) => ({
+                      value: i.toString(),
+                      label: m
+                    }))
+                  ]}
+                />
+                <CustomSelect
+                  size="sm"
+                  style={{ width: 90 }}
+                  value={selectedYear.toString()}
+                  onChange={val => setSelectedYear(parseInt(val, 10))}
+                  searchable={false}
+                  options={availableYears.map(y => ({ value: y, label: y }))}
+                />
               </div>
 
               {/* Église Locale Filter */}
               <div className={styles.filterChip}>
                 <span className={styles.filterLabel}>⛪ Église</span>
-                <select 
-                  className={styles.filterSelect} 
-                  value={localChurchFilter} 
-                  onChange={e => setLocalChurchFilter(e.target.value)}
-                >
-                  <option value="all">Tous (avec/sans)</option>
-                  <option value="no">Sans église locale</option>
-                  <option value="yes">Avec église locale</option>
-                </select>
+                <CustomSelect
+                  size="sm"
+                  style={{ width: 135 }}
+                  value={localChurchFilter}
+                  onChange={setLocalChurchFilter}
+                  searchable={false}
+                  options={[
+                    { value: "all", label: "Tous (avec/sans)" },
+                    { value: "no", label: "Sans église" },
+                    { value: "yes", label: "Avec église" }
+                  ]}
+                />
               </div>
 
               {/* Famille Filter */}
               <div className={styles.filterChip}>
                 <span className={styles.filterLabel}>👥 Famille</span>
-                <select 
-                  className={styles.filterSelect} 
-                  value={familyFilter} 
-                  onChange={e => setFamilyFilter(e.target.value)}
-                >
-                  <option value="all">Toutes familles</option>
-                  <option value="AUCUNE">AUCUNE (Non affectée)</option>
-                  {availableFamilies.map(fam => (
-                    <option key={fam} value={fam}>{fam}</option>
-                  ))}
-                </select>
+                <CustomSelect
+                  size="sm"
+                  style={{ width: 145 }}
+                  value={familyFilter}
+                  onChange={setFamilyFilter}
+                  searchable={availableFamilies.length >= 8}
+                  options={[
+                    { value: "all", label: "Toutes familles" },
+                    { value: "AUCUNE", label: "AUCUNE (Non affectée)" },
+                    ...availableFamilies.map(fam => ({ value: fam, label: fam }))
+                  ]}
+                />
               </div>
 
               {/* Reset button if filters active */}
