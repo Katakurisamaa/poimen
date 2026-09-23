@@ -1380,12 +1380,12 @@ export default function DashboardPage() {
         {/* Ambient glows */}
         <div style={{ position: "absolute", top: "10%", left: "20%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-        <div className="glass fade-in" style={{ width: "100%", maxWidth: 440, padding: "40px 36px", border: "1px solid rgba(139, 92, 246, 0.35)", boxShadow: "0 20px 50px rgba(0, 0, 0, 0.8)", position: "relative", zIndex: 1 }}>
+        <div className="custom-modal arch-card glass fade-in" style={{ width: "100%", maxWidth: 440, padding: "40px 36px", border: "1px solid var(--border)", background: "var(--surface-solid)", boxShadow: "var(--shadow-dialog)", position: "relative", zIndex: 1 }}>
           <div style={{ textAlign: "center", marginBottom: 28 }}>
-            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(139, 92, 246, 0.1)", border: "1.5px solid rgba(139, 92, 246, 0.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "#c084fc", margin: "0 auto 16px" }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--bg-deep)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--action-bg)", margin: "0 auto 16px" }}>
               <Shield size={26} />
             </div>
-            <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Espace Intégration</h2>
+            <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--cream)" }}>Espace Intégration</h2>
             <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Authentification des responsables et conseillers</p>
           </div>
 
@@ -1397,16 +1397,23 @@ export default function DashboardPage() {
                   Aucun membre de l'équipe enregistré. Contactez l'administrateur.
                 </div>
               ) : (
-                <select 
-                  className="input" 
+                <CustomSelect 
                   value={selectedIntegrationUser} 
-                  onChange={e => setSelectedIntegrationUser(e.target.value)}
-                  style={{ height: 42, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(139, 92, 246, 0.25)" }}
-                >
-                  {integrationList.map(item => (
-                    <option key={item.email} value={item.email}>{item.name}</option>
-                  ))}
-                </select>
+                  onChange={setSelectedIntegrationUser}
+                  placeholder="Sélectionnez votre Nom + Prénom…"
+                  searchable={integrationList.length >= 8}
+                  options={integrationList.map(item => ({
+                    value: item.email,
+                    label: item.name,
+                    badge: item.role === "integration_responsable"
+                      ? "Responsable"
+                      : item.role === "integration_second"
+                      ? "Second"
+                      : item.role === "integration_conseiller"
+                      ? "Conseiller"
+                      : undefined
+                  }))}
+                />
               )}
             </div>
 
@@ -1419,7 +1426,7 @@ export default function DashboardPage() {
                   placeholder="••••••" 
                   value={integrationCode} 
                   onChange={e => setIntegrationCode(e.target.value)} 
-                  style={{ height: 42, letterSpacing: showJoinCode ? "normal" : 3, paddingRight: 40, border: "1px solid rgba(139, 92, 246, 0.25)" }} 
+                  style={{ height: 42, letterSpacing: showJoinCode ? "normal" : 3, paddingRight: 40 }} 
                 />
                 <button type="button" onClick={() => setShowJoinCode(!showJoinCode)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>
                   {showJoinCode ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -1437,7 +1444,7 @@ export default function DashboardPage() {
               </button>
               <button 
                 className="btn btn-primary" 
-                style={{ flex: 1, height: 44, justifyContent: "center", background: "linear-gradient(135deg, var(--purple-light), var(--purple))", border: "none" }} 
+                style={{ flex: 1, height: 44, justifyContent: "center" }} 
                 onClick={handleIntegrationLogin}
                 disabled={loading || !selectedIntegrationUser || !integrationCode}
               >
