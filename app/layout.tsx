@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Cormorant_Garamond } from "next/font/google";
 import ThemeToggle from "@/components/ThemeToggle";
 import PwaRegister from "@/components/PwaRegister";
+import ModalScrollLock from "@/components/layout/ModalScrollLock";
 import "./globals.css";
 import "./design-system.css";
 
@@ -58,6 +59,7 @@ export default function RootLayout({
         />
       </head>
       <body suppressHydrationWarning>
+        <ModalScrollLock />
         {children}
         <ThemeToggle />
         <PwaRegister />

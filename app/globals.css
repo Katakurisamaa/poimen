@@ -2102,7 +2102,33 @@ select.input option { background: var(--bg-deep); color: var(--cream); }
    Obsidian & Celestial Gold Theme
    ═══════════════════════════════════════════ */
 
-/* Overlay with blur, centered flex layout, and fade-in animation */
+/* Universal Background Scroll Lock when any modal is open */
+html:has(.modal-overlay),
+body:has(.modal-overlay),
+html.modal-locked,
+body.modal-locked {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  height: 100% !important;
+}
+
+html:has(.modal-overlay) .app-shell,
+body:has(.modal-overlay) .app-shell,
+html.modal-locked .app-shell,
+body.modal-locked .app-shell {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+html:has(.modal-overlay) .modal-overlay,
+body:has(.modal-overlay) .modal-overlay,
+html.modal-locked .modal-overlay,
+body.modal-locked .modal-overlay {
+  pointer-events: auto !important;
+}
+
+/* Overlay with blur, centered flex layout, and zero background bleed */
 .modal-overlay {
   position: fixed !important;
   top: 0 !important;
@@ -2114,13 +2140,13 @@ select.input option { background: var(--bg-deep); color: var(--cream); }
   -webkit-backdrop-filter: blur(14px) !important;
   z-index: 9999 !important;
   display: flex !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   justify-content: center !important;
   padding: 16px !important;
-  padding-bottom: 40px !important;
   animation: fadeInOverlay 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
 }
 
 /* Perfect responsive modal container */
@@ -2141,8 +2167,19 @@ select.input option { background: var(--bg-deep); color: var(--cream); }
   position: relative !important;
   z-index: 10001 !important;
   animation: modalScaleUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
+  max-height: calc(100dvh - 32px) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+}
+
+.modal-overlay :is(.custom-modal, .arch-card) {
+  max-height: calc(100dvh - 32px) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
 }
 
 /* Custom gold scrollbar for the modal */

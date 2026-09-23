@@ -211,6 +211,12 @@ html[data-theme] body .modal-overlay {
   backdrop-filter: blur(6px) !important;
   -webkit-backdrop-filter: blur(6px) !important;
   animation: ui-fade-in 180ms ease both !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 html[data-theme] body .custom-modal,
 html[data-theme] body .modal-overlay :is(.custom-modal, .arch-card) {
@@ -220,8 +226,10 @@ html[data-theme] body .modal-overlay :is(.custom-modal, .arch-card) {
   border-radius: 24px !important;
   padding: clamp(20px, 3vw, 32px) !important;
   box-shadow: var(--shadow-dialog) !important;
-  max-height: calc(100dvh - 48px);
-  overscroll-behavior: contain;
+  max-height: calc(100dvh - 48px) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  touch-action: pan-y !important;
   animation: ui-enter 240ms var(--ease-ui) both !important;
 }
 html[data-theme] body .theme-toggle {
