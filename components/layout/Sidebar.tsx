@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { CalendarDays, Church, FileText, Globe, House, ListChecks, LogOut, MoreHorizontal, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { BookOpen, CalendarDays, Church, FileText, Globe, House, ListChecks, LogOut, MoreHorizontal, ShieldCheck, UserRound, Users, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { clearActiveSpace } from "@/lib/client-session";
 import { getNavigation, isNavigationActive, roleLabel, type NavItem } from "@/lib/navigation";
@@ -11,7 +11,7 @@ import { useFeedback } from "@/components/experience/FeedbackProvider";
 import styles from "@/components/experience/Experience.module.css";
 import PoimenLogo from "@/components/brand/PoimenLogo";
 
-const ICONS = { home: House, people: Users, followup: ListChecks, calendar: CalendarDays, report: FileText, team: Users, outreach: Globe, profile: UserRound, admin: ShieldCheck, church: Church };
+const ICONS = { home: House, people: Users, followup: ListChecks, calendar: CalendarDays, report: FileText, team: Users, outreach: Globe, profile: UserRound, admin: ShieldCheck, church: Church, book: BookOpen };
 type Props = { mobileOpen?: boolean; onToggleMobile?: () => void };
 export default function Sidebar(props: Props) {
   return <Suspense fallback={null}><Navigation {...props} /></Suspense>;

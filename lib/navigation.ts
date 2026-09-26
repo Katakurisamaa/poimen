@@ -1,13 +1,14 @@
 export type WorkspaceAccess = {
   role: string;
   hasFamily: boolean;
+  familyName?: string;
   isSuperAdmin?: boolean;
   isConseiller?: boolean;
 };
 export type NavItem = {
   label: string;
   href: string;
-  icon: "home" | "people" | "followup" | "calendar" | "report" | "team" | "outreach" | "profile" | "admin" | "church";
+  icon: "home" | "people" | "followup" | "calendar" | "report" | "team" | "outreach" | "profile" | "admin" | "church" | "book";
   description: string;
   matches?: string[];
 };
@@ -35,13 +36,25 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
   const responsible = ["responsable", "responsable de brebi", "responsable de brebis"].includes(role);
   const counselor = !!access.isConseiller || ["conseiller", "integration conseiller"].includes(role);
   const profile: NavItem = { label: "Mon profil", href: "/dashboard/profil", icon: "profile", description: "Informations personnelles et compte" };
+  const isNoe = (access.familyName || "").toUpperCase().includes("NOÉ") || (access.familyName || "").toUpperCase().includes("NOE");
+  const meditationItem: NavItem = {
+    label: isNoe ? "Méditation" : "Méditation Noé",
+    href: "/dashboard/meditation",
+    icon: "book",
+    description: "Planning hebdomadaire de méditation — Famille de Noé",
+  };
+
   if (admin) return {
     primary: [
       { label: "Écosystème", href: "/dashboard/admin?tab=ecosystem", icon: "admin", description: "Vue d’ensemble de l’organisation" },
       { label: "Églises", href: "/dashboard/admin?tab=churches", icon: "church", description: "Gérer les églises" },
       { label: "Approbations", href: "/dashboard/admin?tab=approvals", icon: "followup", description: "Examiner les demandes" },
     ],
-    secondary: [{ label: "Compte rendu de culte", href: "/cr-culte", icon: "report", description: "Préparer le compte rendu" }, profile],
+    secondary: [
+      { label: "Compte rendu de culte", href: "/cr-culte", icon: "report", description: "Préparer le compte rendu" },
+      meditationItem,
+      profile,
+    ],
     canSeeMembers: false, canSeeGuests: false,
   };
   if (!access.hasFamily && !integration) return { primary: [], secondary: [], canSeeMembers: false, canSeeGuests: false };
@@ -55,7 +68,13 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
   }
   if (familyLeader) {
     primary.push({ label: "Activités", href: "/dashboard/activities", icon: "calendar", description: "Calendrier et présences" });
+    if (isNoe) {
+      primary.push(meditationItem);
+    }
     secondary.push({ label: "Rapports", href: "/dashboard/reporting", icon: "report", description: "Bilan et export des rapports" });
+    if (!isNoe) {
+      secondary.push(meditationItem);
+    }
   }
   if (integration) {
     primary.push({
