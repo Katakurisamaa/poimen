@@ -1,12 +1,12 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
 import {
   MeditationPlan,
   FIXED_MEDITATION_HOURS,
   MEDITATION_DAYS,
 } from "@/types/meditation";
+import { FAMILLE_NOE_LOGO_BASE64 } from "@/lib/famille-noe-logo-base64";
 import {
   Sunrise,
   Sun,
@@ -14,7 +14,6 @@ import {
   Moon,
   BookOpen,
   Calendar,
-  Sparkles,
 } from "lucide-react";
 
 interface MeditationPosterProps {
@@ -30,112 +29,83 @@ export default function MeditationPoster({
 }: MeditationPosterProps) {
   const isDark = themeStyle === "obsidian";
 
-  // Palette tokens based on theme
-  const bg = isDark
-    ? "linear-gradient(145deg, #05020c 0%, #0d0722 45%, #05020c 100%)"
-    : "linear-gradient(145deg, #ffffff 0%, #fbf9f4 50%, #f4f0e6 100%)";
-
-  const borderColor = isDark ? "rgba(212, 175, 55, 0.35)" : "rgba(180, 140, 50, 0.4)";
-  const innerCardBg = isDark ? "rgba(20, 12, 45, 0.65)" : "rgba(255, 255, 255, 0.85)";
-  const innerCardBorder = isDark ? "rgba(212, 175, 55, 0.2)" : "rgba(200, 160, 60, 0.3)";
-  const textColor = isDark ? "#F8F5EE" : "#1A1528";
-  const textMuted = isDark ? "#B8B1C8" : "#5A5468";
-  const goldPrimary = isDark ? "#E6CA65" : "#996515";
-  const goldLight = isDark ? "#FDF3D0" : "#7A4F0B";
-  const slotHeaderBg = isDark
-    ? "linear-gradient(135deg, rgba(212, 175, 55, 0.22) 0%, rgba(139, 92, 246, 0.18) 100%)"
-    : "linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(245, 158, 11, 0.1) 100%)";
-  const verseBg = isDark
-    ? "rgba(56, 189, 248, 0.12)"
-    : "rgba(14, 116, 144, 0.08)";
-  const verseBorder = isDark
-    ? "rgba(56, 189, 248, 0.3)"
-    : "rgba(14, 116, 144, 0.25)";
-  const verseColor = isDark ? "#7DD3FC" : "#0E7490";
+  // High-contrast, authentic church color palette
+  const bg = isDark ? "#0C081D" : "#FFFFFF";
+  const borderColor = isDark ? "#D4AF37" : "#B45309";
+  const tableHeaderBg = isDark ? "#1A1138" : "#F1F5F9";
+  const tableBorderColor = isDark ? "#2D1F5A" : "#CBD5E1";
+  const textColor = isDark ? "#FFFFFF" : "#0F172A";
+  const textMuted = isDark ? "#E2E8F0" : "#475569";
+  const goldHeading = isDark ? "#FACC15" : "#92400E";
+  const dayBadgeBg = isDark ? "#24154B" : "#FEF3C7";
+  const dayBadgeBorder = isDark ? "#D4AF37" : "#B45309";
+  const dayBadgeText = isDark ? "#FFFFFF" : "#92400E";
+  const verseBg = isDark ? "#172554" : "#EFF6FF";
+  const verseBorder = isDark ? "#38BDF8" : "#93C5FD";
+  const verseColor = isDark ? "#93C5FD" : "#1D4ED8";
+  const rowEvenBg = isDark ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.015)";
 
   const hourIcons = [
-    <Sunrise key="0" size={17} style={{ color: isDark ? "#FBBF24" : "#D97706" }} />,
-    <Sun key="1" size={17} style={{ color: isDark ? "#FDE047" : "#CA8A04" }} />,
-    <Sunset key="2" size={17} style={{ color: isDark ? "#FB923C" : "#EA580C" }} />,
-    <Moon key="3" size={17} style={{ color: isDark ? "#A78BFA" : "#7C3AED" }} />,
+    <Sunrise key="0" size={16} style={{ color: isDark ? "#FBBF24" : "#D97706" }} />,
+    <Sun key="1" size={16} style={{ color: isDark ? "#FDE047" : "#B45309" }} />,
+    <Sunset key="2" size={16} style={{ color: isDark ? "#FB923C" : "#EA580C" }} />,
+    <Moon key="3" size={16} style={{ color: isDark ? "#C084FC" : "#7C3AED" }} />,
   ];
 
   return (
     <div
       id={id}
       style={{
-        width: 960,
-        maxWidth: "100%",
+        width: 920,
         margin: "0 auto",
         background: bg,
-        borderRadius: 24,
-        border: `2px solid ${borderColor}`,
+        borderRadius: 20,
+        border: `3px solid ${borderColor}`,
         boxShadow: isDark
-          ? "0 25px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(212, 175, 55, 0.15)"
-          : "0 20px 50px rgba(0, 0, 0, 0.1), 0 0 30px rgba(212, 175, 55, 0.1)",
-        padding: "36px 36px 32px",
+          ? "0 20px 50px rgba(0, 0, 0, 0.9)"
+          : "0 16px 40px rgba(0, 0, 0, 0.12)",
+        padding: "32px 32px 28px",
         fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif",
         color: textColor,
         boxSizing: "border-box",
         position: "relative",
-        overflow: "hidden",
       }}
     >
-      {/* Decorative Celestial Glow in background */}
-      <div
-        style={{
-          position: "absolute",
-          top: -120,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 500,
-          height: 300,
-          background: isDark
-            ? "radial-gradient(circle, rgba(212, 175, 55, 0.18) 0%, rgba(139, 92, 246, 0.08) 45%, transparent 70%)"
-            : "radial-gradient(circle, rgba(212, 175, 55, 0.12) 0%, transparent 65%)",
-          borderRadius: "50%",
-          pointerEvents: "none",
-        }}
-      />
-
-      {/* ── TOP HEADER WITH LOGO & TITLE ── */}
+      {/* ── HEADER : LOGO & INSTITUTIONAL TITLE ── */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: `1.5px solid ${borderColor}`,
-          paddingBottom: 24,
+          borderBottom: `2px solid ${borderColor}`,
+          paddingBottom: 22,
           marginBottom: 24,
-          position: "relative",
-          zIndex: 1,
         }}
       >
-        {/* Official Famille de Noé Emblem Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+        {/* Left: Official Circular Logo & Church Title */}
+        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <div
             style={{
-              position: "relative",
-              width: 105,
-              height: 105,
+              width: 90,
+              height: 90,
               borderRadius: "50%",
               overflow: "hidden",
-              border: `2.5px solid ${goldPrimary}`,
-              boxShadow: isDark
-                ? "0 0 20px rgba(212, 175, 55, 0.4), 0 8px 16px rgba(0,0,0,0.6)"
-                : "0 4px 14px rgba(180, 140, 50, 0.25)",
-              flexShrink: 0,
+              border: `3px solid ${borderColor}`,
               background: "#050614",
+              flexShrink: 0,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
             }}
           >
-            <Image
-              src="/brand/famille-de-noe.png"
+            {/* Direct Base64 Image to guarantee instant loading without network/caching bugs */}
+            <img
+              src={FAMILLE_NOE_LOGO_BASE64}
               alt="Logo Famille de Noé"
-              width={105}
-              height={105}
-              style={{ objectFit: "cover" }}
-              priority
-              unoptimized
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
             />
           </div>
 
@@ -143,11 +113,11 @@ export default function MeditationPoster({
             <div
               style={{
                 fontSize: 12,
-                letterSpacing: "3px",
+                letterSpacing: "2.5px",
                 textTransform: "uppercase",
-                color: goldPrimary,
-                fontWeight: 700,
-                marginBottom: 4,
+                color: goldHeading,
+                fontWeight: 800,
+                marginBottom: 3,
               }}
             >
               Impact Centre Chrétien • Famille de Noé
@@ -155,39 +125,31 @@ export default function MeditationPoster({
             <h1
               style={{
                 margin: 0,
-                fontSize: 26,
+                fontSize: 24,
                 fontWeight: 900,
-                letterSpacing: "0.5px",
-                lineHeight: 1.15,
-                color: goldLight,
-                textShadow: isDark ? "0 2px 8px rgba(0,0,0,0.8)" : "none",
+                letterSpacing: "0.2px",
+                color: textColor,
+                lineHeight: 1.2,
               }}
             >
               PLANNING HEBDOMADAIRE DE MÉDITATION
             </h1>
             <div
               style={{
-                marginTop: 6,
+                marginTop: 5,
                 fontSize: 12,
-                letterSpacing: "1.5px",
+                letterSpacing: "2px",
                 textTransform: "uppercase",
                 color: textMuted,
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
+                fontWeight: 700,
               }}
             >
-              <span>BÂTIR</span>
-              <span>•</span>
-              <span>SAUVER</span>
-              <span>•</span>
-              <span>PEUPLER</span>
+              BÂTIR • SAUVER • PEUPLER
             </div>
           </div>
         </div>
 
-        {/* Weekly Badges Box (Week + Book) */}
+        {/* Right: Week & Theme Pills */}
         <div
           style={{
             display: "flex",
@@ -196,81 +158,75 @@ export default function MeditationPoster({
             gap: 8,
           }}
         >
-          {/* Week Label Pill */}
+          {/* Week Label */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 8,
               padding: "7px 16px",
-              borderRadius: 30,
-              background: slotHeaderBg,
-              border: `1.5px solid ${goldPrimary}`,
-              color: goldLight,
+              borderRadius: 8,
+              background: dayBadgeBg,
+              border: `1.5px solid ${dayBadgeBorder}`,
+              color: dayBadgeText,
               fontSize: 14,
-              fontWeight: 700,
-              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              fontWeight: 800,
             }}
           >
-            <Calendar size={16} style={{ color: goldPrimary }} />
+            <Calendar size={16} />
             <span>{plan.week_label || "Semaine en cours"}</span>
           </div>
 
-          {/* Book / Theme Pill */}
+          {/* Book / Theme */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 8,
               padding: "6px 14px",
-              borderRadius: 30,
-              background: innerCardBg,
-              border: `1px solid ${innerCardBorder}`,
+              borderRadius: 8,
+              background: isDark ? "#181135" : "#F8FAFC",
+              border: `1px solid ${tableBorderColor}`,
               color: textColor,
               fontSize: 13,
-              fontWeight: 600,
+              fontWeight: 700,
             }}
           >
-            <BookOpen size={15} style={{ color: goldPrimary }} />
-            <span>{plan.livre_theme || "Méditation de la Parole"}</span>
+            <BookOpen size={15} style={{ color: goldHeading }} />
+            <span>{plan.livre_theme || "Méditation biblique"}</span>
           </div>
 
           {plan.verset_cle && (
             <div
               style={{
-                fontSize: 11,
+                fontSize: 11.5,
                 color: textMuted,
-                fontWeight: 500,
-                fontStyle: "italic",
+                fontWeight: 600,
               }}
             >
-              Verset clé : <span style={{ color: goldPrimary, fontWeight: 700 }}>{plan.verset_cle}</span>
+              Verset clé :{" "}
+              <strong style={{ color: goldHeading }}>{plan.verset_cle}</strong>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── SCHEDULE GRID TABLE ── */}
+      {/* ── SCHEDULE TABLE ── */}
       <div
         style={{
-          borderRadius: 18,
-          border: `1.5px solid ${innerCardBorder}`,
-          background: innerCardBg,
+          borderRadius: 12,
+          border: `2px solid ${tableBorderColor}`,
           overflow: "hidden",
-          boxShadow: isDark
-            ? "0 10px 30px rgba(0, 0, 0, 0.5)"
-            : "0 8px 24px rgba(0, 0, 0, 0.05)",
-          position: "relative",
-          zIndex: 1,
+          background: isDark ? "#120B27" : "#FFFFFF",
         }}
       >
-        {/* Table Header: Hours */}
+        {/* Table Header: Fixed Hours */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "140px repeat(4, 1fr)",
-            background: slotHeaderBg,
-            borderBottom: `1.5px solid ${innerCardBorder}`,
+            background: tableHeaderBg,
+            borderBottom: `2px solid ${tableBorderColor}`,
             padding: "12px 10px",
             alignItems: "center",
           }}
@@ -278,18 +234,14 @@ export default function MeditationPoster({
           <div
             style={{
               fontSize: 13,
-              fontWeight: 800,
+              fontWeight: 900,
               letterSpacing: "1px",
               textTransform: "uppercase",
-              color: goldPrimary,
+              color: goldHeading,
               paddingLeft: 12,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
             }}
           >
-            <Sparkles size={14} />
-            <span>JOURS</span>
+            JOURS
           </div>
 
           {FIXED_MEDITATION_HOURS.map((hour, idx) => (
@@ -300,8 +252,8 @@ export default function MeditationPoster({
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 4,
-                borderLeft: idx > 0 ? `1px solid ${innerCardBorder}` : undefined,
+                gap: 3,
+                borderLeft: idx > 0 ? `1px solid ${tableBorderColor}` : undefined,
                 padding: "2px 6px",
               }}
             >
@@ -310,8 +262,8 @@ export default function MeditationPoster({
                 <span
                   style={{
                     fontSize: 14,
-                    fontWeight: 800,
-                    color: goldLight,
+                    fontWeight: 900,
+                    color: textColor,
                     letterSpacing: "0.5px",
                   }}
                 >
@@ -320,11 +272,11 @@ export default function MeditationPoster({
               </div>
               <span
                 style={{
-                  fontSize: 10,
+                  fontSize: 11,
                   textTransform: "uppercase",
                   letterSpacing: "0.8px",
                   color: textMuted,
-                  fontWeight: 600,
+                  fontWeight: 700,
                 }}
               >
                 {hour.name}
@@ -333,7 +285,7 @@ export default function MeditationPoster({
           ))}
         </div>
 
-        {/* Table Body: Days */}
+        {/* Table Rows: Monday to Friday */}
         {MEDITATION_DAYS.map((day, dIdx) => {
           const daySchedule = plan.schedule[day.id] || {};
           const isEven = dIdx % 2 === 0;
@@ -346,47 +298,35 @@ export default function MeditationPoster({
                 gridTemplateColumns: "140px repeat(4, 1fr)",
                 borderBottom:
                   dIdx < MEDITATION_DAYS.length - 1
-                    ? `1px solid ${innerCardBorder}`
+                    ? `1px solid ${tableBorderColor}`
                     : "none",
-                background: isEven
-                  ? isDark
-                    ? "rgba(255, 255, 255, 0.015)"
-                    : "rgba(0, 0, 0, 0.015)"
-                  : "transparent",
+                background: isEven ? rowEvenBg : "transparent",
                 minHeight: 64,
                 alignItems: "center",
               }}
             >
               {/* Day Cell */}
-              <div
-                style={{
-                  padding: "12px 14px",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
+              <div style={{ padding: "12px 14px" }}>
                 <div
                   style={{
-                    background: isDark ? "rgba(212, 175, 55, 0.15)" : "rgba(212, 175, 55, 0.12)",
-                    border: `1px solid ${goldPrimary}`,
-                    color: goldLight,
-                    borderRadius: 10,
+                    background: dayBadgeBg,
+                    border: `1.5px solid ${dayBadgeBorder}`,
+                    color: dayBadgeText,
+                    borderRadius: 8,
                     padding: "6px 12px",
-                    fontWeight: 800,
+                    fontWeight: 900,
                     fontSize: 13,
                     letterSpacing: "0.5px",
                     textTransform: "uppercase",
-                    width: "100%",
                     textAlign: "center",
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                   }}
                 >
                   {day.label}
                 </div>
               </div>
 
-              {/* 4 Hour Slots */}
-              {FIXED_MEDITATION_HOURS.map((hour, hIdx) => {
+              {/* 4 Slots */}
+              {FIXED_MEDITATION_HOURS.map((hour) => {
                 const slot = daySchedule[hour.id];
                 const person = slot?.person?.trim();
                 const verse = slot?.verse?.trim();
@@ -396,7 +336,7 @@ export default function MeditationPoster({
                     key={hour.id}
                     style={{
                       padding: "10px 10px",
-                      borderLeft: `1px solid ${innerCardBorder}`,
+                      borderLeft: `1px solid ${tableBorderColor}`,
                       minHeight: 64,
                       display: "flex",
                       flexDirection: "column",
@@ -409,8 +349,8 @@ export default function MeditationPoster({
                     {person ? (
                       <div
                         style={{
-                          fontSize: 13.5,
-                          fontWeight: 700,
+                          fontSize: 14,
+                          fontWeight: 800,
                           color: textColor,
                           lineHeight: 1.25,
                         }}
@@ -423,10 +363,9 @@ export default function MeditationPoster({
                           fontSize: 12,
                           color: textMuted,
                           fontStyle: "italic",
-                          opacity: 0.6,
                         }}
                       >
-                        — Non assigné —
+                        —
                       </div>
                     )}
 
@@ -438,8 +377,8 @@ export default function MeditationPoster({
                           color: verseColor,
                           borderRadius: 6,
                           padding: "2px 8px",
-                          fontSize: 11.5,
-                          fontWeight: 700,
+                          fontSize: 12,
+                          fontWeight: 800,
                           letterSpacing: "0.2px",
                           display: "inline-block",
                           maxWidth: "100%",
@@ -459,26 +398,25 @@ export default function MeditationPoster({
         })}
       </div>
 
-      {/* ── CARD FOOTER WITH EXHORTATION & SIGNATURE ── */}
+      {/* ── FOOTER : EXHORTATION SCRIPTURE & SIGNATURE ── */}
       <div
         style={{
-          marginTop: 24,
-          paddingTop: 18,
-          borderTop: `1.5px solid ${borderColor}`,
+          marginTop: 22,
+          paddingTop: 16,
+          borderTop: `2px solid ${borderColor}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          position: "relative",
-          zIndex: 1,
         }}
       >
         <div
           style={{
-            maxWidth: 680,
-            fontSize: 12.5,
+            maxWidth: 650,
+            fontSize: 13,
             fontStyle: "italic",
             color: textMuted,
             lineHeight: 1.4,
+            fontWeight: 500,
           }}
         >
           {plan.exhortation ||
@@ -488,15 +426,15 @@ export default function MeditationPoster({
         <div
           style={{
             textAlign: "right",
-            fontSize: 11,
-            color: goldPrimary,
-            fontWeight: 700,
+            fontSize: 11.5,
+            color: goldHeading,
+            fontWeight: 800,
             letterSpacing: "0.5px",
           }}
         >
-          <div>COMMUNAUTÉ DE DISCIPLES</div>
-          <div style={{ color: textMuted, fontWeight: 500, fontSize: 10, marginTop: 2 }}>
-            Partagé avec amour dans la Famille de Noé 🕊️
+          <div>FAMILLE DE NOÉ</div>
+          <div style={{ color: textMuted, fontWeight: 600, fontSize: 10.5, marginTop: 2 }}>
+            Temps de méditations communautaires
           </div>
         </div>
       </div>
