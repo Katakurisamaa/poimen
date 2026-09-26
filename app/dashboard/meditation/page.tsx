@@ -344,7 +344,7 @@ export default function MeditationPage() {
     try {
       return await toPng(element, {
         pixelRatio: 2.5,
-        backgroundColor: plan.theme_style === "parchment" ? "#FAF7F0" : "#0B2135",
+        backgroundColor: plan.theme_style === "parchment" ? "#FAF7F0" : "#07192A",
         cacheBust: true,
       });
     } finally {
@@ -570,16 +570,7 @@ export default function MeditationPage() {
 
           <button
             onClick={() => setSelectedWeek(getMondayOfWeek(new Date()))}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--muted)",
-              fontSize: 12,
-              fontWeight: 600,
-              textDecoration: "underline",
-              cursor: "pointer",
-              marginLeft: 4,
-            }}
+            className={styles.todayBtn}
           >
             Aujourd&apos;hui
           </button>
@@ -941,17 +932,7 @@ export default function MeditationPage() {
             >
               {/* Left: Style Switcher (Moved here as requested) */}
               <div>
-                <span
-                  style={{
-                    display: "block",
-                    fontSize: 11,
-                    textTransform: "uppercase",
-                    letterSpacing: "1px",
-                    fontWeight: 700,
-                    color: "var(--muted)",
-                    marginBottom: 6,
-                  }}
-                >
+                <span className={styles.styleLabel}>
                   Style de l&apos;Affiche à exporter
                 </span>
                 <div className={styles.tabGroup}>
@@ -960,7 +941,7 @@ export default function MeditationPage() {
                     onClick={() =>
                       setPlan((prev) => ({ ...prev, theme_style: "obsidian" }))
                     }
-                    className={`${styles.tabBtn} ${plan.theme_style === "obsidian" ? styles.tabBtnActive : ""}`}
+                    className={`${styles.tabBtn} ${(plan.theme_style || "obsidian") === "obsidian" ? styles.tabBtnActive : ""}`}
                   >
                     🌙 Version Sombre
                   </button>

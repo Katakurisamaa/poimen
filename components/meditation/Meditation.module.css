@@ -930,6 +930,40 @@
   border-color: #CBD5E1;
 }
 
+.styleLabel {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: var(--gold, #D4AF37);
+  margin-bottom: 6px;
+}
+
+:global(html:not([data-theme="dark"])) .styleLabel {
+  color: #92400E;
+}
+
+.todayBtn {
+  background: none;
+  border: none;
+  color: var(--gold, #D4AF37);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: opacity 0.15s ease;
+}
+
+:global(html:not([data-theme="dark"])) .todayBtn {
+  color: #B45309;
+}
+
+.todayBtn:hover {
+  opacity: 0.8;
+}
+
 @media (max-width: 768px) {
   .container {
     padding-inline: 8px;
