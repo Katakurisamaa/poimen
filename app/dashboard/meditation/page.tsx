@@ -49,28 +49,6 @@ import {
   formatMeditationWhatsApp,
 } from "@/lib/meditation-service";
 
-// Default brethren known in Famille de Noé (from the official weekly schedule)
-const KNOWN_NOE_MEMBERS: FamilyMemberItem[] = [
-  { id: "ref-1", name: "Cécile Eya", status: "Membre" },
-  { id: "ref-2", name: "Christian", status: "Membre" },
-  { id: "ref-3", name: "Ariane", status: "Membre" },
-  { id: "ref-4", name: "Marlise", status: "Membre" },
-  { id: "ref-5", name: "Benjamin", status: "Membre" },
-  { id: "ref-6", name: "Nadège", status: "Membre" },
-  { id: "ref-7", name: "Mbiayo", status: "Membre" },
-  { id: "ref-8", name: "Aesone", status: "Membre" },
-  { id: "ref-9", name: "Ingrid", status: "Membre" },
-  { id: "ref-10", name: "Léonard", status: "Membre" },
-  { id: "ref-11", name: "Dede", status: "Membre" },
-  { id: "ref-12", name: "Sylvie", status: "Membre" },
-  { id: "ref-13", name: "Phalone", status: "Membre" },
-  { id: "ref-14", name: "Yvette", status: "Membre" },
-  { id: "ref-15", name: "M. Cecile", status: "Membre" },
-  { id: "ref-16", name: "Bertille", status: "Membre" },
-  { id: "ref-17", name: "Sandra", status: "Membre" },
-  { id: "ref-18", name: "Laurene", status: "Membre" },
-];
-
 export default function MeditationPage() {
   const workspace = useWorkspace();
   const { notify } = useFeedback();
@@ -106,8 +84,8 @@ export default function MeditationPage() {
   const [exportingPdf, setExportingPdf] = useState<boolean>(false);
   const [copiedWhatsApp, setCopiedWhatsApp] = useState<boolean>(false);
 
-  // Family members list for custom selection modal & autocomplete
-  const [familyMembers, setFamilyMembers] = useState<FamilyMemberItem[]>(KNOWN_NOE_MEMBERS);
+  // Family members list from database (first_name, last_name, status)
+  const [familyMembers, setFamilyMembers] = useState<FamilyMemberItem[]>([]);
 
   // Modal State for slot member picker
   const [pickerModal, setPickerModal] = useState<{
@@ -121,58 +99,57 @@ export default function MeditationPage() {
 
   const datalistId = useId();
 
-  // Load family members from database (filtered by current bergerie if available)
+  // Load family members from database (filtered by Famille de Noé)
   useEffect(() => {
     async function fetchMembers() {
       try {
         const context = getActiveContext();
         const family = readJsonStorage<{ id?: string; name?: string }>("selected_family");
-        const familyId = context?.bergerie_id || family?.id;
+        let familyId = context?.bergerie_id || family?.id;
+
+        // If familyId is not in active session, find the bergerie for "FAMILLE DE NOÉ"
+        if (!familyId) {
+          const { data: noeBg } = await supabase
+            .from("bergeries")
+            .select("id")
+            .ilike("name", "%Noé%")
+            .maybeSingle();
+          if (noeBg?.id) {
+            familyId = noeBg.id;
+          }
+        }
 
         let query = supabase
           .from("members")
-          .select("id, firstName, lastName, civility, status, bergerie_id")
-          .order("firstName");
+          .select("id, first_name, last_name, civility, status, bergerie_id, archived")
+          .order("first_name", { ascending: true });
 
         if (familyId) {
           query = query.eq("bergerie_id", familyId);
         }
+        query = query.neq("archived", true);
 
         const { data, error } = await query;
         if (!error && data && data.length > 0) {
-          const dbMembers: FamilyMemberItem[] = data.map((m) => {
-            const fullName = `${m.firstName || ""} ${m.lastName || ""}`.trim() || "Membre";
-            return {
-              id: m.id,
-              name: fullName,
-              status: m.status || "Membre",
-              civility: m.civility,
-            };
-          });
+          const dbMembers: FamilyMemberItem[] = data
+            .map((m) => {
+              const fn = (m.first_name || "").trim();
+              const ln = (m.last_name || "").trim();
+              if (!fn && !ln) return null;
+              return {
+                id: m.id,
+                firstName: fn || ln,
+                lastName: ln,
+                status: m.status || "Membre",
+                civility: m.civility,
+              };
+            })
+            .filter(Boolean) as FamilyMemberItem[];
 
-          // Merge dbMembers with KNOWN_NOE_MEMBERS (avoiding duplicates)
-          const seen = new Set<string>();
-          const merged: FamilyMemberItem[] = [];
-
-          for (const m of dbMembers) {
-            const key = m.name.toLowerCase();
-            if (!seen.has(key)) {
-              seen.add(key);
-              merged.push(m);
-            }
-          }
-          for (const m of KNOWN_NOE_MEMBERS) {
-            const key = m.name.toLowerCase();
-            if (!seen.has(key)) {
-              seen.add(key);
-              merged.push(m);
-            }
-          }
-
-          setFamilyMembers(merged);
+          setFamilyMembers(dbMembers);
         }
       } catch (err) {
-        console.warn("Could not fetch members from DB, keeping default known list:", err);
+        console.warn("Could not fetch family members from DB:", err);
       }
     }
     fetchMembers();
@@ -313,7 +290,7 @@ export default function MeditationPage() {
     }
     return await toPng(element, {
       pixelRatio: 2.5,
-      backgroundColor: plan.theme_style === "parchment" ? "#FFFFFF" : "#0C081D",
+      backgroundColor: plan.theme_style === "parchment" ? "#FAF7F0" : "#0B2135",
       cacheBust: true,
     });
   };
@@ -435,10 +412,10 @@ export default function MeditationPage() {
   };
 
   const hourIcons = [
-    <Sunrise key="0" size={15} style={{ color: "#FBBF24" }} />,
-    <Sun key="1" size={15} style={{ color: "#FDE047" }} />,
-    <Sunset key="2" size={15} style={{ color: "#FB923C" }} />,
-    <Moon key="3" size={15} style={{ color: "#C084FC" }} />,
+    <Sunrise key="0" size={15} />,
+    <Sun key="1" size={15} />,
+    <Sunset key="2" size={15} />,
+    <Moon key="3" size={15} />,
   ];
 
   const activeDay = MEDITATION_DAYS[activeDayIndex] || MEDITATION_DAYS[0];
@@ -658,7 +635,7 @@ export default function MeditationPage() {
           {/* Datalist for disciple name suggestions */}
           <datalist id={datalistId}>
             {familyMembers.map((m) => (
-              <option key={m.id} value={m.name} />
+              <option key={m.id} value={m.firstName} />
             ))}
           </datalist>
 

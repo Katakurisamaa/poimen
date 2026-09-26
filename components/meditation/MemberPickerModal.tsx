@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, User, UserX, Check } from "lucide-react";
+import { Search, X, UserX, Check } from "lucide-react";
 import styles from "./Meditation.module.css";
 
 export interface FamilyMemberItem {
   id: string;
-  name: string;
+  firstName: string;
+  lastName?: string;
   status?: string;
   civility?: string;
 }
@@ -15,7 +16,7 @@ export interface FamilyMemberItem {
 interface MemberPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (name: string) => void;
+  onSelect: (firstName: string) => void;
   currentName?: string;
   dayLabel: string;
   hourLabel: string;
@@ -69,17 +70,16 @@ export default function MemberPickerModal({
     const q = search.toLowerCase().trim();
     if (!q) return true;
     return (
-      m.name.toLowerCase().includes(q) ||
+      m.firstName.toLowerCase().includes(q) ||
+      (m.lastName && m.lastName.toLowerCase().includes(q)) ||
       (m.status && m.status.toLowerCase().includes(q))
     );
   });
 
-  const getInitials = (name: string) => {
-    const parts = name.trim().split(" ");
-    if (parts.length >= 2) {
-      return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
-    }
-    return (name.slice(0, 2) || "MD").toUpperCase();
+  const getInitials = (fn: string, ln?: string) => {
+    const f = fn ? fn[0] : "";
+    const l = ln ? ln[0] : "";
+    return `${f}${l}`.toUpperCase() || "M";
   };
 
   const modalContent = (
@@ -93,7 +93,7 @@ export default function MemberPickerModal({
         {/* Header */}
         <div className={styles.modalHeader}>
           <div className={styles.modalTitleBlock}>
-            <span className={styles.modalEyebrow}>Famille de Noé • Méditation</span>
+            <span className={styles.modalEyebrow}>Famille de Noé • Membres</span>
             <h2 className={styles.modalTitle}>
               Choisir pour {dayLabel} ({hourLabel})
             </h2>
@@ -128,7 +128,7 @@ export default function MemberPickerModal({
               className={styles.modalSearchInput}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un membre par nom ou prénom…"
+              placeholder="Rechercher par prénom ou nom…"
               style={{ paddingLeft: 36 }}
             />
           </div>
@@ -138,16 +138,16 @@ export default function MemberPickerModal({
         <div className={styles.modalList}>
           {filteredMembers.length > 0 ? (
             filteredMembers.map((member) => {
-              const isSelected =
-                currentName.trim().toLowerCase() ===
-                member.name.trim().toLowerCase();
+              const cleanCurrent = currentName.trim().toLowerCase();
+              const cleanFirst = member.firstName.trim().toLowerCase();
+              const isSelected = cleanCurrent === cleanFirst;
 
               return (
                 <div
                   key={member.id}
                   className={styles.memberItem}
                   onClick={() => {
-                    onSelect(member.name);
+                    onSelect(member.firstName);
                     onClose();
                   }}
                   style={{
@@ -159,10 +159,31 @@ export default function MemberPickerModal({
                 >
                   <div className={styles.memberItemLeft}>
                     <div className={styles.memberAvatar}>
-                      {getInitials(member.name)}
+                      {getInitials(member.firstName, member.lastName)}
                     </div>
                     <div>
-                      <div className={styles.memberItemName}>{member.name}</div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          gap: 6,
+                        }}
+                      >
+                        <span className={styles.memberItemName}>
+                          {member.firstName}
+                        </span>
+                        {member.lastName && (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "var(--muted)",
+                              fontWeight: 500,
+                            }}
+                          >
+                            {member.lastName}
+                          </span>
+                        )}
+                      </div>
                       {member.status && (
                         <div className={styles.memberItemStatus}>
                           {member.status}
@@ -208,7 +229,7 @@ export default function MemberPickerModal({
                     }}
                     style={{ fontSize: 12 }}
                   >
-                    Utiliser « {search.trim()} »
+                    Utiliser le prénom « {search.trim()} »
                   </button>
                 </div>
               )}
