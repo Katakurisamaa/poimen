@@ -1,20 +1,9 @@
 "use client";
 
 import React from "react";
-import {
-  MeditationPlan,
-  FIXED_MEDITATION_HOURS,
-  MEDITATION_DAYS,
-} from "@/types/meditation";
+import { MeditationPlan, FIXED_MEDITATION_HOURS, MEDITATION_DAYS } from "@/types/meditation";
 import { FAMILLE_NOE_LOGO_BASE64 } from "@/lib/famille-noe-logo-base64";
-import {
-  Sunrise,
-  Sun,
-  Sunset,
-  Moon,
-  BookOpen,
-  Calendar,
-} from "lucide-react";
+import { Sunrise, Sun, Sunset, Moon, BookOpen } from "lucide-react";
 
 interface MeditationPosterProps {
   plan: MeditationPlan;
@@ -22,422 +11,124 @@ interface MeditationPosterProps {
   themeStyle?: "obsidian" | "parchment";
 }
 
+const hourIcons = [Sunrise, Sun, Sunset, Moon];
+
 export default function MeditationPoster({
   plan,
   id = "meditation-poster-container",
   themeStyle = "obsidian",
 }: MeditationPosterProps) {
-  const isDark = themeStyle === "obsidian";
-
-  // High-contrast, authentic church color palette
-  const bg = isDark ? "#0C081D" : "#FFFFFF";
-  const borderColor = isDark ? "#D4AF37" : "#B45309";
-  const tableHeaderBg = isDark ? "#1A1138" : "#F1F5F9";
-  const tableBorderColor = isDark ? "#2D1F5A" : "#CBD5E1";
-  const textColor = isDark ? "#FFFFFF" : "#0F172A";
-  const textMuted = isDark ? "#E2E8F0" : "#475569";
-  const goldHeading = isDark ? "#FACC15" : "#92400E";
-  const dayBadgeBg = isDark ? "#24154B" : "#FEF3C7";
-  const dayBadgeBorder = isDark ? "#D4AF37" : "#B45309";
-  const dayBadgeText = isDark ? "#FFFFFF" : "#92400E";
-  const verseBg = isDark ? "#172554" : "#EFF6FF";
-  const verseBorder = isDark ? "#38BDF8" : "#93C5FD";
-  const verseColor = isDark ? "#93C5FD" : "#1D4ED8";
-  const rowEvenBg = isDark ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.015)";
-
-  const hourIcons = [
-    <Sunrise key="0" size={16} style={{ color: isDark ? "#FBBF24" : "#D97706" }} />,
-    <Sun key="1" size={16} style={{ color: isDark ? "#FDE047" : "#B45309" }} />,
-    <Sunset key="2" size={16} style={{ color: isDark ? "#FB923C" : "#EA580C" }} />,
-    <Moon key="3" size={16} style={{ color: isDark ? "#C084FC" : "#7C3AED" }} />,
-  ];
+  const dark = themeStyle === "obsidian";
+  const colors = {
+    background: dark ? "#0B2135" : "#FAF7F0",
+    row: dark ? "#102B42" : "#FFFFFF",
+    text: dark ? "#F5F1E8" : "#102B42",
+    muted: dark ? "#AEC0CB" : "#5C6E79",
+    gold: dark ? "#E3C784" : "#806022",
+    line: dark ? "#284154" : "#E2DED3",
+  };
 
   return (
-    <div
-      id={id}
-      style={{
-        width: 920,
-        margin: "0 auto",
-        background: bg,
-        borderRadius: 20,
-        border: `3px solid ${borderColor}`,
-        boxShadow: isDark
-          ? "0 20px 50px rgba(0, 0, 0, 0.9)"
-          : "0 16px 40px rgba(0, 0, 0, 0.12)",
-        padding: "32px 32px 28px",
-        fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif",
-        color: textColor,
-        boxSizing: "border-box",
-        position: "relative",
-      }}
-    >
-      {/* ── HEADER : LOGO & INSTITUTIONAL TITLE ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottom: `2px solid ${borderColor}`,
-          paddingBottom: 22,
-          marginBottom: 24,
-        }}
-      >
-        {/* Left: Official Circular Logo & Church Title */}
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <div
-            style={{
-              width: 90,
-              height: 90,
-              borderRadius: "50%",
-              overflow: "hidden",
-              border: `3px solid ${borderColor}`,
-              background: "#050614",
-              flexShrink: 0,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-            }}
-          >
-            {/* Direct Base64 Image to guarantee instant loading without network/caching bugs */}
-            <img
-              src={FAMILLE_NOE_LOGO_BASE64}
-              alt="Logo Famille de Noé"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
-            />
-          </div>
-
+    <article id={id} aria-label={`Planning de méditation — ${plan.week_label}`}
+      style={{ width: 1000, flexShrink: 0, margin: "0 auto", background: colors.background,
+        color: colors.text, fontFamily: "'Segoe UI', Arial, sans-serif", boxSizing: "border-box",
+        borderRadius: 16, overflow: "hidden", border: `1px solid ${colors.line}` }}>
+      <header style={{ padding: "30px 38px 32px", background: "#081D30", color: "#F5F1E8",
+        borderBottom: "3px solid #C9AC6B" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {/* Embedded image keeps the logo available in the exported PNG and PDF. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={FAMILLE_NOE_LOGO_BASE64} alt="Famille de Noé" width={78} height={78}
+            style={{ display: "block", borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
           <div>
-            <div
-              style={{
-                fontSize: 12,
-                letterSpacing: "2.5px",
-                textTransform: "uppercase",
-                color: goldHeading,
-                fontWeight: 800,
-                marginBottom: 3,
-              }}
-            >
-              Impact Centre Chrétien • Famille de Noé
+            <div style={{ fontSize: 21, fontWeight: 600, letterSpacing: "0.3px" }}>Famille de Noé</div>
+            <div style={{ marginTop: 6, fontSize: 10, letterSpacing: "2.5px", color: "#E3C784" }}>
+              BÂTIR · SAUVER · PEUPLER
             </div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 24,
-                fontWeight: 900,
-                letterSpacing: "0.2px",
-                color: textColor,
-                lineHeight: 1.2,
-              }}
-            >
-              PLANNING HEBDOMADAIRE DE MÉDITATION
+          </div>
+          <div style={{ marginLeft: "auto", textAlign: "right", color: "#AEC0CB", fontSize: 11,
+            letterSpacing: "1.5px", lineHeight: 1.8, textTransform: "uppercase" }}>
+            Impact Centre Chrétien<br />Planning hebdomadaire
+          </div>
+        </div>
+        <div style={{ marginTop: 28, display: "flex", alignItems: "flex-end", gap: 28 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 49,
+              fontWeight: 400, lineHeight: 1.1, letterSpacing: "-1.5px", margin: 0 }}>
+              Un temps dans la Parole
             </h1>
-            <div
-              style={{
-                marginTop: 5,
-                fontSize: 12,
-                letterSpacing: "2px",
-                textTransform: "uppercase",
-                color: textMuted,
-                fontWeight: 700,
-              }}
-            >
-              BÂTIR • SAUVER • PEUPLER
+            <p style={{ margin: "12px 0 0", color: "#AEC0CB", fontSize: 14 }}>
+              Notre rendez-vous de méditation en famille
+            </p>
+          </div>
+          <div style={{ width: 220, flexShrink: 0, paddingLeft: 22, borderLeft: "1px solid #526052" }}>
+            <div style={{ fontSize: 10, color: "#E3C784", letterSpacing: "2px", marginBottom: 8 }}>CETTE SEMAINE</div>
+            <div style={{ fontSize: 17, lineHeight: 1.5, fontWeight: 600, overflowWrap: "anywhere" }}>
+              {plan.week_label || "Semaine en cours"}
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Right: Week & Theme Pills */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-end",
-            gap: 8,
-          }}
-        >
-          {/* Week Label */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "7px 16px",
-              borderRadius: 8,
-              background: dayBadgeBg,
-              border: `1.5px solid ${dayBadgeBorder}`,
-              color: dayBadgeText,
-              fontSize: 14,
-              fontWeight: 800,
-            }}
-          >
-            <Calendar size={16} />
-            <span>{plan.week_label || "Semaine en cours"}</span>
+      <div style={{ padding: "26px 32px 24px" }}>
+        <div style={{ display: "flex", gap: 24, alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            <BookOpen size={24} color={colors.gold} style={{ flexShrink: 0 }} />
+            <h2 style={{ margin: 0, fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 27,
+              fontWeight: 400, overflowWrap: "anywhere" }}>{plan.livre_theme || "Méditation biblique"}</h2>
           </div>
-
-          {/* Book / Theme */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "6px 14px",
-              borderRadius: 8,
-              background: isDark ? "#181135" : "#F8FAFC",
-              border: `1px solid ${tableBorderColor}`,
-              color: textColor,
-              fontSize: 13,
-              fontWeight: 700,
-            }}
-          >
-            <BookOpen size={15} style={{ color: goldHeading }} />
-            <span>{plan.livre_theme || "Méditation biblique"}</span>
-          </div>
-
-          {plan.verset_cle && (
-            <div
-              style={{
-                fontSize: 11.5,
-                color: textMuted,
-                fontWeight: 600,
-              }}
-            >
-              Verset clé :{" "}
-              <strong style={{ color: goldHeading }}>{plan.verset_cle}</strong>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── SCHEDULE TABLE ── */}
-      <div
-        style={{
-          borderRadius: 12,
-          border: `2px solid ${tableBorderColor}`,
-          overflow: "hidden",
-          background: isDark ? "#120B27" : "#FFFFFF",
-        }}
-      >
-        {/* Table Header: Fixed Hours */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "140px repeat(4, 1fr)",
-            background: tableHeaderBg,
-            borderBottom: `2px solid ${tableBorderColor}`,
-            padding: "12px 10px",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 900,
-              letterSpacing: "1px",
-              textTransform: "uppercase",
-              color: goldHeading,
-              paddingLeft: 12,
-            }}
-          >
-            JOURS
-          </div>
-
-          {FIXED_MEDITATION_HOURS.map((hour, idx) => (
-            <div
-              key={hour.id}
-              style={{
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 3,
-                borderLeft: idx > 0 ? `1px solid ${tableBorderColor}` : undefined,
-                padding: "2px 6px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {hourIcons[idx]}
-                <span
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 900,
-                    color: textColor,
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  {hour.label}
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: 11,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.8px",
-                  color: textMuted,
-                  fontWeight: 700,
-                }}
-              >
-                {hour.name}
-              </span>
-            </div>
-          ))}
+          {plan.verset_cle && <div style={{ maxWidth: "40%", fontSize: 13, color: colors.muted, textAlign: "right", overflowWrap: "anywhere" }}>
+            Verset clé <strong style={{ color: colors.gold, marginLeft: 7 }}>{plan.verset_cle}</strong>
+          </div>}
         </div>
 
-        {/* Table Rows: Monday to Friday */}
-        {MEDITATION_DAYS.map((day, dIdx) => {
-          const daySchedule = plan.schedule[day.id] || {};
-          const isEven = dIdx % 2 === 0;
-
-          return (
-            <div
-              key={day.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "140px repeat(4, 1fr)",
-                borderBottom:
-                  dIdx < MEDITATION_DAYS.length - 1
-                    ? `1px solid ${tableBorderColor}`
-                    : "none",
-                background: isEven ? rowEvenBg : "transparent",
-                minHeight: 64,
-                alignItems: "center",
-              }}
-            >
-              {/* Day Cell */}
-              <div style={{ padding: "12px 14px" }}>
-                <div
-                  style={{
-                    background: dayBadgeBg,
-                    border: `1.5px solid ${dayBadgeBorder}`,
-                    color: dayBadgeText,
-                    borderRadius: 8,
-                    padding: "6px 12px",
-                    fontWeight: 900,
-                    fontSize: 13,
-                    letterSpacing: "0.5px",
-                    textTransform: "uppercase",
-                    textAlign: "center",
-                  }}
-                >
-                  {day.label}
+        <table aria-label="Répartition des méditations du lundi au vendredi"
+          style={{ width: "100%", tableLayout: "fixed", borderCollapse: "separate", borderSpacing: "0 7px" }}>
+          <colgroup><col style={{ width: 120 }} />{FIXED_MEDITATION_HOURS.map(hour => <col key={hour.id} />)}</colgroup>
+          <thead><tr>
+            <th scope="col" style={{ textAlign: "left", padding: "0 16px 14px", color: colors.muted,
+              fontSize: 10, fontWeight: 500, letterSpacing: "1.8px" }}>JOUR</th>
+            {FIXED_MEDITATION_HOURS.map((hour, index) => {
+              const Icon = hourIcons[index];
+              return <th key={hour.id} scope="col" style={{ padding: "0 10px 14px", textAlign: "center" }}>
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 7,
+                  color: colors.gold, marginBottom: 7 }}>
+                  <Icon size={16} strokeWidth={1.5} /><span style={{ fontSize: 10, fontWeight: 500,
+                    textTransform: "uppercase", letterSpacing: "1.5px" }}>{hour.name}</span>
                 </div>
-              </div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: colors.text }}>{hour.label}</div>
+              </th>;
+            })}
+          </tr></thead>
+          <tbody>{MEDITATION_DAYS.map((day) => <tr key={day.id} style={{ background: colors.row }}>
+            <th scope="row" style={{ padding: "23px 16px", textAlign: "left", borderRadius: "8px 0 0 8px",
+              borderLeft: `3px solid ${colors.gold}`, fontSize: 14, fontWeight: 600 }}>{day.label}</th>
+            {FIXED_MEDITATION_HOURS.map((hour, index) => {
+              const slot = plan.schedule[day.id]?.[hour.id];
+              const person = slot?.person?.trim();
+              const verse = slot?.verse?.trim();
+              return <td key={hour.id} style={{ padding: "21px 12px", textAlign: "center", verticalAlign: "middle",
+                borderRadius: index === 3 ? "0 8px 8px 0" : undefined, overflowWrap: "anywhere" }}>
+                <div style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.35, color: person ? colors.text : colors.muted }}>
+                  {person || "À attribuer"}
+                </div>
+                <div style={{ marginTop: 7, fontSize: 15, lineHeight: 1.4, color: colors.gold }}>
+                  {verse || "—"}
+                </div>
+              </td>;
+            })}
+          </tr>)}</tbody>
+        </table>
 
-              {/* 4 Slots */}
-              {FIXED_MEDITATION_HOURS.map((hour) => {
-                const slot = daySchedule[hour.id];
-                const person = slot?.person?.trim();
-                const verse = slot?.verse?.trim();
-
-                return (
-                  <div
-                    key={hour.id}
-                    style={{
-                      padding: "10px 10px",
-                      borderLeft: `1px solid ${tableBorderColor}`,
-                      minHeight: 64,
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      textAlign: "center",
-                      gap: 4,
-                    }}
-                  >
-                    {person ? (
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 800,
-                          color: textColor,
-                          lineHeight: 1.25,
-                        }}
-                      >
-                        {person}
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: textMuted,
-                          fontStyle: "italic",
-                        }}
-                      >
-                        —
-                      </div>
-                    )}
-
-                    {verse && (
-                      <div
-                        style={{
-                          background: verseBg,
-                          border: `1px solid ${verseBorder}`,
-                          color: verseColor,
-                          borderRadius: 6,
-                          padding: "2px 8px",
-                          fontSize: 12,
-                          fontWeight: 800,
-                          letterSpacing: "0.2px",
-                          display: "inline-block",
-                          maxWidth: "100%",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {verse}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
+        <footer style={{ marginTop: 24, paddingTop: 22, borderTop: `1px solid ${colors.line}` }}>
+          <p style={{ margin: "0 auto", maxWidth: 780, textAlign: "center", fontFamily: "Georgia, 'Times New Roman', serif",
+            fontSize: 18, lineHeight: 1.6, fontStyle: "italic", color: colors.text, overflowWrap: "anywhere" }}>
+            {plan.exhortation || "« Ta parole est une lampe à mes pieds, et une lumière sur mon sentier. » — Psaume 119:105"}
+          </p>
+          <div style={{ textAlign: "center", marginTop: 18, color: colors.muted, fontSize: 9,
+            letterSpacing: "2.3px", textTransform: "uppercase" }}>Une famille · Une même foi · Un même rendez-vous</div>
+        </footer>
       </div>
-
-      {/* ── FOOTER : EXHORTATION SCRIPTURE & SIGNATURE ── */}
-      <div
-        style={{
-          marginTop: 22,
-          paddingTop: 16,
-          borderTop: `2px solid ${borderColor}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 650,
-            fontSize: 13,
-            fontStyle: "italic",
-            color: textMuted,
-            lineHeight: 1.4,
-            fontWeight: 500,
-          }}
-        >
-          {plan.exhortation ||
-            "« Ta parole est une lampe à mes pieds, et une lumière sur mon sentier. » — Psaume 119:105"}
-        </div>
-
-        <div
-          style={{
-            textAlign: "right",
-            fontSize: 11.5,
-            color: goldHeading,
-            fontWeight: 800,
-            letterSpacing: "0.5px",
-          }}
-        >
-          <div>FAMILLE DE NOÉ</div>
-          <div style={{ color: textMuted, fontWeight: 600, fontSize: 10.5, marginTop: 2 }}>
-            Temps de méditations communautaires
-          </div>
-        </div>
-      </div>
-    </div>
+    </article>
   );
 }

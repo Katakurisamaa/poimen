@@ -24,11 +24,14 @@ import {
   Moon,
   LayoutGrid,
   CalendarDays,
+  UserPlus,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/use-workspace";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import { supabase } from "@/lib/supabase";
+import { getActiveContext, readJsonStorage } from "@/lib/client-session";
 import MeditationPoster from "@/components/meditation/MeditationPoster";
+import MemberPickerModal, { FamilyMemberItem } from "@/components/meditation/MemberPickerModal";
 import { FAMILLE_NOE_LOGO_BASE64 } from "@/lib/famille-noe-logo-base64";
 import styles from "@/components/meditation/Meditation.module.css";
 import {
@@ -45,6 +48,28 @@ import {
   saveMeditationPlan,
   formatMeditationWhatsApp,
 } from "@/lib/meditation-service";
+
+// Default brethren known in Famille de Noé (from the official weekly schedule)
+const KNOWN_NOE_MEMBERS: FamilyMemberItem[] = [
+  { id: "ref-1", name: "Cécile Eya", status: "Membre" },
+  { id: "ref-2", name: "Christian", status: "Membre" },
+  { id: "ref-3", name: "Ariane", status: "Membre" },
+  { id: "ref-4", name: "Marlise", status: "Membre" },
+  { id: "ref-5", name: "Benjamin", status: "Membre" },
+  { id: "ref-6", name: "Nadège", status: "Membre" },
+  { id: "ref-7", name: "Mbiayo", status: "Membre" },
+  { id: "ref-8", name: "Aesone", status: "Membre" },
+  { id: "ref-9", name: "Ingrid", status: "Membre" },
+  { id: "ref-10", name: "Léonard", status: "Membre" },
+  { id: "ref-11", name: "Dede", status: "Membre" },
+  { id: "ref-12", name: "Sylvie", status: "Membre" },
+  { id: "ref-13", name: "Phalone", status: "Membre" },
+  { id: "ref-14", name: "Yvette", status: "Membre" },
+  { id: "ref-15", name: "M. Cecile", status: "Membre" },
+  { id: "ref-16", name: "Bertille", status: "Membre" },
+  { id: "ref-17", name: "Sandra", status: "Membre" },
+  { id: "ref-18", name: "Laurene", status: "Membre" },
+];
 
 export default function MeditationPage() {
   const workspace = useWorkspace();
@@ -81,30 +106,73 @@ export default function MeditationPage() {
   const [exportingPdf, setExportingPdf] = useState<boolean>(false);
   const [copiedWhatsApp, setCopiedWhatsApp] = useState<boolean>(false);
 
-  // Autocomplete members list
-  const [memberNames, setMemberNames] = useState<string[]>([]);
+  // Family members list for custom selection modal & autocomplete
+  const [familyMembers, setFamilyMembers] = useState<FamilyMemberItem[]>(KNOWN_NOE_MEMBERS);
+
+  // Modal State for slot member picker
+  const [pickerModal, setPickerModal] = useState<{
+    isOpen: boolean;
+    dayId: number;
+    hourId: number;
+    dayLabel: string;
+    hourLabel: string;
+    currentName: string;
+  } | null>(null);
+
   const datalistId = useId();
 
-  // Load family members for autocomplete
+  // Load family members from database (filtered by current bergerie if available)
   useEffect(() => {
     async function fetchMembers() {
       try {
-        const { data, error } = await supabase
+        const context = getActiveContext();
+        const family = readJsonStorage<{ id?: string; name?: string }>("selected_family");
+        const familyId = context?.bergerie_id || family?.id;
+
+        let query = supabase
           .from("members")
-          .select("firstName, lastName")
+          .select("id, firstName, lastName, civility, status, bergerie_id")
           .order("firstName");
-        if (!error && data) {
-          const names = Array.from(
-            new Set(
-              data
-                .map((m) => `${m.firstName || ""} ${m.lastName || ""}`.trim())
-                .filter(Boolean)
-            )
-          );
-          setMemberNames(names);
+
+        if (familyId) {
+          query = query.eq("bergerie_id", familyId);
+        }
+
+        const { data, error } = await query;
+        if (!error && data && data.length > 0) {
+          const dbMembers: FamilyMemberItem[] = data.map((m) => {
+            const fullName = `${m.firstName || ""} ${m.lastName || ""}`.trim() || "Membre";
+            return {
+              id: m.id,
+              name: fullName,
+              status: m.status || "Membre",
+              civility: m.civility,
+            };
+          });
+
+          // Merge dbMembers with KNOWN_NOE_MEMBERS (avoiding duplicates)
+          const seen = new Set<string>();
+          const merged: FamilyMemberItem[] = [];
+
+          for (const m of dbMembers) {
+            const key = m.name.toLowerCase();
+            if (!seen.has(key)) {
+              seen.add(key);
+              merged.push(m);
+            }
+          }
+          for (const m of KNOWN_NOE_MEMBERS) {
+            const key = m.name.toLowerCase();
+            if (!seen.has(key)) {
+              seen.add(key);
+              merged.push(m);
+            }
+          }
+
+          setFamilyMembers(merged);
         }
       } catch (err) {
-        console.warn("Could not fetch members for autocomplete:", err);
+        console.warn("Could not fetch members from DB, keeping default known list:", err);
       }
     }
     fetchMembers();
@@ -158,6 +226,27 @@ export default function MeditationPage() {
     });
   };
 
+  // Open the custom member picker modal for a given slot
+  const openMemberPicker = (dayId: number, hourId: number) => {
+    const day = MEDITATION_DAYS.find((d) => d.id === dayId) || MEDITATION_DAYS[0];
+    const hour = FIXED_MEDITATION_HOURS.find((h) => h.id === hourId) || FIXED_MEDITATION_HOURS[0];
+    const slot = plan.schedule[dayId]?.[hourId] || { person: "", verse: "" };
+
+    setPickerModal({
+      isOpen: true,
+      dayId,
+      hourId,
+      dayLabel: day.label,
+      hourLabel: hour.label,
+      currentName: slot.person || "",
+    });
+  };
+
+  // Close the modal
+  const closeMemberPicker = () => {
+    setPickerModal(null);
+  };
+
   // Save to Supabase
   const handleSave = async () => {
     setSaving(true);
@@ -175,6 +264,7 @@ export default function MeditationPage() {
     const sample = JSON.parse(JSON.stringify(DEFAULT_FAMILLE_NOE_SAMPLE));
     sample.week_key = selectedWeek;
     sample.week_label = formatWeekLabel(selectedWeek);
+    sample.theme_style = plan.theme_style || "obsidian";
     setPlan(sample);
     saveMeditationPlan(sample);
     notify("Modèle de référence de la Famille de Noé restauré !");
@@ -515,49 +605,6 @@ export default function MeditationPage() {
                   placeholder="Ex : Jean 15:5"
                 />
               </div>
-
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Style de l&apos;Affiche</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPlan((prev) => ({ ...prev, theme_style: "obsidian" }))
-                    }
-                    className={styles.btnSecondary}
-                    style={{
-                      flex: 1,
-                      justifyContent: "center",
-                      borderColor:
-                        plan.theme_style === "obsidian"
-                          ? "var(--gold)"
-                          : undefined,
-                      fontWeight: plan.theme_style === "obsidian" ? 700 : 500,
-                    }}
-                  >
-                    🌙 Version Sombre
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPlan((prev) => ({ ...prev, theme_style: "parchment" }))
-                    }
-                    className={styles.btnSecondary}
-                    style={{
-                      flex: 1,
-                      justifyContent: "center",
-                      borderColor:
-                        plan.theme_style === "parchment"
-                          ? "var(--gold)"
-                          : undefined,
-                      fontWeight: plan.theme_style === "parchment" ? 700 : 500,
-                    }}
-                  >
-                    ☀️ Version Claire
-                  </button>
-                </div>
-              </div>
             </div>
 
             <div className={styles.fieldGroup} style={{ marginTop: 14 }}>
@@ -610,8 +657,8 @@ export default function MeditationPage() {
 
           {/* Datalist for disciple name suggestions */}
           <datalist id={datalistId}>
-            {memberNames.map((name) => (
-              <option key={name} value={name} />
+            {familyMembers.map((m) => (
+              <option key={m.id} value={m.name} />
             ))}
           </datalist>
 
@@ -691,21 +738,32 @@ export default function MeditationPage() {
                             <label className={styles.fieldLabel}>
                               Frère / Sœur programmé(e)
                             </label>
-                            <input
-                              type="text"
-                              list={datalistId}
-                              className={styles.input}
-                              value={slot.person}
-                              onChange={(e) =>
-                                updateSlot(
-                                  activeDay.id,
-                                  hour.id,
-                                  "person",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Nom du disciple"
-                            />
+                            <div className={styles.personInputWrapper}>
+                              <input
+                                type="text"
+                                list={datalistId}
+                                className={styles.input}
+                                value={slot.person}
+                                onChange={(e) =>
+                                  updateSlot(
+                                    activeDay.id,
+                                    hour.id,
+                                    "person",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Nom du disciple"
+                              />
+                              <button
+                                type="button"
+                                className={styles.btnChooseMember}
+                                onClick={() => openMemberPicker(activeDay.id, hour.id)}
+                                title="Choisir parmi les membres de la famille"
+                              >
+                                <UserPlus size={14} />
+                                <span>Choisir</span>
+                              </button>
+                            </div>
                           </div>
 
                           <div className={styles.fieldGroup}>
@@ -777,21 +835,32 @@ export default function MeditationPage() {
 
                             return (
                               <td key={hour.id}>
-                                <input
-                                  type="text"
-                                  list={datalistId}
-                                  className={styles.tableInputPerson}
-                                  value={slot.person}
-                                  onChange={(e) =>
-                                    updateSlot(
-                                      day.id,
-                                      hour.id,
-                                      "person",
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="Nom..."
-                                />
+                                <div className={styles.personInputWrapper}>
+                                  <input
+                                    type="text"
+                                    list={datalistId}
+                                    className={styles.tableInputPerson}
+                                    value={slot.person}
+                                    onChange={(e) =>
+                                      updateSlot(
+                                        day.id,
+                                        hour.id,
+                                        "person",
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="Nom..."
+                                  />
+                                  <button
+                                    type="button"
+                                    className={styles.btnChooseMember}
+                                    onClick={() => openMemberPicker(day.id, hour.id)}
+                                    title="Choisir un membre"
+                                    style={{ padding: "6px 8px", marginBottom: 4 }}
+                                  >
+                                    <UserPlus size={13} />
+                                  </button>
+                                </div>
                                 <input
                                   type="text"
                                   className={styles.tableInputVerse}
@@ -823,7 +892,7 @@ export default function MeditationPage() {
       {/* ── TAB 2: LIVE PREVIEW & EXPORT VIEW ── */}
       {activeTab === "preview" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Action Bar */}
+          {/* Action Bar with Style Selector Moved Here */}
           <div className={styles.panelCard} style={{ marginBottom: 0 }}>
             <div
               style={{
@@ -831,26 +900,49 @@ export default function MeditationPage() {
                 flexWrap: "wrap",
                 alignItems: "center",
                 justifyContent: "space-between",
-                gap: 12,
+                gap: 16,
               }}
             >
+              {/* Left: Style Switcher (Moved here as requested) */}
               <div>
-                <h3
+                <span
                   style={{
-                    margin: 0,
-                    fontSize: 16,
+                    display: "block",
+                    fontSize: 11,
+                    textTransform: "uppercase",
+                    letterSpacing: "1px",
                     fontWeight: 700,
-                    color: "var(--cream, #F4F1EA)",
+                    color: "var(--muted)",
+                    marginBottom: 6,
                   }}
                 >
-                  Aperçu Haute Définition
-                </h3>
-                <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--muted)" }}>
-                  Image nette et parfaitement lisible pour le groupe WhatsApp
-                </p>
+                  Style de l&apos;Affiche à exporter
+                </span>
+                <div className={styles.tabGroup}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPlan((prev) => ({ ...prev, theme_style: "obsidian" }))
+                    }
+                    className={`${styles.tabBtn} ${plan.theme_style === "obsidian" ? styles.tabBtnActive : ""}`}
+                  >
+                    🌙 Version Sombre
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPlan((prev) => ({ ...prev, theme_style: "parchment" }))
+                    }
+                    className={`${styles.tabBtn} ${plan.theme_style === "parchment" ? styles.tabBtnActive : ""}`}
+                  >
+                    ☀️ Version Claire
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {/* Right: Export & Sharing buttons */}
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
                 <button
                   onClick={handleShareWhatsApp}
                   disabled={exportingImage}
@@ -898,6 +990,21 @@ export default function MeditationPage() {
             />
           </div>
         </div>
+      )}
+
+      {/* ── CUSTOM MODAL FOR CHOOSING A MEMBER ── */}
+      {pickerModal && pickerModal.isOpen && (
+        <MemberPickerModal
+          isOpen={pickerModal.isOpen}
+          onClose={closeMemberPicker}
+          onSelect={(name) => {
+            updateSlot(pickerModal.dayId, pickerModal.hourId, "person", name);
+          }}
+          currentName={pickerModal.currentName}
+          dayLabel={pickerModal.dayLabel}
+          hourLabel={pickerModal.hourLabel}
+          members={familyMembers}
+        />
       )}
     </div>
   );
