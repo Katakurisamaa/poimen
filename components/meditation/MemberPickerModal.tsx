@@ -71,8 +71,7 @@ export default function MemberPickerModal({
     if (!q) return true;
     return (
       m.firstName.toLowerCase().includes(q) ||
-      (m.lastName && m.lastName.toLowerCase().includes(q)) ||
-      (m.status && m.status.toLowerCase().includes(q))
+      (m.lastName && m.lastName.toLowerCase().includes(q))
     );
   });
 
@@ -184,11 +183,6 @@ export default function MemberPickerModal({
                           </span>
                         )}
                       </div>
-                      {member.status && (
-                        <div className={styles.memberItemStatus}>
-                          {member.status}
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -198,11 +192,6 @@ export default function MemberPickerModal({
                         size={16}
                         style={{ color: "var(--gold, #D4AF37)" }}
                       />
-                    )}
-                    {member.status && (
-                      <span className={styles.memberRoleBadge}>
-                        {member.status}
-                      </span>
                     )}
                   </div>
                 </div>

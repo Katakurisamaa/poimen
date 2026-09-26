@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useId } from "react";
+import { useState, useEffect, useId, useRef } from "react";
 import { toPng } from "html-to-image";
 import jsPDF from "jspdf";
 import {
@@ -83,6 +83,12 @@ export default function MeditationPage() {
   const [exportingImage, setExportingImage] = useState<boolean>(false);
   const [exportingPdf, setExportingPdf] = useState<boolean>(false);
   const [copiedWhatsApp, setCopiedWhatsApp] = useState<boolean>(false);
+
+  // Responsive scaling state for small screens preview
+  const [posterHeight, setPosterHeight] = useState<number>(0);
+  const [previewScale, setPreviewScale] = useState<number>(1);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const posterWrapperRef = useRef<HTMLDivElement>(null);
 
   // Family members list from database (first_name, last_name, status)
   const [familyMembers, setFamilyMembers] = useState<FamilyMemberItem[]>([]);
@@ -281,6 +287,49 @@ export default function MeditationPage() {
     }
   };
 
+  // Auto-scale poster for small screens so it is never truncated
+  useEffect(() => {
+    if (activeTab !== "preview") return;
+
+    const updateScaling = () => {
+      const container = previewContainerRef.current;
+      if (!container) return;
+      const containerW = container.clientWidth;
+      const paddingSafety = typeof window !== "undefined" && window.innerWidth <= 768 ? 12 : 24;
+      const availW = Math.max(260, containerW - paddingSafety);
+      if (availW < 1000) {
+        setPreviewScale(availW / 1000);
+      } else {
+        setPreviewScale(1);
+      }
+
+      const posterEl = document.getElementById("meditation-poster-container");
+      if (posterEl && posterEl.offsetHeight > 0) {
+        setPosterHeight(posterEl.offsetHeight);
+      }
+    };
+
+    updateScaling();
+    const timer = setTimeout(updateScaling, 100);
+    window.addEventListener("resize", updateScaling);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && previewContainerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        updateScaling();
+      });
+      resizeObserver.observe(previewContainerRef.current);
+    }
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateScaling);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, [activeTab, plan]);
+
   // Generate PNG
   const generatePngDataUrl = async (): Promise<string | null> => {
     const element = document.getElementById("meditation-poster-container");
@@ -288,11 +337,21 @@ export default function MeditationPage() {
       notify("Erreur : l'affiche n'a pas été trouvée.");
       return null;
     }
-    return await toPng(element, {
-      pixelRatio: 2.5,
-      backgroundColor: plan.theme_style === "parchment" ? "#FAF7F0" : "#0B2135",
-      cacheBust: true,
-    });
+    const wrapper = posterWrapperRef.current;
+    const prevTransform = wrapper?.style.transform;
+    if (wrapper) wrapper.style.transform = "none";
+
+    try {
+      return await toPng(element, {
+        pixelRatio: 2.5,
+        backgroundColor: plan.theme_style === "parchment" ? "#FAF7F0" : "#0B2135",
+        cacheBust: true,
+      });
+    } finally {
+      if (wrapper && prevTransform) {
+        wrapper.style.transform = prevTransform;
+      }
+    }
   };
 
   // Download HD Image
@@ -958,13 +1017,37 @@ export default function MeditationPage() {
             </div>
           </div>
 
-          {/* Poster Wrapper with horizontal scroll on mobile */}
-          <div className={styles.posterPreviewContainer}>
-            <MeditationPoster
-              plan={plan}
-              id="meditation-poster-container"
-              themeStyle={plan.theme_style || "obsidian"}
-            />
+          {/* Responsive auto-scaling preview container */}
+          <div ref={previewContainerRef} className={styles.posterPreviewContainer}>
+            <div
+              style={{
+                width: 1000 * previewScale,
+                height: posterHeight ? posterHeight * previewScale : "auto",
+                overflow: "hidden",
+                position: "relative",
+                margin: "0 auto",
+                borderRadius: 16,
+                display: "flex",
+                justifyContent: "flex-start",
+                alignItems: "flex-start",
+              }}
+            >
+              <div
+                ref={posterWrapperRef}
+                style={{
+                  width: 1000,
+                  transform: previewScale < 1 ? `scale(${previewScale})` : "none",
+                  transformOrigin: "top left",
+                  transition: "transform 0.15s ease",
+                }}
+              >
+                <MeditationPoster
+                  plan={plan}
+                  id="meditation-poster-container"
+                  themeStyle={plan.theme_style || "obsidian"}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}
