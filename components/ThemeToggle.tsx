@@ -1,7 +1,7 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type ThemeMode = "light" | "dark";
 
@@ -19,32 +19,56 @@ function applyTheme(theme: ThemeMode) {
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [mounted, setMounted] = useState(false);
+  const isTransitioning = useRef(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const nextTheme: ThemeMode = saved === "dark" ? "dark" : "light";
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      // localStorage may be disabled
+    }
+    const currentDocTheme = document.documentElement.dataset.theme;
+    const nextTheme: ThemeMode =
+      saved === "dark" || currentDocTheme === "dark" ? "dark" : "light";
     setTheme(nextTheme);
     applyTheme(nextTheme);
     setMounted(true);
   }, []);
 
   const toggleTheme = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isTransitioning.current) return;
     const nextTheme: ThemeMode = theme === "dark" ? "light" : "dark";
 
     const updateDomAndState = () => {
       setTheme(nextTheme);
-      localStorage.setItem(STORAGE_KEY, nextTheme);
+      try {
+        localStorage.setItem(STORAGE_KEY, nextTheme);
+      } catch {
+        // localStorage may be disabled
+      }
       applyTheme(nextTheme);
-      window.dispatchEvent(new CustomEvent("poimen-theme-change", { detail: nextTheme }));
+      window.dispatchEvent(
+        new CustomEvent("poimen-theme-change", { detail: nextTheme })
+      );
     };
 
-    const doc = typeof document !== "undefined" ? (document as unknown as {
-      startViewTransition?: (callback: () => void) => { ready: Promise<void> };
-    }) : null;
+    const doc =
+      typeof document !== "undefined"
+        ? (document as unknown as {
+            startViewTransition?: (callback: () => void) => {
+              ready: Promise<void>;
+              finished: Promise<void>;
+            };
+          })
+        : null;
 
-    const prefersReducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (doc?.startViewTransition && !prefersReducedMotion) {
+      isTransitioning.current = true;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
@@ -57,26 +81,36 @@ export default function ThemeToggle() {
         updateDomAndState();
       });
 
-      transition.ready.then(() => {
-        document.documentElement.animate(
-          {
-            clipPath: [
-              `circle(0px at ${x}px ${y}px)`,
-              `circle(${endRadius}px at ${x}px ${y}px)`,
-            ],
-          },
-          {
-            duration: 480,
-            easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-            pseudoElement: "::view-transition-new(root)",
-          }
-        );
-      });
+      transition.ready
+        .then(() => {
+          document.documentElement.animate(
+            {
+              clipPath: [
+                `circle(0px at ${x}px ${y}px)`,
+                `circle(${endRadius}px at ${x}px ${y}px)`,
+              ],
+            },
+            {
+              duration: 480,
+              easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+              pseudoElement: "::view-transition-new(root)",
+            }
+          );
+        })
+        .catch(() => {});
+
+      transition.finished
+        .catch(() => {})
+        .finally(() => {
+          isTransitioning.current = false;
+        });
     } else {
+      isTransitioning.current = true;
       document.documentElement.classList.add("theme-transitioning");
       updateDomAndState();
       setTimeout(() => {
         document.documentElement.classList.remove("theme-transitioning");
+        isTransitioning.current = false;
       }, 400);
     }
   };
@@ -89,11 +123,14 @@ export default function ThemeToggle() {
       aria-label={theme === "dark" ? "Activer le mode clair" : "Activer le mode sombre"}
       title={theme === "dark" ? "Passer en mode clair" : "Passer en mode sombre"}
       data-ready={mounted ? "true" : "false"}
+      data-mode={theme}
     >
       <span className="theme-toggle__icon">
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
       </span>
-      <span className="theme-toggle__label">{theme === "dark" ? "Clair" : "Sombre"}</span>
+      <span className="theme-toggle__label">
+        {theme === "dark" ? "Clair" : "Sombre"}
+      </span>
     </button>
   );
 }
