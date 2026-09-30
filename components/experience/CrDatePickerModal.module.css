@@ -1,0 +1,409 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  background: rgba(8, 14, 29, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.18s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  width: min(580px, 100%);
+  max-height: min(85dvh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: #131b29;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(212, 175, 55, 0.15);
+  color: #eef2f7;
+  overflow: hidden;
+  animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(18px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.header {
+  padding: 20px 24px 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #111925;
+}
+
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(227, 197, 128, 0.12);
+  border: 1px solid rgba(227, 197, 128, 0.35);
+  color: #e3c580;
+  flex-shrink: 0;
+}
+
+.headerText h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  color: #f7fafc;
+}
+
+.headerText p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: #a0aec0;
+}
+
+.closeBtn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #a0aec0;
+  border-radius: 9px;
+  padding: 8px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all 0.15s ease;
+}
+
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.tabs {
+  display: flex;
+  padding: 6px;
+  margin: 16px 24px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  gap: 4px;
+}
+
+.tabBtn {
+  flex: 1;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  color: #a0aec0;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: all 0.15s ease;
+}
+
+.tabBtn:hover {
+  color: #eef2f7;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tabBtn[aria-selected="true"] {
+  background: #e3c580;
+  color: #111925;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 24px 20px;
+  min-height: 220px;
+}
+
+.searchBar {
+  margin-bottom: 12px;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 10px 14px;
+  background: #1a2433;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  color: #eef2f7;
+  font-size: 12px;
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: #e3c580;
+  box-shadow: 0 0 0 2px rgba(227, 197, 128, 0.2);
+}
+
+.dateList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dateCard {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #172131;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  color: #eef2f7;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.dateCard:hover {
+  background: #1d2a3d;
+  border-color: rgba(227, 197, 128, 0.35);
+  transform: translateY(-1px);
+}
+
+.dateCard[data-selected="true"] {
+  background: rgba(227, 197, 128, 0.12);
+  border-color: #e3c580;
+  box-shadow: 0 0 0 1px #e3c580 inset;
+}
+
+.dateCardInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dateRadio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.dateCard[data-selected="true"] .dateRadio {
+  border-color: #e3c580;
+  background: #e3c580;
+}
+
+.dateRadioInner {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #111925;
+}
+
+.datePrimary {
+  font-size: 13px;
+  font-weight: 650;
+  color: #f7fafc;
+  text-transform: capitalize;
+}
+
+.dateSecondary {
+  font-size: 11px;
+  color: #a0aec0;
+  margin-top: 1px;
+}
+
+.dateBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.dateCard[data-selected="true"] .dateBadge {
+  background: rgba(227, 197, 128, 0.2);
+  color: #f6e0a8;
+  border-color: rgba(227, 197, 128, 0.4);
+}
+
+/* Range picker styles */
+.rangeSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.presetsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.presetBtn {
+  padding: 8px 10px;
+  background: #172131;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #cbd5e0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.presetBtn:hover {
+  background: #1d2a3d;
+  color: #e3c580;
+  border-color: rgba(227, 197, 128, 0.3);
+}
+
+.rangeInputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inputGroup label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a0aec0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.inputGroup input {
+  padding: 10px 12px;
+  background: #1a2433;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #eef2f7;
+  font-size: 12px;
+  outline: none;
+  color-scheme: dark;
+}
+
+.inputGroup input:focus {
+  border-color: #e3c580;
+}
+
+.rangeStatus {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(227, 197, 128, 0.08);
+  border: 1px solid rgba(227, 197, 128, 0.25);
+  color: #f4dd9c;
+  font-size: 12px;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rangeError {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+/* All history card */
+.allCard {
+  padding: 24px;
+  text-align: center;
+  background: #172131;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+}
+
+.allCard h4 {
+  font-size: 16px;
+  margin: 12px 0 6px;
+  color: #f7fafc;
+}
+
+.allCard p {
+  font-size: 12px;
+  color: #a0aec0;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.footer {
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  background: #111925;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cancelBtn, .applyBtn {
+  padding: 10px 18px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cancelBtn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e0;
+}
+
+.cancelBtn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.applyBtn {
+  background: #e3c580;
+  border: 1px solid #e3c580;
+  color: #111925;
+  box-shadow: 0 4px 14px rgba(227, 197, 128, 0.3);
+}
+
+.applyBtn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.applyBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

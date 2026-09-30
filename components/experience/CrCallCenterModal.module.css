@@ -78,6 +78,63 @@
 .field textarea { resize: vertical; line-height: 1.65; }
 :global(html[data-theme]) .modal .field textarea::placeholder { color: var(--cr-muted) !important; opacity: 1; }
 .dateRange { display: grid; gap: 6px; }
+.dateTriggerCard {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--cr-input);
+  border: 1px solid var(--cr-line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.dateTriggerCard:hover {
+  border-color: var(--cr-accent);
+  box-shadow: 0 4px 14px rgba(85, 69, 133, 0.12);
+  transform: translateY(-1px);
+}
+.dateTriggerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dateTriggerBadge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--cr-tint);
+  color: var(--cr-accent);
+}
+.dateTriggerValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cr-ink);
+  line-height: 1.4;
+}
+.dateTriggerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--cr-muted);
+  border-top: 1px dashed var(--cr-line);
+  padding-top: 8px;
+}
+.dateTriggerAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 650;
+  color: var(--cr-accent);
+}
 .selection { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding: 15px; border-radius: 10px; background: var(--cr-tint); border: 1px solid var(--cr-line); }
 .selection strong { font-size: 27px; color: var(--cr-accent); }
 .selection span { color: var(--cr-ink); font-size: 12px; }
