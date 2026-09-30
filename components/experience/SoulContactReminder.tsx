@@ -84,10 +84,10 @@ export default function SoulContactReminder() {
 
       const userName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
 
-      // Query invites for current church
+      // Query invites for current church - use * to avoid failing if patch columns are not yet applied
       let query = supabase
         .from("invites")
-        .select("id, first_name, last_name, civility, phone, email, arrival_date, event, assigned_to, responsible, appel_abouti, souhaite_etre_contacte, local_church, commentaire_suivi, faux_numero, ne_decroche_pas")
+        .select("*")
         .or(`appel_abouti.is.null,appel_abouti.eq.false`)
         .neq("archived", true)
         .neq("souhaite_etre_contacte", false);
@@ -98,16 +98,19 @@ export default function SoulContactReminder() {
 
       const { data, error } = await query;
       if (error) {
-        console.error("Erreur récupération rappels âmes:", error);
+        console.error("Erreur récupération rappels âmes:", error?.message || error?.details || error);
         return;
       }
 
       if (data) {
         // Filter strictly to those assigned to this user
         const assignedToMe = data.filter((item) => {
+          const isFauxNumero = item.faux_numero === true || /\[FAUX_NUMERO\]/i.test(item.commentaire_suivi || "");
+          const isNeDecrochePas = item.ne_decroche_pas === true || /\[NE_DECROCHE_PAS\]/i.test(item.commentaire_suivi || "");
+
           // EXCLUSION : si appel abouti, faux numéro, ou ne décroche pas (relance déjà notée),
           // la relance urgente n'a plus lieu d'être et disparaît immédiatement
-          if (item.appel_abouti === true || item.faux_numero === true || item.ne_decroche_pas === true) {
+          if (item.appel_abouti === true || isFauxNumero || isNeDecrochePas) {
             return false;
           }
 
@@ -133,6 +136,10 @@ export default function SoulContactReminder() {
 
         // Count urgent souls (those without any recent tentative within 3 days)
         const urgentCount = assignedToMe.filter((s) => {
+          const isFauxNumero = s.faux_numero === true || /\[FAUX_NUMERO\]/i.test(s.commentaire_suivi || "");
+          const isNeDecrochePas = s.ne_decroche_pas === true || /\[NE_DECROCHE_PAS\]/i.test(s.commentaire_suivi || "");
+          if (s.appel_abouti || isFauxNumero || isNeDecrochePas) return false;
+
           const match = s.commentaire_suivi?.match(/\[TENTATIVE:([^\]]+)\]/);
           if (!match) return true;
           const date = new Date(match[1]);
@@ -260,7 +267,16 @@ export default function SoulContactReminder() {
         })
         .eq("id", soul.id);
 
-      if (error) throw error;
+      if (error) {
+        // Fallback si la colonne SQL n'a pas encore été créée
+        await supabase
+          .from("invites")
+          .update({
+            appel_abouti: false,
+            commentaire_suivi: newComment
+          })
+          .eq("id", soul.id);
+      }
 
       notify(`Noté : ${soul.first_name} ne décroche pas. Notification urgente retirée.`);
       window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId: soul.id } }));
@@ -291,7 +307,16 @@ export default function SoulContactReminder() {
         })
         .eq("id", soul.id);
 
-      if (error) throw error;
+      if (error) {
+        // Fallback si la colonne SQL n'a pas encore été créée
+        await supabase
+          .from("invites")
+          .update({
+            appel_abouti: false,
+            commentaire_suivi: newComment
+          })
+          .eq("id", soul.id);
+      }
 
       notify(`Faux numéro enregistré pour ${soul.first_name}. Alerte retirée.`);
       window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId: soul.id } }));

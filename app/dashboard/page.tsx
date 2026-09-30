@@ -474,7 +474,11 @@ export default function DashboardPage() {
       }
       const { data: rawInvites, error: iErr } = iQuery ? await iQuery : { data: [], error: null };
       const invites = (rawInvites || []).filter((i: any) => !i.archived);
-      const pendingContacts = invites.filter((guest: any) => !guest.appel_abouti && !guest.faux_numero && !guest.ne_decroche_pas && guest.souhaite_etre_contacte !== false);
+      const pendingContacts = invites.filter((guest: any) => {
+        const isFaux = guest.faux_numero === true || /\[FAUX_NUMERO\]/i.test(guest.commentaire_suivi || "");
+        const isNeDec = guest.ne_decroche_pas === true || /\[NE_DECROCHE_PAS\]/i.test(guest.commentaire_suivi || "");
+        return !guest.appel_abouti && !isFaux && !isNeDec && guest.souhaite_etre_contacte !== false;
+      });
       setToday({
         status: iErr ? "error" : "ready",
         pending: pendingContacts.length,
@@ -499,9 +503,11 @@ export default function DashboardPage() {
       if (isIntegrationSpace) {
         if (invites) {
           invites.forEach(g => {
+            const isFaux = g.faux_numero === true || /\[FAUX_NUMERO\]/i.test(g.commentaire_suivi || "");
+            const isNeDec = g.ne_decroche_pas === true || /\[NE_DECROCHE_PAS\]/i.test(g.commentaire_suivi || "");
             if (g.is_in_bergerie || g.dans_famille_disciple) {
               fidelised++;
-            } else if (g.appel_abouti || g.ne_decroche_pas || g.faux_numero) {
+            } else if (g.appel_abouti || isNeDec || isFaux) {
               ongoing++;
             } else {
               atRiskCount++;

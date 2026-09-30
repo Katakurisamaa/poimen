@@ -181,8 +181,8 @@ function mapDbGuestToGuest(g: any): Guest {
     pays: g.pays || (g.commentaire?.match(/\[(?:Pays de résidence|Pays)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || "Belgique"),
     souhaitSuivi: g.souhait_suivi ?? false,
     rdvPastoral: g.rdv_pastoral ?? false,
-    neDecrochePas: g.ne_decroche_pas ?? false,
-    fauxNumero: g.faux_numero ?? false,
+    neDecrochePas: Boolean(g.ne_decroche_pas || /\[NE_DECROCHE_PAS\]/i.test(g.commentaire_suivi || "")),
+    fauxNumero: Boolean(g.faux_numero || /\[FAUX_NUMERO\]/i.test(g.commentaire_suivi || "")),
     assigned_to: g.assigned_to,
     church_id: g.church_id,
     bergerie_id: g.bergerie_id,
@@ -501,7 +501,7 @@ function AffectationPage() {
       const { data: dbGuests, error } = await query.order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Error fetching guests:", error);
+        console.error("Error fetching guests:", error?.message || error?.details || error);
       } else {
         setGuests((dbGuests || []).map(mapDbGuestToGuest));
       }
@@ -684,13 +684,33 @@ function AffectationPage() {
     const extraUpdates: Partial<Guest> = {};
     const dbExtraUpdates: Record<string, any> = {};
 
-    if (field === "fauxNumero" && newValue) {
+    if (field === "fauxNumero") {
       extraUpdates.appelAbouti = false;
       dbExtraUpdates.appel_abouti = false;
+      const tag = "[FAUX_NUMERO]";
+      const cur = guest.commentaireSuivi || "";
+      const updatedComment = newValue
+        ? (cur.includes(tag) ? cur : `${tag} ${cur}`.trim())
+        : cur.replace(new RegExp(`\\s*\\${tag}\\s*`, "g"), " ").trim();
+      extraUpdates.commentaireSuivi = updatedComment;
+      dbExtraUpdates.commentaire_suivi = updatedComment;
+    }
+    if (field === "neDecrochePas") {
+      const tag = "[NE_DECROCHE_PAS]";
+      const cur = guest.commentaireSuivi || "";
+      const updatedComment = newValue
+        ? (cur.includes(tag) ? cur : `${tag} ${cur}`.trim())
+        : cur.replace(new RegExp(`\\s*\\${tag}\\s*`, "g"), " ").trim();
+      extraUpdates.commentaireSuivi = updatedComment;
+      dbExtraUpdates.commentaire_suivi = updatedComment;
     }
     if (field === "appelAbouti" && newValue) {
       extraUpdates.fauxNumero = false;
       dbExtraUpdates.faux_numero = false;
+      const cur = guest.commentaireSuivi || "";
+      const cleaned = cur.replace(/\[FAUX_NUMERO\]/g, "").trim();
+      extraUpdates.commentaireSuivi = cleaned;
+      dbExtraUpdates.commentaire_suivi = cleaned;
     }
 
     setGuests(prev => prev.map(g => g.id === guestId ? {
@@ -747,6 +767,13 @@ function AffectationPage() {
       const { error } = await supabase.from("invites").update(updateObj).eq("id", guestId);
       if (error) {
         console.warn("Champs Supabase non encore disponible ou erreur:", error.message);
+        // Fallback résilient : si la colonne dédiée n'existe pas encore dans la table SQL,
+        // enregistrer dans commentaire_suivi pour garantir la persistance immédiate
+        if (dbExtraUpdates.commentaire_suivi) {
+          const fallbackObj: Record<string, any> = { commentaire_suivi: dbExtraUpdates.commentaire_suivi };
+          if (dbExtraUpdates.appel_abouti !== undefined) fallbackObj.appel_abouti = dbExtraUpdates.appel_abouti;
+          await supabase.from("invites").update(fallbackObj).eq("id", guestId);
+        }
       }
     } catch (err) {
       console.warn("Erreur mise à jour suivi:", err);
