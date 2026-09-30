@@ -7,7 +7,7 @@ import {
   Calendar, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2,
   Trash2, Trash, RotateCcw, Pencil, Archive, AlertTriangle,
-  ListChecks, BarChart3, Home, LayoutGrid, Table as TableIcon, Eye, Check
+  ListChecks, BarChart3, Home, LayoutGrid, Table as TableIcon, Eye, Check, FileText
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers, listIntegrationTeam, getIntegrationInvites, assignCounselorToGuest } from "@/app/actions/auth";
@@ -20,6 +20,8 @@ import PeopleNavigation from "@/components/experience/PeopleNavigation";
 import styles from "../affectation/Affectation.module.css";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
 import CustomSelect from "@/components/ui/CustomSelect";
+import CountryPickerModal, { COUNTRIES } from "@/components/ui/CountryPickerModal";
+import CrCallCenterModal from "@/components/experience/CrCallCenterModal";
 
 
 interface Guest {
@@ -35,6 +37,7 @@ interface Guest {
   event: string; 
   aps: boolean;
   localChurch: boolean;
+  autreEglise?: string;
   responsible: string;
   isInBergerie: boolean;
   status?: string; 
@@ -76,6 +79,16 @@ interface Guest {
   famille_disciple?: string;
   etatCivil?: string;
   souhaiteEtreContacte?: boolean;
+  piliers1?: boolean;
+  piliers2?: boolean;
+  piliers3?: boolean;
+  piliers4?: boolean;
+  termine12Piliers?: boolean;
+  pays?: string;
+  souhaitSuivi?: boolean;
+  rdvPastoral?: boolean;
+  neDecrochePas?: boolean;
+  fauxNumero?: boolean;
 }
 
 const MOCK_GUESTS: Guest[] = [];
@@ -118,6 +131,7 @@ function mapDbGuestToGuest(g: any): Guest {
     event: g.event,
     aps: g.aps,
     localChurch: g.local_church,
+    autreEglise: g.autre_eglise || (g.commentaire?.match(/\[(?:Autre église|Église d'origine)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
     responsible: g.responsible,
     assigned_to: g.assigned_to,
     church_id: g.church_id,
@@ -154,6 +168,16 @@ function mapDbGuestToGuest(g: any): Guest {
     interetBapteme: g.interet_bapteme || false,
     commentaire: g.commentaire || "",
     commentaireSuivi: g.commentaire_suivi || "",
+    piliers1: g.piliers_1 ?? false,
+    piliers2: g.piliers_2 ?? false,
+    piliers3: g.piliers_3 ?? false,
+    piliers4: g.piliers_4 ?? false,
+    termine12Piliers: g.termine_12_piliers ?? false,
+    pays: g.pays || (g.commentaire?.match(/\[(?:Pays de résidence|Pays)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || "Belgique"),
+    souhaitSuivi: g.souhait_suivi ?? false,
+    rdvPastoral: g.rdv_pastoral ?? false,
+    neDecrochePas: g.ne_decroche_pas ?? false,
+    fauxNumero: g.faux_numero ?? false,
     archived: g.archived || false,
     created_by: g.created_by,
     famille_disciple: g.famille_disciple || "AUCUNE",
@@ -192,6 +216,9 @@ function InvitesPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   useEffect(() => { if (isAddModalOpen) setFormError(""); }, [isAddModalOpen]);
+  const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
+  const [isCrModalOpen, setIsCrModalOpen] = useState(false);
+  const [churchName, setChurchName] = useState("CHARLEROI");
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -312,6 +339,14 @@ function InvitesPage() {
     return userRoleClean.startsWith("integration_") || userRoleClean === "conseiller" || isConseiller;
   }, [userRoleClean, isConseiller]);
 
+  const isIntegrationLeader = useMemo(() => {
+    return userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "admin" || userRoleClean === "super_admin";
+  }, [userRoleClean]);
+
+  const canViewCr = useMemo(() => {
+    return isIntegrationLeader || canDispatchAll;
+  }, [isIntegrationLeader, canDispatchAll]);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -345,14 +380,14 @@ function InvitesPage() {
         setCanDispatchAll(Boolean(parsed.canDispatchAll || parsed.metadata?.can_dispatch_all));
         
         let cId = parsed.church_id;
-        if (!cId) {
-          try {
-            const savedChurch = localStorage.getItem("selected_church");
-            if (savedChurch) {
-              cId = JSON.parse(savedChurch).id;
-            }
-          } catch {}
-        }
+        try {
+          const savedChurch = localStorage.getItem("selected_church");
+          if (savedChurch) {
+            const sc = JSON.parse(savedChurch);
+            if (!cId) cId = sc.id;
+            if (sc.name) setChurchName(sc.name);
+          }
+        } catch {}
         setChurchId(cId);
         
         // Robust name generation
@@ -573,15 +608,26 @@ function InvitesPage() {
     age: "26-30 ans",
     phone: "",
     email: "",
+    pays: "Belgique",
     address: "",
     arrivalDate: new Date().toISOString().split('T')[0],
     event: "Culte",
     aps: false,
     localChurch: false,
+    autreEglise: "",
     responsible: "Non assigné",
     aEteInvite: false,
     parQui: "",
     baptemeEau: false,
+    piliers1: false,
+    piliers2: false,
+    piliers3: false,
+    piliers4: false,
+    termine12Piliers: false,
+    souhaitSuivi: false,
+    rdvPastoral: false,
+    neDecrochePas: false,
+    fauxNumero: false,
     interetFormation: false,
     interetCDM: false,
     interetBapteme: false,
@@ -635,6 +681,15 @@ function InvitesPage() {
       p201: "p201",
       p301: "p301",
       terminePCNC: "termine_pcnc",
+      piliers1: "piliers_1",
+      piliers2: "piliers_2",
+      piliers3: "piliers_3",
+      piliers4: "piliers_4",
+      termine12Piliers: "termine_12_piliers",
+      souhaitSuivi: "souhait_suivi",
+      rdvPastoral: "rdv_pastoral",
+      neDecrochePas: "ne_decroche_pas",
+      fauxNumero: "faux_numero",
       interetCDM: "interet_cdm",
       integreCDM: "integre_cdm",
       prierePartage: "priere_partage",
@@ -652,7 +707,14 @@ function InvitesPage() {
     };
 
     const dbField = dbFieldMap[field as string] || field;
-    await supabase.from("invites").update({ [dbField]: newValue }).eq("id", guestId);
+    try {
+      const { error } = await supabase.from("invites").update({ [dbField]: newValue }).eq("id", guestId);
+      if (error) {
+        console.warn("Champs Supabase non encore disponible ou erreur:", error.message);
+      }
+    } catch (err) {
+      console.warn("Erreur mise à jour suivi:", err);
+    }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
     }
@@ -674,15 +736,26 @@ function InvitesPage() {
       age: newGuest.age,
       phone: newGuest.phone,
       email: newGuest.email,
+      pays: newGuest.pays || "Belgique",
       address: newGuest.address,
       arrival_date: newGuest.arrivalDate,
       event: newGuest.event,
       aps: newGuest.aps,
       local_church: newGuest.localChurch,
+      autre_eglise: newGuest.localChurch ? (newGuest.autreEglise?.trim() || null) : null,
       responsible: newGuest.responsible,
       a_ete_invite: newGuest.aEteInvite,
       par_qui: newGuest.parQui,
       bapteme_eau: newGuest.baptemeEau,
+      piliers_1: newGuest.piliers1 || false,
+      piliers_2: newGuest.piliers2 || false,
+      piliers_3: newGuest.piliers3 || false,
+      piliers_4: newGuest.piliers4 || false,
+      termine_12_piliers: newGuest.termine12Piliers || false,
+      souhait_suivi: newGuest.souhaitSuivi || false,
+      rdv_pastoral: newGuest.rdvPastoral || false,
+      ne_decroche_pas: newGuest.neDecrochePas || false,
+      faux_numero: newGuest.fauxNumero || false,
       interet_formation: newGuest.interetFormation,
       interet_cdm: newGuest.interetCDM,
       integre_cdm: newGuest.integreCDM,
@@ -716,10 +789,28 @@ function InvitesPage() {
     }
 
     if (editingGuestId) {
-      const { error } = await supabase
+      let { error } = await supabase
         .from("invites")
         .update(payload)
         .eq("id", editingGuestId);
+
+      // Fallback if column autre_eglise, pays, or piliers does not exist yet in database
+      if (error && (error.message.includes("autre_eglise") || error.message.includes("pays") || error.message.includes("piliers") || error.message.includes("souhait_suivi") || error.message.includes("rdv_pastoral") || error.message.includes("ne_decroche_pas") || error.message.includes("faux_numero") || error.code === "42703" || error.code === "PGRST204")) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.autre_eglise;
+        delete fallbackPayload.pays;
+        delete fallbackPayload.piliers_1;
+        delete fallbackPayload.piliers_2;
+        delete fallbackPayload.piliers_3;
+        delete fallbackPayload.piliers_4;
+        delete fallbackPayload.termine_12_piliers;
+        delete fallbackPayload.souhait_suivi;
+        delete fallbackPayload.rdv_pastoral;
+        delete fallbackPayload.ne_decroche_pas;
+        delete fallbackPayload.faux_numero;
+        const res = await supabase.from("invites").update(fallbackPayload).eq("id", editingGuestId);
+        error = res.error;
+      }
 
       if (error) {
         setFormError("Erreur lors de la modification : " + error.message);
@@ -734,11 +825,30 @@ function InvitesPage() {
       if (!userRoleClean.startsWith("integration_")) {
         payload.commentaire_suivi = "";
       }
-      const { data: inserted, error } = await supabase
+      let { data: inserted, error } = await supabase
         .from("invites")
         .insert(payload)
         .select()
         .single();
+
+      // Fallback if column autre_eglise, pays, or piliers does not exist yet in database
+      if (error && (error.message.includes("autre_eglise") || error.message.includes("pays") || error.message.includes("piliers") || error.message.includes("souhait_suivi") || error.message.includes("rdv_pastoral") || error.message.includes("ne_decroche_pas") || error.message.includes("faux_numero") || error.code === "42703" || error.code === "PGRST204")) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.autre_eglise;
+        delete fallbackPayload.pays;
+        delete fallbackPayload.piliers_1;
+        delete fallbackPayload.piliers_2;
+        delete fallbackPayload.piliers_3;
+        delete fallbackPayload.piliers_4;
+        delete fallbackPayload.termine_12_piliers;
+        delete fallbackPayload.souhait_suivi;
+        delete fallbackPayload.rdv_pastoral;
+        delete fallbackPayload.ne_decroche_pas;
+        delete fallbackPayload.faux_numero;
+        const res = await supabase.from("invites").insert(fallbackPayload).select().single();
+        inserted = res.data;
+        error = res.error;
+      }
 
       if (error) {
         setFormError("Erreur lors de l'ajout : " + error.message);
@@ -757,15 +867,26 @@ function InvitesPage() {
       age: "26-30 ans",
       phone: "",
       email: "",
+      pays: "Belgique",
       address: "",
       arrivalDate: new Date().toISOString().split('T')[0],
       event: "Culte",
       aps: false,
       localChurch: false,
+      autreEglise: "",
       responsible: "Non assigné",
       aEteInvite: false,
       parQui: "",
       baptemeEau: false,
+      piliers1: false,
+      piliers2: false,
+      piliers3: false,
+      piliers4: false,
+      termine12Piliers: false,
+      souhaitSuivi: false,
+      rdvPastoral: false,
+      neDecrochePas: false,
+      fauxNumero: false,
       interetFormation: false,
       interetCDM: false,
       commentaire: "",
@@ -1037,17 +1158,28 @@ function InvitesPage() {
       age: guest.age,
       phone: guest.phone,
       email: guest.email,
+      pays: guest.pays || "Belgique",
       address: guest.address,
       arrivalDate: guest.arrivalDate,
       event: guest.event || "Culte",
       aps: guest.aps,
       localChurch: guest.localChurch,
+      autreEglise: guest.autreEglise || "",
       responsible: guest.responsible || "Non assigné",
       assigned_to: guest.assigned_to || null,
       created_by: guest.created_by || null,
       aEteInvite: guest.aEteInvite,
       parQui: guest.parQui,
       baptemeEau: guest.baptemeEau,
+      piliers1: guest.piliers1 ?? false,
+      piliers2: guest.piliers2 ?? false,
+      piliers3: guest.piliers3 ?? false,
+      piliers4: guest.piliers4 ?? false,
+      termine12Piliers: guest.termine12Piliers ?? false,
+      souhaitSuivi: guest.souhaitSuivi ?? false,
+      rdvPastoral: guest.rdvPastoral ?? false,
+      neDecrochePas: guest.neDecrochePas ?? false,
+      fauxNumero: guest.fauxNumero ?? false,
       interetFormation: guest.interetFormation,
       interetCDM: guest.interetCDM,
       integreCDM: guest.integreCDM,
@@ -1378,12 +1510,22 @@ function InvitesPage() {
               )}
             </button>
           )}
+          {canViewCr && (
+            <button 
+              className="btn btn-outline"
+              onClick={() => setIsCrModalOpen(true)}
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+              title="Générer le Compte-Rendu Call Center pour le Pasteur"
+            >
+              <FileText size={14} /> CR Call Center
+            </button>
+          )}
           {canAddOrEditInvites && (
             <button className="btn btn-primary" onClick={() => {
               setNewGuest({
                 civility: "M.", firstName: "", lastName: "", age: "26-30 ans",
                 phone: "", email: "", address: "", arrivalDate: new Date().toISOString().split('T')[0],
-                event: "Culte", aps: false, localChurch: false,
+                event: "Culte", aps: false, localChurch: false, autreEglise: "",
                 responsible: "Non assigné", aEteInvite: false, parQui: "",
                 baptemeEau: false, interetFormation: false, interetCDM: false, commentaire: "",
                 etatCivil: "Célibataire", souhaiteEtreContacte: true
@@ -1716,6 +1858,34 @@ function InvitesPage() {
               <p className="ux-form-help">Commencez par l’essentiel. Les autres informations peuvent être complétées plus tard.</p>
               <fieldset disabled={isSaving} style={{ display: "contents", border: 0 }}>
 
+              {/* 1. Date d'arrivée & Événement en premier */}
+              <div className="form-grid-2">
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600, display: "block", marginBottom: 6 }}>DATE D'ARRIVÉE *</label>
+                  <CustomDatePicker 
+                    value={newGuest.arrivalDate || ""} 
+                    onChange={val => setNewGuest({...newGuest, arrivalDate: val})} 
+                    placeholder="Sélectionner la date"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÉVÉNEMENT</label>
+                  <CustomSelect
+                    value={newGuest.event || "Culte"}
+                    onChange={val => setNewGuest({...newGuest, event: val})}
+                    searchable={false}
+                    options={[
+                      { value: "Culte", label: "Culte" },
+                      { value: "Baptême", label: "Baptême" },
+                      { value: "Évangélisation", label: "Évangélisation" },
+                      { value: "Séminaire", label: "Séminaire" },
+                      { value: "Autre", label: "Autre" }
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* 2. Civilité, Nom, Prénom */}
               <div className="form-grid-3">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>CIVILITÉ</label>
@@ -1739,6 +1909,7 @@ function InvitesPage() {
                 </div>
               </div>
 
+              {/* 3. Téléphone, E-mail, État civil */}
               <div className="form-grid-3">
                 <div>
                   <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>TÉLÉPHONE</label>
@@ -1773,49 +1944,55 @@ function InvitesPage() {
               </div>
 
               <details className="ux-extra-fields" open={!!editingGuestId}><summary>Compléter le profil et le parcours</summary><div className="ux-extra-content">
-<div className="form-grid-3-equal">
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>DATE D'ARRIVÉE</label>
-                  <CustomDatePicker 
-                    value={newGuest.arrivalDate || ""} 
-                    onChange={val => setNewGuest({...newGuest, arrivalDate: val})} 
-                    placeholder="Sélectionner la date"
-                  />
+                {/* Pays de résidence & Tranche d'âge */}
+                <div className="form-grid-2">
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600, display: "block", marginBottom: 6 }}>PAYS DE RÉSIDENCE *</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCountryModalOpen(true)}
+                      className="input"
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "0 14px",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        height: 40,
+                        background: "rgba(0,0,0,0.2)",
+                        border: "1px solid rgba(212,175,55,0.3)"
+                      }}
+                    >
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--cream)" }}>
+                        <span style={{ fontSize: 18 }}>
+                          {COUNTRIES.find(c => c.name.toLowerCase() === (newGuest.pays || "").toLowerCase())?.flag || "🌍"}
+                        </span>
+                        <span style={{ fontWeight: 600, color: "var(--gold-light)" }}>{newGuest.pays || "Belgique"}</span>
+                      </span>
+                      <ChevronDown size={15} style={{ color: "var(--gold)" }} />
+                    </button>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>TRANCHE D'ÂGE</label>
+                    <CustomSelect
+                      value={newGuest.age || "26-30 ans"}
+                      onChange={val => setNewGuest({...newGuest, age: val})}
+                      searchable={false}
+                      options={[
+                        { value: "Moins de 18 ans", label: "Moins de 18 ans" },
+                        { value: "18-25 ans", label: "18-25 ans" },
+                        { value: "26-30 ans", label: "26-30 ans" },
+                        { value: "31-35 ans", label: "31-35 ans" },
+                        { value: "36-40 ans", label: "36-40 ans" },
+                        { value: "41-45 ans", label: "41-45 ans" },
+                        { value: "46-50 ans", label: "46-50 ans" },
+                        { value: "Plus de 50 ans", label: "Plus de 50 ans" }
+                      ]}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÂGE</label>
-                  <CustomSelect
-                    value={newGuest.age || "26-30 ans"}
-                    onChange={val => setNewGuest({...newGuest, age: val})}
-                    searchable={false}
-                    options={[
-                      { value: "Moins de 18 ans", label: "Moins de 18 ans" },
-                      { value: "18-25 ans", label: "18-25 ans" },
-                      { value: "26-30 ans", label: "26-30 ans" },
-                      { value: "31-35 ans", label: "31-35 ans" },
-                      { value: "36-40 ans", label: "36-40 ans" },
-                      { value: "41-45 ans", label: "41-45 ans" },
-                      { value: "46-50 ans", label: "46-50 ans" },
-                      { value: "Plus de 50 ans", label: "Plus de 50 ans" }
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ÉVÉNEMENT</label>
-                  <CustomSelect
-                    value={newGuest.event || "Culte"}
-                    onChange={val => setNewGuest({...newGuest, event: val})}
-                    searchable={false}
-                    options={[
-                      { value: "Culte", label: "Culte" },
-                      { value: "Baptême", label: "Baptême" },
-                      { value: "Évangélisation", label: "Évangélisation" },
-                      { value: "Séminaire", label: "Séminaire" },
-                      { value: "Autre", label: "Autre" }
-                    ]}
-                  />
-                </div>
-              </div>
 
               <div>
                 <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>ADRESSE / LIEU DE RÉSIDENCE</label>
@@ -1838,19 +2015,6 @@ function InvitesPage() {
                   />
                 </div>
               )}
-
-
-
-              <div>
-                <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>COMMENTAIRE ARRIVÉE / NOTES PARTICULIÈRES</label>
-                <textarea 
-                  className="input" 
-                  value={newGuest.commentaire || ""} 
-                  onChange={e => setNewGuest({...newGuest, commentaire: e.target.value})} 
-                  placeholder="Informations complémentaires, sujet de prière..."
-                  style={{ minHeight: 80, fontSize: 12 }}
-                />
-              </div>
 
               <div className="form-grid-2" style={{ marginBottom: 15 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1884,16 +2048,46 @@ function InvitesPage() {
                 </div>
               </div>
 
-              <div className="form-grid-2">
+              {/* Questions spirituelles */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.aps} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} />
-                  <span style={{ fontSize: 13 }}>APS</span>
+                  <input type="checkbox" id="modal-aps" checked={newGuest.aps} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                  <label htmlFor="modal-aps" style={{ fontSize: 13, color: "var(--cream)", cursor: "pointer", fontWeight: 500 }}>
+                    Avez-vous déjà accepté Jésus-Christ comme votre Sauveur et Seigneur de votre vie ?
+                  </label>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="checkbox" checked={newGuest.localChurch} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} />
-                  <span style={{ fontSize: 13 }}>Déjà d'une église locale</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input type="checkbox" id="modal-localChurch" checked={newGuest.localChurch} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                    <label htmlFor="modal-localChurch" style={{ fontSize: 13, color: "var(--cream)", cursor: "pointer", fontWeight: 500 }}>
+                      Persévérez-vous déjà dans une autre église ?
+                    </label>
+                  </div>
+                  {newGuest.localChurch && (
+                    <div style={{ paddingLeft: 26 }}>
+                      <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>NOM DE VOTRE ÉGLISE LOCALE</label>
+                      <input 
+                        type="text" 
+                        className="input" 
+                        placeholder="Ex: ICC Paris, Portes Ouvertes..." 
+                        value={newGuest.autreEglise || ""} 
+                        onChange={e => setNewGuest({...newGuest, autreEglise: e.target.value})}
+                        style={{ height: 36, fontSize: 12 }}
+                      />
+                    </div>
+                  )}
                 </div>
-                
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 6 }}>COMMENTAIRE ARRIVÉE / NOTES PARTICULIÈRES</label>
+                <textarea 
+                  className="input" 
+                  value={newGuest.commentaire || ""} 
+                  onChange={e => setNewGuest({...newGuest, commentaire: e.target.value})} 
+                  placeholder="Informations complémentaires, sujet de prière..."
+                  style={{ minHeight: 80, fontSize: 12 }}
+                />
               </div>
 
               
@@ -1913,6 +2107,13 @@ function InvitesPage() {
         </div>,
         document.body
       )}
+
+      <CountryPickerModal
+        isOpen={isCountryModalOpen}
+        onClose={() => setIsCountryModalOpen(false)}
+        value={newGuest.pays || "Belgique"}
+        onChange={val => setNewGuest({...newGuest, pays: val})}
+      />
 
       {/* Modern Filters & Controls */}
       <div className={`glass fade-in ${styles.filtersContainer}`}>
@@ -2421,7 +2622,9 @@ function InvitesPage() {
                       {/* Église locale */}
                       <td className={styles.td}>
                         {guest.localChurch ? (
-                          <span className="badge badge-sky" style={{ fontSize: 9 }}>Avec église</span>
+                          <span className="badge badge-sky" style={{ fontSize: 9 }} title={guest.autreEglise ? `Église : ${guest.autreEglise}` : undefined}>
+                            {guest.autreEglise ? `Église : ${guest.autreEglise}` : "Avec église"}
+                          </span>
                         ) : (
                           <span className="badge badge-rose" style={{ fontSize: 9 }}>Sans église</span>
                         )}
@@ -2693,9 +2896,9 @@ function InvitesPage() {
             const isAttendanceBlocked = !canEditCard;
 
             return (
-              <div key={guest.id} id={`guest-card-${guest.id}`} className="glass-flush" style={{ overflow: "hidden" }}>
+              <div key={guest.id} id={`guest-card-${guest.id}`} className="glass-flush soul-card" style={{ overflow: "hidden" }}>
                 <div
-                  className="invite-card-header"
+                  className="invite-card-header soul-card-header"
                   onClick={() => setExpandedId(isExpanded ? null : guest.id)}
                   style={{ 
                     padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -2774,7 +2977,7 @@ function InvitesPage() {
                 </div>
 
                 {isExpanded && (
-                  <div className="invite-expanded" style={{ padding: "0 20px 20px", borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.1)" }}>
+                  <div className="invite-expanded soul-card-body" style={{ padding: "0 20px 20px", borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.1)" }}>
                     <div className="invite-expanded-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 20, paddingTop: 20 }}>
                       {/* Column 1: Info */}
                       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -2785,12 +2988,20 @@ function InvitesPage() {
                           <Calendar size={14} style={{ color: "var(--gold)" }} /> 
                           <span style={{ color: "var(--gold)", fontWeight: 500 }}>Arrivé le : {guest.arrivalDate ? guest.arrivalDate.split('-').reverse().join('/') : ''}</span>
                         </div>
-                        <div className="badge badge-primary" style={{ width: "fit-content", fontSize: 10 }}>{guest.event}</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12, wordBreak: "break-word" }}>{guest.address}</span></div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                          <div className="badge badge-primary" style={{ width: "fit-content", fontSize: 10 }}>{guest.event}</div>
+                          <span className={`badge ${guest.aps ? "badge-green" : "badge-red"}`} style={{ fontSize: 9 }}>
+                            APS : {guest.aps ? "Oui" : "Non"}
+                          </span>
+                          <span className={`badge ${guest.localChurch ? "badge-sky" : "badge-rose"}`} style={{ fontSize: 9 }}>
+                            {guest.localChurch ? (guest.autreEglise ? `Église : ${guest.autreEglise}` : "Avec église") : "Sans église"}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12, wordBreak: "break-word" }}>{guest.address ? `${guest.address}${guest.pays ? ` (${guest.pays})` : ''}` : (guest.pays ? `Pays: ${guest.pays}` : "Adresse non renseignée")}</span></div>
                         
                         <div style={{ marginTop: 10 }}>
                           <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE ARRIVÉE</label>
-                          <div style={{ fontSize: 12, color: "var(--cream)", background: "rgba(0,0,0,0.2)", padding: 8, borderRadius: 6, border: "1px solid var(--border)" }}>
+                          <div className="soul-card-note" style={{ fontSize: 12, color: "var(--cream)", background: "var(--bg)", padding: 8, borderRadius: 6, border: "1px solid var(--border)" }}>
                             {guest.commentaire || "Aucun commentaire"}
                           </div>
                         </div>
@@ -3012,19 +3223,28 @@ function InvitesPage() {
                               <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
                                 <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Premier Contact</h5>
                                 <SuiviToggle label="Appel abouti" checked={guest.appelAbouti} onChange={() => toggleSuivi(guest.id, 'appelAbouti')} disabled={isEditBlocked} />
+                                {!guest.appelAbouti && (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "6px 8px", background: "rgba(244, 63, 94, 0.04)", borderRadius: 6, border: "1px dashed rgba(244, 63, 94, 0.25)" }}>
+                                    <SuiviToggle label="Ne décroche pas / Relance" checked={Boolean(guest.neDecrochePas)} onChange={() => toggleSuivi(guest.id, 'neDecrochePas')} disabled={isEditBlocked} />
+                                    <SuiviToggle label="Faux numéro / Erroné" checked={Boolean(guest.fauxNumero)} onChange={() => toggleSuivi(guest.id, 'fauxNumero')} disabled={isEditBlocked} />
+                                  </div>
+                                )}
                                 {!guest.appelAbouti && !isEditBlocked && (
-                                  <div className="glass-compact" style={{ marginTop: 8, marginBottom: 8, padding: 10, background: "rgba(244, 63, 94, 0.05)", border: "1px dashed rgba(244, 63, 94, 0.3)", borderRadius: 8, animation: "fadeIn 0.3s ease-out" }}>
-                                    <label style={{ fontSize: 9, color: "var(--rose)", display: "block", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Raison de l'échec</label>
+                                  <div className="glass-compact" style={{ marginTop: 4, marginBottom: 4, padding: 8, background: "rgba(244, 63, 94, 0.05)", border: "1px dashed rgba(244, 63, 94, 0.3)", borderRadius: 8, animation: "fadeIn 0.3s ease-out" }}>
+                                    <label style={{ fontSize: 9, color: "var(--rose)", display: "block", marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Raison de l'échec / Relance</label>
                                     <textarea 
-                                      placeholder="Pourquoi l'appel n'a pas abouti ? (ex: Ne décroche pas, numéro invalide...)" 
+                                      placeholder="Ex: Sonnerie sans réponse, numéro faux, rappeler jeudi..." 
                                       value={guest.commentaireSuivi || ""} 
                                       disabled={isEditBlocked}
                                       onChange={(e) => setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: e.target.value } : g))}
                                       onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id).then()}
-                                      style={{ width: "100%", minHeight: 60, fontSize: 11, background: "var(--bg-deep)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px", color: "var(--cream)", resize: "vertical", lineHeight: "1.5" }}
+                                      style={{ width: "100%", minHeight: 48, fontSize: 11, background: "var(--bg-deep)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px", color: "var(--cream)", resize: "vertical", lineHeight: "1.4" }}
                                     />
                                   </div>
                                 )}
+                                <SuiviToggle label="Souhait suivi" checked={Boolean(guest.souhaitSuivi)} onChange={() => toggleSuivi(guest.id, 'souhaitSuivi')} disabled={isEditBlocked} />
+                                <SuiviToggle label="RDV pastoral" checked={Boolean(guest.rdvPastoral)} onChange={() => toggleSuivi(guest.id, 'rdvPastoral')} disabled={isEditBlocked} />
+                                <SuiviToggle label="Visite à domicile" checked={guest.visiteDomicile} onChange={() => toggleSuivi(guest.id, 'visiteDomicile')} disabled={isEditBlocked} />
                                 <SuiviToggle label="Groupe WhatsApp" checked={guest.groupeWhatsapp} onChange={() => toggleSuivi(guest.id, 'groupeWhatsapp')} disabled={isEditBlocked} />
                                 <SuiviToggle label="Prévu revenir" checked={guest.prevuRevenir} onChange={() => toggleSuivi(guest.id, 'prevuRevenir')} disabled={isEditBlocked} />
                                 <SuiviToggle label="Revenu au culte" checked={guest.estRevenuCulte} onChange={() => toggleSuivi(guest.id, 'estRevenuCulte')} disabled={isEditBlocked} />
@@ -3052,6 +3272,20 @@ function InvitesPage() {
                                 <SuiviToggle label="Baptisé par immersion" checked={guest.baptemeEau} onChange={() => toggleSuivi(guest.id, 'baptemeEau')} disabled={isEditBlocked} />
                                 <SuiviToggle label="Veut servir" checked={guest.veutServir} onChange={() => toggleSuivi(guest.id, 'veutServir')} disabled={isEditBlocked} />
                                 <SuiviToggle label="Devenu STAR" checked={guest.devenuStar} onChange={() => toggleSuivi(guest.id, 'devenuStar')} disabled={isEditBlocked} />
+                              </div>
+
+                              {/* 12 Piliers (Formation en 4 séances) */}
+                              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px dashed rgba(255,255,255,0.08)" }}>
+                                <h5 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span>🏛️</span> Formation des 12 Piliers (4 séances)
+                                </h5>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+                                  <SuiviToggle label="Séance 1" checked={Boolean(guest.piliers1)} onChange={() => toggleSuivi(guest.id, 'piliers1')} disabled={isEditBlocked} />
+                                  <SuiviToggle label="Séance 2" checked={Boolean(guest.piliers2)} onChange={() => toggleSuivi(guest.id, 'piliers2')} disabled={isEditBlocked} />
+                                  <SuiviToggle label="Séance 3" checked={Boolean(guest.piliers3)} onChange={() => toggleSuivi(guest.id, 'piliers3')} disabled={isEditBlocked} />
+                                  <SuiviToggle label="Séance 4" checked={Boolean(guest.piliers4)} onChange={() => toggleSuivi(guest.id, 'piliers4')} disabled={isEditBlocked} />
+                                  <SuiviToggle label="12 Piliers Terminé" checked={Boolean(guest.termine12Piliers)} onChange={() => toggleSuivi(guest.id, 'termine12Piliers')} disabled={isEditBlocked} />
+                                </div>
                               </div>
                               <div style={{ marginTop: 15 }}>
                                 <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE SUIVI</label>
@@ -3347,6 +3581,13 @@ function InvitesPage() {
       )}
     </>
   )}
+
+  <CrCallCenterModal
+    isOpen={isCrModalOpen}
+    onClose={() => setIsCrModalOpen(false)}
+    guests={guests}
+    churchName={churchName || "CHARLEROI"}
+  />
 </div>
 );
 }

@@ -25,11 +25,15 @@ export function summarizePerson(input: object, kind: "member" | "guest") {
     }
   }
   events.sort((a, b) => b.date.localeCompare(a.date) || a.activity.localeCompare(b.activity));
-  const formations = Array.isArray(person.formations) ? person.formations as string[] : [];
+  const formations = Array.isArray(person.formations) ? [...(person.formations as string[])] : [];
+  if (person.termine12Piliers || person.termine_12_piliers) {
+    if (!formations.includes("12 Piliers")) formations.push("12 Piliers");
+  }
   const steps = kind === "guest" ? [
     { label: "Contact établi", done: person.appelAbouti === true },
     { label: "Rencontre effectuée", done: person.rencontreEffectuee === true },
     { label: "Parcours PCNC terminé", done: person.terminePCNC === true },
+    { label: "12 Piliers terminé", done: person.termine12Piliers === true || person.termine_12_piliers === true },
     { label: "Intégré à une famille", done: person.isInBergerie === true || person.dansFamilleDisciple === true },
   ] : [
     { label: "Baptême", done: person.est_baptise === true },

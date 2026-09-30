@@ -270,3 +270,76 @@ html[data-theme] body .btn:not(:disabled):active { transform: scale(.98); }
     scroll-behavior: auto !important;
   }
 }
+
+/* Soul cards: use the theme palette instead of the legacy glass/dark overrides. */
+html[data-theme] body .page-content .soul-card {
+  background: var(--surface-solid) !important;
+  color: var(--cream) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-soft) !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+html[data-theme] body .page-content .soul-card .soul-card-header {
+  background: var(--card-hover) !important;
+  color: var(--cream) !important;
+  border-color: var(--border) !important;
+}
+html[data-theme] body .page-content .soul-card .soul-card-body {
+  background: var(--surface-solid) !important;
+  color: var(--cream) !important;
+  border-color: var(--border) !important;
+}
+html[data-theme] body .page-content .soul-card :is(.soul-card-note, .affectation-card-stat, .invite-card-header .hide-mobile > div, .glass-compact, .invite-attendance-block) {
+  background: var(--bg) !important;
+  color: var(--cream-dim) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+html[data-theme] body .page-content .soul-card .soul-card-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.65;
+}
+html[data-theme] body .page-content .soul-card :is(h3, h3 button) {
+  color: var(--cream) !important;
+  -webkit-text-fill-color: currentColor !important;
+  text-shadow: none !important;
+}
+html[data-theme] body .page-content .soul-card :is(h4, .form-label[style*="var(--gold)"]) {
+  color: var(--gold) !important;
+  -webkit-text-fill-color: currentColor !important;
+  text-shadow: none !important;
+}
+html[data-theme] body .page-content .soul-card [style*="color: var(--muted)"] { color: var(--muted) !important; }
+html[data-theme] body .page-content .soul-card [style*="color: var(--cream-dim)"] { color: var(--cream-dim) !important; }
+html[data-theme] body .page-content .soul-card .avatar {
+  background: var(--gold-glow-strong) !important;
+  color: var(--gold) !important;
+  border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--border)) !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+html[data-theme] body .page-content .soul-card .badge {
+  --soul-badge-color: var(--muted);
+  background: color-mix(in srgb, var(--soul-badge-color) 12%, var(--surface-solid)) !important;
+  color: var(--soul-badge-color) !important;
+  border: 1px solid color-mix(in srgb, var(--soul-badge-color) 25%, var(--border)) !important;
+  -webkit-text-fill-color: currentColor !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+html[data-theme] body .page-content .soul-card :is(.badge-gold, .badge-primary) { --soul-badge-color: var(--gold); }
+html[data-theme] body .page-content .soul-card .badge-green { --soul-badge-color: var(--green); }
+html[data-theme] body .page-content .soul-card :is(.badge-red, .badge-rose) { --soul-badge-color: var(--red); }
+html[data-theme] body .page-content .soul-card .badge-sky { --soul-badge-color: var(--sky); }
+html[data-theme] body .page-content .soul-card .soul-card-header .btn-icon {
+  background: var(--surface-solid) !important;
+  color: var(--gold) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+html[data-theme] body .page-content .soul-card .soul-card-header .btn-icon:hover {
+  background: var(--gold-glow) !important;
+  border-color: var(--gold) !important;
+}

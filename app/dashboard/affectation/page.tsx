@@ -6,7 +6,7 @@ import {
   Search, Plus, UserPlus, Filter, CheckCircle2, XCircle, X, 
   Calendar, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2, ListChecks, BarChart3,
-  LayoutGrid, Table as TableIcon, Sparkles, RotateCcw, Eye
+  LayoutGrid, Table as TableIcon, Sparkles, RotateCcw, Eye, FileText
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers, listIntegrationTeam, getIntegrationInvites, assignCounselorToGuest } from "@/app/actions/auth";
@@ -18,6 +18,8 @@ import { useFeedback } from "@/components/experience/FeedbackProvider";
 import styles from "./Affectation.module.css";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
 import CustomSelect from "@/components/ui/CustomSelect";
+import CountryPickerModal, { COUNTRIES } from "@/components/ui/CountryPickerModal";
+import CrCallCenterModal from "@/components/experience/CrCallCenterModal";
 
 const formatDisplayDate = (d?: string) => {
   if (!d) return "—";
@@ -57,6 +59,7 @@ interface Guest {
   event: string;
   aps: boolean;
   localChurch: boolean;
+  autreEglise?: string;
   responsible: string;
   isInBergerie: boolean;
   status?: string; 
@@ -99,6 +102,16 @@ interface Guest {
   etatCivil?: string;
   souhaiteEtreContacte?: boolean;
   created_by?: string | null;
+  piliers1?: boolean;
+  piliers2?: boolean;
+  piliers3?: boolean;
+  piliers4?: boolean;
+  termine12Piliers?: boolean;
+  pays?: string;
+  souhaitSuivi?: boolean;
+  rdvPastoral?: boolean;
+  neDecrochePas?: boolean;
+  fauxNumero?: boolean;
 }
 
 const MOCK_RESPONSIBLES = ["Non assigné"];
@@ -126,6 +139,7 @@ function mapDbGuestToGuest(g: any): Guest {
     event: g.event,
     aps: g.aps,
     localChurch: g.local_church,
+    autreEglise: g.autre_eglise || (g.commentaire?.match(/\[(?:Autre église|Église d'origine)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
     responsible: g.responsible,
     isInBergerie: g.is_in_bergerie,
     status: g.status,
@@ -159,6 +173,16 @@ function mapDbGuestToGuest(g: any): Guest {
     interetBapteme: g.interet_bapteme || false,
     commentaire: g.commentaire || "",
     commentaireSuivi: g.commentaire_suivi || "",
+    piliers1: g.piliers_1 ?? false,
+    piliers2: g.piliers_2 ?? false,
+    piliers3: g.piliers_3 ?? false,
+    piliers4: g.piliers_4 ?? false,
+    termine12Piliers: g.termine_12_piliers ?? false,
+    pays: g.pays || (g.commentaire?.match(/\[(?:Pays de résidence|Pays)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || "Belgique"),
+    souhaitSuivi: g.souhait_suivi ?? false,
+    rdvPastoral: g.rdv_pastoral ?? false,
+    neDecrochePas: g.ne_decroche_pas ?? false,
+    fauxNumero: g.faux_numero ?? false,
     assigned_to: g.assigned_to,
     church_id: g.church_id,
     bergerie_id: g.bergerie_id,
@@ -179,6 +203,8 @@ function AffectationPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   useEffect(() => { if (isAddModalOpen) setFormError(""); }, [isAddModalOpen]);
+  const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
+  const [isCrModalOpen, setIsCrModalOpen] = useState(false);
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -297,6 +323,10 @@ function AffectationPage() {
       role === "super_admin"
     );
   }, [userRoleClean]);
+
+  const canViewCr = useMemo(() => {
+    return isIntegrationLeader || canDispatchAll;
+  }, [isIntegrationLeader, canDispatchAll]);
 
   const canCreateOrDeleteInvites = useMemo(() => {
     return isIntegrationLeader;
@@ -452,7 +482,7 @@ function AffectationPage() {
             return;
           }
           query = query.eq("church_id", churchId);
-          if (userId && !canDispatchAll) {
+          if (userId && !canDispatchAll && !isIntegrationLeader) {
             query = query.eq("assigned_to", userId);
           }
         } else {
@@ -604,15 +634,26 @@ function AffectationPage() {
     age: "26-30",
     phone: "",
     email: "",
+    pays: "Belgique",
     address: "",
     arrivalDate: new Date().toISOString().split('T')[0],
     event: "Culte",
     aps: false,
     localChurch: false,
+    autreEglise: "",
     responsible: "",
     aEteInvite: false,
     parQui: "",
     baptemeEau: false,
+    piliers1: false,
+    piliers2: false,
+    piliers3: false,
+    piliers4: false,
+    termine12Piliers: false,
+    souhaitSuivi: false,
+    rdvPastoral: false,
+    neDecrochePas: false,
+    fauxNumero: false,
     interetFormation: false,
     interetCDM: false,
     integreCDM: false,
@@ -659,6 +700,15 @@ function AffectationPage() {
       p201: "p201",
       p301: "p301",
       terminePCNC: "termine_pcnc",
+      piliers1: "piliers_1",
+      piliers2: "piliers_2",
+      piliers3: "piliers_3",
+      piliers4: "piliers_4",
+      termine12Piliers: "termine_12_piliers",
+      souhaitSuivi: "souhait_suivi",
+      rdvPastoral: "rdv_pastoral",
+      neDecrochePas: "ne_decroche_pas",
+      fauxNumero: "faux_numero",
       interetCDM: "interet_cdm",
       integreCDM: "integre_cdm",
       prierePartage: "priere_partage",
@@ -680,7 +730,14 @@ function AffectationPage() {
       updateObj.famille_disciple = "AUCUNE";
       updateObj.bergerie_id = null;
     }
-    await supabase.from("invites").update(updateObj).eq("id", guestId);
+    try {
+      const { error } = await supabase.from("invites").update(updateObj).eq("id", guestId);
+      if (error) {
+        console.warn("Champs Supabase non encore disponible ou erreur:", error.message);
+      }
+    } catch (err) {
+      console.warn("Erreur mise à jour suivi:", err);
+    }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
     }
@@ -704,15 +761,26 @@ function AffectationPage() {
       age: newGuest.age,
       phone: newGuest.phone,
       email: newGuest.email,
+      pays: newGuest.pays || "Belgique",
       address: newGuest.address,
       arrival_date: newGuest.arrivalDate,
       event: newGuest.event,
       aps: newGuest.aps,
       local_church: newGuest.localChurch,
+      autre_eglise: newGuest.localChurch ? (newGuest.autreEglise?.trim() || null) : null,
       responsible: newGuest.responsible,
       a_ete_invite: newGuest.aEteInvite,
       par_qui: newGuest.parQui,
       bapteme_eau: newGuest.baptemeEau,
+      piliers_1: newGuest.piliers1 || false,
+      piliers_2: newGuest.piliers2 || false,
+      piliers_3: newGuest.piliers3 || false,
+      piliers_4: newGuest.piliers4 || false,
+      termine_12_piliers: newGuest.termine12Piliers || false,
+      souhait_suivi: newGuest.souhaitSuivi || false,
+      rdv_pastoral: newGuest.rdvPastoral || false,
+      ne_decroche_pas: newGuest.neDecrochePas || false,
+      faux_numero: newGuest.fauxNumero || false,
       interet_formation: newGuest.interetFormation,
       interet_cdm: newGuest.interetCDM,
       integre_cdm: newGuest.integreCDM,
@@ -739,10 +807,23 @@ function AffectationPage() {
     }
 
     if (editingGuestId) {
-      const { error } = await supabase
+      let { error } = await supabase
         .from("invites")
         .update(payload)
         .eq("id", editingGuestId);
+
+      if (error && (error.message.includes("autre_eglise") || error.message.includes("pays") || error.message.includes("piliers") || error.code === "42703" || error.code === "PGRST204")) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.autre_eglise;
+        delete fallbackPayload.pays;
+        delete fallbackPayload.piliers_1;
+        delete fallbackPayload.piliers_2;
+        delete fallbackPayload.piliers_3;
+        delete fallbackPayload.piliers_4;
+        delete fallbackPayload.termine_12_piliers;
+        const res = await supabase.from("invites").update(fallbackPayload).eq("id", editingGuestId);
+        error = res.error;
+      }
 
       if (error) {
         setFormError("Erreur lors de la modification : " + error.message);
@@ -755,11 +836,25 @@ function AffectationPage() {
       }
     } else {
       payload.commentaire_suivi = "";
-      const { data: inserted, error } = await supabase
+      let { data: inserted, error } = await supabase
         .from("invites")
         .insert(payload)
         .select()
         .single();
+
+      if (error && (error.message.includes("autre_eglise") || error.message.includes("pays") || error.message.includes("piliers") || error.code === "42703" || error.code === "PGRST204")) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.autre_eglise;
+        delete fallbackPayload.pays;
+        delete fallbackPayload.piliers_1;
+        delete fallbackPayload.piliers_2;
+        delete fallbackPayload.piliers_3;
+        delete fallbackPayload.piliers_4;
+        delete fallbackPayload.termine_12_piliers;
+        const res = await supabase.from("invites").insert(fallbackPayload).select().single();
+        inserted = res.data;
+        error = res.error;
+      }
 
       if (error) {
         setFormError("Erreur lors de l'ajout : " + error.message);
@@ -777,15 +872,26 @@ function AffectationPage() {
       age: "26-30",
       phone: "",
       email: "",
+      pays: "Belgique",
       address: "",
       arrivalDate: new Date().toISOString().split('T')[0],
       event: "Culte",
       aps: false,
       localChurch: false,
+      autreEglise: "",
       responsible: "Non assigné",
       aEteInvite: false,
       parQui: "",
       baptemeEau: false,
+      piliers1: false,
+      piliers2: false,
+      piliers3: false,
+      piliers4: false,
+      termine12Piliers: false,
+      souhaitSuivi: false,
+      rdvPastoral: false,
+      neDecrochePas: false,
+      fauxNumero: false,
       baptemeEsprit: false,
       interetFormation: false,
       interetCDM: false,
@@ -944,15 +1050,26 @@ function AffectationPage() {
       age: guest.age,
       phone: guest.phone,
       email: guest.email,
+      pays: guest.pays || "Belgique",
       address: guest.address,
       arrivalDate: guest.arrivalDate,
       event: guest.event || "Culte",
       aps: guest.aps,
       localChurch: guest.localChurch,
+      autreEglise: guest.autreEglise || "",
       responsible: guest.responsible || responsibles[0],
       aEteInvite: guest.aEteInvite,
       parQui: guest.parQui,
       baptemeEau: guest.baptemeEau,
+      piliers1: guest.piliers1 ?? false,
+      piliers2: guest.piliers2 ?? false,
+      piliers3: guest.piliers3 ?? false,
+      piliers4: guest.piliers4 ?? false,
+      termine12Piliers: guest.termine12Piliers ?? false,
+      souhaitSuivi: guest.souhaitSuivi ?? false,
+      rdvPastoral: guest.rdvPastoral ?? false,
+      neDecrochePas: guest.neDecrochePas ?? false,
+      fauxNumero: guest.fauxNumero ?? false,
       interetFormation: guest.interetFormation,
       interetCDM: guest.interetCDM,
       integreCDM: guest.integreCDM,
@@ -1139,14 +1256,27 @@ function AffectationPage() {
             Suivi personnalisé et accompagnement spirituel de vos âmes confiées
           </p>
         </div>
-        {isIntegrationOrCounselor && (
-          <button className="btn btn-primary btn-sm" onClick={() => {
-            setNewGuest({ ...newGuest, responsible: userName || "" });
-            setIsAddModalOpen(true);
-          }}>
-            <Plus size={14} /> Nouvelle Âme
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {canViewCr && (
+            <button 
+              type="button"
+              className="btn btn-outline btn-sm" 
+              style={{ borderColor: "rgba(212,175,55,0.4)", color: "var(--gold-light)", display: "flex", alignItems: "center", gap: 6 }}
+              onClick={() => setIsCrModalOpen(true)}
+              title="Compte-Rendu Call Center pour le Pasteur (Responsable, Second, Affectations)"
+            >
+              <FileText size={14} /> CR Call Center
+            </button>
+          )}
+          {isIntegrationOrCounselor && (
+            <button className="btn btn-primary btn-sm" onClick={() => {
+              setNewGuest({ ...newGuest, responsible: userName || "" });
+              setIsAddModalOpen(true);
+            }}>
+              <Plus size={14} /> Nouvelle Âme
+            </button>
+          )}
+        </div>
       </div>
 
       {/* View Switcher Tabs */}
@@ -1400,6 +1530,34 @@ function AffectationPage() {
               <p className="ux-form-help">Commencez par l’essentiel. Les autres informations peuvent être complétées plus tard.</p>
               <fieldset disabled={isSaving} style={{ display: "contents", border: 0 }}>
 
+                  {/* 1. Date d'arrivée & Événement en premier */}
+                  <div className="form-grid-2">
+                    <div>
+                      <label className="form-label" style={{ color: "var(--gold)" }}>DATE D'ARRIVÉE *</label>
+                      <CustomDatePicker 
+                        value={newGuest.arrivalDate || ""} 
+                        onChange={val => setNewGuest({...newGuest, arrivalDate: val})} 
+                        placeholder="Sélectionner la date"
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label">ÉVÉNEMENT</label>
+                      <CustomSelect
+                        value={newGuest.event || "Culte"}
+                        onChange={val => setNewGuest({...newGuest, event: val})}
+                        searchable={false}
+                        options={[
+                          { value: "Culte", label: "Culte" },
+                          { value: "Baptême", label: "Baptême" },
+                          { value: "Évangélisation", label: "Évangélisation" },
+                          { value: "Séminaire", label: "Séminaire" },
+                          { value: "Autre", label: "Autre" }
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 2. Civilité, Nom, Prénom */}
                   <div className="form-grid-3">
                     <div>
                       <label className="form-label">CIVILITÉ</label>
@@ -1423,6 +1581,8 @@ function AffectationPage() {
                       <input className="input" required value={newGuest.firstName || ""} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} />
                     </div>
                   </div>
+
+                  {/* 3. Téléphone, E-mail, État civil */}
                   <div className="form-grid-3">
                     <div>
                       <label className="form-label">TÉLÉPHONE</label>
@@ -1449,108 +1609,134 @@ function AffectationPage() {
                       />
                     </div>
                   </div>
+
                   <details className="ux-extra-fields" open={!!editingGuestId}><summary>Compléter le profil et le parcours</summary><div className="ux-extra-content">
-<div className="form-grid-3-equal">
-                    <div>
-                      <label className="form-label">DATE D'ARRIVÉE</label>
-                      <CustomDatePicker 
-                        value={newGuest.arrivalDate || ""} 
-                        onChange={val => setNewGuest({...newGuest, arrivalDate: val})} 
-                        placeholder="Sélectionner la date"
-                      />
-                    </div>
-                    <div>
-                      <label className="form-label">ÂGE</label>
-                      <CustomSelect
-                        value={newGuest.age || "26-30"}
-                        onChange={val => setNewGuest({...newGuest, age: val})}
-                        searchable={false}
-                        options={[
-                          { value: "< 18", label: "Moins de 18 ans" },
-                          { value: "18-25", label: "18-25 ans" },
-                          { value: "26-30", label: "26-30 ans" },
-                          { value: "31-40", label: "31-40 ans" },
-                          { value: "41-50", label: "41-50 ans" },
-                          { value: "> 50", label: "Plus de 50 ans" }
-                        ]}
-                      />
-                    </div>
-                    <div>
-                      <label className="form-label">ÉVÉNEMENT</label>
-                      <CustomSelect
-                        value={newGuest.event || "Culte"}
-                        onChange={val => setNewGuest({...newGuest, event: val})}
-                        searchable={false}
-                        options={[
-                          { value: "Culte", label: "Culte" },
-                          { value: "Baptême", label: "Baptême" },
-                          { value: "Évangélisation", label: "Évangélisation" },
-                          { value: "Séminaire", label: "Séminaire" },
-                          { value: "Autre", label: "Autre" }
-                        ]}
-                      />
-                    </div>
-                  </div>
-                  <div className="form-grid-2">
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.aEteInvite || false} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>A été invité ?</span>
-                    </div>
-                    {newGuest.aEteInvite && (
+                    {/* Pays de résidence & Tranche d'âge */}
+                    <div className="form-grid-2">
                       <div>
-                        <label className="form-label">PAR QUI ?</label>
-                        <input className="input" value={newGuest.parQui || ""} onChange={e => setNewGuest({...newGuest, parQui: e.target.value})} placeholder="Nom de l'invitant" />
+                        <label className="form-label" style={{ color: "var(--gold)" }}>PAYS DE RÉSIDENCE *</label>
+                        <button
+                          type="button"
+                          onClick={() => setIsCountryModalOpen(true)}
+                          className="input"
+                          style={{
+                            width: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "0 14px",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            height: 40,
+                            background: "rgba(0,0,0,0.2)",
+                            border: "1px solid rgba(212,175,55,0.3)"
+                          }}
+                        >
+                          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--cream)" }}>
+                            <span style={{ fontSize: 18 }}>
+                              {COUNTRIES.find(c => c.name.toLowerCase() === (newGuest.pays || "").toLowerCase())?.flag || "🌍"}
+                            </span>
+                            <span style={{ fontWeight: 600, color: "var(--gold-light)" }}>{newGuest.pays || "Belgique"}</span>
+                          </span>
+                          <ChevronDown size={15} style={{ color: "var(--gold)" }} />
+                        </button>
                       </div>
-                    )}
-                  </div>
+                      <div>
+                        <label className="form-label">TRANCHE D'ÂGE</label>
+                        <CustomSelect
+                          value={newGuest.age || "26-30"}
+                          onChange={val => setNewGuest({...newGuest, age: val})}
+                          searchable={false}
+                          options={[
+                            { value: "< 18", label: "Moins de 18 ans" },
+                            { value: "18-25", label: "18-25 ans" },
+                            { value: "26-30", label: "26-30 ans" },
+                            { value: "31-40", label: "31-40 ans" },
+                            { value: "41-50", label: "41-50 ans" },
+                            { value: "> 50", label: "Plus de 50 ans" }
+                          ]}
+                        />
+                      </div>
+                    </div>
 
-                  <div className="form-grid-2">
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.baptemeEau || false} onChange={e => setNewGuest({...newGuest, baptemeEau: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Baptisé par immersion ?</span>
+                    <div>
+                      <label className="form-label">ADRESSE DOMICILE / LIEU DE RÉSIDENCE</label>
+                      <input className="input" value={newGuest.address || ""} onChange={e => setNewGuest({...newGuest, address: e.target.value})} placeholder="Rue de l'Industrie 12, 6040 Jumet" />
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.interetFormation || false} onChange={e => setNewGuest({...newGuest, interetFormation: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt PCNC</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.interetCDM || false} onChange={e => setNewGuest({...newGuest, interetCDM: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt C.D.M</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.interetBapteme || false} onChange={e => setNewGuest({...newGuest, interetBapteme: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt Baptême</span>
-                    </div>
-                  </div>
 
-                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.aps || false} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Fiche APS Remplie</span>
+                    <div className="form-grid-2">
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <input type="checkbox" checked={newGuest.aEteInvite || false} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>A été invité ?</span>
+                      </div>
+                      {newGuest.aEteInvite && (
+                        <div>
+                          <label className="form-label">PAR QUI ?</label>
+                          <input className="input" value={newGuest.parQui || ""} onChange={e => setNewGuest({...newGuest, parQui: e.target.value})} placeholder="Nom de l'invitant" />
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.localChurch || false} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                      <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Déjà d'une église locale</span>
+
+                    <div className="form-grid-2">
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <input type="checkbox" checked={newGuest.baptemeEau || false} onChange={e => setNewGuest({...newGuest, baptemeEau: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Baptisé par immersion ?</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <input type="checkbox" checked={newGuest.interetFormation || false} onChange={e => setNewGuest({...newGuest, interetFormation: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt PCNC</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <input type="checkbox" checked={newGuest.interetCDM || false} onChange={e => setNewGuest({...newGuest, interetCDM: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt C.D.M</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <input type="checkbox" checked={newGuest.interetBapteme || false} onChange={e => setNewGuest({...newGuest, interetBapteme: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt Baptême</span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="form-label">ADRESSE DOMICILE</label>
-                    <input className="input" value={newGuest.address || ""} onChange={e => setNewGuest({...newGuest, address: e.target.value})} />
-                  </div>
+                    {/* Questions spirituelles */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <input type="checkbox" id="aff-aps" checked={newGuest.aps || false} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                        <label htmlFor="aff-aps" style={{ fontSize: 13, color: "var(--cream)", cursor: "pointer", fontWeight: 500 }}>
+                          Avez-vous déjà accepté Jésus-Christ comme votre Sauveur et Seigneur de votre vie ?
+                        </label>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <input type="checkbox" id="aff-localChurch" checked={newGuest.localChurch || false} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
+                          <label htmlFor="aff-localChurch" style={{ fontSize: 13, color: "var(--cream)", cursor: "pointer", fontWeight: 500 }}>
+                            Persévérez-vous déjà dans une autre église ?
+                          </label>
+                        </div>
+                        {newGuest.localChurch && (
+                          <div style={{ paddingLeft: 26 }}>
+                            <label className="form-label" style={{ fontSize: 10, marginBottom: 4 }}>NOM DE VOTRE ÉGLISE LOCALE</label>
+                            <input 
+                              type="text" 
+                              className="input" 
+                              placeholder="Ex: ICC Paris, Portes Ouvertes..." 
+                              value={newGuest.autreEglise || ""} 
+                              onChange={e => setNewGuest({...newGuest, autreEglise: e.target.value})}
+                              style={{ height: 36, fontSize: 12 }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-                  <div>
-                    <label className="form-label">COMMENTAIRE / NOTES PARTICULIÈRES</label>
-                    <textarea 
-                      className="input" 
-                      value={newGuest.commentaire || ""} 
-                      onChange={e => setNewGuest({...newGuest, commentaire: e.target.value})} 
-                      placeholder="Sujets de prières, contexte spirituel ou familial..."
-                      style={{ minHeight: 80, fontSize: 12, resize: "vertical" }}
-                    />
-                  </div>
-
-                  
+                    <div>
+                      <label className="form-label">COMMENTAIRE / NOTES PARTICULIÈRES</label>
+                      <textarea 
+                        className="input" 
+                        value={newGuest.commentaire || ""} 
+                        onChange={e => setNewGuest({...newGuest, commentaire: e.target.value})} 
+                        placeholder="Sujets de prières, contexte spirituel ou familial..."
+                        style={{ minHeight: 80, fontSize: 12, resize: "vertical" }}
+                      />
+                    </div>
 </div></details>
 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <input type="checkbox" checked={newGuest.souhaiteEtreContacte !== false} onChange={e => setNewGuest({...newGuest, souhaiteEtreContacte: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
@@ -1567,6 +1753,20 @@ function AffectationPage() {
             </div>,
             document.body
           )}
+
+          <CountryPickerModal
+            isOpen={isCountryModalOpen}
+            onClose={() => setIsCountryModalOpen(false)}
+            value={newGuest.pays || "Belgique"}
+            onChange={val => setNewGuest({...newGuest, pays: val})}
+          />
+
+          <CrCallCenterModal
+            isOpen={isCrModalOpen}
+            onClose={() => setIsCrModalOpen(false)}
+            guests={guests}
+            churchName="CHARLEROI"
+          />
 
           {/* Modern Filters & Controls */}
           <div className={`glass fade-in ${styles.filtersContainer}`}>
@@ -2027,9 +2227,9 @@ function AffectationPage() {
                 : guest.responsible !== userName;
 
               return (
-                <div key={guest.id} className="glass glass-flush" style={{ borderLeft: fidelised ? "4px solid var(--gold)" : "1px solid var(--border)", transition: "all 0.3s ease" }}>
+                <div key={guest.id} className="glass glass-flush soul-card" style={{ borderLeft: fidelised ? "4px solid var(--gold)" : "1px solid var(--border)", transition: "all 0.3s ease" }}>
                   <div
-                    className="affectation-card-header"
+                    className="affectation-card-header soul-card-header"
                     onClick={() => setExpandedId(isExpanded ? null : guest.id)}
                     style={{ 
                       padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -2079,7 +2279,7 @@ function AffectationPage() {
                   </div>
 
                   {isExpanded && (
-                    <div style={{ borderTop: "1px solid var(--border)", background: "rgba(0, 0, 0, 0.25)" }}>
+                    <div className="soul-card-body" style={{ borderTop: "1px solid var(--border)", background: "var(--surface-solid)" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 24, padding: 24 }}>
                         {/* Info Column */}
                         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -2094,7 +2294,7 @@ function AffectationPage() {
                             <Calendar size={14} style={{ color: "var(--gold)" }} /> <span style={{ color: "var(--cream-dim)" }}>Arrivé le: {guest.arrivalDate ? guest.arrivalDate.split('-').reverse().join('/') : ''}</span>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                            <MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12, color: "var(--cream-dim)", wordBreak: "break-word" }}>{guest.address || "Adresse non renseignée"}</span>
+                            <MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12, color: "var(--cream-dim)", wordBreak: "break-word" }}>{guest.address ? `${guest.address}${guest.pays ? ` (${guest.pays})` : ''}` : (guest.pays ? `Pays: ${guest.pays}` : "Adresse non renseignée")}</span>
                           </div>
                           <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                             <span className="badge badge-gold" style={{ fontSize: 9 }}>{guest.event}</span>
@@ -2104,7 +2304,7 @@ function AffectationPage() {
 
                           <div style={{ marginTop: 10 }}>
                             <label className="form-label" style={{ fontSize: 9 }}>Commentaire d'arrivée</label>
-                            <div style={{ fontSize: 12, color: "var(--cream-dim)", background: "var(--surface)", padding: 12, borderRadius: 10, border: "1px solid var(--border)", lineHeight: 1.5 }}>
+                            <div className="soul-card-note" style={{ fontSize: 12, color: "var(--cream-dim)", background: "var(--bg)", padding: 12, borderRadius: 10, border: "1px solid var(--border)", lineHeight: 1.5 }}>
                               {guest.commentaire || <span style={{ fontStyle: "italic", color: "var(--muted)" }}>Aucun commentaire d'arrivée rédigé.</span>}
                             </div>
                           </div>
@@ -2219,6 +2419,9 @@ function AffectationPage() {
                             <h4 style={{ fontSize: 10, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "var(--font-body)", fontWeight: 700 }}>Premier Contact</h4>
                             <div>
                               <SuiviToggle label="Appel abouti" checked={guest.appelAbouti} onChange={() => toggleSuivi(guest.id, 'appelAbouti')} disabled={isRestricted} />
+                              <SuiviToggle label="Ne décroche pas / Relance" checked={Boolean(guest.neDecrochePas)} onChange={() => toggleSuivi(guest.id, 'neDecrochePas')} disabled={isRestricted} />
+                              <SuiviToggle label="Faux numéro / Erroné" checked={Boolean(guest.fauxNumero)} onChange={() => toggleSuivi(guest.id, 'fauxNumero')} disabled={isRestricted} />
+                              <SuiviToggle label="Souhait suivi" checked={Boolean(guest.souhaitSuivi)} onChange={() => toggleSuivi(guest.id, 'souhaitSuivi')} disabled={isRestricted} />
                               {!guest.appelAbouti && !isRestricted && (
                                 <div 
                                   className="glass"
@@ -2275,6 +2478,8 @@ function AffectationPage() {
                               </div>
                             )}
                             <SuiviToggle label="Intérêt Baptême" checked={guest.interetBapteme} onChange={() => toggleSuivi(guest.id, 'interetBapteme')} disabled={isRestricted} />
+                            <SuiviToggle label="RDV pastoral" checked={Boolean(guest.rdvPastoral)} onChange={() => toggleSuivi(guest.id, 'rdvPastoral')} disabled={isRestricted} />
+                            <SuiviToggle label="Visite à domicile" checked={Boolean(guest.visiteDomicile)} onChange={() => toggleSuivi(guest.id, 'visiteDomicile')} disabled={isRestricted} />
                             <SuiviToggle label="Cocktail Bienvenue" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, 'cocktailBienvenue')} disabled={isRestricted} />
                           </div>
                         </div>
@@ -2291,6 +2496,20 @@ function AffectationPage() {
                             <SuiviToggle label="Baptême par immersion" checked={guest.baptemeEau} onChange={() => toggleSuivi(guest.id, 'baptemeEau')} disabled={isRestricted} />
                             <SuiviToggle label="Veut servir" checked={guest.veutServir} onChange={() => toggleSuivi(guest.id, 'veutServir')} disabled={isRestricted} />
                             <SuiviToggle label="Devenu S.T.A.R" checked={guest.devenuStar} onChange={() => toggleSuivi(guest.id, 'devenuStar')} disabled={isRestricted} />
+                          </div>
+
+                          {/* 12 Piliers (Formation en 4 séances) */}
+                          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px dashed rgba(212,175,55,0.18)" }}>
+                            <h5 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12, fontFamily: "var(--font-body)", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                              <span>🏛️</span> 12 Piliers (Formation - 4 séances)
+                            </h5>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+                              <SuiviToggle label="Séance 1" checked={Boolean(guest.piliers1)} onChange={() => toggleSuivi(guest.id, 'piliers1')} disabled={isRestricted} />
+                              <SuiviToggle label="Séance 2" checked={Boolean(guest.piliers2)} onChange={() => toggleSuivi(guest.id, 'piliers2')} disabled={isRestricted} />
+                              <SuiviToggle label="Séance 3" checked={Boolean(guest.piliers3)} onChange={() => toggleSuivi(guest.id, 'piliers3')} disabled={isRestricted} />
+                              <SuiviToggle label="Séance 4" checked={Boolean(guest.piliers4)} onChange={() => toggleSuivi(guest.id, 'piliers4')} disabled={isRestricted} />
+                              <SuiviToggle label="12 Piliers Terminé" checked={Boolean(guest.termine12Piliers)} onChange={() => toggleSuivi(guest.id, 'termine12Piliers')} disabled={isRestricted} />
+                            </div>
                           </div>
                           
                           <div style={{ marginTop: 16 }}>

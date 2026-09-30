@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react";
 import { 
   Flame, Church, Loader2, CheckCircle2, XCircle,
-  Calendar, MapPin, Mail, Phone, User as UserIcon
+  Calendar, MapPin, Mail, Phone, User as UserIcon,
+  ChevronDown
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import CustomSelect from "@/components/ui/CustomSelect";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
+import CountryPickerModal, { COUNTRIES } from "@/components/ui/CountryPickerModal";
 
 export default function PublicInvitePage() {
   const [churches, setChurches] = useState<any[]>([]);
@@ -19,6 +21,8 @@ export default function PublicInvitePage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
+
   // Form State
   const [formData, setFormData] = useState({
     civility: "M.",
@@ -27,9 +31,13 @@ export default function PublicInvitePage() {
     age: "26-30 ans",
     phone: "",
     email: "",
+    pays: "Belgique",
     address: "",
     arrivalDate: new Date().toISOString().split('T')[0],
     event: "Culte",
+    aps: false,
+    localChurch: false,
+    autreEglise: "",
     aEteInvite: false,
     parQui: "",
     baptemeEau: false,
@@ -109,8 +117,12 @@ export default function PublicInvitePage() {
       phone: formData.phone.trim() || null,
       email: formData.email.trim() || null,
       address: formData.address.trim() || null,
+      pays: formData.pays || "Belgique",
       arrival_date: formData.arrivalDate,
       event: formData.event,
+      aps: formData.aps,
+      local_church: formData.localChurch,
+      autre_eglise: formData.localChurch ? (formData.autreEglise.trim() || null) : null,
       a_ete_invite: formData.aEteInvite,
       par_qui: formData.aEteInvite ? formData.parQui.trim() : null,
       bapteme_eau: formData.baptemeEau,
@@ -127,7 +139,38 @@ export default function PublicInvitePage() {
 
     try {
       const { error: insErr } = await supabase.from("invites").insert(payload);
-      if (insErr) throw insErr;
+      if (insErr) {
+        // Fallback: If autre_eglise or pays columns do not exist yet in Supabase schema cache
+        const isColumnError = insErr.message && (
+          insErr.message.includes("autre_eglise") || 
+          insErr.message.includes("pays") || 
+          insErr.code === "42703" || 
+          insErr.code === "PGRST204"
+        );
+        if (isColumnError) {
+          const fallbackPayload: any = { ...payload };
+          delete fallbackPayload.autre_eglise;
+          delete fallbackPayload.pays;
+          const notes: string[] = [];
+          if (formData.pays && formData.pays !== "Belgique") {
+            notes.push(`[Pays de résidence : ${formData.pays}]`);
+          }
+          if (formData.localChurch && formData.autreEglise.trim()) {
+            notes.push(`[Église d'origine : ${formData.autreEglise.trim()}]`);
+          }
+          if (notes.length > 0) {
+            const extra = notes.join(" ");
+            fallbackPayload.commentaire = fallbackPayload.commentaire
+              ? `${extra} ${fallbackPayload.commentaire}`
+              : extra;
+          }
+          const { error: retryErr } = await supabase.from("invites").insert(fallbackPayload);
+          if (retryErr) throw retryErr;
+          setSuccess(true);
+          return;
+        }
+        throw insErr;
+      }
       setSuccess(true);
     } catch (err: any) {
       console.error("Error inserting invite:", err.message);
@@ -223,9 +266,13 @@ export default function PublicInvitePage() {
                     age: "26-30 ans",
                     phone: "",
                     email: "",
+                    pays: "Belgique",
                     address: "",
                     arrivalDate: new Date().toISOString().split('T')[0],
                     event: "Culte",
+                    aps: false,
+                    localChurch: false,
+                    autreEglise: "",
                     aEteInvite: false,
                     parQui: "",
                     baptemeEau: false,
@@ -265,6 +312,32 @@ export default function PublicInvitePage() {
                       sublabel: c.city || undefined
                     }))}
                   />
+                </div>
+              </div>
+
+              {/* Date & Event - Premier champ à encoder */}
+              <div className="form-grid-2" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16 }}>
+                <div>
+                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>DATE D'ARRIVÉE *</label>
+                  <CustomDatePicker
+                    value={formData.arrivalDate}
+                    onChange={val => setFormData({ ...formData, arrivalDate: val })}
+                    placeholder="Sélectionner la date"
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>ÉVÉNEMENT</label>
+                  <select 
+                    className="input" 
+                    value={formData.event} 
+                    onChange={e => setFormData({...formData, event: e.target.value})}
+                  >
+                    <option value="Culte">Culte du dimanche</option>
+                    <option value="Baptême">Baptême</option>
+                    <option value="Évangélisation">Évangélisation</option>
+                    <option value="Séminaire">Séminaire</option>
+                    <option value="Autre">Autre</option>
+                  </select>
                 </div>
               </div>
 
@@ -335,16 +408,8 @@ export default function PublicInvitePage() {
                 </div>
               </div>
 
-              {/* Date & Age & Event */}
-              <div className="form-grid-3" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 16 }}>
-                <div>
-                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>DATE D'ARRIVÉE</label>
-                  <CustomDatePicker
-                    value={formData.arrivalDate}
-                    onChange={val => setFormData({ ...formData, arrivalDate: val })}
-                    placeholder="Sélectionner la date"
-                  />
-                </div>
+              {/* Tranche d'âge & Pays de résidence */}
+              <div className="form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div>
                   <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>TRANCHE D'ÂGE</label>
                   <select 
@@ -363,22 +428,36 @@ export default function PublicInvitePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>ÉVÉNEMENT</label>
-                  <select 
-                    className="input" 
-                    value={formData.event} 
-                    onChange={e => setFormData({...formData, event: e.target.value})}
+                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>PAYS DE RÉSIDENCE *</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCountryModalOpen(true)}
+                    className="input"
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0 14px",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      height: 40,
+                      background: "rgba(0,0,0,0.2)",
+                      border: "1px solid rgba(212,175,55,0.3)"
+                    }}
                   >
-                    <option value="Culte">Culte du dimanche</option>
-                    <option value="Baptême">Baptême</option>
-                    <option value="Évangélisation">Évangélisation</option>
-                    <option value="Séminaire">Séminaire</option>
-                    <option value="Autre">Autre</option>
-                  </select>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--cream)" }}>
+                      <span style={{ fontSize: 18 }}>
+                        {COUNTRIES.find(c => c.name.toLowerCase() === (formData.pays || "").toLowerCase())?.flag || "🌍"}
+                      </span>
+                      <span style={{ fontWeight: 600, color: "var(--gold-light)" }}>{formData.pays || "Belgique"}</span>
+                    </span>
+                    <ChevronDown size={15} style={{ color: "var(--gold)" }} />
+                  </button>
                 </div>
               </div>
 
-              {/* Address */}
+              {/* Adresse */}
               <div>
                 <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>ADRESSE / LIEU DE RÉSIDENCE</label>
                 <div style={{ position: "relative" }}>
@@ -416,6 +495,55 @@ export default function PublicInvitePage() {
                     />
                   </div>
                 )}
+              </div>
+
+              {/* Parcours spirituel & Église */}
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+                <h3 style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", letterSpacing: 1.5, textTransform: "uppercase", margin: 0 }}>Parcours spirituel & Église</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <input 
+                      type="checkbox" 
+                      id="aps" 
+                      checked={formData.aps} 
+                      onChange={e => setFormData({...formData, aps: e.target.checked})} 
+                      style={{ width: 17, height: 17, marginTop: 2, accentColor: "var(--gold)" }} 
+                    />
+                    <label htmlFor="aps" style={{ fontSize: 13, cursor: "pointer", lineHeight: 1.4 }}>
+                      Avez-vous déjà accepté Jésus-Christ comme votre Sauveur et Seigneur de votre vie ?
+                    </label>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <input 
+                        type="checkbox" 
+                        id="localChurch" 
+                        checked={formData.localChurch} 
+                        onChange={e => setFormData({...formData, localChurch: e.target.checked})} 
+                        style={{ width: 17, height: 17, marginTop: 2, accentColor: "var(--gold)" }} 
+                      />
+                      <label htmlFor="localChurch" style={{ fontSize: 13, cursor: "pointer", lineHeight: 1.4 }}>
+                        Persévérez-vous déjà dans une autre église ?
+                      </label>
+                    </div>
+
+                    {formData.localChurch && (
+                      <div className="fade-in" style={{ paddingLeft: 27, paddingTop: 4 }}>
+                        <label className="form-label" style={{ display: "block", marginBottom: 6, fontSize: 11, color: "var(--cream-dim)" }}>
+                          NOM DE VOTRE ÉGLISE LOCALE
+                        </label>
+                        <input 
+                          className="input" 
+                          value={formData.autreEglise} 
+                          onChange={e => setFormData({...formData, autreEglise: e.target.value})} 
+                          placeholder="Ex: Nom de l'église, ville..." 
+                          style={{ height: 38 }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Interests */}
@@ -472,6 +600,13 @@ export default function PublicInvitePage() {
           )}
         </AnimatePresence>
       </div>
+
+      <CountryPickerModal
+        isOpen={isCountryModalOpen}
+        onClose={() => setIsCountryModalOpen(false)}
+        value={formData.pays}
+        onChange={(country) => setFormData(prev => ({ ...prev, pays: country }))}
+      />
 
       <style jsx global>{`
         .animate-spin { animation: spin 1s linear infinite; }
