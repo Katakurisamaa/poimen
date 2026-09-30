@@ -89,6 +89,7 @@ interface Guest {
   rdvPastoral?: boolean;
   neDecrochePas?: boolean;
   fauxNumero?: boolean;
+  raisonEchec?: string;
 }
 
 const MOCK_GUESTS: Guest[] = [];
@@ -167,7 +168,8 @@ function mapDbGuestToGuest(g: any): Guest {
     dansFamilleDisciple: g.dans_famille_disciple || false,
     interetBapteme: g.interet_bapteme || false,
     commentaire: g.commentaire || "",
-    commentaireSuivi: g.commentaire_suivi || "",
+    commentaireSuivi: (g.commentaire_suivi || "").replace(/\[RAISON_ECHEC:[^\]]+\]\s*/gi, "").replace(/\[(?:FAUX_NUMERO|NE_DECROCHE_PAS)\]\s*/gi, "").trim(),
+    raisonEchec: g.raison_echec || (g.commentaire_suivi?.match(/\[RAISON_ECHEC:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
     piliers1: g.piliers_1 ?? false,
     piliers2: g.piliers_2 ?? false,
     piliers3: g.piliers_3 ?? false,
@@ -633,6 +635,7 @@ function InvitesPage() {
     interetBapteme: false,
     commentaire: "",
     commentaireSuivi: "",
+    raisonEchec: "",
     famille_disciple: "AUCUNE",
     etatCivil: "Célibataire",
     souhaiteEtreContacte: true,
@@ -3273,10 +3276,25 @@ function InvitesPage() {
                                     <label style={{ fontSize: 9, color: "var(--rose)", display: "block", marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Raison de l'échec / Relance</label>
                                     <textarea 
                                       placeholder="Ex: Sonnerie sans réponse, numéro faux, rappeler jeudi..." 
-                                      value={guest.commentaireSuivi || ""} 
+                                      value={guest.raisonEchec || ""} 
                                       disabled={isEditBlocked}
-                                      onChange={(e) => setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: e.target.value } : g))}
-                                      onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id).then()}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, raisonEchec: val } : g));
+                                      }}
+                                      onBlur={async (e) => {
+                                        const val = e.target.value.trim();
+                                        setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, raisonEchec: val } : g));
+                                        const baseComment = (guest.commentaireSuivi || "").replace(/\[RAISON_ECHEC:[^\]]+\]\s*/gi, "").trim();
+                                        const tag = val ? `[RAISON_ECHEC: ${val}]` : "";
+                                        const fullComment = [tag, baseComment].filter(Boolean).join("\n").trim();
+                                        try {
+                                          const { error } = await supabase.from("invites").update({ raison_echec: val, commentaire_suivi: fullComment }).eq("id", guest.id);
+                                          if (error) {
+                                            await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
+                                          }
+                                        } catch {}
+                                      }}
                                       style={{ width: "100%", minHeight: 48, fontSize: 11, background: "var(--bg-deep)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px", color: "var(--cream)", resize: "vertical", lineHeight: "1.4" }}
                                     />
                                   </div>
@@ -3328,7 +3346,24 @@ function InvitesPage() {
                               </div>
                               <div style={{ marginTop: 15 }}>
                                 <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE SUIVI</label>
-                                <textarea className="input" rows={2} defaultValue={guest.commentaireSuivi} disabled={isEditBlocked} style={{ fontSize: 12, resize: "vertical", background: "var(--bg-deep)", opacity: isEditBlocked ? 0.5 : 1 }} onBlur={(e) => supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id)} />
+                                <textarea 
+                                  className="input" 
+                                  rows={2} 
+                                  value={guest.commentaireSuivi || ""} 
+                                  disabled={isEditBlocked} 
+                                  style={{ fontSize: 12, resize: "vertical", background: "var(--bg-deep)", opacity: isEditBlocked ? 0.5 : 1 }} 
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: val } : g));
+                                  }}
+                                  onBlur={async (e) => {
+                                    const val = e.target.value.trim();
+                                    setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: val } : g));
+                                    const tag = guest.raisonEchec ? `[RAISON_ECHEC: ${guest.raisonEchec}]` : "";
+                                    const fullComment = [tag, val].filter(Boolean).join("\n").trim();
+                                    await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
+                                  }} 
+                                />
                               </div>
                             </div>
                           </div>

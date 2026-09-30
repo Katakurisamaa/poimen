@@ -11,7 +11,8 @@ ADD COLUMN IF NOT EXISTS pays TEXT DEFAULT 'Belgique',
 ADD COLUMN IF NOT EXISTS souhait_suivi BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS rdv_pastoral BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS ne_decroche_pas BOOLEAN DEFAULT false,
-ADD COLUMN IF NOT EXISTS faux_numero BOOLEAN DEFAULT false;
+ADD COLUMN IF NOT EXISTS faux_numero BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS raison_echec TEXT DEFAULT '';
 
 COMMENT ON COLUMN public.invites.piliers_1 IS 'Formation 12 Piliers - Séance 1';
 COMMENT ON COLUMN public.invites.piliers_2 IS 'Formation 12 Piliers - Séance 2';
@@ -23,3 +24,4 @@ COMMENT ON COLUMN public.invites.souhait_suivi IS 'Souhait de suivi spirituel / 
 COMMENT ON COLUMN public.invites.rdv_pastoral IS 'Souhaite ou a pris un RDV pastoral';
 COMMENT ON COLUMN public.invites.ne_decroche_pas IS 'Call tenté mais ne décroche pas / plusieurs relances';
 COMMENT ON COLUMN public.invites.faux_numero IS 'Faux numéro ou numéro erroné';
+COMMENT ON COLUMN public.invites.raison_echec IS 'Raison spécifique de l''échec de l''appel (ex: répondeur, faux numéro, etc.) distincte des commentaires de suivi pastoraux';

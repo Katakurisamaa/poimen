@@ -112,6 +112,7 @@ interface Guest {
   rdvPastoral?: boolean;
   neDecrochePas?: boolean;
   fauxNumero?: boolean;
+  raisonEchec?: string;
 }
 
 const MOCK_RESPONSIBLES = ["Non assigné"];
@@ -172,7 +173,8 @@ function mapDbGuestToGuest(g: any): Guest {
     dansFamilleDisciple: g.dans_famille_disciple || false,
     interetBapteme: g.interet_bapteme || false,
     commentaire: g.commentaire || "",
-    commentaireSuivi: g.commentaire_suivi || "",
+    commentaireSuivi: (g.commentaire_suivi || "").replace(/\[RAISON_ECHEC:[^\]]+\]\s*/gi, "").replace(/\[(?:FAUX_NUMERO|NE_DECROCHE_PAS)\]\s*/gi, "").trim(),
+    raisonEchec: g.raison_echec || (g.commentaire_suivi?.match(/\[RAISON_ECHEC:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
     piliers1: g.piliers_1 ?? false,
     piliers2: g.piliers_2 ?? false,
     piliers3: g.piliers_3 ?? false,
@@ -662,6 +664,7 @@ function AffectationPage() {
     interetBapteme: false,
     commentaire: "",
     commentaireSuivi: "",
+    raisonEchec: "",
     famille_disciple: "AUCUNE",
     etatCivil: "Célibataire",
     souhaiteEtreContacte: true,
@@ -2477,13 +2480,23 @@ function AffectationPage() {
                                   <label className="form-label" style={{ color: "var(--red)", fontSize: 9 }}>Raison de l'échec</label>
                                   <textarea 
                                     placeholder="Pourquoi l'appel n'a pas abouti ? (ex: répondeur, faux numéro...)" 
-                                    value={guest.commentaireSuivi || ""} 
+                                    value={guest.raisonEchec || ""} 
                                     onChange={(e) => {
                                       const val = e.target.value;
-                                      setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: val } : g));
+                                      setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, raisonEchec: val } : g));
                                     }}
-                                    onBlur={(e) => {
-                                      supabase.from("invites").update({ commentaire_suivi: e.target.value }).eq("id", guest.id).then();
+                                    onBlur={async (e) => {
+                                      const val = e.target.value.trim();
+                                      setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, raisonEchec: val } : g));
+                                      const baseComment = (guest.commentaireSuivi || "").replace(/\[RAISON_ECHEC:[^\]]+\]\s*/gi, "").trim();
+                                      const tag = val ? `[RAISON_ECHEC: ${val}]` : "";
+                                      const fullComment = [tag, baseComment].filter(Boolean).join("\n").trim();
+                                      try {
+                                        const { error } = await supabase.from("invites").update({ raison_echec: val, commentaire_suivi: fullComment }).eq("id", guest.id);
+                                        if (error) {
+                                          await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
+                                        }
+                                      } catch {}
                                     }}
                                     style={{ 
                                       width: "100%", 
@@ -2558,7 +2571,7 @@ function AffectationPage() {
                             <textarea 
                               className="input" 
                               rows={3} 
-                              defaultValue={guest.commentaireSuivi} 
+                              value={guest.commentaireSuivi || ""} 
                               disabled={isRestricted}
                               placeholder="Notes détaillées sur son parcours spirituel, ses défis, ses besoins de prière..."
                               style={{ 
@@ -2570,10 +2583,16 @@ function AffectationPage() {
                                 opacity: isRestricted ? 0.5 : 1,
                                 cursor: isRestricted ? "not-allowed" : "text"
                               }}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setGuests(prev => prev.map(g => g.id === guest.id ? {...g, commentaireSuivi: val} : g));
+                              }}
                               onBlur={async (e) => {
-                                const newVal = e.target.value;
-                                setGuests(prev => prev.map(g => g.id === guest.id ? {...g, commentaireSuivi: newVal} : g));
-                                await supabase.from("invites").update({ commentaire_suivi: newVal }).eq("id", guest.id);
+                                const val = e.target.value.trim();
+                                setGuests(prev => prev.map(g => g.id === guest.id ? {...g, commentaireSuivi: val} : g));
+                                const tag = guest.raisonEchec ? `[RAISON_ECHEC: ${guest.raisonEchec}]` : "";
+                                const fullComment = [tag, val].filter(Boolean).join("\n").trim();
+                                await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
                               }}
                             />
                           </div>
