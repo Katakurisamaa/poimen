@@ -5550,9 +5550,31 @@ body .modal-overlay .arch-card .btn-subtle {
 }
 
 /* ==========================================================================
-   Theme switcher + dark mode inspired by the legislative intelligence dashboard.
-   Light mode remains the current visual direction.
+   Theme switcher + transition animation (Circular wave reveal + smooth blend).
    ========================================================================== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 999999;
+}
+
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color 0.35s cubic-bezier(0.2, 0, 0, 1),
+              border-color 0.35s cubic-bezier(0.2, 0, 0, 1),
+              color 0.25s ease,
+              box-shadow 0.35s ease !important;
+  transition-delay: 0s !important;
+}
+
 .theme-toggle {
   position: fixed;
   top: 14px;
@@ -5574,12 +5596,16 @@ body .modal-overlay .arch-card .btn-subtle {
   font-size: 12px;
   font-weight: 680;
   letter-spacing: 0;
-  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }
 
 .theme-toggle:hover {
   transform: translateY(-1px);
-  border-color: rgba(35, 29, 25, 0.2);
+  border-color: rgba(35, 29, 25, 0.25);
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
 }
 
 .theme-toggle__icon {
@@ -5592,6 +5618,15 @@ body .modal-overlay .arch-card .btn-subtle {
   background: #211b17;
   color: #fffaf4;
   flex: 0 0 auto;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.25s ease, color 0.25s ease;
+}
+
+.theme-toggle:hover .theme-toggle__icon {
+  transform: rotate(18deg) scale(1.06);
+}
+
+.theme-toggle:active .theme-toggle__icon {
+  transform: rotate(80deg) scale(0.9);
 }
 
 .theme-toggle[data-ready="false"] {

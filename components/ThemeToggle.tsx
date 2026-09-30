@@ -28,12 +28,57 @@ export default function ThemeToggle() {
     setMounted(true);
   }, []);
 
-  const toggleTheme = () => {
+  const toggleTheme = (e: React.MouseEvent<HTMLButtonElement>) => {
     const nextTheme: ThemeMode = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
-    localStorage.setItem(STORAGE_KEY, nextTheme);
-    applyTheme(nextTheme);
-    window.dispatchEvent(new CustomEvent("poimen-theme-change", { detail: nextTheme }));
+
+    const updateDomAndState = () => {
+      setTheme(nextTheme);
+      localStorage.setItem(STORAGE_KEY, nextTheme);
+      applyTheme(nextTheme);
+      window.dispatchEvent(new CustomEvent("poimen-theme-change", { detail: nextTheme }));
+    };
+
+    const doc = typeof document !== "undefined" ? (document as unknown as {
+      startViewTransition?: (callback: () => void) => { ready: Promise<void> };
+    }) : null;
+
+    const prefersReducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (doc?.startViewTransition && !prefersReducedMotion) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const endRadius = Math.hypot(
+        Math.max(x, window.innerWidth - x),
+        Math.max(y, window.innerHeight - y)
+      );
+
+      const transition = doc.startViewTransition(() => {
+        updateDomAndState();
+      });
+
+      transition.ready.then(() => {
+        document.documentElement.animate(
+          {
+            clipPath: [
+              `circle(0px at ${x}px ${y}px)`,
+              `circle(${endRadius}px at ${x}px ${y}px)`,
+            ],
+          },
+          {
+            duration: 480,
+            easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          }
+        );
+      });
+    } else {
+      document.documentElement.classList.add("theme-transitioning");
+      updateDomAndState();
+      setTimeout(() => {
+        document.documentElement.classList.remove("theme-transitioning");
+      }, 400);
+    }
   };
 
   return (
@@ -42,7 +87,7 @@ export default function ThemeToggle() {
       className="theme-toggle"
       onClick={toggleTheme}
       aria-label={theme === "dark" ? "Activer le mode clair" : "Activer le mode sombre"}
-      title={theme === "dark" ? "Mode clair" : "Mode sombre"}
+      title={theme === "dark" ? "Passer en mode clair" : "Passer en mode sombre"}
       data-ready={mounted ? "true" : "false"}
     >
       <span className="theme-toggle__icon">
