@@ -219,7 +219,7 @@ export default function CustomDatePicker({
       {/* Popover / Mobile Sheet rendered via Portal to prevent any parent overflow clipping */}
       {open && typeof document !== "undefined" && createPortal(
         <>
-          {isMobile && <div className={styles.backdrop} onClick={() => setOpen(false)} />}
+          {isMobile && <div className={styles.backdrop} style={{ zIndex: 99998 }} onClick={() => setOpen(false)} />}
 
           <div
             ref={popoverRef}

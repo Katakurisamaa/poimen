@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, CalendarDays, CalendarRange, CalendarClock, Check, AlertCircle } from "lucide-react";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 import { type CrGuest } from "@/lib/cr-call-center";
 import styles from "./CrDatePickerModal.module.css";
 
@@ -278,21 +279,21 @@ export default function CrDatePickerModal({
 
               <div className={styles.rangeInputs}>
                 <div className={styles.inputGroup}>
-                  <label htmlFor="cr-date-start">Du</label>
-                  <input
-                    id="cr-date-start"
-                    type="date"
+                  <label>Du</label>
+                  <CustomDatePicker
                     value={localStart}
-                    onChange={e => setLocalStart(e.target.value)}
+                    onChange={setLocalStart}
+                    placeholder="Date de début"
+                    style={{ width: "100%" }}
                   />
                 </div>
                 <div className={styles.inputGroup}>
-                  <label htmlFor="cr-date-end">Au</label>
-                  <input
-                    id="cr-date-end"
-                    type="date"
+                  <label>Au</label>
+                  <CustomDatePicker
                     value={localEnd}
-                    onChange={e => setLocalEnd(e.target.value)}
+                    onChange={setLocalEnd}
+                    placeholder="Date de fin"
+                    style={{ width: "100%" }}
                   />
                 </div>
               </div>

@@ -1,12 +1,13 @@
 .wrapper {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
   width: auto;
 }
 
 .trigger {
   min-height: 40px;
   height: 40px;
+  width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 8px;
