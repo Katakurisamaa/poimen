@@ -45,6 +45,8 @@ export function summarizePerson(input: object, kind: "member" | "guest") {
   const responsible = text("responsible");
   const nextAction = kind === "guest"
     ? !contactAllowed ? "Cette personne ne souhaite pas être contactée."
+      : (person.fauxNumero || person.faux_numero) ? "Numéro erroné / invalide : vérifier les coordonnées ou tenter un autre canal."
+      : (person.neDecrochePas || person.ne_decroche_pas) ? "Ne décroche pas : relancer ultérieurement."
       : !person.appelAbouti ? "Prendre contact et renseigner le résultat de l’échange."
       : !person.rencontreEffectuee ? "Organiser une rencontre pour poursuivre l’accompagnement."
       : "Faire le point sur les prochaines étapes du parcours."

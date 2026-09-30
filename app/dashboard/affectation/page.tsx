@@ -681,9 +681,22 @@ function AffectationPage() {
     if (!guest) return;
 
     const newValue = !guest[field];
+    const extraUpdates: Partial<Guest> = {};
+    const dbExtraUpdates: Record<string, any> = {};
+
+    if (field === "fauxNumero" && newValue) {
+      extraUpdates.appelAbouti = false;
+      dbExtraUpdates.appel_abouti = false;
+    }
+    if (field === "appelAbouti" && newValue) {
+      extraUpdates.fauxNumero = false;
+      dbExtraUpdates.faux_numero = false;
+    }
+
     setGuests(prev => prev.map(g => g.id === guestId ? {
       ...g,
       [field]: newValue,
+      ...extraUpdates,
       ...(field === "dansFamilleDisciple" && !newValue ? { famille_disciple: "AUCUNE", bergerie_id: null } : {})
     } : g));
     
@@ -725,7 +738,7 @@ function AffectationPage() {
       aEteInvite: "a_ete_invite"
     };
     const dbField = dbFieldMap[field as string] || field;
-    const updateObj: Record<string, any> = { [dbField]: newValue };
+    const updateObj: Record<string, any> = { [dbField]: newValue, ...dbExtraUpdates };
     if (field === "dansFamilleDisciple" && !newValue) {
       updateObj.famille_disciple = "AUCUNE";
       updateObj.bergerie_id = null;
@@ -740,6 +753,7 @@ function AffectationPage() {
     }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
+      window.dispatchEvent(new CustomEvent("poimen-session-change"));
     }
   };
 
@@ -1153,7 +1167,7 @@ function AffectationPage() {
   };
 
   const filtered = guests.filter(g => {
-      if (personView.filter === "contact" && (g.appelAbouti || g.souhaiteEtreContacte === false)) return false;
+      if (personView.filter === "contact" && (g.appelAbouti || g.fauxNumero || g.neDecrochePas || g.souhaiteEtreContacte === false)) return false;
       if (personView.filter === "unassigned" && (userRole?.startsWith("integration_") ? !!g.assigned_to : !!g.responsible && g.responsible !== "Non assigné")) return false;
     // Strict isolation: only show guests personally assigned to the current user
     if (isIntegrationOrCounselor) {

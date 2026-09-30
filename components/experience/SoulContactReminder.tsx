@@ -18,7 +18,9 @@ import {
   HeartHandshake,
   BarChart2,
   ShieldCheck,
-  RotateCw
+  RotateCw,
+  PhoneOff,
+  Ban
 } from "lucide-react";
 
 export interface UncontactedSoul {
@@ -36,6 +38,8 @@ export interface UncontactedSoul {
   souhaite_etre_contacte?: boolean;
   local_church?: boolean;
   commentaire_suivi?: string;
+  faux_numero?: boolean;
+  ne_decroche_pas?: boolean;
 }
 
 export default function SoulContactReminder() {
@@ -83,7 +87,7 @@ export default function SoulContactReminder() {
       // Query invites for current church
       let query = supabase
         .from("invites")
-        .select("id, first_name, last_name, civility, phone, email, arrival_date, event, assigned_to, responsible, appel_abouti, souhaite_etre_contacte, local_church, commentaire_suivi")
+        .select("id, first_name, last_name, civility, phone, email, arrival_date, event, assigned_to, responsible, appel_abouti, souhaite_etre_contacte, local_church, commentaire_suivi, faux_numero, ne_decroche_pas")
         .or(`appel_abouti.is.null,appel_abouti.eq.false`)
         .neq("archived", true)
         .neq("souhaite_etre_contacte", false);
@@ -101,6 +105,12 @@ export default function SoulContactReminder() {
       if (data) {
         // Filter strictly to those assigned to this user
         const assignedToMe = data.filter((item) => {
+          // EXCLUSION : si appel abouti, faux numéro, ou ne décroche pas (relance déjà notée),
+          // la relance urgente n'a plus lieu d'être et disparaît immédiatement
+          if (item.appel_abouti === true || item.faux_numero === true || item.ne_decroche_pas === true) {
+            return false;
+          }
+
           const matchesId = user.id && item.assigned_to === user.id;
           const matchesName = userName && (
             item.responsible?.toLowerCase().trim() === userName.toLowerCase() ||
@@ -223,10 +233,73 @@ export default function SoulContactReminder() {
 
       notify(`Contact téléphonique réussi avec ${soul.first_name} ${soul.last_name} ! Gloire à Dieu.`);
       window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId: soul.id } }));
+      window.dispatchEvent(new CustomEvent("poimen-session-change"));
       fetchUncontactedSouls();
     } catch (err) {
       console.error(err);
       notify("Erreur lors de l'enregistrement de l'appel. Réessayez.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Signaler : Ne décroche pas suite à relance(s)
+  const handleMarkNeDecrochePas = async (soul: UncontactedSoul) => {
+    setUpdatingId(soul.id);
+    try {
+      const stamp = `[NE_DECROCHE_PAS] Ne décroche pas (noté le ${new Date().toLocaleDateString("fr-FR")})`;
+      const cleanPrev = soul.commentaire_suivi || "";
+      const newComment = cleanPrev ? `${stamp}\n${cleanPrev}` : stamp;
+
+      const { error } = await supabase
+        .from("invites")
+        .update({
+          ne_decroche_pas: true,
+          appel_abouti: false,
+          commentaire_suivi: newComment
+        })
+        .eq("id", soul.id);
+
+      if (error) throw error;
+
+      notify(`Noté : ${soul.first_name} ne décroche pas. Notification urgente retirée.`);
+      window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId: soul.id } }));
+      window.dispatchEvent(new CustomEvent("poimen-session-change"));
+      fetchUncontactedSouls();
+    } catch (err) {
+      console.error(err);
+      notify("Erreur lors de l'enregistrement.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Signaler : Faux numéro ou numéro erroné
+  const handleMarkFauxNumero = async (soul: UncontactedSoul) => {
+    setUpdatingId(soul.id);
+    try {
+      const stamp = `[FAUX_NUMERO] Numéro erroné / invalide (noté le ${new Date().toLocaleDateString("fr-FR")})`;
+      const cleanPrev = soul.commentaire_suivi || "";
+      const newComment = cleanPrev ? `${stamp}\n${cleanPrev}` : stamp;
+
+      const { error } = await supabase
+        .from("invites")
+        .update({
+          faux_numero: true,
+          appel_abouti: false,
+          commentaire_suivi: newComment
+        })
+        .eq("id", soul.id);
+
+      if (error) throw error;
+
+      notify(`Faux numéro enregistré pour ${soul.first_name}. Alerte retirée.`);
+      window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId: soul.id } }));
+      window.dispatchEvent(new CustomEvent("poimen-session-change"));
+      fetchUncontactedSouls();
+    } catch (err) {
+      console.error(err);
+      notify("Erreur lors de l'enregistrement.");
     } finally {
       setUpdatingId(null);
     }
@@ -537,6 +610,30 @@ export default function SoulContactReminder() {
                     >
                       <CheckCircle2 size={13} />
                       Contact établi
+                    </button>
+
+                    {/* Ne décroche pas */}
+                    <button
+                      type="button"
+                      className={styles.neDecrochePasBtn}
+                      onClick={() => handleMarkNeDecrochePas(soul)}
+                      disabled={isSavingThis}
+                      title="Indiquer que la personne ne décroche pas suite aux appels/relances"
+                    >
+                      <PhoneOff size={12} />
+                      Ne décroche pas
+                    </button>
+
+                    {/* Faux numéro */}
+                    <button
+                      type="button"
+                      className={styles.fauxNumeroBtn}
+                      onClick={() => handleMarkFauxNumero(soul)}
+                      disabled={isSavingThis}
+                      title="Indiquer que ce numéro est faux ou invalide"
+                    >
+                      <Ban size={12} />
+                      Faux numéro
                     </button>
                   </>
                 ) : (

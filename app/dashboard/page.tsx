@@ -474,7 +474,7 @@ export default function DashboardPage() {
       }
       const { data: rawInvites, error: iErr } = iQuery ? await iQuery : { data: [], error: null };
       const invites = (rawInvites || []).filter((i: any) => !i.archived);
-      const pendingContacts = invites.filter((guest: any) => !guest.appel_abouti && guest.souhaite_etre_contacte !== false);
+      const pendingContacts = invites.filter((guest: any) => !guest.appel_abouti && !guest.faux_numero && !guest.ne_decroche_pas && guest.souhaite_etre_contacte !== false);
       setToday({
         status: iErr ? "error" : "ready",
         pending: pendingContacts.length,
@@ -501,7 +501,7 @@ export default function DashboardPage() {
           invites.forEach(g => {
             if (g.is_in_bergerie || g.dans_famille_disciple) {
               fidelised++;
-            } else if (g.appel_abouti) {
+            } else if (g.appel_abouti || g.ne_decroche_pas || g.faux_numero) {
               ongoing++;
             } else {
               atRiskCount++;
@@ -737,7 +737,7 @@ export default function DashboardPage() {
         let contactedGuests = 0;
         if (invites) {
           invites.forEach(g => {
-            if (g.is_in_bergerie || g.dans_famille_disciple || g.appel_abouti) {
+            if (g.is_in_bergerie || g.dans_famille_disciple || g.appel_abouti || g.ne_decroche_pas || g.faux_numero) {
               contactedGuests++;
             }
           });

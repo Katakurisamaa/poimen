@@ -666,7 +666,19 @@ function InvitesPage() {
     if (!canEdit) return;
 
     const newValue = !guest[field];
-    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, [field]: newValue } : g));
+    const extraUpdates: Partial<Guest> = {};
+    const dbExtraUpdates: Record<string, any> = {};
+
+    if (field === "fauxNumero" && newValue) {
+      extraUpdates.appelAbouti = false;
+      dbExtraUpdates.appel_abouti = false;
+    }
+    if (field === "appelAbouti" && newValue) {
+      extraUpdates.fauxNumero = false;
+      dbExtraUpdates.faux_numero = false;
+    }
+
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, [field]: newValue, ...extraUpdates } : g));
 
     const dbFieldMap: Record<string, string> = {
       appelAbouti: "appel_abouti",
@@ -707,8 +719,9 @@ function InvitesPage() {
     };
 
     const dbField = dbFieldMap[field as string] || field;
+    const updateObj: Record<string, any> = { [dbField]: newValue, ...dbExtraUpdates };
     try {
-      const { error } = await supabase.from("invites").update({ [dbField]: newValue }).eq("id", guestId);
+      const { error } = await supabase.from("invites").update(updateObj).eq("id", guestId);
       if (error) {
         console.warn("Champs Supabase non encore disponible ou erreur:", error.message);
       }
@@ -717,6 +730,7 @@ function InvitesPage() {
     }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
+      window.dispatchEvent(new CustomEvent("poimen-session-change"));
     }
   };
 
@@ -1230,7 +1244,7 @@ function InvitesPage() {
 
   const filtered = useMemo(() => {
     return guests.filter(g => {
-      if (personView.filter === "contact" && (g.appelAbouti || g.souhaiteEtreContacte === false)) return false;
+      if (personView.filter === "contact" && (g.appelAbouti || g.fauxNumero || g.neDecrochePas || g.souhaiteEtreContacte === false)) return false;
       if (personView.filter === "unassigned" && (userRole?.startsWith("integration_") ? !!g.assigned_to : !!g.responsible && g.responsible !== "Non assigné")) return false;
       const fullName = `${g.firstName} ${g.lastName}`.toLowerCase();
       const matchSearch = fullName.includes(search.toLowerCase());
