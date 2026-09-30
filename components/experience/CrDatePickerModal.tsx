@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, CalendarDays, Search, Check, Sparkles, AlertCircle, Layers } from "lucide-react";
+import { X, CalendarDays, CalendarRange, CalendarClock, Check, AlertCircle } from "lucide-react";
 import { type CrGuest } from "@/lib/cr-call-center";
 import styles from "./CrDatePickerModal.module.css";
 
@@ -17,21 +17,19 @@ interface Props {
   onApply: (mode: "single" | "range" | "all", selectedDate: string, startDate: string, endDate: string) => void;
 }
 
-function formatFrenchDate(isoDate: string): { full: string; short: string; dayName: string } {
-  if (!isoDate) return { full: "Non renseignée", short: "", dayName: "" };
+function formatFrenchDate(isoDate: string): { full: string; short: string } {
+  if (!isoDate) return { full: "Non renseignée", short: "" };
   try {
     const [year, month, day] = isoDate.split("T")[0].split("-").map(Number);
     const dateObj = new Date(year, month - 1, day);
     const full = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(dateObj);
-    const dayName = new Intl.DateTimeFormat("fr-FR", { weekday: "long" }).format(dateObj);
     const short = `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
     return {
       full: full.charAt(0).toUpperCase() + full.slice(1),
       short,
-      dayName: dayName.charAt(0).toUpperCase() + dayName.slice(1),
     };
   } catch {
-    return { full: isoDate, short: isoDate, dayName: "" };
+    return { full: isoDate, short: isoDate };
   }
 }
 
@@ -87,7 +85,7 @@ export default function CrDatePickerModal({
     };
   }, [guests]);
 
-  // Default fallback if selected is empty
+  // Fallback defaults
   useEffect(() => {
     if (!localSelectedDate && allDates.length > 0) {
       setLocalSelectedDate(allDates[0]);
@@ -111,7 +109,6 @@ export default function CrDatePickerModal({
     );
   }, [dateEntries, search]);
 
-  // Count preview based on current local selection
   const isRangeInvalid = localMode === "range" && (!localStart || !localEnd || localStart > localEnd);
   const matchingCount = useMemo(() => {
     if (localMode === "all") return guests.length;
@@ -123,7 +120,6 @@ export default function CrDatePickerModal({
     return 0;
   }, [localMode, localSelectedDate, localStart, localEnd, isRangeInvalid, guests]);
 
-  // Presets handlers for range
   function applyPreset(type: "latest" | "last2" | "month" | "30days") {
     if (allDates.length === 0) return;
     const latest = allDates[0];
@@ -163,10 +159,10 @@ export default function CrDatePickerModal({
         <header className={styles.header}>
           <div className={styles.headerTitle}>
             <div className={styles.headerIcon}>
-              <CalendarDays size={22} />
+              <CalendarDays size={20} />
             </div>
             <div className={styles.headerText}>
-              <h3>Période d’accueil du Call Center</h3>
+              <h3>Période d’accueil</h3>
               <p>Sélectionnez les invités à inclure dans le compte rendu</p>
             </div>
           </div>
@@ -184,7 +180,7 @@ export default function CrDatePickerModal({
             aria-selected={localMode === "single"}
             onClick={() => setLocalMode("single")}
           >
-            <CalendarDays size={14} /> Un dimanche / Une date
+            <CalendarDays size={14} /> Un dimanche
           </button>
           <button
             type="button"
@@ -193,7 +189,7 @@ export default function CrDatePickerModal({
             aria-selected={localMode === "range"}
             onClick={() => setLocalMode("range")}
           >
-            <Sparkles size={14} /> Période
+            <CalendarRange size={14} /> Période
           </button>
           <button
             type="button"
@@ -202,7 +198,7 @@ export default function CrDatePickerModal({
             aria-selected={localMode === "all"}
             onClick={() => setLocalMode("all")}
           >
-            <Layers size={14} /> Tout l’historique
+            <CalendarClock size={14} /> Tout l’historique
           </button>
         </div>
 
@@ -215,14 +211,14 @@ export default function CrDatePickerModal({
                   <input
                     type="text"
                     className={styles.searchInput}
-                    placeholder="Rechercher une date (ex: 28 juin, 2026)..."
+                    placeholder="Filtrer une date (ex: 28 juin, 2026)..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                   />
                 </div>
               )}
               {filteredDates.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "30px 10px", color: "#a0aec0", fontSize: 13 }}>
+                <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--dp-muted)", fontSize: 13 }}>
                   Aucune date d’accueil trouvée.
                 </div>
               ) : (
@@ -261,8 +257,8 @@ export default function CrDatePickerModal({
           {localMode === "range" && (
             <div className={styles.rangeSection}>
               <div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#a0aec0", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 8 }}>
-                  Raccourcis rapides
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--dp-muted)", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 8 }}>
+                  Raccourcis
                 </span>
                 <div className={styles.presetsGrid}>
                   <button type="button" className={styles.presetBtn} onClick={() => applyPreset("latest")}>
@@ -282,7 +278,7 @@ export default function CrDatePickerModal({
 
               <div className={styles.rangeInputs}>
                 <div className={styles.inputGroup}>
-                  <label htmlFor="cr-date-start">Date de début</label>
+                  <label htmlFor="cr-date-start">Du</label>
                   <input
                     id="cr-date-start"
                     type="date"
@@ -291,7 +287,7 @@ export default function CrDatePickerModal({
                   />
                 </div>
                 <div className={styles.inputGroup}>
-                  <label htmlFor="cr-date-end">Date de fin</label>
+                  <label htmlFor="cr-date-end">Au</label>
                   <input
                     id="cr-date-end"
                     type="date"
@@ -303,14 +299,14 @@ export default function CrDatePickerModal({
 
               {isRangeInvalid ? (
                 <div className={`${styles.rangeStatus} ${styles.rangeError}`}>
-                  <AlertCircle size={16} />
+                  <AlertCircle size={15} />
                   <span>La date de fin doit être postérieure ou égale à la date de début.</span>
                 </div>
               ) : (
                 <div className={styles.rangeStatus}>
-                  <Check size={16} style={{ color: "#e3c580" }} />
+                  <Check size={15} />
                   <span>
-                    <strong>{matchingCount}</strong> invité{matchingCount > 1 ? "s" : ""} correspondent à cette plage sélectionnée.
+                    <strong>{matchingCount}</strong> invité{matchingCount > 1 ? "s" : ""} sélectionné{matchingCount > 1 ? "s" : ""} sur cette plage.
                   </span>
                 </div>
               )}
@@ -320,10 +316,10 @@ export default function CrDatePickerModal({
           {/* Mode 3: All history */}
           {localMode === "all" && (
             <div className={styles.allCard}>
-              <Layers size={36} style={{ color: "#e3c580", margin: "0 auto" }} />
-              <h4>Inclure tous les dimanches & dates</h4>
+              <CalendarClock size={32} style={{ margin: "0 auto 10px", color: "var(--dp-accent)" }} />
+              <h4>Historique complet</h4>
               <p>
-                Le compte rendu agrégera l’ensemble des <strong>{guests.length} invités</strong> enregistrés dans la base (y compris les fiches sans date d’arrivée renseignée).
+                Inclut l’ensemble des <strong>{guests.length} invités</strong> enregistrés dans la base.
               </p>
             </div>
           )}
@@ -339,7 +335,7 @@ export default function CrDatePickerModal({
             onClick={handleSave}
             disabled={isRangeInvalid}
           >
-            Valider la sélection ({matchingCount} invité{matchingCount > 1 ? "s" : ""})
+            Valider la sélection ({matchingCount})
           </button>
         </footer>
       </div>

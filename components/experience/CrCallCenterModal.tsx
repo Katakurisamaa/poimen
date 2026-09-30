@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, CalendarDays, Copy, Check, Printer, FileText, Download, Edit3, ArrowRight } from "lucide-react";
+import { X, CalendarDays, Copy, Check, FileText, Download, Edit3, ArrowRight } from "lucide-react";
 import { toPng } from "html-to-image";
 import jsPDF from "jspdf";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
@@ -122,19 +122,6 @@ export default function CrCallCenterModal({ isOpen, onClose, guests, churchName 
     }
   }
 
-  function handlePrint() {
-    const originalTitle = typeof document !== "undefined" ? document.title : "";
-    if (typeof document !== "undefined") {
-      document.title = `CR_Call_Center_${church}_${period.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    }
-    window.print();
-    setTimeout(() => {
-      if (typeof document !== "undefined") {
-        document.title = originalTitle;
-      }
-    }, 1500);
-  }
-
   if (!isOpen || typeof document === "undefined") return null;
   return createPortal(
     <>
@@ -151,9 +138,8 @@ export default function CrCallCenterModal({ isOpen, onClose, guests, churchName 
           <header className={styles.toolbar}>
             <div className={styles.heading}><span className={styles.icon}><FileText size={22} /></span><div><span className={styles.eyebrow}>INTÉGRATION / RAPPORTS</span><h2 id="cr-title">Compte rendu call center</h2></div></div>
             <div className={styles.actions}>
-              <button type="button" className={styles.secondary} onClick={copyReport} disabled={exportDisabled}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? "Copié" : "Copier"}</button>
+              <button type="button" className={styles.secondary} onClick={copyReport} disabled={exportDisabled}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? "Copié" : "Copier le rapport"}</button>
               <button type="button" className={styles.primary} onClick={handleDownloadPdf} disabled={exportDisabled || isDownloading}><Download size={16} />{isDownloading ? "Téléchargement…" : "Télécharger le PDF"}</button>
-              <button type="button" className={styles.secondary} onClick={handlePrint} disabled={exportDisabled} title="Imprimer ou aperçu avant impression"><Printer size={16} /></button>
               <button type="button" className={styles.close} onClick={onClose} aria-label="Fermer le compte rendu"><X size={21} /></button>
             </div>
           </header>
@@ -174,7 +160,7 @@ export default function CrCallCenterModal({ isOpen, onClose, guests, churchName 
               >
                 <div className={styles.dateTriggerTop}>
                   <span className={styles.dateTriggerBadge}>
-                    {mode === "single" ? "Une date" : mode === "range" ? "Période" : "Historique"}
+                    {mode === "single" ? "Un dimanche" : mode === "range" ? "Période" : "Tout l’historique"}
                   </span>
                   <span className={styles.dateTriggerAction}>
                     <Edit3 size={13} /> Modifier
