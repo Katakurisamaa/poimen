@@ -15,6 +15,9 @@ import { filterElapsedDateKeys } from "@/lib/date-utils";
 import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
 import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import PeopleStatistics from "@/components/experience/PeopleStatistics";
+import FamilyAssignment from "@/components/experience/FamilyAssignment";
+import PeopleListToolbar from "@/components/experience/PeopleListToolbar";
 import styles from "./Affectation.module.css";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
 import CustomSelect from "@/components/ui/CustomSelect";
@@ -211,7 +214,7 @@ function AffectationPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [currentView, setCurrentView] = useState<'list' | 'stats'>('list');
-  const [displayMode, setDisplayMode] = useState<'cards' | 'table'>('table');
+  // Table mode removed per user request
   const [showTableDetails, setShowTableDetails] = useState(false);
   const [arrivalMonth, setArrivalMonth] = useState<string>("all");
   const [arrivalYear, setArrivalYear] = useState<string>("all");
@@ -382,12 +385,6 @@ function AffectationPage() {
         console.error("Error parsing family info", e);
       }
     }
-    try {
-      const savedMode = localStorage.getItem("poimen_souls_display_mode") as "cards" | "table" | null;
-      if (savedMode === "cards" || savedMode === "table") {
-        setDisplayMode(savedMode);
-      }
-    } catch {}
   }, []);
 
   useEffect(() => {
@@ -1279,7 +1276,7 @@ function AffectationPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+    <div className="people-screen" style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       
       {personView.requestedId && !personView.selected && !loading && <div className="ux-list-context"><span>Cette fiche n’est pas disponible dans la liste actuelle.</span><button type="button" onClick={personView.closePerson}>Fermer</button></div>}
       {personView.selected && <PersonPanel person={personView.selected} kind="guest" onClose={personView.closePerson} onContinue={() => { setExpandedId(personView.selected!.id); setSearch(personView.selected!.firstName + " " + personView.selected!.lastName);  }} />}
@@ -1293,14 +1290,15 @@ function AffectationPage() {
         </div>
       )}
 
-      <div className="page-header fade-in">
+      <div className="page-header fade-in people-page-header">
         <div>
           <h2 className="page-title">Mes âmes</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
             Suivi personnalisé et accompagnement spirituel de vos âmes confiées
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="people-page-actions">
+          {canViewCr && <details className="people-tools" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.removeAttribute("open"); event.currentTarget.querySelector("summary")?.focus(); } }}><summary>Plus d’actions <ChevronDown size={14} /></summary><div className="people-tools-menu" onClick={event => { const menu = event.currentTarget.closest("details"); menu?.removeAttribute("open"); menu?.querySelector("summary")?.focus(); }}>
           {canViewCr && (
             <button 
               type="button"
@@ -1312,6 +1310,7 @@ function AffectationPage() {
               <FileText size={14} /> CR Call Center
             </button>
           )}
+          </div></details>}
           {isIntegrationOrCounselor && (
             <button className="btn btn-primary btn-sm" onClick={() => {
               setNewGuest({ ...newGuest, responsible: userName || "" });
@@ -1332,7 +1331,7 @@ function AffectationPage() {
               setSelectedMonth(new Date().getMonth());
             }
           }}
-          className={`invite-view-option ${currentView === 'list' ? 'active' : ''}`}
+          aria-pressed={currentView === 'list'} className={`invite-view-option ${currentView === 'list' ? 'active' : ''}`}
         >
           <span className="invite-view-icon"><ListChecks size={18} /></span>
           <span className="invite-view-copy">
@@ -1342,7 +1341,7 @@ function AffectationPage() {
         </button>
         <button 
           onClick={() => setCurrentView('stats')}
-          className={`invite-view-option ${currentView === 'stats' ? 'active' : ''}`}
+          aria-pressed={currentView === 'stats'} className={`invite-view-option ${currentView === 'stats' ? 'active' : ''}`}
         >
           <span className="invite-view-icon"><BarChart3 size={18} /></span>
           <span className="invite-view-copy">
@@ -1354,7 +1353,7 @@ function AffectationPage() {
 
       {/* Filters in Stats View */}
       {currentView === 'stats' && (
-        <div className="glass fade-in" style={{ padding: "16px 24px", display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="people-stat-filters" aria-label="Filtres des statistiques">
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>ARRIVÉE</span>
             <CustomSelect
@@ -1426,139 +1425,7 @@ function AffectationPage() {
         </div>
       )}
 
-      {currentView === 'stats' ? (
-        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-          {/* Main Key Stats */}
-          <div className="bento bento-3">
-            <div className="stat-card">
-              <span className="stat-label">Total Âmes confiées</span>
-              <div className="stat-value">{filtered.length}</div>
-              <div className="stat-sub">{brebisCount} Brebis confirmées</div>
-              <UserPlus className="stat-icon" size={24} style={{ color: "var(--gold)" }} />
-            </div>
-            
-            <div className="stat-card">
-              <span className="stat-label">Suivi Initial</span>
-              <div className="stat-value" style={{ background: "linear-gradient(135deg, #FFF, var(--sky) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{callsSuccess}</div>
-              <div className="stat-sub">{Math.round((callsSuccess / (filtered.length || 1)) * 100)}% d'appels aboutis</div>
-              <Phone className="stat-icon" size={24} style={{ color: "var(--sky)" }} />
-            </div>
-
-            <div className="stat-card">
-              <span className="stat-label">Fidélisation</span>
-              <div className="stat-value" style={{ background: "linear-gradient(135deg, #FFF, var(--green) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{fidelisees}</div>
-              <div className="stat-sub">Présences régulières (&gt;45%)</div>
-              <CheckCircle2 className="stat-icon" size={24} style={{ color: "var(--green)" }} />
-            </div>
-          </div>
-
-          {/* PCNC Pipeline */}
-          <div className="glass">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "clamp(12px, 2vw, 24px)", flexWrap: "wrap", gap: 8 }}>
-              <h3 style={{ fontSize: "clamp(14px, 2vw, 18px)", color: "var(--gold-light)", fontFamily: "var(--font-display)", margin: 0 }}>Progression PCNC</h3>
-              <span className="badge badge-violet" style={{ fontSize: 10 }}>{totalPCNC} Personnes engagées</span>
-            </div>
-            
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: "clamp(10px, 2vw, 20px)" }}>
-              {[
-                { label: "001 (Bienvenue)", val: pcnc001, color: "var(--violet)" },
-                { label: "101 (Fondements)", val: pcnc101, color: "var(--sky)" },
-                { label: "201 (Croissance)", val: pcnc201, color: "var(--orange)" },
-                { label: "301 (Transformation)", val: pcnc301, color: "var(--green)" }
-              ].map((stage) => {
-                const percentage = Math.round((stage.val / (filtered.length || 1)) * 100);
-                return (
-                  <div key={stage.label} className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(212,175,55,0.08)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--cream-dim)" }}>{stage.label}</span>
-                      <span style={{ fontSize: 12, color: stage.color, fontWeight: 700 }}>{stage.val}</span>
-                    </div>
-                    <div className="progress" style={{ height: 6 }}>
-                      <div className="progress-fill" style={{ width: `${percentage}%`, background: stage.color }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="bento bento-3">
-            <div className="glass" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
-              <h3 style={{ fontSize: "clamp(13px, 2vw, 16px)", marginBottom: 5, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Suivi & Intégration</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(110px, 100%), 1fr))", gap: 10, flex: 1 }}>
-                <div className="glass glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(239, 68, 68, 0.25)", background: "rgba(239, 68, 68, 0.02)", padding: "12px 6px" }}>
-                  <div style={{ fontSize: 9, color: "var(--rose)", fontWeight: 700, textTransform: "uppercase" }}>SANS ÉGLISE</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--rose)", marginTop: 4 }}>{noChurch}</div>
-                </div>
-                <div className="glass glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(91, 168, 224, 0.25)", background: "rgba(91, 168, 224, 0.02)", padding: "12px 6px" }}>
-                  <div style={{ fontSize: 9, color: "var(--sky)", fontWeight: 700, textTransform: "uppercase" }}>AVEC TÉLÉPHONE</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--sky)", marginTop: 4 }}>{phoneCount}</div>
-                </div>
-                <div className="glass glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(168, 85, 247, 0.25)", background: "rgba(168, 85, 247, 0.02)", padding: "12px 6px" }}>
-                  <div style={{ fontSize: 9, color: "var(--violet)", fontWeight: 700, textTransform: "uppercase" }}>FICHES APS</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--violet)", marginTop: 4 }}>{apsCount}</div>
-                </div>
-                <div className="glass glass-compact" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", border: "1px solid rgba(34, 197, 94, 0.25)", background: "rgba(34, 197, 94, 0.02)", padding: "12px 6px" }}>
-                  <div style={{ fontSize: 9, color: "var(--green)", fontWeight: 700, textTransform: "uppercase" }}>REVENUS AU CULTE</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "var(--green)", marginTop: 4 }}>{returnedCount}</div>
-                </div>
-              </div>
-            </div>
-            <div className="glass">
-              <h3 style={{ fontSize: "clamp(13px, 2vw, 16px)", marginBottom: 14, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Engagement spirituel</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(110px, 100%), 1fr))", gap: 10 }}>
-                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
-                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>INTÉRÊT PCNC</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--gold)", marginTop: 4 }}>{interetPCNC}</div>
-                </div>
-                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
-                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>BAPTÊME EAU</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--sky)", marginTop: 4 }}>{baptemeEauCount}</div>
-                </div>
-                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
-                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>FAMILLE DISC.</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--violet)", marginTop: 4 }}>{dansFamilleDiscipleCount}</div>
-                </div>
-                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
-                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>INTÉGRÉ CDM</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--green)", marginTop: 4 }}>{integreCDMCount}</div>
-                </div>
-                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
-                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>VEUT SERVIR</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--orange)", marginTop: 4 }}>{veutServirCount}</div>
-                </div>
-                <div className="glass glass-compact" style={{ padding: 10, textAlign: "center", background: "rgba(0,0,0,0.15)", border: "1px solid rgba(212,175,55,0.06)" }}>
-                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>DEVENU STAR</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--gold-light)", marginTop: 4 }}>{devenuStarCount}</div>
-                </div>
-              </div>
-            </div>
-            <div className="glass" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <h3 style={{ fontSize: "clamp(13px, 2vw, 16px)", marginBottom: 14, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Participation Moyenne</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>Culte (Dimanche)</span>
-                    <span style={{ fontSize: 11, color: "var(--green)", fontWeight: 700 }}>{avgParticipationCulte}%</span>
-                  </div>
-                  <div className="progress" style={{ height: 6 }}>
-                    <div className="progress-fill" style={{ width: `${avgParticipationCulte}%`, background: "var(--green)" }} />
-                  </div>
-                </div>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>C.D.M (Jeudi)</span>
-                    <span style={{ fontSize: 11, color: "var(--sky)", fontWeight: 700 }}>{avgParticipationCDM}%</span>
-                  </div>
-                  <div className="progress" style={{ height: 6 }}>
-                    <div className="progress-fill" style={{ width: `${avgParticipationCDM}%`, background: "var(--sky)" }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
+      {currentView === 'stats' ? (<PeopleStatistics total={filtered.length} totalLabel="Âmes confiées" brebis={brebisCount} calls={callsSuccess} loyal={fidelisees} pcnc={[pcnc001,pcnc101,pcnc201,pcnc301]} pcncTotal={totalPCNC} followup={[{label:"Sans église",value:noChurch},{label:"Avec téléphone",value:phoneCount},{label:"Fiches APS",value:apsCount},{label:"Revenus au culte",value:returnedCount}]} engagement={[{label:"Intérêt PCNC",value:interetPCNC},{label:"Baptême par immersion",value:baptemeEauCount},{label:"Dans une famille de disciples",value:dansFamilleDiscipleCount},{label:"Intégrés en CDM",value:integreCDMCount},{label:"Souhaitent servir",value:veutServirCount},{label:"Devenus S.T.A.R",value:devenuStarCount}]} participation={[{label:"Culte du dimanche",value:avgParticipationCulte},{label:"CDM du jeudi",value:avgParticipationCDM}]} families={[...new Set([...availableFamilies, ...filtered.map(g => g.famille_disciple).filter((f): f is string => !!f && f !== "AUCUNE")])].map(f => ({label:f,value:filtered.filter(g => g.famille_disciple === f).length})).concat([{label:"Sans famille affectée",value:filtered.filter(g => !g.famille_disciple || g.famille_disciple === "AUCUNE").length}])} />) : (
         <>
           {typeof window !== "undefined" && isAddModalOpen && createPortal(
             <div className="modal-overlay">
@@ -1813,57 +1680,16 @@ function AffectationPage() {
           />
 
           {/* Modern Filters & Controls */}
-          <div className={`glass fade-in ${styles.filtersContainer}`}>
-            <div className={styles.filtersTop}>
-              <div className={styles.searchWrapper}>
-                <Search size={16} className={styles.searchIcon} />
-                <input 
-                  className={styles.searchInput} 
-                  placeholder="Rechercher par nom ou prénom..." 
-                  value={search} 
-                  onChange={(e) => setSearch(e.target.value)} 
-                />
-              </div>
+          <PeopleListToolbar
+            search={search} onSearch={setSearch}
+            countLabel={`${filtered.length} âme${filtered.length > 1 ? "s" : ""}`}
+            showModes={false}
+            
+            activeCount={Number(arrivalMonth !== "all" || arrivalYear !== "all") + Number(localChurchFilter !== "all") + Number(familyFilter !== "all")} onReset={resetAllFilters}
+            period={`Présences : ${selectedMonth === -1 ? "toute l’année" : new Date(selectedYear, selectedMonth).toLocaleDateString("fr-BE", { month: "long" })} ${selectedYear}`}>
 
-              <div className={styles.topControls}>
-                {/* View Switcher: Cartes vs Tableau */}
-                <div className={styles.viewModePillGroup}>
-                  <button 
-                    type="button"
-                    className={`${styles.viewModePill} ${displayMode === 'cards' ? styles.viewModePillActive : ''}`}
-                    onClick={() => {
-                      setDisplayMode('cards');
-                      try { localStorage.setItem("poimen_souls_display_mode", "cards"); } catch {}
-                    }}
-                    title="Affichage en cartes détaillées"
-                  >
-                    <LayoutGrid size={14} />
-                    <span>Cartes</span>
-                  </button>
-                  <button 
-                    type="button"
-                    className={`${styles.viewModePill} ${displayMode === 'table' ? styles.viewModePillActive : ''}`}
-                    onClick={() => {
-                      setDisplayMode('table');
-                      try { localStorage.setItem("poimen_souls_display_mode", "table"); } catch {}
-                    }}
-                    title="Tableau de suivi avec identité fixe"
-                  >
-                    <TableIcon size={14} />
-                    <span>Tableau</span>
-                  </button>
-                </div>
-
-                <div className={styles.countBadge}>
-                  {filtered.length} âme{filtered.length > 1 ? "s" : ""}
-                </div>
-              </div>
-            </div>
-
-            {/* Horizontal Scrolling Filter Bar (Pill Capsules) */}
-            <div className={styles.filtersScroll}>
               {/* Arrivée Filter */}
-              <div className={styles.filterChip}>
+              <div className={styles.filterChip} role="group" aria-label="Date d’arrivée">
                 <span className={styles.filterLabel}><Calendar size={12} /> Arrivée</span>
                 <CustomSelect
                   size="sm"
@@ -1893,7 +1719,7 @@ function AffectationPage() {
               </div>
 
               {/* Présences Calculation Period Filter */}
-              <div className={styles.filterChip}>
+              <div className={styles.filterChip} role="group" aria-label="Période des présences">
                 <span className={styles.filterLabel}>👁 Présences</span>
                 <CustomSelect
                   size="sm"
@@ -1920,7 +1746,7 @@ function AffectationPage() {
               </div>
 
               {/* Église Locale Filter */}
-              <div className={styles.filterChip}>
+              <div className={styles.filterChip} role="group" aria-label="Église locale">
                 <span className={styles.filterLabel}>⛪ Église</span>
                 <CustomSelect
                   size="sm"
@@ -1937,7 +1763,7 @@ function AffectationPage() {
               </div>
 
               {/* Famille Filter */}
-              <div className={styles.filterChip}>
+              <div className={styles.filterChip} role="group" aria-label="Famille de disciples">
                 <span className={styles.filterLabel}>👥 Famille</span>
                 <CustomSelect
                   size="sm"
@@ -1953,314 +1779,12 @@ function AffectationPage() {
                 />
               </div>
 
-              {/* Reset button if filters active */}
-              {isAnyFilterActive && (
-                <button 
-                  type="button" 
-                  className={styles.filterReset}
-                  onClick={resetAllFilters}
-                  title="Réinitialiser tous les filtres"
-                >
-                  <RotateCcw size={11} />
-                  <span>Réinitialiser</span>
-                </button>
-              )}
-            </div>
-          </div>
+              
+          </PeopleListToolbar>
 
-          {/* List or Table View */}
-          {displayMode === 'table' ? (
-            <div className={`fade-in d1 ${styles.tableContainer}`}>
-              <div className={styles.tableToolbar}>
-                <div><strong>Tableau de suivi</strong><span>{filtered.length} personne{filtered.length > 1 ? "s" : ""} · {showTableDetails ? "Vue détaillée" : "Vue essentielle"}</span></div>
-                <button type="button" className={styles.detailToggle} aria-pressed={showTableDetails} onClick={() => setShowTableDetails(value => !value)}>
-                  <TableIcon size={15} /> {showTableDetails ? "Vue essentielle" : "Plus de détails"}
-                </button>
-              </div>
-              <p className={styles.tableMobileHint}>Faites défiler le tableau horizontalement. Le nom reste visible ; sélectionnez-le pour ouvrir la fiche.</p>
-
-              {filtered.length === 0 ? (
-                <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--muted)" }}>
-                  <p style={{ fontSize: 14, marginBottom: 12 }}>Aucune âme ne correspond aux critères sélectionnés.</p>
-                  {isAnyFilterActive && (
-                    <button type="button" className="btn btn-outline btn-sm" onClick={resetAllFilters}>
-                      <RotateCcw size={12} /> Réinitialiser les filtres
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className={styles.tableScroll} role="region" aria-label="Tableau de suivi des âmes, défilement horizontal" tabIndex={0}>
-                <table className={styles.soulsTable}>
-                  <caption className={styles.srOnly}>Personnes confiées, coordonnées, parcours et présences. Les présences correspondent à la période sélectionnée.</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col" className={styles.identityCell}>Personne</th>
-                      <th scope="col" className={styles.th}>Coordonnées</th>
-                      {showTableDetails && <th scope="col" className={styles.th}>Famille de disciples</th>}
-                      {showTableDetails && <th scope="col" className={styles.th}>Église locale</th>}
-                      {showTableDetails && <th scope="col" className={styles.th}>Événement</th>}
-                      <th scope="col" className={styles.th}>Appel abouti</th>
-                      <th scope="col" className={styles.th}>Parcours</th>
-                      <th scope="col" className={styles.th}>Présences</th>
-                      <th scope="col" className={styles.th}>Conseiller</th>
-                      <th scope="col" className={styles.th}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((guest) => {
-                      const rateCDM = calculateRate(guest, thursdays);
-                      const rateCulte = calculateRate(guest, sundays);
-                      const fidelised = isFidelise(guest);
-                      const pcncStage = getPcncStage(guest);
-                      const isCreator = guest.created_by === userId;
-                      const canEditGuest = isIntegrationLeader || isAuthorizedLeader || isCreator || (!canDispatchAll && guest.assigned_to === userId);
-                      const isRestricted = isIntegrationOrCounselor
-                        ? guest.assigned_to !== userId
-                        : guest.responsible !== userName;
-
-                      return (
-                        <tr key={guest.id} className={styles.tr}>
-                          <th scope="row" className={styles.identityCell}>
-                            <button type="button" className={styles.personName} onClick={() => personView.openPerson(guest.id)} aria-label={"Ouvrir la fiche de " + guest.firstName + " " + guest.lastName}>
-                              {guest.firstName} {guest.lastName}
-                            </button>
-                            <span className={styles.arrivalDate}>Arrivée · {formatDisplayDate(guest.arrivalDate)}</span>
-                          </th>
-                          <td className={styles.td}>
-                            <div className={styles.cellStack}>
-                              {guest.phone ? <a href={"tel:" + guest.phone} className={styles.phoneLink}><Phone size={13} />{guest.phone}</a> : <span className={styles.cellMuted}>Téléphone non renseigné</span>}
-                              {guest.email && <a href={"mailto:" + guest.email} className={styles.emailLink} title={guest.email}><Mail size={13} /><span>{guest.email}</span></a>}
-                            </div>
-                          </td>
-                          {showTableDetails && <>
-                          {/* Famille de disciples (interactive dropdown) */}
-                          <td className={styles.td}>
-                            <select 
-                              className={styles.familySelect}
-                              aria-label={"Famille de disciples de " + guest.firstName + " " + guest.lastName}
-                              value={guest.famille_disciple || "AUCUNE"}
-                              disabled={isRestricted}
-                              onChange={(e) => handleUpdateFamily(guest.id, e.target.value)}
-                              style={{
-                                borderColor: (guest.famille_disciple && guest.famille_disciple !== "AUCUNE") ? "rgba(16, 185, 129, 0.4)" : "var(--border)",
-                                color: (guest.famille_disciple && guest.famille_disciple !== "AUCUNE") ? "var(--green)" : "var(--muted)"
-                              }}
-                            >
-                              <option value="AUCUNE">AUCUNE</option>
-                              {availableFamilies.map(fam => (
-                                <option key={fam} value={fam}>{fam}</option>
-                              ))}
-                            </select>
-                          </td>
-
-                          {/* Église locale */}
-                          <td className={styles.td}>
-                            {guest.localChurch ? (
-                              <span className="badge badge-sky" style={{ fontSize: 9 }}>Avec église</span>
-                            ) : (
-                              <span className="badge badge-rose" style={{ fontSize: 9 }}>Sans église</span>
-                            )}
-                          </td>
-
-                          {/* Événement */}
-                          <td className={styles.td}>
-                            <span className="badge badge-violet" style={{ fontSize: 9 }}>
-                              {guest.event || "Culte"}
-                            </span>
-                          </td>
-
-                          </>}
-                          {/* Appel abouti */}
-                          <td className={styles.td}>
-                            <button 
-                              type="button"
-                              className={`${styles.toggleBtn} ${guest.appelAbouti ? styles.toggleBtnActive : styles.toggleBtnInactive}`}
-                              disabled={isRestricted}
-                              onClick={() => toggleSuivi(guest.id, 'appelAbouti')}
-                              title={guest.appelAbouti ? "Appel abouti (cliquez pour basculer)" : "Appel non abouti (cliquez pour basculer)"}
-                            >
-                              {guest.appelAbouti ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
-                              <span>{guest.appelAbouti ? "Oui" : "Non"}</span>
-                            </button>
-                          </td>
-
-                          <td className={styles.td}>
-                            <div className={styles.cellStack}>
-                              <span className={styles.stageBadge} style={{ color: pcncStage.color, borderColor: pcncStage.color }}>{pcncStage.label}</span>
-                              <span className={styles.cellMuted}>C.D.M · {guest.integreCDM ? "Intégré" : guest.interetCDM ? "Intérêt" : "Non intégré"}</span>
-                              {fidelised ? <span className={styles.loyalBadge}><Sparkles size={12} /> Fidélisé</span> : <span className={styles.cellMuted}>Fidélisation en cours</span>}
-                            </div>
-                          </td>
-                          <td className={styles.td}>
-                            <div className={styles.attendancePair}>
-                              <span>Culte <strong style={{ color: rateCulte >= 50 ? "var(--green)" : "var(--cream)" }}>{rateCulte}%</strong></span>
-                              <span>C.D.M <strong style={{ color: rateCDM >= 50 ? "var(--sky)" : "var(--cream)" }}>{rateCDM}%</strong></span>
-                            </div>
-                          </td>
-
-                          {/* Conseiller / Affectation */}
-                          <td className={styles.td}>
-                            {(() => {
-                              const canAssignAny = isIntegrationLeader || canCreateOrDeleteInvites || canDispatchAll;
-                              const isCounselor = isConseiller || userRoleClean === "integration_conseiller" || userRoleClean === "conseiller";
-                              const isAssignedToMe = guest.assigned_to === userId || (!guest.assigned_to && guest.responsible === userName);
-                              const assignedCounselorName = counselors.find(c => c.id === guest.assigned_to)?.display_name || (guest.responsible && guest.responsible !== "Non assigné" ? guest.responsible : null);
-
-                              if (isIntegrationOrCounselor || counselors.length > 0) {
-                                if (canAssignAny) {
-                                  return (
-                                    <select
-                                      className={styles.familySelect}
-                                      value={guest.assigned_to || ""}
-                                      onChange={(e) => handleAssignCounselor(guest.id, e.target.value || null)}
-                                      title="Affecter à un conseiller"
-                                      style={{
-                                        borderColor: guest.assigned_to ? "rgba(212, 175, 55, 0.4)" : "var(--border)",
-                                        color: guest.assigned_to ? (guest.assigned_to === userId ? "var(--gold-light)" : "var(--cream)") : "var(--muted)",
-                                        cursor: "pointer",
-                                        maxWidth: 150,
-                                        fontSize: 11
-                                      }}
-                                    >
-                                      <option value="">Non assigné</option>
-                                      {counselors.map(c => (
-                                        <option key={c.id} value={c.id}>
-                                          {c.display_name}{c.id === userId ? " (Moi)" : ""}
-                                        </option>
-                                      ))}
-                                      {guest.assigned_to && !counselors.some(c => c.id === guest.assigned_to) && (
-                                        <option value={guest.assigned_to}>
-                                          {assignedCounselorName || "Conseiller assigné"}
-                                        </option>
-                                      )}
-                                    </select>
-                                  );
-                                }
-
-                                if (isCounselor) {
-                                  if (!guest.assigned_to && (!guest.responsible || guest.responsible === "Non assigné")) {
-                                    return (
-                                      <button
-                                        type="button"
-                                        className="btn btn-primary btn-xs"
-                                        onClick={() => handleSelfAssign(guest.id)}
-                                        style={{
-                                          fontSize: 10,
-                                          padding: "3px 8px",
-                                          borderRadius: 6,
-                                          whiteSpace: "nowrap"
-                                        }}
-                                        title="M'affecter cette âme"
-                                      >
-                                        + M'affecter
-                                      </button>
-                                    );
-                                  }
-
-                                  if (isAssignedToMe) {
-                                    return (
-                                      <span style={{ 
-                                        color: "var(--gold-light)", 
-                                        fontWeight: 600, 
-                                        fontSize: 11,
-                                        background: "rgba(212, 175, 55, 0.12)",
-                                        padding: "3px 8px",
-                                        borderRadius: 6,
-                                        border: "1px solid rgba(212, 175, 55, 0.25)",
-                                        display: "inline-block"
-                                      }}>
-                                        Moi
-                                      </span>
-                                    );
-                                  }
-
-                                  return (
-                                    <span style={{ fontSize: 11, color: "var(--cream-dim)" }}>
-                                      {assignedCounselorName || "Non assigné"}
-                                    </span>
-                                  );
-                                }
-
-                                return (
-                                  <span style={{ fontSize: 11, color: "var(--cream-dim)" }}>
-                                    {assignedCounselorName || "Non assigné"}
-                                  </span>
-                                );
-                              }
-
-                              // Mode bergerie / famille où responsible est utilisé
-                              if (isAuthorizedLeader && responsibles.length > 0) {
-                                return (
-                                  <select
-                                    className={styles.familySelect}
-                                    value={guest.responsible || "Non assigné"}
-                                    onChange={async (e) => {
-                                      const newResp = e.target.value;
-                                      setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, responsible: newResp } : g));
-                                      await supabase.from("invites").update({ responsible: newResp }).eq("id", guest.id);
-                                      window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId: guest.id } }));
-                                    }}
-                                    style={{
-                                      borderColor: (guest.responsible && guest.responsible !== "Non assigné") ? "rgba(212, 175, 55, 0.4)" : "var(--border)",
-                                      color: (guest.responsible && guest.responsible !== "Non assigné") ? "var(--cream)" : "var(--muted)",
-                                      cursor: "pointer",
-                                      maxWidth: 150,
-                                      fontSize: 11
-                                    }}
-                                  >
-                                    <option value="Non assigné">Non assigné</option>
-                                    {responsibles.map(r => <option key={r} value={r}>{r}</option>)}
-                                    {guest.responsible && guest.responsible !== "Non assigné" && !responsibles.includes(guest.responsible) && (
-                                      <option key={guest.responsible} value={guest.responsible}>{guest.responsible}</option>
-                                    )}
-                                  </select>
-                                );
-                              }
-
-                              return (
-                                <span style={{ fontSize: 11, color: "var(--cream-dim)" }}>
-                                  {guest.responsible || "Non assigné"}
-                                </span>
-                              );
-                            })()}
-                          </td>
-
-                          {/* Actions */}
-                          <td className={styles.td} style={{ textAlign: "center" }}>
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                              <button 
-                                type="button"
-                                className="btn-icon btn-icon-gold"
-                                onClick={() => personView.openPerson(guest.id)}
-                                title="Voir la fiche complète"
-                                style={{ width: 28, height: 28 }}
-                              >
-                                <Eye size={13} />
-                              </button>
-                              {canEditGuest && (
-                                <button 
-                                  type="button"
-                                  className="btn-icon btn-icon-gold"
-                                  onClick={() => openEditModal(guest)}
-                                  title="Modifier les informations"
-                                  style={{ width: 28, height: 28 }}
-                                >
-                                  <MoreHorizontal size={13} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                </div>
-              )}
-            </div>
-          ) : (
-            /* Cards View */
-            <div className="fade-in d1" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Cards View */}
+          <div className="people-cards">
+          {filtered.length === 0 && <div className="people-empty"><Search size={26} /><h3>Aucune personne trouvée</h3><p>Essayez un autre nom ou ajustez les filtres.</p>{isAnyFilterActive && <button type="button" className="btn btn-outline" onClick={resetAllFilters}>Réinitialiser les filtres</button>}</div>}
             {filtered.map((guest) => {
               const rateCDM = calculateRate(guest, thursdays);
               const rateCulte = calculateRate(guest, sundays);
@@ -2271,7 +1795,7 @@ function AffectationPage() {
                 : guest.responsible !== userName;
 
               return (
-                <div key={guest.id} className="glass glass-flush soul-card" style={{ borderLeft: fidelised ? "4px solid var(--gold)" : "1px solid var(--border)", transition: "all 0.3s ease" }}>
+                <div key={guest.id} className="glass glass-flush soul-card" data-expanded={isExpanded} style={{ borderLeft: fidelised ? "4px solid var(--gold)" : "1px solid var(--border)", transition: "all 0.3s ease" }}>
                   <div
                     className="affectation-card-header soul-card-header"
                     onClick={() => setExpandedId(isExpanded ? null : guest.id)}
@@ -2318,11 +1842,11 @@ function AffectationPage() {
                         <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Culte (Dim)</div>
                         <div style={{ fontSize: 13, fontWeight: 800, color: rateCulte >= 45 ? "var(--green)" : "var(--red)", marginTop: 2 }}>{rateCulte}%</div>
                       </div>
-                      {isExpanded ? <ChevronUp size={18} style={{ color: "var(--gold)" }} /> : <ChevronDown size={18} style={{ color: "var(--muted)" }} />}
+                      <button type="button" className="people-expand" aria-expanded={isExpanded} aria-label={`${isExpanded ? "Réduire" : "Déplier"} le suivi de ${guest.firstName} ${guest.lastName}`} onClick={e => { e.stopPropagation(); setExpandedId(isExpanded ? null : guest.id); }}>{isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</button>
                     </div>
                   </div>
 
-                  {isExpanded && (
+                {isExpanded && (
                     <div className="soul-card-body" style={{ borderTop: "1px solid var(--border)", background: "var(--surface-solid)" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 24, padding: 24 }}>
                         {/* Info Column */}
@@ -2353,23 +1877,7 @@ function AffectationPage() {
                             </div>
                           </div>
                           
-                          <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,175,55,0.15)", borderRadius: 10, padding: "12px 14px", marginTop: 14 }}>
-                            <label className="form-label" style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>
-                              Affectation Famille de Disciples
-                            </label>
-                            <select 
-                              className="input" 
-                              value={guest.famille_disciple || "AUCUNE"} 
-                              disabled={isRestricted}
-                              onChange={(e) => handleUpdateFamily(guest.id, e.target.value)} 
-                              style={{ width: "100%", fontSize: 12, cursor: isRestricted ? "not-allowed" : "pointer" }}
-                            >
-                              <option value="AUCUNE">AUCUNE (Non affecté)</option>
-                              {availableFamilies.map(fam => (
-                                <option key={fam} value={fam}>{fam}</option>
-                              ))}
-                            </select>
-                          </div>
+                          <FamilyAssignment value={guest.famille_disciple} families={availableFamilies} person={guest.firstName + " " + guest.lastName} disabled={isRestricted} onChange={value => handleUpdateFamily(guest.id,value)} />
 
                           {guest.bergerie_id && (
                             <button 
@@ -2401,7 +1909,7 @@ function AffectationPage() {
                         </div>
 
                         {/* Attendance Tracking (Dynamic) */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                        <details className="people-card-section"><summary><span><strong>Présences</strong><small>CDM et culte</small></span><ChevronDown size={17} /></summary><div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                           <div>
                             <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, fontFamily: "var(--font-body)", fontWeight: 700 }}>Présences CDM (Jeudi)</h4>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2455,10 +1963,10 @@ function AffectationPage() {
                               })}
                             </div>
                           </div>
-                        </div>
+                        </div></details>
 
                         {/* Suivi Groups */}
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 16 }}>
+                        <details className="people-card-section"><summary><span><strong>Suivi et accompagnement</strong><small>Premier contact et intégration</small></span><ChevronDown size={17} /></summary><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 16 }}>
                           <div className="glass glass-compact" style={{ background: "rgba(255,255,255,0.01)", display: "flex", flexDirection: "column", gap: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
                             <h4 style={{ fontSize: 10, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "var(--font-body)", fontWeight: 700 }}>Premier Contact</h4>
                             <div>
@@ -2536,10 +2044,10 @@ function AffectationPage() {
                             <SuiviToggle label="Visite à domicile" checked={Boolean(guest.visiteDomicile)} onChange={() => toggleSuivi(guest.id, 'visiteDomicile')} disabled={isRestricted} />
                             <SuiviToggle label="Cocktail Bienvenue" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, 'cocktailBienvenue')} disabled={isRestricted} />
                           </div>
-                        </div>
+                        </div></details>
 
                         {/* PCNC & Service */}
-                        <div className="glass glass-compact col-span-2" style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(212,175,55,0.08)" }}>
+                        <details className="people-card-section"><summary><span><strong>Parcours et commentaires</strong><small>Formations, service et notes de suivi</small></span><ChevronDown size={17} /></summary><div className="glass glass-compact col-span-2" style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(212,175,55,0.08)" }}>
                           <h4 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12, fontFamily: "var(--font-body)", fontWeight: 700 }}>PCNC & Engagement spirituel</h4>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
                             <SuiviToggle label="PCNC 001" checked={guest.pcnc} onChange={() => toggleSuivi(guest.id, 'pcnc')} disabled={isRestricted} />
@@ -2596,7 +2104,7 @@ function AffectationPage() {
                               }}
                             />
                           </div>
-                        </div>
+                        </div></details>
                       </div>
                     </div>
                   )}
@@ -2604,7 +2112,6 @@ function AffectationPage() {
               );
             })}
           </div>
-        )}
 
           {/* Transfer Modal */}
           {typeof window !== "undefined" && isTransferModalOpen && transferringGuest && createPortal(
@@ -2628,17 +2135,20 @@ function AffectationPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   <div>
                     <label className="form-label" style={{ fontSize: 10, marginBottom: 6, display: "block" }}>CHOISIR UNE FAMILLE</label>
-                    <select 
-                      className="input" 
+                    <CustomSelect 
                       value={selectedBergerieId} 
-                      onChange={e => setSelectedBergerieId(e.target.value)}
-                      style={{ fontSize: 13 }}
-                    >
-                      <option value="">-- Choisir une famille --</option>
-                      {activeBergeries.map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
+                      onChange={val => setSelectedBergerieId(val)}
+                      placeholder="-- Choisir une famille --"
+                      ariaLabel="Choisir une famille"
+                      searchable={activeBergeries.length >= 6}
+                      options={[
+                        { value: "", label: "-- Choisir une famille --" },
+                        ...activeBergeries.map(b => ({
+                          value: b.id,
+                          label: b.name
+                        }))
+                      ]}
+                    />
                   </div>
                   
                   <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 10 }}>

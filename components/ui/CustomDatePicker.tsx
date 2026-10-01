@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Check } from "lucide-react";
 import styles from "./CustomDatePicker.module.css";
 
 const MONTH_NAMES_FR = [
@@ -13,21 +13,31 @@ const MONTH_NAMES_FR = [
 const WEEKDAY_NAMES_FR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
 export interface CustomDatePickerProps {
-  value: string; // Format: "YYYY-MM-DD"
-  onChange: (dateStr: string) => void;
+  value?: string | string[]; // Format: "YYYY-MM-DD" or comma-separated or array
+  onChange?: (dateStr: string) => void;
+  values?: string[];
+  onChangeMultiple?: (dates: string[]) => void;
+  multiple?: boolean;
   placeholder?: string;
   className?: string;
   style?: React.CSSProperties;
   disabled?: boolean;
+  clearable?: boolean;
+  size?: "sm" | "md";
 }
 
 export default function CustomDatePicker({
   value,
   onChange,
+  values,
+  onChangeMultiple,
+  multiple = false,
   placeholder = "Sélectionner une date",
   className,
   style,
   disabled = false,
+  clearable = false,
+  size = "md",
 }: CustomDatePickerProps) {
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -35,15 +45,27 @@ export default function CustomDatePicker({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  // Parse current selected date
+  // Normalize selected dates list
+  const selectedDates: string[] = useMemo(() => {
+    if (Array.isArray(values)) return values.filter(Boolean);
+    if (Array.isArray(value)) return value.filter(Boolean);
+    if (typeof value === "string" && value) {
+      if (value.includes(",")) return value.split(",").map(s => s.trim()).filter(Boolean);
+      return [value];
+    }
+    return [];
+  }, [value, values]);
+
+  // Parse first selected date for initial view calendar positioning
   const parsedDate = useMemo(() => {
-    if (!value) return null;
-    const parts = value.split("-").map(Number);
+    const first = selectedDates[0];
+    if (!first) return null;
+    const parts = first.split("-").map(Number);
     if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
       return new Date(parts[0], parts[1] - 1, parts[2]);
     }
     return null;
-  }, [value]);
+  }, [selectedDates]);
 
   // Calendar view year and month
   const today = useMemo(() => new Date(), []);
@@ -162,17 +184,32 @@ export default function CustomDatePicker({
       const dObj = new Date(viewYear, viewMonth, d);
       const isSunday = dObj.getDay() === 0;
       const isToday = dateStr === todayStr;
-      const isSelected = dateStr === value;
+      const isSelected = selectedDates.includes(dateStr);
 
       days.push({ day: d, dateStr, isSunday, isToday, isSelected });
     }
 
     return days;
-  }, [viewYear, viewMonth, today, value]);
+  }, [viewYear, viewMonth, today, selectedDates]);
 
   const handleSelectDate = (dateStr: string) => {
-    onChange(dateStr);
-    setOpen(false);
+    if (multiple) {
+      const exists = selectedDates.includes(dateStr);
+      const nextDates = exists
+        ? selectedDates.filter((d) => d !== dateStr)
+        : [...selectedDates, dateStr].sort();
+      onChangeMultiple?.(nextDates);
+      onChange?.(nextDates.join(","));
+    } else {
+      onChange?.(dateStr);
+      onChangeMultiple?.([dateStr]);
+      setOpen(false);
+    }
+  };
+
+  const handleClear = () => {
+    onChange?.("");
+    onChangeMultiple?.([]);
   };
 
   // Quick shortcuts
@@ -191,15 +228,46 @@ export default function CustomDatePicker({
     handleSelectDate(dateStr);
   };
 
+  const selectAllSundaysInMonth = () => {
+    const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const monthSundays: string[] = [];
+    for (let d = 1; d <= lastDay; d++) {
+      const dObj = new Date(viewYear, viewMonth, d);
+      if (dObj.getDay() === 0) {
+        monthSundays.push(`${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+      }
+    }
+    const allAlready = monthSundays.every((s) => selectedDates.includes(s));
+    const nextDates = allAlready
+      ? selectedDates.filter((d) => !monthSundays.includes(d))
+      : Array.from(new Set([...selectedDates, ...monthSundays])).sort();
+    onChangeMultiple?.(nextDates);
+    onChange?.(nextDates.join(","));
+  };
+
   // Formatted trigger label
   const formattedDisplay = useMemo(() => {
-    if (!parsedDate) return placeholder;
-    const dayName = ["Dim.", "Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam."][parsedDate.getDay()];
-    const dayNum = String(parsedDate.getDate()).padStart(2, "0");
-    const monthName = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."][parsedDate.getMonth()];
-    const year = parsedDate.getFullYear();
-    return `${dayName} ${dayNum} ${monthName} ${year}`;
-  }, [parsedDate, placeholder]);
+    if (selectedDates.length === 0) return placeholder;
+    if (selectedDates.length === 1) {
+      const parts = selectedDates[0].split("-").map(Number);
+      if (parts.length === 3 && !isNaN(parts[0])) {
+        const d = new Date(parts[0], parts[1] - 1, parts[2]);
+        const dayName = ["Dim.", "Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam."][d.getDay()];
+        const dayNum = String(d.getDate()).padStart(2, "0");
+        const monthName = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."][d.getMonth()];
+        const year = d.getFullYear();
+        return `${dayName} ${dayNum} ${monthName} ${year}`;
+      }
+      return selectedDates[0];
+    }
+    if (selectedDates.length === 2) {
+      return selectedDates.map((dStr) => {
+        const p = dStr.split("-");
+        return `${p[2]}/${p[1]}`;
+      }).join(", ");
+    }
+    return `${selectedDates.length} dates`;
+  }, [selectedDates, placeholder]);
 
   return (
     <div className={`${styles.wrapper} ${className || ""}`} style={style} ref={wrapperRef}>
@@ -208,12 +276,32 @@ export default function CustomDatePicker({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
-        className={`${styles.trigger} ${open ? styles.triggerActive : ""}`}
+        className={`${styles.trigger} ${size === "sm" ? styles.triggerSm : ""} ${open ? styles.triggerActive : ""}`}
         aria-haspopup="dialog"
         aria-expanded={open}
       >
-        <CalendarIcon size={15} className={styles.calendarIcon} />
-        <span className={!parsedDate ? styles.placeholder : ""}>{formattedDisplay}</span>
+        <CalendarIcon size={size === "sm" ? 13 : 15} className={styles.calendarIcon} />
+        <span className={`${selectedDates.length === 0 ? styles.placeholder : ""} ${size === "sm" ? styles.labelSm : ""}`}>
+          {formattedDisplay}
+        </span>
+        {multiple && selectedDates.length > 1 && (
+          <span className={styles.countBadgeMini}>{selectedDates.length}</span>
+        )}
+        {clearable && selectedDates.length > 0 && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClear();
+            }}
+            className={styles.clearBtn}
+            title="Effacer la sélection"
+            aria-label="Effacer la sélection"
+          >
+            <X size={12} />
+          </span>
+        )}
       </button>
 
       {/* Popover / Mobile Sheet rendered via Portal to prevent any parent overflow clipping */}
@@ -245,9 +333,16 @@ export default function CustomDatePicker({
               >
                 <ChevronLeft size={16} />
               </button>
-              <span className={styles.monthTitle}>
-                {MONTH_NAMES_FR[viewMonth]} {viewYear}
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <span className={styles.monthTitle}>
+                  {MONTH_NAMES_FR[viewMonth]} {viewYear}
+                </span>
+                {multiple && (
+                  <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 600 }}>
+                    {selectedDates.length > 0 ? `${selectedDates.length} sélectionnée${selectedDates.length > 1 ? "s" : ""}` : "Sélection multiple"}
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={handleNextMonth}
@@ -289,14 +384,52 @@ export default function CustomDatePicker({
             </div>
 
             {/* Quick shortcuts */}
-            <div className={styles.shortcuts}>
-              <button type="button" onClick={selectToday} className={styles.shortcutBtn}>
-                Aujourd'hui
-              </button>
-              <button type="button" onClick={selectNextSunday} className={styles.shortcutBtn}>
-                Dimanche prochain
-              </button>
-            </div>
+            {multiple ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button type="button" onClick={selectAllSundaysInMonth} className={styles.shortcutBtn}>
+                    Dimanches
+                  </button>
+                  <button type="button" onClick={selectToday} className={styles.shortcutBtn}>
+                    Aujourd'hui
+                  </button>
+                  {clearable && selectedDates.length > 0 && (
+                    <button type="button" onClick={handleClear} className={`${styles.shortcutBtn} ${styles.shortcutBtnClear}`}>
+                      Effacer
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className={styles.applyBtn}
+                >
+                  <Check size={14} style={{ marginRight: 5 }} />
+                  Valider {selectedDates.length > 0 ? `(${selectedDates.length})` : ""}
+                </button>
+              </div>
+            ) : (
+              <div className={styles.shortcuts}>
+                <button type="button" onClick={selectToday} className={styles.shortcutBtn}>
+                  Aujourd'hui
+                </button>
+                <button type="button" onClick={selectNextSunday} className={styles.shortcutBtn}>
+                  Dimanche prochain
+                </button>
+                {clearable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleClear();
+                      setOpen(false);
+                    }}
+                    className={`${styles.shortcutBtn} ${styles.shortcutBtnClear}`}
+                  >
+                    Toutes les dates
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </>,
         document.body

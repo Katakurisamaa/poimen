@@ -686,8 +686,38 @@
 .detailToggle { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-solid); color: var(--cream); font-size: 12px; cursor: pointer; }
 .detailToggle[aria-pressed="true"] { background: var(--gold-glow); color: var(--gold); border-color: var(--gold); }
 .tableMobileHint { display: block; margin: 0; padding: 0 20px 16px; background: transparent; border: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.tableScroll { width: 100%; overflow: auto; max-height: min(680px, 72dvh); overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--muted) var(--bg); }
+.tableScroll {
+  width: 100%;
+  overflow-x: auto !important;
+  overflow-y: auto;
+  max-height: min(680px, 72dvh);
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x pan-y !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.4) transparent;
+}
+.tableScroll::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.tableScroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+.tableScroll::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.35);
+  border-radius: 4px;
+}
+.tableScroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.6);
+}
 .soulsTable { min-width: 1000px; font-size: 13px; }
+.soulsTable,
+.soulsTable th,
+.soulsTable td,
+.soulsTable tr {
+  touch-action: pan-x pan-y;
+}
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 :global(html[data-theme]) .tableContainer .th,
 :global(html[data-theme]) .tableContainer thead .identityCell { background: var(--bg) !important; color: var(--muted) !important; padding: 13px 16px; font-size: 11px; letter-spacing: .04em; text-transform: none; border-bottom: 1px solid var(--border) !important; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
@@ -733,4 +763,31 @@
   .tableContainer .toggleBtn, .tableContainer :global(.btn-icon) { min-height: 44px; min-width: 44px; }
   :global(html[data-theme]) .tableContainer :is(.phoneLink, .emailLink) { min-height: 36px; }
   .tableScroll { max-height: 65dvh; }
+
+  /* Responsive frozen columns for invites view */
+  .stickyColDate {
+    width: 68px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+    left: 0 !important;
+    padding: 10px 4px !important;
+    font-size: 10px !important;
+    text-align: center !important;
+  }
+  .stickyColNom {
+    width: 80px !important;
+    min-width: 80px !important;
+    max-width: 80px !important;
+    left: 68px !important;
+    padding: 10px 6px !important;
+    font-size: 11px !important;
+  }
+  .stickyColPrenom {
+    width: 80px !important;
+    min-width: 80px !important;
+    max-width: 80px !important;
+    left: 148px !important;
+    padding: 10px 6px !important;
+    font-size: 11px !important;
+  }
 }

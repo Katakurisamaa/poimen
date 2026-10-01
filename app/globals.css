@@ -2803,34 +2803,88 @@ body:has(.modal-overlay) {
   color: rgba(244, 241, 234, 0.74);
 }
 
+.invite-view-switcher {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: min(100%, 560px);
+  max-width: 100%;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.invite-view-option {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.invite-view-copy {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
 @media (max-width: 768px) {
   .invite-view-switcher {
-    width: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
     gap: 8px;
-    border-radius: 20px;
-    padding: 7px;
+    border-radius: 18px;
+    padding: 6px;
+    box-sizing: border-box;
   }
 
   .invite-view-option {
-    min-height: 74px;
-    padding: 12px 10px;
-    gap: 9px;
-    border-radius: 16px;
+    min-height: 60px;
+    padding: 10px 8px;
+    gap: 8px;
+    border-radius: 14px;
+    min-width: 0 !important;
+    overflow: hidden !important;
   }
 
   .invite-view-icon {
-    flex-basis: 34px;
-    width: 34px;
-    height: 34px;
-    border-radius: 11px;
+    flex-basis: 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 640px) {
+  .invite-view-switcher {
+    gap: 5px !important;
+    padding: 4px !important;
+    border-radius: 14px !important;
+  }
+
   .invite-view-option {
-    align-items: flex-start;
-    flex-direction: column;
-    min-height: 104px;
+    min-height: 48px !important;
+    padding: 6px 8px !important;
+    gap: 7px !important;
+    border-radius: 10px !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  .invite-view-icon {
+    flex: 0 0 28px !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+  }
+
+  .invite-view-icon svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  .invite-view-title {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  .invite-view-subtitle {
+    display: none !important;
   }
 }
 
@@ -6739,21 +6793,132 @@ body.dark .attendance-day--not-applicable {
   opacity: 0.88 !important;
 }
 
+/* Authentic theme-harmonized buttons for invite expanded cards */
 html[data-theme="dark"] .invite-expanded .btn-primary,
 body[data-theme="dark"] .invite-expanded .btn-primary,
 body.dark .invite-expanded .btn-primary {
-  background:
-    radial-gradient(circle at 30% 20%, rgba(221, 223, 224, 0.18), transparent 42%),
-    linear-gradient(135deg, rgba(221, 223, 224, 0.18), rgba(149, 98, 86, 0.24)) !important;
-  border-color: rgba(221, 223, 224, 0.16) !important;
-  color: #dddfdf !important;
+  background: linear-gradient(135deg, #c59b27 0%, #e7c77e 50%, #d4af37 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #0c121c !important;
+  box-shadow: 0 4px 16px rgba(231, 199, 126, 0.25) !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
 }
 
 html[data-theme="dark"] .invite-expanded .btn-primary *,
 body[data-theme="dark"] .invite-expanded .btn-primary *,
 body.dark .invite-expanded .btn-primary * {
-  color: #dddfdf !important;
-  -webkit-text-fill-color: currentColor !important;
+  color: #0c121c !important;
+  -webkit-text-fill-color: #0c121c !important;
+}
+
+html[data-theme="dark"] .invite-expanded .btn-primary:hover,
+body[data-theme="dark"] .invite-expanded .btn-primary:hover,
+body.dark .invite-expanded .btn-primary:hover {
+  background: linear-gradient(135deg, #d4af37 0%, #f0d58e 50%, #e7c77e 100%) !important;
+  color: #0c121c !important;
+  box-shadow: 0 6px 22px rgba(231, 199, 126, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+
+html[data-theme="dark"] .invite-expanded .btn-primary:hover *,
+body[data-theme="dark"] .invite-expanded .btn-primary:hover *,
+body.dark .invite-expanded .btn-primary:hover * {
+  color: #0c121c !important;
+  -webkit-text-fill-color: #0c121c !important;
+}
+
+html[data-theme="light"] .invite-expanded .btn-primary,
+body[data-theme="light"] .invite-expanded .btn-primary {
+  background: linear-gradient(135deg, #876017 0%, #a77919 50%, #c99738 100%) !important;
+  border: 1px solid rgba(135, 96, 23, 0.3) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(135, 96, 23, 0.2) !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] .invite-expanded .btn-primary *,
+body[data-theme="light"] .invite-expanded .btn-primary * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html[data-theme="light"] .invite-expanded .btn-primary:hover,
+body[data-theme="light"] .invite-expanded .btn-primary:hover {
+  background: linear-gradient(135deg, #6d4b10 0%, #8c6314 50%, #b0802c 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 20px rgba(135, 96, 23, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+
+html[data-theme="light"] .invite-expanded .btn-primary:hover *,
+body[data-theme="light"] .invite-expanded .btn-primary:hover * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Self-assign button specific styling ensuring maximum contrast in all themes and hover */
+.btn-self-assign {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+html[data-theme="dark"] .btn-self-assign,
+html[data-theme="dark"] .btn-self-assign:hover,
+html[data-theme="dark"] .btn-self-assign:active {
+  color: #0c121c !important;
+  background: linear-gradient(135deg, #d4af37 0%, #f0d58e 50%, #e7c77e 100%) !important;
+}
+
+html[data-theme="dark"] .btn-self-assign *,
+html[data-theme="dark"] .btn-self-assign:hover *,
+html[data-theme="dark"] .btn-self-assign:active * {
+  color: #0c121c !important;
+  -webkit-text-fill-color: #0c121c !important;
+  stroke: #0c121c !important;
+}
+
+html[data-theme="light"] .btn-self-assign,
+html[data-theme="light"] .btn-self-assign:hover,
+html[data-theme="light"] .btn-self-assign:active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #876017 0%, #aa771c 50%, #c99738 100%) !important;
+}
+
+html[data-theme="light"] .btn-self-assign *,
+html[data-theme="light"] .btn-self-assign:hover *,
+html[data-theme="light"] .btn-self-assign:active * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Danger outline buttons inside cards and globally */
+html[data-theme] body .btn-danger-outline,
+.invite-expanded .btn-danger-outline,
+.btn-danger-outline {
+  background: rgba(239, 68, 68, 0.06) !important;
+  color: var(--red) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  box-shadow: none !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+html[data-theme] body .btn-danger-outline *,
+.invite-expanded .btn-danger-outline *,
+.btn-danger-outline * {
+  color: var(--red) !important;
+  -webkit-text-fill-color: var(--red) !important;
+}
+
+html[data-theme] body .btn-danger-outline:hover,
+.invite-expanded .btn-danger-outline:hover,
+.btn-danger-outline:hover {
+  background: rgba(239, 68, 68, 0.14) !important;
+  border-color: var(--red) !important;
+  color: var(--red) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15) !important;
 }
 
 /* Softer dark switchers: readable graphite instead of near-black */
