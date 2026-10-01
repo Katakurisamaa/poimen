@@ -333,10 +333,29 @@ export default function CustomDatePicker({
               >
                 <ChevronLeft size={16} />
               </button>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                <span className={styles.monthTitle}>
-                  {MONTH_NAMES_FR[viewMonth]} {viewYear}
-                </span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <select
+                    value={viewMonth}
+                    onChange={(e) => setViewMonth(Number(e.target.value))}
+                    className={styles.headerSelect}
+                    aria-label="Sélectionner le mois"
+                  >
+                    {MONTH_NAMES_FR.map((name, i) => (
+                      <option key={name} value={i}>{name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={viewYear}
+                    onChange={(e) => setViewYear(Number(e.target.value))}
+                    className={styles.headerSelect}
+                    aria-label="Sélectionner l'année"
+                  >
+                    {Array.from({ length: 15 }, (_, i) => today.getFullYear() - 8 + i).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
                 {multiple && (
                   <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 600 }}>
                     {selectedDates.length > 0 ? `${selectedDates.length} sélectionnée${selectedDates.length > 1 ? "s" : ""}` : "Sélection multiple"}

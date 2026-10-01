@@ -105,12 +105,14 @@ export default function SoulContactReminder() {
       if (data) {
         // Filter strictly to those assigned to this user
         const assignedToMe = data.filter((item) => {
+          const isConserved = item.statut_affectation === 'conserve' || /\[STATUT:\s*conserve\]/i.test(item.commentaire_suivi || "");
+          const isSansSuite = item.statut_affectation === 'sans_suite' || /\[STATUT:\s*sans_suite\]/i.test(item.commentaire_suivi || "");
           const isFauxNumero = item.faux_numero === true || /\[FAUX_NUMERO\]/i.test(item.commentaire_suivi || "");
           const isNeDecrochePas = item.ne_decroche_pas === true || /\[NE_DECROCHE_PAS\]/i.test(item.commentaire_suivi || "");
 
-          // EXCLUSION : si appel abouti, faux numéro, ou ne décroche pas (relance déjà notée),
+          // EXCLUSION : si appel abouti, conservé dans "Mes âmes", sans suite, faux numéro, ou ne décroche pas,
           // la relance urgente n'a plus lieu d'être et disparaît immédiatement
-          if (item.appel_abouti === true || isFauxNumero || isNeDecrochePas) {
+          if (item.appel_abouti === true || isConserved || isSansSuite || isFauxNumero || isNeDecrochePas) {
             return false;
           }
 
@@ -136,9 +138,11 @@ export default function SoulContactReminder() {
 
         // Count urgent souls (those without any recent tentative within 3 days)
         const urgentCount = assignedToMe.filter((s) => {
+          const isConserved = s.statut_affectation === 'conserve' || /\[STATUT:\s*conserve\]/i.test(s.commentaire_suivi || "");
+          const isSansSuite = s.statut_affectation === 'sans_suite' || /\[STATUT:\s*sans_suite\]/i.test(s.commentaire_suivi || "");
           const isFauxNumero = s.faux_numero === true || /\[FAUX_NUMERO\]/i.test(s.commentaire_suivi || "");
           const isNeDecrochePas = s.ne_decroche_pas === true || /\[NE_DECROCHE_PAS\]/i.test(s.commentaire_suivi || "");
-          if (s.appel_abouti || isFauxNumero || isNeDecrochePas) return false;
+          if (s.appel_abouti || isConserved || isSansSuite || isFauxNumero || isNeDecrochePas) return false;
 
           const match = s.commentaire_suivi?.match(/\[TENTATIVE:([^\]]+)\]/);
           if (!match) return true;

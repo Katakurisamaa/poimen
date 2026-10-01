@@ -32,7 +32,7 @@ export default function TodayActions({ data, upcoming, onRetry }: { data: TodayD
       {canCreateGuest && <Link href="/dashboard/invites?new=1"><UserPlus size={17} />Ajouter un invité</Link>}
       {hasReports && <Link href="/dashboard/reporting"><FileText size={17} />Rapport au pasteur</Link>}
       {!workspace.hasFamily ? (
-        <Link href="/dashboard/affectation"><ArrowRight size={17} />Ouvrir mes âmes</Link>
+        <Link href="/dashboard/affectation"><ArrowRight size={17} />Ouvrir le suivi</Link>
       ) : (
         <Link href="/dashboard/bergerie"><ArrowRight size={17} />Voir les membres</Link>
       )}

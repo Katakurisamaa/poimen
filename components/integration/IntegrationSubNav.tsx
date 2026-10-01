@@ -15,6 +15,7 @@ export default function IntegrationSubNav() {
       <div className={styles.pillGroup}>
         <Link
           href="/dashboard/planning-integration"
+          aria-current={isPlanning ? "page" : undefined}
           className={`${styles.pill} ${isPlanning ? styles.pillActive : ""}`}
         >
           <Calendar size={14} />
@@ -23,6 +24,7 @@ export default function IntegrationSubNav() {
 
         <Link
           href="/dashboard/positionnement-integration"
+          aria-current={isPositionnement ? "page" : undefined}
           className={`${styles.pill} ${isPositionnement ? styles.pillActive : ""}`}
         >
           <Church size={14} />

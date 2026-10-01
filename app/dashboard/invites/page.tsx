@@ -1,10 +1,11 @@
 "use client";
 
 import { Suspense, useRef, useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { 
   Search, Plus, UserPlus, UserMinus, Filter, CheckCircle2, XCircle, X, Link,
-  Calendar, MapPin, Mail, Phone, User as UserIcon,
+  Calendar, CalendarDays, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2,
   Trash2, Trash, RotateCcw, Pencil, Archive, AlertTriangle,
   ListChecks, BarChart3, Home, LayoutGrid, Table as TableIcon, Eye, Check, FileText,
@@ -20,6 +21,7 @@ import { useFeedback } from "@/components/experience/FeedbackProvider";
 import PeopleNavigation from "@/components/experience/PeopleNavigation";
 import PeopleStatistics from "@/components/experience/PeopleStatistics";
 import FamilyAssignment from "@/components/experience/FamilyAssignment";
+import IntegrationOverview from "@/components/experience/IntegrationOverview";
 import PeopleListToolbar from "@/components/experience/PeopleListToolbar";
 import styles from "../affectation/Affectation.module.css";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
@@ -27,6 +29,9 @@ import CustomSelect from "@/components/ui/CustomSelect";
 import CountryPickerModal, { COUNTRIES } from "@/components/ui/CountryPickerModal";
 import CrCallCenterModal from "@/components/experience/CrCallCenterModal";
 import ShareInviteModal from "@/components/invites/ShareInviteModal";
+import TriageListView from "@/components/experience/TriageListView";
+import GuestArrivalDetailsModal from "@/components/experience/GuestArrivalDetailsModal";
+import ArrivalDateFilterModal from "@/components/experience/ArrivalDateFilterModal";
 
 
 interface Guest {
@@ -124,6 +129,11 @@ const FAMILY_COLORS: Record<string, { main: string; glow: string; border: string
 };
 
 function mapDbGuestToGuest(g: any): Guest {
+  const isAssigned = Boolean(g.assigned_to || (g.responsible && g.responsible !== "Non assigné" && g.responsible.trim() !== ""));
+  const rawStatut = (g.statut_affectation as any) || g.commentaire_suivi?.match(/\[STATUT:\s*([^\]]+)\]/i)?.[1]?.trim();
+  const hadPastFollowup = rawStatut === 'sans_suite' || rawStatut === 'conserve' || Boolean(g.appel_abouti) || Boolean(g.statut_affectation && g.statut_affectation !== 'a_affecter');
+  const isFreshUnassigned = !isAssigned && !hadPastFollowup;
+
   return {
     id: g.id,
     civility: g.civility,
@@ -144,47 +154,47 @@ function mapDbGuestToGuest(g: any): Guest {
     bergerie_id: g.bergerie_id,
     isInBergerie: g.is_in_bergerie,
     status: g.status,
-    attendance: g.attendance || {},
-    appelAbouti: g.appel_abouti,
-    groupeWhatsapp: g.groupe_whatsapp,
-    prevuRevenir: g.prevu_revenir,
-    estRevenuCulte: g.est_revenu_culte,
-    rencontreEffectuee: g.rencontre_effectuee,
-    visiteDomicile: g.visite_domicile,
-    cocktailBienvenue: g.cocktail_bienvenue,
-    pcnc: g.pcnc,
-    p101: g.p101,
-    p201: g.p201,
-    p301: g.p301,
-    terminePCNC: g.termine_pcnc,
-    baptemeEau: g.bapteme_eau,
-    baptemeEsprit: g.bapteme_esprit,
-    veutServir: g.veut_servir,
-    devenuStar: g.devenu_star,
+    attendance: isFreshUnassigned ? {} : (g.attendance || {}),
+    appelAbouti: isFreshUnassigned ? false : Boolean(g.appel_abouti),
+    groupeWhatsapp: isFreshUnassigned ? false : Boolean(g.groupe_whatsapp),
+    prevuRevenir: isFreshUnassigned ? false : Boolean(g.prevu_revenir),
+    estRevenuCulte: isFreshUnassigned ? false : Boolean(g.est_revenu_culte),
+    rencontreEffectuee: isFreshUnassigned ? false : Boolean(g.rencontre_effectuee),
+    visiteDomicile: isFreshUnassigned ? false : Boolean(g.visite_domicile),
+    cocktailBienvenue: isFreshUnassigned ? false : Boolean(g.cocktail_bienvenue),
+    pcnc: isFreshUnassigned ? false : Boolean(g.pcnc),
+    p101: isFreshUnassigned ? false : Boolean(g.p101),
+    p201: isFreshUnassigned ? false : Boolean(g.p201),
+    p301: isFreshUnassigned ? false : Boolean(g.p301),
+    terminePCNC: isFreshUnassigned ? false : Boolean(g.termine_pcnc),
+    baptemeEau: isFreshUnassigned ? false : Boolean(g.bapteme_eau),
+    baptemeEsprit: isFreshUnassigned ? false : Boolean(g.bapteme_esprit),
+    veutServir: isFreshUnassigned ? false : Boolean(g.veut_servir),
+    devenuStar: isFreshUnassigned ? false : Boolean(g.devenu_star),
     smsBienvenue: g.sms_bienvenue || false,
     priere: g.priere || false,
     interetEvenement: g.interet_evenement || false,
     interetFormation: g.interet_formation || false,
     aEteInvite: g.a_ete_invite || false,
     parQui: g.par_qui || "",
-    interetCDM: g.interet_cdm || false,
-    integreCDM: g.integre_cdm || false,
-    prierePartage: g.priere_partage || false,
-    dansFamilleDisciple: g.dans_famille_disciple || false,
+    interetCDM: isFreshUnassigned ? false : Boolean(g.interet_cdm),
+    integreCDM: isFreshUnassigned ? false : Boolean(g.integre_cdm),
+    prierePartage: isFreshUnassigned ? false : Boolean(g.priere_partage),
+    dansFamilleDisciple: isFreshUnassigned ? false : Boolean(g.dans_famille_disciple),
     interetBapteme: g.interet_bapteme || false,
     commentaire: g.commentaire || "",
-    commentaireSuivi: (g.commentaire_suivi || "").replace(/\[RAISON_ECHEC:[^\]]+\]\s*/gi, "").replace(/\[(?:FAUX_NUMERO|NE_DECROCHE_PAS)\]\s*/gi, "").trim(),
-    raisonEchec: g.raison_echec || (g.commentaire_suivi?.match(/\[RAISON_ECHEC:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
-    piliers1: g.piliers_1 ?? false,
-    piliers2: g.piliers_2 ?? false,
-    piliers3: g.piliers_3 ?? false,
-    piliers4: g.piliers_4 ?? false,
-    termine12Piliers: g.termine_12_piliers ?? false,
+    commentaireSuivi: isFreshUnassigned ? "" : (g.commentaire_suivi || "").replace(/\[[A-Za-z0-9_]+:[^\]]*\]\s*/gi, "").replace(/\[(?:FAUX_NUMERO|NE_DECROCHE_PAS)\]\s*/gi, "").trim(),
+    raisonEchec: isFreshUnassigned ? "" : (g.raison_echec || (g.commentaire_suivi?.match(/\[RAISON_ECHEC:\s*([^\]]+)\]/i)?.[1]?.trim() || "")),
+    piliers1: isFreshUnassigned ? false : (g.piliers_1 ?? false),
+    piliers2: isFreshUnassigned ? false : (g.piliers_2 ?? false),
+    piliers3: isFreshUnassigned ? false : (g.piliers_3 ?? false),
+    piliers4: isFreshUnassigned ? false : (g.piliers_4 ?? false),
+    termine12Piliers: isFreshUnassigned ? false : (g.termine_12_piliers ?? false),
     pays: g.pays || (g.commentaire?.match(/\[(?:Pays de résidence|Pays)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || "Belgique"),
-    souhaitSuivi: g.souhait_suivi ?? false,
-    rdvPastoral: g.rdv_pastoral ?? false,
-    neDecrochePas: Boolean(g.ne_decroche_pas || /\[NE_DECROCHE_PAS\]/i.test(g.commentaire_suivi || "")),
-    fauxNumero: Boolean(g.faux_numero || /\[FAUX_NUMERO\]/i.test(g.commentaire_suivi || "")),
+    souhaitSuivi: isFreshUnassigned ? false : (g.souhait_suivi ?? false),
+    rdvPastoral: isFreshUnassigned ? false : (g.rdv_pastoral ?? false),
+    neDecrochePas: isFreshUnassigned ? false : Boolean(g.ne_decroche_pas || /\[NE_DECROCHE_PAS\]/i.test(g.commentaire_suivi || "")),
+    fauxNumero: isFreshUnassigned ? false : Boolean(g.faux_numero || /\[FAUX_NUMERO\]/i.test(g.commentaire_suivi || "")),
     archived: g.archived || false,
     created_by: g.created_by,
     famille_disciple: g.famille_disciple || "AUCUNE",
@@ -241,6 +251,9 @@ function InvitesPage() {
     "AUCUNE": true,
   });
   const [arrivalDatesFilter, setArrivalDatesFilter] = useState<string[]>([]);
+  const [isArrivalDateModalOpen, setIsArrivalDateModalOpen] = useState(false);
+  const [arrivalMonth, setArrivalMonth] = useState<string>("all");
+  const [arrivalYear, setArrivalYear] = useState<string>("all");
   const [presenceDatesFilter, setPresenceDatesFilter] = useState<string[]>([]);
   const [localChurchFilter, setLocalChurchFilter] = useState<string>("all");
   const [familyFilter, setFamilyFilter] = useState<string>("all");
@@ -254,7 +267,24 @@ function InvitesPage() {
       return s ? JSON.parse(s)?.role || null : null;
     } catch { return null; }
   });
+  const router = useRouter();
   const userRoleClean = useMemo(() => (userRole || "").toLowerCase().trim(), [userRole]);
+
+  useEffect(() => {
+    // Restrict access: only leader (responsable or second) and admin/family leader can access Invités
+    if (userRoleClean) {
+      const isLeader = 
+        userRoleClean === "integration_responsable" || 
+        userRoleClean === "integration_second" || 
+        userRoleClean === "super_admin" || 
+        userRoleClean === "admin" ||
+        userRoleClean === "berger" ||
+        userRoleClean === "second";
+      if (!isLeader) {
+        router.replace("/dashboard/affectation");
+      }
+    }
+  }, [userRoleClean, router]);
   const canAddOrEditInvites = 
     userRoleClean === "integration_responsable" || 
     userRoleClean === "integration_second" ||
@@ -316,6 +346,7 @@ function InvitesPage() {
   const [responsibles, setResponsibles] = useState<string[]>(["Non assigné"]);
   const [counselors, setCounselors] = useState<{ id: string; display_name: string; email: string }[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [selectedDetailGuest, setSelectedDetailGuest] = useState<Guest | null>(null);
   const [deletingGuest, setDeletingGuest] = useState<Guest | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -1287,7 +1318,7 @@ function InvitesPage() {
 
       return matchSearch && matchArchived && matchesLocalChurch && matchesFamily && matchesArrival && matchesPresence;
     });
-  }, [guests, search, showCorbeille, localChurchFilter, familyFilter, arrivalDatesFilter, presenceDatesFilter, personView.filter, userRole]);
+  }, [guests, search, showCorbeille, localChurchFilter, familyFilter, arrivalDatesFilter, arrivalMonth, arrivalYear, presenceDatesFilter, personView.filter, userRole]);
 
   const canModifyInvites = useMemo(() => {
     if (!userRole) return false;
@@ -1484,7 +1515,7 @@ function InvitesPage() {
     userRoleClean === "integration_second";
 
   return (
-    <div className="people-screen" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div className="people-screen integration-people-screen" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <PeopleNavigation current="guests" />
       {personView.requestedId && !personView.selected && !loading && <div className="ux-list-context"><span>Cette fiche n’est pas disponible dans la liste actuelle.</span><button type="button" onClick={personView.closePerson}>Fermer</button></div>}
       {personView.selected && <PersonPanel person={personView.selected} kind="guest" onClose={personView.closePerson} onContinue={() => { setExpandedId(personView.selected!.id); setSearch(personView.selected!.firstName + " " + personView.selected!.lastName); setCurrentView("list"); }} />}
@@ -1513,7 +1544,7 @@ function InvitesPage() {
         <div>
           <h2 className="page-title">{isConseiller && !canDispatchAll ? "Ajouter un Invité" : "Invités"}</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-            Gestion et suivi des nouveaux arrivants
+            Retrouvez chaque nouvel arrivant, son conseiller et sa famille de disciples.
           </p>
         </div>
         <div className="people-page-actions">
@@ -1564,12 +1595,17 @@ function InvitesPage() {
               });
               setIsAddModalOpen(true);
             }}>
-              <Plus size={14} /> Ajouter
+              <Plus size={16} /> Nouvel invité
             </button>
           )}
         </div>
       </div>
 
+      {!isConseiller && <IntegrationOverview items={[
+        { label: "Invités enregistrés", value: guests.filter(g => !g.archived).length, detail: "L’ensemble des nouveaux arrivants", icon: <UserIcon size={16} /> },
+        { label: "Sans conseiller", value: guests.filter(g => !g.archived && !g.assigned_to && (!g.responsible || g.responsible === "Non assigné")).length, detail: "Une affectation à prévoir", icon: <UserPlus size={16} /> },
+        { label: "En famille", value: guests.filter(g => !g.archived && g.famille_disciple && g.famille_disciple !== "AUCUNE").length, detail: "Rattachés à une famille de disciples", icon: <Home size={16} /> }
+      ]} />}
       {/* View Switcher Tabs */}
       {!isConseiller && (
         <div className="invite-view-switcher" style={{ gridTemplateColumns: isIntegrationOrCounselor ? "repeat(3, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))", width: "min(100%, 750px)" }}>
@@ -1584,7 +1620,7 @@ function InvitesPage() {
           >
             <span className="invite-view-icon"><ListChecks size={18} /></span>
             <span className="invite-view-copy">
-              <span className="invite-view-title">Liste {filtered.length > 0 && <span style={{ opacity: 0.8, fontSize: "0.85em", fontWeight: 600 }}>({filtered.length})</span>}</span>
+              <span className="invite-view-title">Tous les invités</span>
               <span className="invite-view-subtitle">{filtered.length} invité{filtered.length > 1 ? "s" : ""} à suivre</span>
             </span>
           </button>
@@ -1953,7 +1989,7 @@ function InvitesPage() {
             search={search} onSearch={setSearch}
             countLabel={`${filtered.length} invité${filtered.length > 1 ? "s" : ""}`}
             showModes={false}
-            activeCount={Number(arrivalDatesFilter.length > 0) + Number(presenceDatesFilter.length > 0) + Number(localChurchFilter !== "all") + Number(familyFilter !== "all")} onReset={resetAllFilters}
+            activeCount={Number(arrivalDatesFilter.length > 0 || arrivalMonth !== "all" || arrivalYear !== "all") + Number(presenceDatesFilter.length > 0) + Number(localChurchFilter !== "all") + Number(familyFilter !== "all")} onReset={resetAllFilters}
             period={presenceDatesFilter.length ? `Présences : ${presenceDatesFilter.length} date(s)` : "Présences : toutes les dates"}>
 
           {/* Arrivée Filter */}
@@ -2240,510 +2276,24 @@ function InvitesPage() {
           })}
         </div>
       ) : (
-        /* Cards View */
-        <div className="people-cards">
-          {filtered.length === 0 && <div className="people-empty"><Search size={26} /><h3>Aucune personne trouvée</h3><p>Essayez un autre nom ou ajustez les filtres.</p>{isAnyFilterActive && <button type="button" className="btn btn-outline" onClick={resetAllFilters}>Réinitialiser les filtres</button>}</div>}
-          {filtered.map((guest) => {
-            const rateCDM = calculateRate(guest, thursdays);
-            const rateCulte = calculateRate(guest, sundays);
-            const fidelised = isFidelise(guest);
-            const isExpanded = expandedId === guest.id;
-            const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "admin" || userRoleClean === "super_admin";
-            const isCreator = guest.created_by === userId;
-            const canEditCard = isIntegrationLeader || canModifyInvites || isCreator || (!canDispatchAll && guest.assigned_to === userId);
-            const canAssignAny = isIntegrationLeader || canModifyInvites || canDispatchAll;
-            const isRestricted = !isIntegrationLeader && !canDispatchAll;
-            const isActionBlocked = !isIntegrationLeader && !canDispatchAll && guest.assigned_to !== userId && !isCreator;
-            const isUnassigned = !guest.assigned_to;
-            // Follow-up information can only be edited by creator, or assigned counselor without delegation
-            const isEditBlocked = !canEditCard;
-            const isAttendanceBlocked = !canEditCard;
-
-            return (
-              <div key={guest.id} id={`guest-card-${guest.id}`} className="glass-flush soul-card" data-expanded={isExpanded} style={{ overflow: "hidden" }}>
-                <div
-                  className="invite-card-header soul-card-header"
-                  onClick={() => setExpandedId(isExpanded ? null : guest.id)}
-                  style={{ 
-                    padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
-                    cursor: "pointer", background: isExpanded ? "rgba(255,255,255,0.03)" : "transparent"
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 15, flex: 1, minWidth: 0 }}>
-                    <div className={`avatar ${fidelised ? "avatar-gradient" : ""}`} style={{ width: 40, height: 40 }}>
-                      {guest.firstName[0]}{guest.lastName[0]}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <h3 style={{ fontSize: 14, fontWeight: 600 }}><PersonButton person={guest} onClick={() => personView.openPerson(guest.id)} /></h3>
-                        {fidelised && <CheckCircle2 size={12} style={{ color: "var(--green)" }} />}
-                        {((canAddOrEditInvites && !isActionBlocked) || (canDeleteInvites && !isActionBlocked)) && (
-                          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                            {canAddOrEditInvites && !isActionBlocked && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); openEditModal(guest); }}
-                                className="btn-icon"
-                                style={{ background: "rgba(255,255,255,0.05)", padding: 6, borderRadius: 6 }}
-                                title="Modifier les informations"
-                              >
-                                <MoreHorizontal size={14} style={{ color: "var(--gold)" }} />
-                              </button>
-                            )}
-                            {canDeleteInvites && !isActionBlocked && (
-                              <button 
-                                onClick={(e) => { 
-                                  e.stopPropagation(); 
-                                  setDeletingGuest(guest);
-                                  setDeleteError(null);
-                                }}
-                                className="btn-icon"
-                                style={{ 
-                                  background: "rgba(239, 68, 68, 0.05)", 
-                                  border: "1px solid rgba(239, 68, 68, 0.15)",
-                                  padding: 6, 
-                                  borderRadius: 6,
-                                  transition: "all 0.2s ease"
-                                }}
-                                title="Supprimer cet invité"
-                              >
-                                <Trash2 size={13} style={{ color: "var(--red)" }} />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                        {guest.civility} · {guest.age} · {userRoleClean.startsWith("integration_") ? (
-                          `Conseiller: ${guest.assigned_to === userId ? (userName || "Moi") : (counselors.find(c => c.id === guest.assigned_to)?.display_name || "Non assigné")}`
-                        ) : (
-                          `Resp: ${guest.responsible}`
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {!isConseiller && (
-                    <div style={{ display: "flex", gap: 24, alignItems: "center" }} className="hide-mobile">
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Participation CDM</div>
-                        <div style={{ fontWeight: 600, color: rateCDM >= 45 ? "var(--green)" : "var(--orange)" }}>{rateCDM}%</div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Participation Culte</div>
-                        <div style={{ fontWeight: 600, color: rateCulte >= 45 ? "var(--green)" : "var(--orange)" }}>{rateCulte}%</div>
-                      </div>
-                    </div>
-                  )}
-
-                  <button type="button" className="invite-card-chevron people-expand" aria-expanded={isExpanded} aria-label={`${isExpanded ? "Réduire" : "Déplier"} le suivi de ${guest.firstName} ${guest.lastName}`} onClick={e => { e.stopPropagation(); setExpandedId(isExpanded ? null : guest.id); }}>
-                    {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                </div>
-
-                {isExpanded && (
-                  <div className="invite-expanded soul-card-body" style={{ padding: "0 20px 20px", borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.1)" }}>
-                    <div className="invite-expanded-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 20, paddingTop: 20 }}>
-                      {/* Column 1: Info */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                        <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 4 }}>Informations</h4>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><Phone size={14} style={{ color: "var(--muted)" }} /> <span style={{ wordBreak: "break-all" }}>{guest.phone}</span></div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><Mail size={14} style={{ color: "var(--muted)" }} /> <span style={{ wordBreak: "break-all" }}>{guest.email}</span></div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                          <Calendar size={14} style={{ color: "var(--gold)" }} /> 
-                          <span style={{ color: "var(--gold)", fontWeight: 500 }}>Arrivé le : {guest.arrivalDate ? guest.arrivalDate.split('-').reverse().join('/') : ''}</span>
-                        </div>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                          <div className="badge badge-primary" style={{ width: "fit-content", fontSize: 10 }}>{guest.event}</div>
-                          <span className={`badge ${guest.aps ? "badge-green" : "badge-red"}`} style={{ fontSize: 9 }}>
-                            APS : {guest.aps ? "Oui" : "Non"}
-                          </span>
-                          <span className={`badge ${guest.localChurch ? "badge-sky" : "badge-rose"}`} style={{ fontSize: 9 }}>
-                            {guest.localChurch ? (guest.autreEglise ? `Église : ${guest.autreEglise}` : "Avec église") : "Sans église"}
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><MapPin size={14} style={{ color: "var(--muted)" }} /> <span style={{ fontSize: 12, wordBreak: "break-word" }}>{guest.address ? `${guest.address}${guest.pays ? ` (${guest.pays})` : ''}` : (guest.pays ? `Pays: ${guest.pays}` : "Adresse non renseignée")}</span></div>
-                        
-                        <div style={{ marginTop: 10 }}>
-                          <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE ARRIVÉE</label>
-                          <div className="soul-card-note" style={{ fontSize: 12, color: "var(--cream)", background: "var(--bg)", padding: 8, borderRadius: 6, border: "1px solid var(--border)" }}>
-                            {guest.commentaire || "Aucun commentaire"}
-                          </div>
-                        </div>
-
-                        <FamilyAssignment value={guest.famille_disciple} families={availableFamilies} person={guest.firstName + " " + guest.lastName} disabled={isActionBlocked} onChange={value => handleUpdateFamily(guest.id,value)} />
-                      </div>
-
-                      {!isConseiller && (
-                        <>
-                          {/* Column 2: Attendance */}
-                          <details className="people-card-section"><summary><span><strong>Présences</strong><small>CDM et culte</small></span><ChevronDown size={17} /></summary><div className="invite-attendance-block" style={{ display: "flex", flexDirection: "column", gap: 15, padding: "20px" }}>
-                            <div>
-                              <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>CDM (Jeudi)</h4>
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {thursdays.filter(day => !guest.arrivalDate || day >= guest.arrivalDate).map(day => {
-                                  const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
-                                  return (
-                                    <div
-                                      key={day}
-                                      className={`attendance-day ${isBeforeArrival ? "attendance-day--not-applicable" : ""} ${isAttendanceBlocked ? "attendance-day--readonly" : ""}`}
-                                      title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day}
-                                      onClick={() => !isAttendanceBlocked && !isBeforeArrival && toggleAttendance(guest.id, day)} 
-                                      style={{ 
-                                        width: 28, height: 28, borderRadius: 6, 
-                                        background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.05)", 
-                                        border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`, 
-                                        display: "flex", alignItems: "center", justifyContent: "center", 
-                                        color: guest.attendance[day] ? "var(--green)" : "var(--muted)", 
-                                        cursor: isBeforeArrival ? "not-allowed" : (isAttendanceBlocked ? "default" : "pointer")
-                                      }}>
-                                      <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                            <div>
-                              <h4 style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>Culte (Dimanche)</h4>
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {sundays.filter(day => !guest.arrivalDate || day >= guest.arrivalDate).map(day => {
-                                  const isBeforeArrival = guest.arrivalDate && day < guest.arrivalDate;
-                                  return (
-                                    <div
-                                      key={day}
-                                      className={`attendance-day ${isBeforeArrival ? "attendance-day--not-applicable" : ""} ${isAttendanceBlocked ? "attendance-day--readonly" : ""}`}
-                                      title={isBeforeArrival ? "Non applicable (avant l'arrivée)" : day}
-                                      onClick={() => !isAttendanceBlocked && !isBeforeArrival && toggleAttendance(guest.id, day)} 
-                                      style={{ 
-                                        width: 28, height: 28, borderRadius: 6, 
-                                        background: guest.attendance[day] ? "var(--green-glow)" : "rgba(255,255,255,0.05)", 
-                                        border: `1px solid ${guest.attendance[day] ? "var(--green)" : "var(--border)"}`, 
-                                        display: "flex", alignItems: "center", justifyContent: "center", 
-                                        color: guest.attendance[day] ? "var(--green)" : "var(--muted)", 
-                                        cursor: isBeforeArrival ? "not-allowed" : (isAttendanceBlocked ? "default" : "pointer")
-                                      }}>
-                                      <span style={{ fontSize: 9 }}>{parseInt(day.split('-')[2], 10)}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div></details>
-
-                          {/* Column 3: Actions & Status */}
-                          <details className="people-card-section"><summary><span><strong>Affectation et actions</strong><small>Responsable, famille et intégration</small></span><ChevronDown size={17} /></summary><div className="invite-actions-block" style={{ display: "flex", flexDirection: "column", gap: 15, padding: "20px" }}>
-                            {userRoleClean.startsWith("integration_") && (
-                              guest.bergerie_id ? (
-                                <div style={{ 
-                                  padding: "8px 16px", 
-                                  borderRadius: 20, 
-                                  background: "color-mix(in srgb, var(--green) 12%, transparent)", 
-                                  border: "1px solid var(--green)", 
-                                  display: "flex", 
-                                  alignItems: "center", 
-                                  justifyContent: "center", 
-                                  gap: 7 
-                                }}>
-                                  <CheckCircle2 size={14} style={{ color: "var(--green)" }} />
-                                  <span style={{ color: "var(--green)", fontSize: 11, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase" }}>
-                                    Déjà affecté à une bergerie
-                                  </span>
-                                </div>
-                              ) : (
-                                <div style={{ 
-                                  padding: "8px 16px", 
-                                  borderRadius: 20, 
-                                  background: "color-mix(in srgb, var(--gold) 12%, transparent)", 
-                                  border: "1px solid var(--gold)", 
-                                  display: "flex", 
-                                  alignItems: "center", 
-                                  justifyContent: "center", 
-                                  gap: 8 
-                                }}>
-                                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--gold)", display: "inline-block" }} />
-                                  <span style={{ color: "var(--gold)", fontSize: 11, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase" }}>
-                                    En cours d'intégration
-                                  </span>
-                                </div>
-                              )
-                            )}
-
-                            {canDeleteInvites && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                {showCorbeille && (
-                                  <button 
-                                    className="btn btn-outline" 
-                                    style={{ borderColor: "var(--green)", color: "var(--green)", background: "color-mix(in srgb, var(--green) 8%, transparent)" }} 
-                                    onClick={() => handleRestoreGuest(guest.id)}
-                                  >
-                                    <RotateCcw size={14} /> Restaurer cet invité
-                                  </button>
-                                )}
-                                
-                                <div style={{ 
-                                  marginTop: 6, 
-                                  padding: 14, 
-                                  background: "color-mix(in srgb, var(--red) 6%, transparent)", 
-                                  borderRadius: 12, 
-                                  border: "1px dashed rgba(239, 68, 68, 0.3)" 
-                                }}>
-                                  <p style={{ fontSize: 10, color: "var(--red)", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 10, textAlign: "center", fontWeight: 700 }}>
-                                    {showCorbeille ? "Suppression définitive" : "Zone de suppression"}
-                                  </p>
-                                  <button 
-                                    className="btn btn-danger-outline" 
-                                    style={{ width: "100%", height: 38, borderRadius: 8, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} 
-                                    onClick={() => { setDeletingGuest(guest); setDeleteError(null); }}
-                                  >
-                                    {showCorbeille ? (
-                                      <>
-                                        <Trash2 size={14} /> Supprimer définitivement
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Archive size={14} /> Envoyer à la corbeille
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Ajout/Retrait de la Bergerie pour les Familles de Disciples */}
-                            {!userRoleClean.startsWith("integration_") && (
-                              (() => {
-                                const role = userRoleClean;
-                                const isLeader = role.includes("berger") || role.includes("second") || role.includes("responsable");
-                                const isAssignedToMe = guest.responsible === userName;
-                                if (!isLeader && !isAssignedToMe) return null;
-                                
-                                return !guest.isInBergerie ? (
-                                  <button className="btn btn-primary" onClick={() => promoteToMember(guest)} style={{ width: "100%" }}>
-                                    <UserPlus size={14} /> Ajouter à la Bergerie
-                                  </button>
-                                ) : (
-                                  <button className="btn btn-outline" style={{ width: "100%", borderColor: "var(--rose)", color: "var(--rose)", background: "rgba(255, 77, 148, 0.05)" }} onClick={() => removeFromMember(guest)}>
-                                    <UserMinus size={14} /> Retirer de la Bergerie
-                                  </button>
-                                );
-                              })()
-                            )}
-                            
-                            {(canModifyInvites || canAssignAny) && (
-                              <div style={{ 
-                                padding: 14, 
-                                borderRadius: 12, 
-                                border: "1px solid var(--border)", 
-                                background: "var(--bg)", 
-                                display: "flex", 
-                                flexDirection: "column", 
-                                gap: 10 
-                              }}>
-                                <label style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", fontWeight: 700, display: "block" }}>
-                                  {userRoleClean.startsWith("integration_") ? "Assigner à un conseiller" : "Affectation"}
-                                </label>
-                                
-                                {userRoleClean.startsWith("integration_") ? (
-                                  <CustomSelect 
-                                    value={guest.assigned_to || ""} 
-                                    onChange={(newVal) => handleAssignCounselor(guest.id, newVal || null)} 
-                                    placeholder="Non assigné"
-                                    ariaLabel="Assigner à un conseiller"
-                                    searchable={counselors.length >= 6}
-                                    options={[
-                                      { value: "", label: "Non assigné" },
-                                      ...counselors.map(c => ({
-                                        value: c.id,
-                                        label: `${c.display_name}${c.id === userId ? " (Moi)" : ""}`,
-                                        badge: c.id === userId ? "Moi" : undefined
-                                      }))
-                                    ]}
-                                  />
-                                ) : (
-                                  <CustomSelect 
-                                    value={guest.responsible || "Non assigné"} 
-                                    onChange={async (newResp) => {
-                                      setGuests(prev => prev.map(g => g.id === guest.id ? {...g, responsible: newResp} : g));
-                                      await supabase.from("invites").update({ responsible: newResp }).eq("id", guest.id);
-                                    }}
-                                    placeholder="Non assigné"
-                                    ariaLabel="Affectation responsable"
-                                    searchable={responsibles.length >= 6}
-                                    options={[
-                                      ...responsibles.map(r => ({ value: r, label: r })),
-                                      ...(guest.responsible && guest.responsible !== "Non assigné" && !responsibles.includes(guest.responsible) ? [{ value: guest.responsible, label: guest.responsible }] : [])
-                                    ]}
-                                  />
-                                )}
-
-                                {/* Self-assign button */}
-                                {(() => {
-                                  const isAlreadyMine = userRoleClean.startsWith("integration_")
-                                    ? guest.assigned_to === userId
-                                    : guest.responsible === userName;
-                                  if (isAlreadyMine) return null;
-                                  return (
-                                    <button
-                                      className="btn btn-primary btn-self-assign"
-                                      style={{ width: "100%", height: 38, borderRadius: 8, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                                      onClick={() => handleSelfAssign(guest.id)}
-                                      title="M'affecter cet invité"
-                                    >
-                                      <UserCheck size={14} /> M'affecter cet invité
-                                    </button>
-                                  );
-                                })()}
-                              </div>
-                            )}
-
-                            {!isIntegrationOrCounselor && (
-                              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-                                <button 
-                                  className="btn btn-primary btn-sm" 
-                                  disabled
-                                  style={{ width: "100%", background: "linear-gradient(135deg, var(--gold) 0%, #b8973b 100%)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, opacity: 0.5, cursor: "not-allowed" }}
-                                  title="Fonctionnalité désactivée temporairement"
-                                >
-                                  {guest.bergerie_id ? "Changer de famille" : "Confier à une famille"}
-                                </button>
-                                
-                                <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,175,55,0.15)" }}>
-                                  <label style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Est affecté(e) à la famille</label>
-                                  <CustomSelect 
-                                    value={guest.famille_disciple || "AUCUNE"} 
-                                    onChange={async (newFamily) => {
-                                      setGuests(prev => prev.map(g => g.id === guest.id ? {...g, famille_disciple: newFamily} : g));
-                                      await supabase.from("invites").update({ famille_disciple: newFamily }).eq("id", guest.id);
-                                    }}
-                                    placeholder="AUCUNE"
-                                    ariaLabel="Est affecté(e) à la famille"
-                                    searchable={availableFamilies.length >= 6}
-                                    options={[
-                                      { value: "AUCUNE", label: "AUCUNE" },
-                                      ...availableFamilies.filter(f => f !== "AUCUNE").map(f => ({ value: f, label: f }))
-                                    ]}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div></details>
-
-                          {/* Column 4: Detailed Follow-up */}
-                          <details className="people-card-section"><summary><span><strong>Suivi et parcours</strong><small>Appels, accompagnement et formations</small></span><ChevronDown size={17} /></summary><div className="invite-followup-block col-span-2" style={{ display: "flex", flexDirection: "column", gap: 15, padding: "20px" }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 15 }}>
-                              <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
-                                <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Premier Contact</h5>
-                                <SuiviToggle label="Appel abouti" checked={guest.appelAbouti} onChange={() => toggleSuivi(guest.id, 'appelAbouti')} disabled={isEditBlocked} />
-                                {!guest.appelAbouti && (
-                                  <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "6px 8px", background: "rgba(244, 63, 94, 0.04)", borderRadius: 6, border: "1px dashed rgba(244, 63, 94, 0.25)" }}>
-                                    <SuiviToggle label="Ne décroche pas / Relance" checked={Boolean(guest.neDecrochePas)} onChange={() => toggleSuivi(guest.id, 'neDecrochePas')} disabled={isEditBlocked} />
-                                    <SuiviToggle label="Faux numéro / Erroné" checked={Boolean(guest.fauxNumero)} onChange={() => toggleSuivi(guest.id, 'fauxNumero')} disabled={isEditBlocked} />
-                                  </div>
-                                )}
-                                {!guest.appelAbouti && !isEditBlocked && (
-                                  <div className="glass-compact" style={{ marginTop: 4, marginBottom: 4, padding: 8, background: "rgba(244, 63, 94, 0.05)", border: "1px dashed rgba(244, 63, 94, 0.3)", borderRadius: 8, animation: "fadeIn 0.3s ease-out" }}>
-                                    <label style={{ fontSize: 9, color: "var(--rose)", display: "block", marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Raison de l'échec / Relance</label>
-                                    <textarea 
-                                      placeholder="Ex: Sonnerie sans réponse, numéro faux, rappeler jeudi..." 
-                                      value={guest.raisonEchec || ""} 
-                                      disabled={isEditBlocked}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, raisonEchec: val } : g));
-                                      }}
-                                      onBlur={async (e) => {
-                                        const val = e.target.value.trim();
-                                        setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, raisonEchec: val } : g));
-                                        const baseComment = (guest.commentaireSuivi || "").replace(/\[RAISON_ECHEC:[^\]]+\]\s*/gi, "").trim();
-                                        const tag = val ? `[RAISON_ECHEC: ${val}]` : "";
-                                        const fullComment = [tag, baseComment].filter(Boolean).join("\n").trim();
-                                        try {
-                                          const { error } = await supabase.from("invites").update({ raison_echec: val, commentaire_suivi: fullComment }).eq("id", guest.id);
-                                          if (error) {
-                                            await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
-                                          }
-                                        } catch {}
-                                      }}
-                                      style={{ width: "100%", minHeight: 48, fontSize: 11, background: "var(--bg-deep)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px", color: "var(--cream)", resize: "vertical", lineHeight: "1.4" }}
-                                    />
-                                  </div>
-                                )}
-                                <SuiviToggle label="Souhait suivi" checked={Boolean(guest.souhaitSuivi)} onChange={() => toggleSuivi(guest.id, 'souhaitSuivi')} disabled={isEditBlocked} />
-                                <SuiviToggle label="RDV pastoral" checked={Boolean(guest.rdvPastoral)} onChange={() => toggleSuivi(guest.id, 'rdvPastoral')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Visite à domicile" checked={guest.visiteDomicile} onChange={() => toggleSuivi(guest.id, 'visiteDomicile')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Groupe WhatsApp" checked={guest.groupeWhatsapp} onChange={() => toggleSuivi(guest.id, 'groupeWhatsapp')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Prévu revenir" checked={guest.prevuRevenir} onChange={() => toggleSuivi(guest.id, 'prevuRevenir')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Revenu au culte" checked={guest.estRevenuCulte} onChange={() => toggleSuivi(guest.id, 'estRevenuCulte')} disabled={isEditBlocked} />
-                              </div>
-                              <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 8 }}>
-                                <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 0 }}>Engagement & CDM</h5>
-                                <SuiviToggle label="Intérêt PCNC" checked={guest.interetFormation} onChange={() => toggleSuivi(guest.id, 'interetFormation')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Prière/Partage" checked={guest.prierePartage} onChange={() => toggleSuivi(guest.id, 'prierePartage')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Intérêt C.D.M" checked={guest.interetCDM} onChange={() => toggleSuivi(guest.id, 'interetCDM')} disabled={isEditBlocked} />
-                                <SuiviToggle label="A intégré C.D.M" checked={guest.integreCDM} onChange={() => toggleSuivi(guest.id, 'integreCDM')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Famille Disciple" checked={guest.dansFamilleDisciple} onChange={() => toggleSuivi(guest.id, 'dansFamilleDisciple')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Intérêt Baptême" checked={guest.interetBapteme} onChange={() => toggleSuivi(guest.id, 'interetBapteme')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Cocktail" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, 'cocktailBienvenue')} disabled={isEditBlocked} />
-                              </div>
-                            </div>
-
-                            <div className="glass-compact" style={{ background: "rgba(255,255,255,0.02)" }}>
-                              <h5 style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 12 }}>PCNC & Intégration</h5>
-                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-                                <SuiviToggle label="001" checked={guest.pcnc} onChange={() => toggleSuivi(guest.id, 'pcnc')} disabled={isEditBlocked} />
-                                <SuiviToggle label="101" checked={guest.p101} onChange={() => toggleSuivi(guest.id, 'p101')} disabled={isEditBlocked} />
-                                <SuiviToggle label="201" checked={guest.p201} onChange={() => toggleSuivi(guest.id, 'p201')} disabled={isEditBlocked} />
-                                <SuiviToggle label="301" checked={guest.p301} onChange={() => toggleSuivi(guest.id, 'p301')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Terminé" checked={guest.terminePCNC} onChange={() => toggleSuivi(guest.id, 'terminePCNC')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Baptisé par immersion" checked={guest.baptemeEau} onChange={() => toggleSuivi(guest.id, 'baptemeEau')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Veut servir" checked={guest.veutServir} onChange={() => toggleSuivi(guest.id, 'veutServir')} disabled={isEditBlocked} />
-                                <SuiviToggle label="Devenu STAR" checked={guest.devenuStar} onChange={() => toggleSuivi(guest.id, 'devenuStar')} disabled={isEditBlocked} />
-                              </div>
-
-                              {/* 12 Piliers (Formation en 4 séances) */}
-                              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px dashed rgba(255,255,255,0.08)" }}>
-                                <h5 style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                                  <span>🏛️</span> Formation des 12 Piliers (4 séances)
-                                </h5>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-                                  <SuiviToggle label="Séance 1" checked={Boolean(guest.piliers1)} onChange={() => toggleSuivi(guest.id, 'piliers1')} disabled={isEditBlocked} />
-                                  <SuiviToggle label="Séance 2" checked={Boolean(guest.piliers2)} onChange={() => toggleSuivi(guest.id, 'piliers2')} disabled={isEditBlocked} />
-                                  <SuiviToggle label="Séance 3" checked={Boolean(guest.piliers3)} onChange={() => toggleSuivi(guest.id, 'piliers3')} disabled={isEditBlocked} />
-                                  <SuiviToggle label="Séance 4" checked={Boolean(guest.piliers4)} onChange={() => toggleSuivi(guest.id, 'piliers4')} disabled={isEditBlocked} />
-                                  <SuiviToggle label="12 Piliers Terminé" checked={Boolean(guest.termine12Piliers)} onChange={() => toggleSuivi(guest.id, 'termine12Piliers')} disabled={isEditBlocked} />
-                                </div>
-                              </div>
-                              <div style={{ marginTop: 15 }}>
-                                <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 4 }}>COMMENTAIRE SUIVI</label>
-                                <textarea 
-                                  className="input" 
-                                  rows={2} 
-                                  value={guest.commentaireSuivi || ""} 
-                                  disabled={isEditBlocked} 
-                                  style={{ fontSize: 12, resize: "vertical", background: "var(--bg-deep)", opacity: isEditBlocked ? 0.5 : 1 }} 
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: val } : g));
-                                  }}
-                                  onBlur={async (e) => {
-                                    const val = e.target.value.trim();
-                                    setGuests(prev => prev.map(g => g.id === guest.id ? { ...g, commentaireSuivi: val } : g));
-                                    const tag = guest.raisonEchec ? `[RAISON_ECHEC: ${guest.raisonEchec}]` : "";
-                                    const fullComment = [tag, val].filter(Boolean).join("\n").trim();
-                                    await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
-                                  }} 
-                                />
-                              </div>
-                            </div>
-                          </div></details>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        /* Modern Card View identical to Mes affectations */
+        <TriageListView
+          mode="all_guests"
+          guests={filtered}
+          counselors={counselors}
+          onAssign={handleAssignCounselor}
+          onOpenVoirPlus={(g) => setSelectedDetailGuest(g)}
+          onDeleteGuest={canDeleteInvites ? async (guestId) => {
+            const guest = guests.find(g => g.id === guestId);
+            if (!guest) return;
+            if (!await confirm(`Voulez-vous vraiment supprimer définitivement ${guest.firstName} ${guest.lastName} de la base de données ? Cette action est irréversible.`)) {
+              return;
+            }
+            await handlePermanentDeleteGuest(guestId);
+            notify(`${guest.firstName} ${guest.lastName} a été supprimé(e) définitivement.`);
+          } : undefined}
+          isLeader={userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "super_admin"}
+        />
       )}
 
       {typeof window !== "undefined" && deletingGuest && createPortal(
@@ -3023,6 +2573,18 @@ function InvitesPage() {
       )}
     </>
   )}
+
+  <GuestArrivalDetailsModal
+    isOpen={Boolean(selectedDetailGuest)}
+    onClose={() => setSelectedDetailGuest(null)}
+    guest={selectedDetailGuest}
+    counselors={counselors}
+    onAssign={async (guestId, counselorId) => {
+      await handleAssignCounselor(guestId, counselorId);
+      setSelectedDetailGuest(prev => prev && prev.id === guestId ? { ...prev, assigned_to: counselorId } : prev);
+    }}
+    isLeader={userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "super_admin"}
+  />
 
   <CrCallCenterModal
     isOpen={isCrModalOpen}

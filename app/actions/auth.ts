@@ -1137,10 +1137,11 @@ export async function assignCounselorToGuest(params: {
     respName = "Non assigné";
   }
 
-  const updatePayload: Record<string, any> = { assigned_to: params.counselorId };
-  if (respName) {
-    updatePayload.responsible = respName;
-  }
+  const updatePayload: Record<string, any> = { 
+    assigned_to: params.counselorId,
+    statut_affectation: params.counselorId ? "en_attente_contact" : "a_affecter",
+    responsible: respName
+  };
 
   const { error: updateError } = await supabase
     .from("invites")
@@ -1148,7 +1149,230 @@ export async function assignCounselorToGuest(params: {
     .eq("id", params.guestId)
     .eq("church_id", params.churchId);
 
-  if (updateError) return { success: false, error: updateError.message };
+  if (updateError) {
+    // If statut_affectation column is missing before SQL patch, fallback to payload without it
+    if (updateError.message.includes("statut_affectation")) {
+      const fallbackPayload: Record<string, any> = { 
+        assigned_to: params.counselorId,
+        responsible: respName 
+      };
+      const { error: fbErr } = await supabase
+        .from("invites")
+        .update(fallbackPayload)
+        .eq("id", params.guestId)
+        .eq("church_id", params.churchId);
+      if (fbErr) return { success: false, error: fbErr.message };
+    } else {
+      return { success: false, error: updateError.message };
+    }
+  }
   return { success: true, responsible: respName };
 }
+
+export interface ConserveGuestPayload {
+  prevuRevenir?: boolean;
+  estRevenuCulte?: boolean;
+  groupeWhatsapp?: boolean;
+  interetFormation?: boolean;
+  interetCDM?: boolean;
+  piliers1?: boolean;
+  souhaitSuivi?: boolean;
+  rdvPastoral?: boolean;
+  visiteDomicile?: boolean;
+  aps?: boolean;
+  commentaireSuivi?: string;
+}
+
+export async function conserveGuestAction(params: {
+  churchId: string;
+  guestId: string;
+  payload: ConserveGuestPayload;
+}) {
+  const serverSupabase = await createServerClient();
+  const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
+  if (authErr || !user) return { success: false, error: "Non authentifié." };
+
+  const permission = await assertCanReadIntegrationTeam(params.churchId);
+  if (!permission.ok) return { success: false, error: permission.error };
+
+  const supabase = await getServiceSupabase();
+
+  // Fetch current guest comment to preserve it
+  const { data: currentGuest } = await supabase
+    .from("invites")
+    .select("commentaire_suivi, assigned_to")
+    .eq("id", params.guestId)
+    .maybeSingle();
+
+  const prevComment = currentGuest?.commentaire_suivi || "";
+  const cleanedPrev = prevComment.replace(/\[STATUT:[^\]]+\]\s*/gi, "").trim();
+  const newComment = params.payload.commentaireSuivi ? params.payload.commentaireSuivi.trim() : "";
+  const combinedComment = `[STATUT:conserve] ${newComment || cleanedPrev}`.trim();
+
+  const updateData: Record<string, any> = {
+    appel_abouti: true,
+    statut_affectation: "conserve",
+    prevu_revenir: Boolean(params.payload.prevuRevenir),
+    est_revenu_culte: Boolean(params.payload.estRevenuCulte),
+    groupe_whatsapp: Boolean(params.payload.groupeWhatsapp),
+    interet_formation: Boolean(params.payload.interetFormation),
+    interet_cdm: Boolean(params.payload.interetCDM),
+    piliers_1: Boolean(params.payload.piliers1),
+    souhait_suivi: Boolean(params.payload.souhaitSuivi),
+    rdv_pastoral: Boolean(params.payload.rdvPastoral),
+    visite_domicile: Boolean(params.payload.visiteDomicile),
+    aps: Boolean(params.payload.aps),
+    commentaire_suivi: combinedComment
+  };
+
+  const { error: updateError } = await supabase
+    .from("invites")
+    .update(updateData)
+    .eq("id", params.guestId)
+    .eq("church_id", params.churchId);
+
+  if (updateError) {
+    console.warn("Full conserve update failed, attempting safe fallback:", updateError.message);
+    // Try without newer optional columns
+    const safeData: Record<string, any> = {
+      appel_abouti: true,
+      commentaire_suivi: combinedComment,
+      prevu_revenir: Boolean(params.payload.prevuRevenir),
+      est_revenu_culte: Boolean(params.payload.estRevenuCulte),
+      aps: Boolean(params.payload.aps)
+    };
+    const { error: safeErr } = await supabase
+      .from("invites")
+      .update(safeData)
+      .eq("id", params.guestId)
+      .eq("church_id", params.churchId);
+
+    if (safeErr) {
+      // Minimal fallback: only core columns guaranteed in invites
+      const { error: minErr } = await supabase
+        .from("invites")
+        .update({ appel_abouti: true, commentaire_suivi: combinedComment })
+        .eq("id", params.guestId)
+        .eq("church_id", params.churchId);
+      if (minErr) return { success: false, error: minErr.message };
+    }
+  }
+
+  return { success: true };
+}
+
+export async function retireGuestAction(params: {
+  churchId: string;
+  guestId: string;
+  motif: string;
+  autreEglise?: string;
+  commentaire: string;
+}) {
+  const serverSupabase = await createServerClient();
+  const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
+  if (authErr || !user) return { success: false, error: "Non authentifié." };
+
+  const permission = await assertCanReadIntegrationTeam(params.churchId);
+  if (!permission.ok) return { success: false, error: permission.error };
+
+  const supabase = await getServiceSupabase();
+
+  const isFauxNumero = params.motif === "faux_numero";
+  const isNeDecrochePas = params.motif === "ne_decroche_pas";
+  const isAutreEglise = params.motif === "autre_eglise";
+  const isPasInteresse = params.motif === "pas_interesse";
+
+  const { data: currentGuest } = await supabase
+    .from("invites")
+    .select("commentaire_suivi")
+    .eq("id", params.guestId)
+    .maybeSingle();
+
+  const prevComment = currentGuest?.commentaire_suivi || "";
+  const cleanedPrev = prevComment
+    .replace(/\[[A-Za-z0-9_]+:[^\]]*\]\s*/gi, "")
+    .replace(/\[(?:FAUX_NUMERO|NE_DECROCHE_PAS)\]\s*/gi, "")
+    .replace(/Retir[ée] directement depuis l'onglet Mes [âa]mes/gi, "")
+    .trim();
+
+  const isAutoPlaceholder = !params.commentaire || /retir[ée] directement depuis l'onglet mes [âa]mes/i.test(params.commentaire);
+  const userComment = isAutoPlaceholder ? "" : params.commentaire.trim();
+
+  const parts = [userComment, cleanedPrev].filter(Boolean);
+  const commentNote = parts.length === 2 && userComment.includes(cleanedPrev)
+    ? userComment
+    : parts.join(" \n");
+
+  const encodedTags = [
+    `[STATUT:sans_suite]`,
+    `[MOTIF_RETRAIT:${params.motif}]`,
+    `[RETIRE_PAR:${user.id}]`,
+    `[RETIRE_AT:${new Date().toISOString()}]`,
+    `[RAISON_ECHEC:${params.motif}]`,
+    isFauxNumero ? `[FAUX_NUMERO]` : "",
+    isNeDecrochePas ? `[NE_DECROCHE_PAS]` : ""
+  ].filter(Boolean).join(" ");
+
+  const combinedComment = `${encodedTags} ${commentNote}`.trim();
+
+  const updateData: Record<string, any> = {
+    statut_affectation: "sans_suite",
+    motif_retrait: params.motif,
+    retire_par: user.id,
+    retire_at: new Date().toISOString(),
+    raison_echec: params.motif,
+    commentaire_suivi: combinedComment
+  };
+
+  if (isFauxNumero) updateData.faux_numero = true;
+  if (isNeDecrochePas) updateData.ne_decroche_pas = true;
+  if (isAutreEglise && params.autreEglise) {
+    updateData.autre_eglise = params.autreEglise.trim();
+    updateData.local_church = true;
+  }
+  if (isPasInteresse) {
+    updateData.souhaite_etre_contacte = false;
+    updateData.souhait_suivi = false;
+  }
+
+  const { error: updateError } = await supabase
+    .from("invites")
+    .update(updateData)
+    .eq("id", params.guestId)
+    .eq("church_id", params.churchId);
+
+  if (updateError) {
+    console.warn("Full retire update failed, attempting safe fallback:", updateError.message);
+    
+    // Remove columns that might not exist in the database yet (patch v7.2 and v7.3)
+    delete updateData.statut_affectation;
+    delete updateData.motif_retrait;
+    delete updateData.retire_par;
+    delete updateData.retire_at;
+    delete updateData.raison_echec;
+    delete updateData.faux_numero;
+    delete updateData.ne_decroche_pas;
+    delete updateData.souhait_suivi;
+
+    const { error: retryError } = await supabase
+      .from("invites")
+      .update(updateData)
+      .eq("id", params.guestId)
+      .eq("church_id", params.churchId);
+
+    if (retryError) {
+      // Ultimate minimal fallback: only core columns guaranteed in invites
+      const { error: minErr } = await supabase
+        .from("invites")
+        .update({ commentaire_suivi: combinedComment })
+        .eq("id", params.guestId)
+        .eq("church_id", params.churchId);
+
+      if (minErr) return { success: false, error: minErr.message };
+    }
+  }
+
+  return { success: true };
+}
+
 

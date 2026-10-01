@@ -435,3 +435,54 @@ body[data-theme="dark"] .member-action-btn-green:hover {
   .member-card-item, .member-card-avatar, .member-action-btn, .member-progress-fill { transition: none; }
   .member-card-item:hover, .member-card-item:hover .member-card-avatar, .member-action-btn:hover { transform: none; }
 }
+
+/* Integration has six workflow views: keep every step visible, including on mobile. */
+html[data-theme] body .people-screen > .invite-view-switcher.integration-workflow-nav {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: visible !important;
+  margin-bottom: 0 !important;
+}
+html[data-theme] body .people-screen .integration-workflow-nav .invite-view-option {
+  min-width: 0 !important;
+  padding: 12px !important;
+  white-space: normal !important;
+}
+html[data-theme] body .people-screen .integration-workflow-nav :is(.invite-view-title, .invite-view-subtitle) {
+  white-space: normal !important;
+  flex-wrap: wrap;
+  line-height: 1.4 !important;
+}
+html[data-theme] body .people-screen .integration-workflow-nav .invite-view-option:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+@media (max-width: 700px) {
+  html[data-theme] body .people-screen > .invite-view-switcher.integration-workflow-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px !important; }
+  html[data-theme] body .people-screen .integration-workflow-nav .invite-view-option { gap: 8px !important; padding: 10px !important; align-items: flex-start !important; }
+  html[data-theme] body .people-screen .integration-workflow-nav .invite-view-icon { width: 24px !important; height: 28px !important; background: transparent !important; }
+  html[data-theme] body .people-screen .integration-workflow-nav .invite-view-title { font-size: 12px !important; }
+}
+
+/* Compact navigation leaves more room for people and their next action. */
+html[data-theme] body .integration-people-screen > .invite-view-switcher {
+  display: flex !important; flex-wrap: wrap; width: 100% !important; gap: 4px !important; padding: 4px !important; margin: 0 !important;
+  background: var(--bg-deep) !important; border: 1px solid var(--border) !important; border-radius: 12px !important; overflow: visible !important;
+}
+html[data-theme] body .integration-people-screen .invite-view-option {
+  flex: 1 1 auto !important; min-width: 0 !important; min-height: 44px !important; padding: 10px 12px !important; gap: 7px !important; border-radius: 9px !important; justify-content: center !important;
+}
+html[data-theme] body .integration-people-screen .invite-view-option .invite-view-subtitle { display: none !important; }
+html[data-theme] body .integration-people-screen .invite-view-icon { display: none !important; }
+html[data-theme] body .integration-people-screen .invite-view-title { font-size: 12px !important; }
+html[data-theme] body .integration-people-screen .invite-view-option.active { background: var(--surface-solid) !important; border-color: var(--border) !important; box-shadow: var(--shadow-soft) !important; }
+html[data-theme] body .integration-people-screen .invite-view-title > span { color: var(--gold) !important; opacity: 1 !important; }
+html[data-theme] body .integration-people-screen .people-page-header { margin-bottom: 0 !important; }
+@media(min-width: 900px) { html[data-theme] body .integration-people-screen .people-page-actions { flex-shrink: 0; } }
+@media(max-width: 700px) {
+  html[data-theme] body .integration-people-screen > .integration-workflow-nav { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  html[data-theme] body .integration-people-screen .invite-view-option { padding: 9px 6px !important; }
+}
+@media(max-width: 700px) {
+  html[data-theme] body .people-screen.integration-people-screen > .invite-view-switcher.integration-workflow-nav { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

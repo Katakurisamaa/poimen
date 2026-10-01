@@ -58,13 +58,13 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
     canSeeMembers: false, canSeeGuests: false,
   };
   if (!access.hasFamily && !integration) return { primary: [], secondary: [], canSeeMembers: false, canSeeGuests: false };
-  const canSeeGuests = familyLeader || integration || counselor;
+  const canSeeGuests = familyLeader || integrationLeader;
   const primary: NavItem[] = [];
   const secondary: NavItem[] = [];
   if (familyLeader || integration || counselor) primary.push({ label: "Accueil", href: "/dashboard", icon: "home", description: "Vos priorités du jour" });
   if (familyLeader || canSeeGuests) primary.push({ label: familyLeader ? "Membres" : "Invités", href: familyLeader ? "/dashboard/bergerie" : "/dashboard/invites", icon: "people", description: familyLeader ? "Membres de la bergerie" : "Invités et parcours d’intégration", matches: familyLeader ? ["/dashboard/bergerie", "/dashboard/invites"] : ["/dashboard/invites"] });
   if (!access.hasFamily && (integration || counselor)) {
-    primary.push({ label: "Mes âmes", href: "/dashboard/affectation", icon: "followup", description: "Les personnes qui vous sont confiées" });
+    primary.push({ label: "Suivi", href: "/dashboard/affectation", icon: "followup", description: "Les personnes qui vous sont confiées" });
   }
   if (familyLeader) {
     primary.push({ label: "Activités", href: "/dashboard/activities", icon: "calendar", description: "Calendrier et présences" });
