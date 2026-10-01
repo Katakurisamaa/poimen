@@ -23,9 +23,12 @@ export default function ShareInviteModal({
   const [canShare, setCanShare] = useState(false);
 
   const cleanChurchName = churchName.replace(/^ICC\s+/i, "").trim() || "CHARLEROI";
+  const baseUrl =
+    (typeof process !== "undefined" && (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL)) ||
+    (typeof window !== "undefined" ? window.location.origin : "");
   const link =
-    typeof window !== "undefined" && churchId
-      ? `${window.location.origin}/public-invite?church_id=${churchId}`
+    baseUrl && churchId
+      ? `${baseUrl}/public-invite?church_id=${churchId}`
       : "";
 
   useEffect(() => {
