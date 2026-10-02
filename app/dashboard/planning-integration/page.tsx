@@ -208,19 +208,22 @@ export default function PlanningIntegrationPage() {
       );
     }
 
-    // Auto-populate observation members from team if not yet customized
+    // Sanitize globalObservationMembers to strip out any corrupted composite or role strings
+    const sanitizedObs = (loadedData.globalObservationMembers || []).filter(
+      (name: string) => name && !name.includes("(") && !name.includes(")") && !name.includes("/") && name.trim().length <= 25
+    );
+
+    // Auto-populate observation members from team
     const currentTeam = currentTeamList || teamMembers;
     if (currentTeam && currentTeam.length > 0) {
       const obsNames = currentTeam
         .filter((m: any) => m.isObservation || m.role === "integration_observation")
         .map((m: any) => (m.name || m.display_name || "").split(" ")[0].toUpperCase())
-        .filter(Boolean);
+        .filter((n: string) => n && !n.includes("(") && !n.includes("/"));
 
-      if (obsNames.length > 0) {
-        const currentObs = loadedData.globalObservationMembers || [];
-        const mergedObs = Array.from(new Set([...currentObs, ...obsNames]));
-        loadedData.globalObservationMembers = mergedObs;
-      }
+      loadedData.globalObservationMembers = Array.from(new Set([...sanitizedObs, ...obsNames]));
+    } else {
+      loadedData.globalObservationMembers = sanitizedObs;
     }
 
     setPlanningData(loadedData);
@@ -476,51 +479,33 @@ export default function PlanningIntegrationPage() {
     }
   };
 
-  // All known counselor names (from team members, observation members & existing week assignments)
+  // All known counselor names strictly from registered team members & clean custom names
   const allKnownNames = useMemo(() => {
     const list: string[] = [];
 
-    // 1. From teamMembers
+    // 1. From registered team members (First names only)
     (teamMembers || []).forEach(m => {
       const fullName = (m.display_name || m.name || "").trim();
       if (!fullName) return;
       const firstName = fullName.split(" ")[0].toUpperCase();
-      if (firstName) list.push(firstName);
+      if (firstName && !firstName.includes("(") && !firstName.includes(")") && !firstName.includes("/")) {
+        list.push(firstName);
+      }
     });
 
-    // 2. From globalObservationMembers in planningData
+    // 2. Custom names explicitly added by user in observation (clean single names only)
     if (planningData?.globalObservationMembers) {
       planningData.globalObservationMembers.forEach(name => {
         const clean = name.trim().toUpperCase();
-        if (clean) list.push(clean);
-      });
-    }
-
-    // 3. From week assignments in planningData
-    if (planningData?.weeks) {
-      planningData.weeks.forEach(w => {
-        const checkAndAdd = (val: string) => {
-          if (!val || val === "/") return;
-          val.split(/\s*\+\s*/).forEach(part => {
-            const clean = part.replace(/\s*\(.*?\)/g, "").trim().toUpperCase();
-            if (clean && clean !== "/") list.push(clean);
-          });
-        };
-
-        checkAndAdd(w.jeuneEtPriere?.lead);
-        checkAndAdd(w.jeuneEtPriere?.adjoint);
-        checkAndAdd(w.priereSamedi?.lead);
-        checkAndAdd(w.priereSamedi?.adjoint);
-        checkAndAdd(w.serviceDimanche?.coordination);
-        checkAndAdd(w.serviceDimanche?.fanionStatsAccueil);
-        checkAndAdd(w.serviceDimanche?.salonLoungeRestauration);
-        checkAndAdd(w.serviceDimanche?.conseillerMobile);
-        checkAndAdd(w.serviceDimanche?.accueil);
+        // Ignore any corrupted string with parentheses, slashes or composite text
+        if (clean && !clean.includes("(") && !clean.includes(")") && !clean.includes("/") && clean.length <= 25) {
+          list.push(clean);
+        }
       });
     }
 
     return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
-  }, [teamMembers, planningData]);
+  }, [teamMembers, planningData?.globalObservationMembers]);
 
   if (loading || !planningData) {
     return (

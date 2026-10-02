@@ -491,7 +491,7 @@ Bénédictions à tous pour le service ! ✨`;
     }
   };
 
-  // All known member names (first name uppercase, from team members & existing seat assignments)
+  // All known member names strictly from team members (first name uppercase)
   const allKnownNames = useMemo(() => {
     const list: string[] = [];
 
@@ -499,20 +499,13 @@ Bénédictions à tous pour le service ! ✨`;
       const fullName = (m.display_name || m.name || "").trim();
       if (!fullName) return;
       const firstName = fullName.split(" ")[0].toUpperCase();
-      if (firstName) list.push(firstName);
+      if (firstName && !firstName.includes("(") && !firstName.includes(")") && !firstName.includes("/")) {
+        list.push(firstName);
+      }
     });
 
-    if (planData?.seats) {
-      planData.seats.forEach(s => {
-        if (s.member && s.member.trim()) {
-          const upper = s.member.trim().toUpperCase();
-          if (upper) list.push(upper);
-        }
-      });
-    }
-
     return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
-  }, [teamMembers, planData]);
+  }, [teamMembers]);
 
   if (loading || !planData) {
     return (
