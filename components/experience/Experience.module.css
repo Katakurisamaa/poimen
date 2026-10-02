@@ -82,8 +82,8 @@
 .peopleNavigation a { padding: 11px 20px; border: 1px solid var(--ux-line); border-radius: 10px; color: var(--ux-muted); font-size: 13px; background: var(--surface-solid); }
 .peopleNavigation a[aria-current="page"] { background: var(--action-bg); color: var(--action-ink); border-color: var(--action-bg); }
 .peopleNavigation > span { margin-left: auto; font-size: 12px; color: var(--ux-muted); }
-.personName { display: inline; padding: 4px 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; text-align: left; text-underline-offset: 4px; }
-.personName:hover { text-decoration: underline; }
+.personName { display: inline; padding: 4px 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: default; text-align: left; text-decoration: none !important; }
+.personName:hover { text-decoration: none !important; }
 .personPanel { inset: 0 0 0 auto; width: min(560px, 100vw); height: 100dvh; max-height: none; margin: 0; padding: 0; border-radius: 24px 0 0 24px; }
 .personPanel[open] { display: flex; flex-direction: column; }
 .panelHeader { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--ux-line); }

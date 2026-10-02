@@ -25,6 +25,7 @@ export default function CrCallCenterModal({ isOpen, onClose, guests, churchName 
   const [isDownloading, setIsDownloading] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLElement>(null);
+  const exportSheetRef = useRef<HTMLElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dates = useMemo(() => Array.from(new Set(guests.map(g => g.arrivalDate).filter((d): d is string => Boolean(d)))).sort().reverse(), [guests]);
   const selectedDate = date || dates[0] || "";
@@ -60,15 +61,22 @@ export default function CrCallCenterModal({ isOpen, onClose, guests, churchName 
   }
 
   async function handleDownloadPdf() {
-    if (!sheetRef.current) return;
+    const element = exportSheetRef.current || sheetRef.current;
+    if (!element) return;
     setIsDownloading(true);
     notify("Génération du document PDF en cours…");
 
     try {
-      const element = sheetRef.current;
+      const isDark = typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark";
+      const bgColor = isDark ? "#1c2737" : "#ffffff";
+
+      if (typeof document !== "undefined" && (document as any).fonts?.ready) {
+        await (document as any).fonts.ready;
+      }
+
       const dataUrl = await toPng(element, {
-        pixelRatio: 2.4,
-        backgroundColor: "#ffffff",
+        pixelRatio: 3.2,
+        backgroundColor: bgColor,
         cacheBust: true,
       });
 
@@ -87,27 +95,53 @@ export default function CrCallCenterModal({ isOpen, onClose, guests, churchName 
 
       const pdfWidth = 210;
       const pdfHeight = 297;
-      const margin = 10;
+      const margin = 8;
       const availWidth = pdfWidth - margin * 2;
       const availHeight = pdfHeight - margin * 2;
 
-      const imgWidth = availWidth;
-      const imgHeight = (img.height * imgWidth) / img.width;
+      let printWidth = availWidth;
+      let printHeight = (img.height * printWidth) / img.width;
 
-      if (imgHeight <= availHeight) {
-        pdf.addImage(dataUrl, "PNG", margin, margin, imgWidth, imgHeight, undefined, "FAST");
+      const bgRgb = isDark ? [28, 39, 55] : [255, 255, 255];
+      pdf.setFillColor(bgRgb[0], bgRgb[1], bgRgb[2]);
+      pdf.rect(0, 0, pdfWidth, pdfHeight, "F");
+
+      if (printHeight <= availHeight) {
+        const topOffset = margin + (availHeight - printHeight) / 2;
+        pdf.addImage(dataUrl, "PNG", margin, topOffset, printWidth, printHeight, undefined, "NONE");
       } else {
-        let heightLeft = imgHeight;
-        let position = margin;
+        const scale = availHeight / printHeight;
+        if (scale >= 0.85) {
+          const scaledH = availHeight;
+          const scaledW = printWidth * scale;
+          const leftOffset = margin + (availWidth - scaledW) / 2;
+          pdf.addImage(dataUrl, "PNG", leftOffset, margin, scaledW, scaledH, undefined, "NONE");
+        } else {
+          // Precise canvas-based slicing for multi-page documents (no duplication or overlapping)
+          const pageHeightPx = Math.floor((img.width * availHeight) / printWidth);
+          let renderedHeight = 0;
+          let pageIdx = 0;
 
-        pdf.addImage(dataUrl, "PNG", margin, position, imgWidth, imgHeight, undefined, "FAST");
-        heightLeft -= availHeight;
-
-        while (heightLeft > 0) {
-          position = margin - (imgHeight - heightLeft);
-          pdf.addPage();
-          pdf.addImage(dataUrl, "PNG", margin, position, imgWidth, imgHeight, undefined, "FAST");
-          heightLeft -= availHeight;
+          while (renderedHeight < img.height) {
+            if (pageIdx > 0) {
+              pdf.addPage();
+              pdf.setFillColor(bgRgb[0], bgRgb[1], bgRgb[2]);
+              pdf.rect(0, 0, pdfWidth, pdfHeight, "F");
+            }
+            const sliceHeightPx = Math.min(pageHeightPx, img.height - renderedHeight);
+            const sliceCanvas = document.createElement("canvas");
+            sliceCanvas.width = img.width;
+            sliceCanvas.height = sliceHeightPx;
+            const ctx = sliceCanvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, renderedHeight, img.width, sliceHeightPx, 0, 0, img.width, sliceHeightPx);
+              const sliceData = sliceCanvas.toDataURL("image/png");
+              const sliceMmHeight = (sliceHeightPx * printWidth) / img.width;
+              pdf.addImage(sliceData, "PNG", margin, margin, printWidth, sliceMmHeight, undefined, "NONE");
+            }
+            renderedHeight += sliceHeightPx;
+            pageIdx++;
+          }
         }
       }
 
@@ -199,6 +233,61 @@ export default function CrCallCenterModal({ isOpen, onClose, guests, churchName 
                   <footer className={styles.reportFooter}><span>ICC {church} · Intégration</span><span>Confidentiel · {filtered.length} invité(s)</span></footer>
                 </article>}
             </main>
+          </div>
+
+          {/* Offscreen canonical A4 export container: fixed 800px width, never distorted by mobile viewports */}
+          <div
+            style={{
+              position: "fixed",
+              left: 0,
+              top: 0,
+              width: 800,
+              zIndex: -9999,
+              opacity: 0,
+              pointerEvents: "none",
+              overflow: "visible",
+            }}
+            aria-hidden="true"
+          >
+            <article ref={exportSheetRef} className={`${styles.sheet} ${styles.exportSheet}`}>
+              <header className={styles.reportHeader}>
+                <div>
+                  <span className={styles.reportKicker}>ICC {church} · DÉPARTEMENT INTÉGRATION</span>
+                  <h1>Compte rendu<br /><em>Call center invités</em></h1>
+                  <p>{period}</p>
+                </div>
+                <span className={styles.reportStamp}>RAPPORT<br /><strong>DE SUIVI</strong></span>
+              </header>
+              <div className={styles.reportTable}>
+                {report.map((group, index) => (
+                  <section className={styles.reportGroup} key={group.title}>
+                    <h2>
+                      <span className={styles.groupNumber}>{String(index + 1).padStart(2, "0")}</span>
+                      <span>{group.title}</span>
+                      <strong>{group.value}</strong>
+                    </h2>
+                    <dl>
+                      {group.rows.map(row => (
+                        <div key={row.label}>
+                          <dt>{row.label}</dt>
+                          <dd className={row.value === null ? styles.unavailable : undefined}>
+                            {row.value ?? "Non renseigné"}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                ))}
+              </div>
+              <section className={styles.observations}>
+                <h2>Commentaire</h2>
+                <p>{comment.trim() || "Aucun commentaire."}</p>
+              </section>
+              <footer className={styles.reportFooter}>
+                <span>ICC {church} · Intégration</span>
+                <span>Confidentiel · {filtered.length} invité(s)</span>
+              </footer>
+            </article>
           </div>
         </div>
       </div>

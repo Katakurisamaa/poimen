@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { 
   Phone, Mail, Calendar, User, Eye, UserCheck, UserMinus, 
   AlertTriangle, ShieldCheck, Clock, UserPlus, PhoneCall,
-  Home, Trash2, Search, X, MoreHorizontal
+  Home, Trash2, Search, X, MoreHorizontal, Edit3
 } from "lucide-react";
 import CustomSelect from "@/components/ui/CustomSelect";
 import styles from "./TriageListView.module.css";
@@ -24,6 +24,7 @@ interface TriageListViewProps {
   onOpenConserver?: (guest: any) => void;
   onOpenRetirer?: (guest: any) => void;
   onDeleteGuest?: (guestId: string) => Promise<void>;
+  onEditGuest?: (guest: any) => void;
   isLeader?: boolean;
 }
 
@@ -96,6 +97,7 @@ export default function TriageListView({
   onOpenConserver,
   onOpenRetirer,
   onDeleteGuest,
+  onEditGuest,
   isLeader = false
 }: TriageListViewProps) {
   const [assigningId, setAssigningId] = useState<string | null>(null);
@@ -225,9 +227,9 @@ export default function TriageListView({
                 <div className={styles.avatarCircle}>{initials}</div>
                 <div className={styles.infoWrap}>
                   <div className={styles.nameRow}>
-                    <button type="button" className={styles.personFullName} onClick={() => onOpenVoirPlus(g)}>
+                    <span className={styles.personFullName}>
                       {g.civility} {g.firstName} {g.lastName}
-                    </button>
+                    </span>
                     {g.age && <span className={styles.badgeAge}>{g.age}</span>}
                     {mode === "retired" && (
                       <span className={styles.badgeMotif}>
@@ -400,10 +402,29 @@ export default function TriageListView({
                     <button type="button" className={styles.btnVoirPlus} onClick={() => onOpenVoirPlus(g)}>
                       <Eye size={15} /> Voir la fiche
                     </button>
-                    {((isLeader && onAssign) || onDeleteGuest) && (
+                    {isLeader && onEditGuest && (
+                      <button
+                        type="button"
+                        className={styles.btnEdit}
+                        onClick={() => onEditGuest(g)}
+                        title="Modifier les informations du formulaire"
+                      >
+                        <Edit3 size={14} /> Modifier
+                      </button>
+                    )}
+                    {((isLeader && onAssign) || onDeleteGuest || (isLeader && onEditGuest)) && (
                       <details className={styles.rowTools} onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
                         <summary aria-label={`Actions pour ${g.firstName} ${g.lastName}`}><MoreHorizontal size={18} /><span>Actions</span></summary>
                         <div className={styles.rowToolsPanel}>
+                          {isLeader && onEditGuest && (
+                            <button
+                              type="button"
+                              className={styles.btnEditTool}
+                              onClick={() => onEditGuest(g)}
+                            >
+                              <Edit3 size={14} /> Modifier le formulaire
+                            </button>
+                          )}
                           {isLeader && onAssign && <div className={styles.assignmentField}><span>Conseiller en charge</span><CustomSelect size="sm" value={g.assigned_to || ""} onChange={val => handleSelectCounselor(g.id, val)} disabled={assigningId === g.id} placeholder="Choisir un conseiller" options={counselorSelectOptions} searchable /></div>}
                           {onDeleteGuest && <button type="button" className={styles.btnDelete} onClick={() => onDeleteGuest(g.id)}><Trash2 size={14} /> Supprimer définitivement</button>}
                         </div>

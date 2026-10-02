@@ -68,10 +68,10 @@
   background: var(--surface-solid);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 16px;
+  padding: 18px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(212, 175, 55, 0.15);
   z-index: 9999;
-  width: 290px;
+  width: 316px;
   box-sizing: border-box;
   animation: popIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -108,9 +108,33 @@
 
 .header {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.headerNavRow {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  width: 100%;
+}
+
+.headerSelectGroup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.multipleHint {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+  color: var(--gold, #d4af37);
+  opacity: 0.9;
+  padding: 2px 0 0;
 }
 
 .monthTitle {
@@ -125,40 +149,59 @@
 }
 
 .headerSelect {
-  background: var(--bg-deep);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--cream);
-  border-radius: 7px;
-  padding: 3px 6px;
+  border-radius: 8px;
+  padding: 5px 9px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   outline: none;
   font-family: inherit;
+  transition: all 0.15s ease;
 }
 
 :global(html[data-theme="light"]) .headerSelect {
-  background: #f8fafc;
+  background: #f1f5f9;
   color: #1e293b;
   border-color: #cbd5e1;
 }
 
+.headerSelect:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(212, 175, 55, 0.4);
+  color: var(--gold-light, #d4af37);
+}
+
 .headerSelect:focus {
   border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
+.headerSelect option {
+  background: #151c28;
+  color: #f3f4f6;
+}
+
+:global(html[data-theme="light"]) .headerSelect option {
+  background: #ffffff;
+  color: #1e293b;
 }
 
 .navButton {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-deep);
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
   color: var(--cream);
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
 :global(html[data-theme="light"]) .navButton {
@@ -168,6 +211,7 @@
 }
 
 .navButton:hover {
+  background: rgba(255, 255, 255, 0.09);
   border-color: var(--gold);
   color: var(--gold);
 }

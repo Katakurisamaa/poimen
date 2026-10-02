@@ -44,6 +44,27 @@
   color: var(--gold, #e7c77e);
 }
 
+.headerEditBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 7px;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: var(--gold-light, #d4af37);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.headerEditBtn:hover {
+  background: rgba(212, 175, 55, 0.22);
+  border-color: rgba(212, 175, 55, 0.5);
+  color: #fff;
+}
+
 .closeBtn {
   display: flex;
   align-items: center;

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { 
   X, Phone, Mail, MapPin, Copy, Check, Circle, UserCheck, PhoneCall,
   CheckCircle2, AlertCircle, PhoneOff, Clock, Sparkles, Home,
-  Award, Shield
+  Award, Shield, Edit3
 } from "lucide-react";
 import CustomSelect from "@/components/ui/CustomSelect";
 import styles from "./GuestArrivalDetailsModal.module.css";
@@ -79,6 +79,7 @@ interface Props {
   guest: GuestFullProfile | null;
   counselors?: { id: string; display_name: string; email: string }[];
   onAssign?: (guestId: string, counselorId: string | null) => Promise<void>;
+  onEdit?: (guest: GuestFullProfile) => void;
   isLeader?: boolean;
 }
 
@@ -88,6 +89,7 @@ export default function GuestArrivalDetailsModal({
   guest, 
   counselors = [], 
   onAssign, 
+  onEdit,
   isLeader = false 
 }: Props) {
   const [copiedPhone, setCopiedPhone] = useState(false);
@@ -187,7 +189,22 @@ export default function GuestArrivalDetailsModal({
       >
         {/* Top Header */}
         <div className={styles.drawerHeader}>
-          <span className={styles.kicker}>FICHE DE SUIVI · INVITÉ</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className={styles.kicker}>FICHE DE SUIVI · INVITÉ</span>
+            {isLeader && onEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(guest);
+                }}
+                className={styles.headerEditBtn}
+                title="Modifier les informations saisies au formulaire"
+              >
+                <Edit3 size={13} /> Modifier la fiche
+              </button>
+            )}
+          </div>
           <button 
             type="button" 
             onClick={onClose} 

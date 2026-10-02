@@ -338,6 +338,27 @@
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+.btnEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 9px;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  color: var(--gold-light, #d4af37);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnEdit:hover {
+  background: rgba(212, 175, 55, 0.22);
+  border-color: rgba(212, 175, 55, 0.5);
+  color: #fff;
+}
+
 .btnConserver {
   display: inline-flex;
   align-items: center;
@@ -423,6 +444,7 @@
   }
 
   .btnVoirPlus,
+  .btnEdit,
   .btnDelete,
   .btnConserver,
   .btnRetirer,
@@ -752,8 +774,43 @@
 
 /* Directory rows: identity first, secondary actions on demand. */
 .summaryBanner[hidden] { display: none; }
-.personFullName { padding: 0; border: 0; background: transparent; text-align: left; font-family: inherit; cursor: pointer; }
-.personFullName:hover { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
+.personFullName { 
+  padding: 0; 
+  border: 0; 
+  background: transparent; 
+  text-align: left; 
+  font-family: inherit; 
+  font-size: 15px; 
+  font-weight: 700; 
+  color: var(--cream); 
+  cursor: default; 
+  text-decoration: none !important; 
+  user-select: text; 
+}
+.personFullName:hover { 
+  color: var(--cream); 
+  text-decoration: none !important; 
+}
+.btnEditTool {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  color: var(--gold-light, #d4af37);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+.btnEditTool:hover {
+  background: rgba(212, 175, 55, 0.2);
+  border-color: rgba(212, 175, 55, 0.4);
+}
 .nameRow { row-gap: 7px; }
 .infoWrap { gap: 10px; }
 .card { align-items: flex-start; background: var(--surface-solid); }

@@ -325,16 +325,16 @@ export default function CustomDatePicker({
 
             {/* Header: Month Year + Chevrons */}
             <div className={styles.header}>
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                className={styles.navButton}
-                aria-label="Mois précédent"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div className={styles.headerNavRow}>
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  className={styles.navButton}
+                  aria-label="Mois précédent"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <div className={styles.headerSelectGroup}>
                   <select
                     value={viewMonth}
                     onChange={(e) => setViewMonth(Number(e.target.value))}
@@ -356,20 +356,22 @@ export default function CustomDatePicker({
                     ))}
                   </select>
                 </div>
-                {multiple && (
-                  <span style={{ fontSize: 10, color: "var(--gold)", fontWeight: 600 }}>
-                    {selectedDates.length > 0 ? `${selectedDates.length} sélectionnée${selectedDates.length > 1 ? "s" : ""}` : "Sélection multiple"}
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  className={styles.navButton}
+                  aria-label="Mois suivant"
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                className={styles.navButton}
-                aria-label="Mois suivant"
-              >
-                <ChevronRight size={16} />
-              </button>
+              {multiple && (
+                <div className={styles.multipleHint}>
+                  {selectedDates.length > 0 
+                    ? `${selectedDates.length} date${selectedDates.length > 1 ? "s" : ""} sélectionnée${selectedDates.length > 1 ? "s" : ""}` 
+                    : "Sélection multiple"}
+                </div>
+              )}
             </div>
 
             {/* Days of week header */}

@@ -8,12 +8,14 @@ interface PlanningDocumentProps {
   data: PlanningIntegrationData;
   containerRef?: React.RefObject<HTMLDivElement | null>;
   logoUrl?: string;
+  id?: string;
 }
 
 export default function PlanningDocument({
   data,
   containerRef,
-  logoUrl
+  logoUrl,
+  id
 }: PlanningDocumentProps) {
   // Format Month Key (e.g. "2026-09" -> "SEPTEMBRE 2026")
   const formatMonthTitle = (monthKey: string) => {
@@ -81,8 +83,9 @@ export default function PlanningDocument({
   return (
     <div
       ref={containerRef as any}
-      id="planning-integration-print-container"
+      id={id || "planning-integration-print-container"}
       className="planning-print-document"
+      data-theme="light"
       style={{
         width: 1120,
         backgroundColor: "#ffffff",
@@ -111,10 +114,11 @@ export default function PlanningDocument({
           <IccLogo customLogoUrl={logoUrl} width={130} height={60} lightMode={true} />
           <div style={{ width: 2, height: 50, backgroundColor: "#cbd5e1" }} />
           <div>
-            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 2, color: "#475569", textTransform: "uppercase" }}>
+            <div className="planning-kicker" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 2, color: "#475569", textTransform: "uppercase" }}>
               IMPACT CENTRE CHRÉTIEN • {data.church_name || "ÉGLISE LOCALE"}
             </div>
             <h1
+              className="planning-doc-title"
               style={{
                 fontSize: 21,
                 fontWeight: 900,
@@ -126,7 +130,7 @@ export default function PlanningDocument({
             >
               PLANNING DU SERVICE — DÉPARTEMENT INTÉGRATION
             </h1>
-            <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, marginTop: 1 }}>
+            <div className="planning-subtitle" style={{ fontSize: 11, color: "#64748b", fontWeight: 600, marginTop: 1 }}>
               Accueillir • Orienter • Intégrer • Bâtir des Disciples
             </div>
           </div>
@@ -134,6 +138,7 @@ export default function PlanningDocument({
 
         {/* Month Badge */}
         <div
+          className="planning-month-badge"
           style={{
             backgroundColor: "#0f172a",
             color: "#ffffff",
@@ -142,7 +147,7 @@ export default function PlanningDocument({
             textAlign: "right",
           }}
         >
-          <div style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: 1.5, color: "#fbbf24", fontWeight: 700 }}>
+          <div className="planning-month-badge-kicker" style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: 1.5, color: "#fbbf24", fontWeight: 700 }}>
             PÉRIODE
           </div>
           <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: 0.5, marginTop: 1 }}>

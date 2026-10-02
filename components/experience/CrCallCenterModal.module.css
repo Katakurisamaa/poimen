@@ -224,3 +224,68 @@
   .observations p { font-size: 10px; padding: 10px 12px; orphans: 3; widows: 3; }
   .reportFooter { margin-top: 16px; break-inside: avoid; font-size: 9px; }
 }
+
+/* ── Dedicated Export Sheet Styling (always canonical A4 width, never squished by mobile) ── */
+.exportSheet {
+  width: 800px !important;
+  max-width: 800px !important;
+  min-width: 800px !important;
+  padding: 34px !important;
+  box-sizing: border-box !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  overflow: visible !important;
+}
+
+:global(html[data-theme]) .modal .exportSheet .reportHeader h1 {
+  font-size: 28px !important;
+  margin: 12px 0 10px !important;
+}
+
+:global(html[data-theme]) .modal .exportSheet .reportGroup h2 {
+  grid-template-columns: 22px minmax(0, 1fr) 72px !important;
+  padding: 10px 14px !important;
+  font-size: 13px !important;
+  gap: 8px !important;
+}
+
+.exportSheet .reportGroup dl > div {
+  grid-template-columns: minmax(0, 1fr) 96px !important;
+  font-size: 12px !important;
+}
+
+.exportSheet .reportGroup dt {
+  padding: 7px 14px !important;
+}
+
+.exportSheet .reportGroup dd {
+  padding: 7px 10px !important;
+}
+
+.exportSheet .reportGroup h2 strong {
+  font-size: 20px !important;
+}
+
+.exportSheet .reportStamp {
+  display: block !important;
+}
+
+.exportSheet .reportTable {
+  margin-top: 20px !important;
+}
+
+.exportSheet .reportGroup {
+  margin-bottom: 14px !important;
+}
+
+.exportSheet .observations {
+  margin-top: 18px !important;
+}
+
+.exportSheet .reportFooter {
+  margin-top: 20px !important;
+  padding-top: 12px !important;
+}
+

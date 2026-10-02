@@ -88,6 +88,7 @@ function ClearableInput({
 export default function PlanningIntegrationPage() {
   const { notify, confirm } = useFeedback();
   const reportRef = useRef<HTMLDivElement>(null);
+  const exportReportRef = useRef<HTMLDivElement>(null);
 
   const [church, setChurch] = useState<any>(null);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -389,7 +390,7 @@ export default function PlanningIntegrationPage() {
 
   // Export to PDF
   const handleDownloadPdf = async () => {
-    const printElement = document.getElementById("planning-integration-print-container") || reportRef.current;
+    const printElement = exportReportRef.current || document.getElementById("planning-export-container") || reportRef.current;
     if (!printElement) {
       notify("Erreur : le modèle de planning est introuvable.");
       return;
@@ -399,10 +400,19 @@ export default function PlanningIntegrationPage() {
     notify("Génération du document PDF…");
 
     try {
+      // Ensure all fonts are fully loaded prior to canvas rasterization
+      if (typeof document !== "undefined" && (document as any).fonts?.ready) {
+        await (document as any).fonts.ready;
+      }
+
       const dataUrl = await toPng(printElement, {
-        pixelRatio: 2.2,
+        pixelRatio: 3.5,
         backgroundColor: "#ffffff",
         cacheBust: true,
+        style: {
+          opacity: "1",
+          visibility: "visible",
+        },
       });
 
       const pdf = new jsPDF({
@@ -413,7 +423,7 @@ export default function PlanningIntegrationPage() {
 
       const pdfWidth = 297;
       const pdfHeight = 210;
-      const margin = 5;
+      const margin = 6;
       const availW = pdfWidth - margin * 2;
       const availH = pdfHeight - margin * 2;
 
@@ -435,7 +445,8 @@ export default function PlanningIntegrationPage() {
       const leftOffset = margin + (availW - printW) / 2;
       const topOffset = margin + (availH - printH) / 2;
 
-      pdf.addImage(dataUrl, "PNG", leftOffset, topOffset, printW, printH, undefined, "FAST");
+      // Lossless compression for maximum print crispness
+      pdf.addImage(dataUrl, "PNG", leftOffset, topOffset, printW, printH, undefined, "NONE");
 
       const safeMonth = selectedMonth.replace("-", "_");
       pdf.save(`Planning_Integration_ICC_${safeMonth}.pdf`);
@@ -1323,17 +1334,33 @@ export default function PlanningIntegrationPage() {
               data={planningData}
               containerRef={reportRef}
               logoUrl={church?.logo_url}
+              id="planning-preview-container"
             />
           </div>
         </div>
       )}
 
-      {/* Hidden print container for high-res PDF generation */}
-      <div style={{ position: "absolute", left: -99999, top: -99999, pointerEvents: "none" }}>
+      {/* Dedicated offscreen export container: fixed 1120px desktop width, unaffected by mobile screen width or preview scrolling */}
+      <div 
+        style={{ 
+          position: "fixed", 
+          left: -9999, 
+          top: 0, 
+          width: 1120, 
+          zIndex: -9999, 
+          opacity: 1, 
+          visibility: "visible",
+          pointerEvents: "none",
+          overflow: "visible",
+        }}
+        data-theme="light"
+        aria-hidden="true"
+      >
         <PlanningDocument
           data={planningData}
-          containerRef={reportRef}
+          containerRef={exportReportRef}
           logoUrl={church?.logo_url}
+          id="planning-export-container"
         />
       </div>
     </div>

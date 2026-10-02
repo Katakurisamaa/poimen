@@ -7810,6 +7810,141 @@ body[data-theme="dark"] #reporting-print-container table tr td:nth-child(4) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   PLANNING INTEGRATION PRINT & EXPORT DOCUMENT ISOLATION
+   Guarantees that exported planning documents retain their 100% crisp,
+   official contrast in both light and dark mode, on all screen sizes.
+   ══════════════════════════════════════════════════════════════════════════ */
+#planning-export-container,
+#planning-export-container *,
+#planning-integration-print-container,
+#planning-integration-print-container *,
+#planning-preview-container,
+#planning-preview-container *,
+.planning-print-document,
+.planning-print-document * {
+  box-sizing: border-box !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+#planning-export-container,
+#planning-integration-print-container,
+#planning-preview-container,
+.planning-print-document,
+html[data-theme="dark"] #planning-export-container,
+html[data-theme="dark"] #planning-integration-print-container,
+html[data-theme="dark"] #planning-preview-container,
+html[data-theme="dark"] .planning-print-document,
+body.dark #planning-export-container,
+body.dark #planning-integration-print-container,
+body.dark #planning-preview-container,
+body.dark .planning-print-document {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+/* Document Title (h1) immunity against dark mode */
+#planning-export-container h1,
+#planning-integration-print-container h1,
+#planning-preview-container h1,
+.planning-print-document h1,
+.planning-doc-title,
+html[data-theme="dark"] #planning-export-container h1,
+html[data-theme="dark"] #planning-integration-print-container h1,
+html[data-theme="dark"] #planning-preview-container h1,
+html[data-theme="dark"] .planning-print-document h1,
+html[data-theme="dark"] .planning-doc-title,
+body.dark #planning-export-container h1,
+body.dark #planning-integration-print-container h1,
+body.dark #planning-preview-container h1,
+body.dark .planning-print-document h1,
+body.dark .planning-doc-title {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  background: none !important;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif !important;
+  font-weight: 900 !important;
+  text-shadow: none !important;
+}
+
+/* Document Kicker and Subtitle immunity */
+.planning-kicker,
+html[data-theme="dark"] .planning-kicker {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}
+
+.planning-subtitle,
+html[data-theme="dark"] .planning-subtitle {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+
+/* Period month badge */
+.planning-month-badge,
+html[data-theme="dark"] .planning-month-badge,
+body.dark .planning-month-badge {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+}
+
+.planning-month-badge div,
+html[data-theme="dark"] .planning-month-badge div,
+body.dark .planning-month-badge div {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.planning-month-badge-kicker,
+html[data-theme="dark"] .planning-month-badge-kicker,
+body.dark .planning-month-badge-kicker {
+  color: #fbbf24 !important;
+  -webkit-text-fill-color: #fbbf24 !important;
+}
+
+html[data-theme] #planning-export-container table,
+html[data-theme] #planning-integration-print-container table,
+html[data-theme] #planning-preview-container table,
+html[data-theme] .planning-print-document table {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+html[data-theme] #planning-export-container td,
+html[data-theme] #planning-integration-print-container td,
+html[data-theme] #planning-preview-container td,
+html[data-theme] .planning-print-document td {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+html[data-theme] #planning-export-container th,
+html[data-theme] #planning-integration-print-container th,
+html[data-theme] #planning-preview-container th,
+html[data-theme] .planning-print-document th {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html[data-theme] #planning-export-container thead div,
+html[data-theme] #planning-integration-print-container thead div,
+html[data-theme] #planning-preview-container thead div,
+html[data-theme] .planning-print-document thead div {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html[data-theme] #planning-export-container thead div[style*="color: #fbbf24"],
+html[data-theme] #planning-integration-print-container thead div[style*="color: #fbbf24"],
+html[data-theme] #planning-preview-container thead div[style*="color: #fbbf24"],
+html[data-theme] .planning-print-document thead div[style*="color: #fbbf24"] {
+  color: #fbbf24 !important;
+  -webkit-text-fill-color: #fbbf24 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    MEDITATION POSTER PRINT & PREVIEW (SELF-CONTAINED EXPORT THEMES)
    Guarantees export poster typography & contrast is 100% immune to the
    app's dark/light theme, and strictly respects "obsidian" vs "parchment".

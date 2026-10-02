@@ -9,8 +9,8 @@ function dateLabel(value: string) {
   return Number.isNaN(date.getTime()) ? "Date non renseignée" : date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
-export function PersonButton({ person, onClick }: { person: { firstName: string; lastName: string }; onClick: () => void }) {
-  return <button type="button" className={styles.personName} aria-label={`Ouvrir la fiche de ${person.firstName} ${person.lastName}`} onClick={event => { event.stopPropagation(); onClick(); }}>{person.firstName} {person.lastName}</button>;
+export function PersonButton({ person }: { person: { firstName: string; lastName: string }; onClick?: () => void }) {
+  return <span className={styles.personName} style={{ cursor: "default", textDecoration: "none" }}>{person.firstName} {person.lastName}</span>;
 }
 
 export default function PersonPanel({ person, kind, onClose, onContinue, continueLabel = "Ouvrir le suivi détaillé" }: {

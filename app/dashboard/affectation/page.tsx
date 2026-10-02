@@ -2325,7 +2325,7 @@ const selectedCounselorObj = useMemo(() => {
                       <div className="affectation-card-identity">
                         <div className="affectation-card-name-row">
                           <h3 className="affectation-card-title">
-                            <PersonButton person={guest} onClick={() => personView.openPerson(guest.id)} />
+                            <span>{guest.firstName} {guest.lastName}</span>
                           </h3>
                           {fidelised && <span className="badge badge-gold" style={{ fontSize: 8 }}>Fidélisé</span>}
                           {(isIntegrationOrCounselor || isAuthorizedLeader) && (

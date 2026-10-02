@@ -2173,7 +2173,7 @@ function InvitesPage() {
                                       </div>
                                       <div>
                                         <div style={{ fontWeight: 600, color: "var(--cream)" }}>
-                                          <PersonButton person={guest} onClick={() => personView.openPerson(guest.id)} />
+                                          <span>{guest.firstName} {guest.lastName}</span>
                                         </div>
                                         <div style={{ fontSize: 10, color: "var(--muted)" }}>{guest.age}</div>
                                       </div>
@@ -2260,6 +2260,16 @@ function InvitesPage() {
                                       >
                                         Voir la fiche
                                       </button>
+                                      {(userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "super_admin") && (
+                                        <button 
+                                          className="btn btn-subtle btn-sm" 
+                                          style={{ padding: "4px 10px", fontSize: 11, height: "auto" }}
+                                          onClick={() => openEditModal(guest)}
+                                          title="Modifier les informations du formulaire"
+                                        >
+                                          Modifier
+                                        </button>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>
@@ -2283,6 +2293,7 @@ function InvitesPage() {
           counselors={counselors}
           onAssign={handleAssignCounselor}
           onOpenVoirPlus={(g) => setSelectedDetailGuest(g)}
+          onEditGuest={(g) => openEditModal(g as Guest)}
           onDeleteGuest={canDeleteInvites ? async (guestId) => {
             const guest = guests.find(g => g.id === guestId);
             if (!guest) return;
@@ -2583,6 +2594,7 @@ function InvitesPage() {
       await handleAssignCounselor(guestId, counselorId);
       setSelectedDetailGuest(prev => prev && prev.id === guestId ? { ...prev, assigned_to: counselorId } : prev);
     }}
+    onEdit={(g) => openEditModal(g as unknown as Guest)}
     isLeader={userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "super_admin"}
   />
 
