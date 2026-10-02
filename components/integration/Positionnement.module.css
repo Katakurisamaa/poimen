@@ -936,7 +936,7 @@
 }
 
 /* ── Print Document Container ── */
-:global(.positionnement-print-document) {
+.previewViewport :global(.positionnement-print-document) {
   background-color: #ffffff !important;
   color: #0f172a !important;
 }

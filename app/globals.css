@@ -8683,5 +8683,19 @@ html[data-theme="dark"] .souls-table tr:hover td.sticky-col-prenom {
   }
 }
 
+/* Print styling for Call Center CR document & Positionnement */
+@media print {
+  body:has([data-cr-root="true"]) {
+    overflow: visible !important;
+    height: auto !important;
+    background: white !important;
+  }
+  body:has([data-cr-root="true"]) > :not([data-cr-root="true"]) {
+    display: none !important;
+  }
+}
 
-
+.positionnement-print-document {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}

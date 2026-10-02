@@ -205,8 +205,6 @@
     --cr-accent: #554585; --cr-tint: #efedf8; --cr-soft: #f5f6fa;
     color-scheme: light;
   }
-  :global(body:has([data-cr-root="true"])) { overflow: visible !important; height: auto !important; background: white !important; }
-  :global(body:has([data-cr-root="true"]) > :not([data-cr-root="true"])) { display: none !important; }
   .overlay, .modal, .workspace, .preview { display: block !important; position: static !important; width: auto !important; height: auto !important; max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; background: white !important; box-shadow: none !important; backdrop-filter: none !important; }
   .toolbar, .settings, .previewBar { display: none !important; }
   .sheet { max-width: none !important; width: 100% !important; margin: 0 !important; padding: 12mm 15mm !important; border: 0; box-shadow: none !important; print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
