@@ -1,23 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, Cormorant_Garamond } from "next/font/google";
 import ThemeToggle from "@/components/ThemeToggle";
 import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 import "./design-system.css";
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-body",
-  display: "swap",
-  weight: ["400", "500", "600", "700", "800"],
-});
-
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-  weight: ["600", "700"],
-});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -49,8 +34,14 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr" suppressHydrationWarning className={`${jakarta.variable} ${cormorant.variable}`} data-scroll-behavior="smooth">
+    <html lang="fr" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600;1,700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap"
+          rel="stylesheet"
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `try{var t=localStorage.getItem("poimen_theme")==="dark"?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;document.documentElement.classList.toggle("dark",t==="dark");document.addEventListener("DOMContentLoaded",function(){document.body.dataset.theme=t;document.body.style.colorScheme=t;document.body.classList.toggle("dark",t==="dark");});}catch(e){document.documentElement.dataset.theme="light";document.addEventListener("DOMContentLoaded",function(){document.body.dataset.theme="light";});}`,

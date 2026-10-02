@@ -6,6 +6,10 @@
    ═══════════════════════════════════════════ */
 
 :root {
+  /* ─── Typography Fonts ─── */
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+
   /* ─── Obsidian Amethyst & Velvet Midnight (Deep liturgic base) ─── */
   --bg: #040209;
   --bg-deep: #020104;
