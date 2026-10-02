@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   Calendar, Download, Save, Eye, Edit3, Plus, Trash2, 
   ArrowLeft, Clock, Check, RotateCcw, X, Users
@@ -122,9 +122,11 @@ export default function PlanningIntegrationPage() {
         const churchId = ch?.id || "default";
 
         // Load Integration Team Members for dropdown pickers
+        let loadedTeam: any[] = [];
         try {
           const res = await getIntegrationDropdownList(churchId);
           if (res?.success && Array.isArray(res.list)) {
+            loadedTeam = res.list;
             setTeamMembers(res.list);
           }
         } catch (e) {
@@ -132,7 +134,7 @@ export default function PlanningIntegrationPage() {
         }
 
         // Load Planning Data for current month
-        await loadPlanningForMonth(churchId, defaultMonth, ch?.name);
+        await loadPlanningForMonth(churchId, defaultMonth, ch?.name, loadedTeam);
       } catch (err: any) {
         console.error("Init planning error:", err);
       } finally {
@@ -164,7 +166,7 @@ export default function PlanningIntegrationPage() {
   };
 
   // Handler to load or switch month
-  const loadPlanningForMonth = async (churchId: string, monthKey: string, churchName?: string) => {
+  const loadPlanningForMonth = async (churchId: string, monthKey: string, churchName?: string, currentTeamList?: any[]) => {
     const localKey = `poimen_planning_integration_${churchId}_${monthKey}`;
     const localDraft = localStorage.getItem(localKey);
     let loadedData: PlanningIntegrationData | null = null;
@@ -204,6 +206,21 @@ export default function PlanningIntegrationPage() {
         churchName || "ICC",
         generateFreshWeeksForMonth(monthKey)
       );
+    }
+
+    // Auto-populate observation members from team if not yet customized
+    const currentTeam = currentTeamList || teamMembers;
+    if (currentTeam && currentTeam.length > 0) {
+      const obsNames = currentTeam
+        .filter((m: any) => m.isObservation || m.role === "integration_observation")
+        .map((m: any) => (m.name || m.display_name || "").split(" ")[0].toUpperCase())
+        .filter(Boolean);
+
+      if (obsNames.length > 0) {
+        const currentObs = loadedData.globalObservationMembers || [];
+        const mergedObs = Array.from(new Set([...currentObs, ...obsNames]));
+        loadedData.globalObservationMembers = mergedObs;
+      }
     }
 
     setPlanningData(loadedData);
@@ -459,15 +476,51 @@ export default function PlanningIntegrationPage() {
     }
   };
 
-  // All known names (from team members, deduped)
-  const allKnownNames = Array.from(new Set(
-    teamMembers
-      .map(m => {
-        const fullName = m.display_name || m.name || "";
-        return fullName.split(" ")[0].toUpperCase();
-      })
-      .filter(Boolean)
-  ));
+  // All known counselor names (from team members, observation members & existing week assignments)
+  const allKnownNames = useMemo(() => {
+    const list: string[] = [];
+
+    // 1. From teamMembers
+    (teamMembers || []).forEach(m => {
+      const fullName = (m.display_name || m.name || "").trim();
+      if (!fullName) return;
+      const firstName = fullName.split(" ")[0].toUpperCase();
+      if (firstName) list.push(firstName);
+    });
+
+    // 2. From globalObservationMembers in planningData
+    if (planningData?.globalObservationMembers) {
+      planningData.globalObservationMembers.forEach(name => {
+        const clean = name.trim().toUpperCase();
+        if (clean) list.push(clean);
+      });
+    }
+
+    // 3. From week assignments in planningData
+    if (planningData?.weeks) {
+      planningData.weeks.forEach(w => {
+        const checkAndAdd = (val: string) => {
+          if (!val || val === "/") return;
+          val.split(/\s*\+\s*/).forEach(part => {
+            const clean = part.replace(/\s*\(.*?\)/g, "").trim().toUpperCase();
+            if (clean && clean !== "/") list.push(clean);
+          });
+        };
+
+        checkAndAdd(w.jeuneEtPriere?.lead);
+        checkAndAdd(w.jeuneEtPriere?.adjoint);
+        checkAndAdd(w.priereSamedi?.lead);
+        checkAndAdd(w.priereSamedi?.adjoint);
+        checkAndAdd(w.serviceDimanche?.coordination);
+        checkAndAdd(w.serviceDimanche?.fanionStatsAccueil);
+        checkAndAdd(w.serviceDimanche?.salonLoungeRestauration);
+        checkAndAdd(w.serviceDimanche?.conseillerMobile);
+        checkAndAdd(w.serviceDimanche?.accueil);
+      });
+    }
+
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+  }, [teamMembers, planningData]);
 
   if (loading || !planningData) {
     return (

@@ -805,10 +805,13 @@ export async function getIntegrationDropdownList(churchId: string) {
     const list: any[] = [];
 
     // 2. Add department head from church
-    if (church.integration_email && church.integration_first_name) {
+    if (church.integration_first_name) {
+      const headName = `${church.integration_first_name} ${church.integration_last_name || ""}`.trim();
       list.push({
-        email: church.integration_email.toLowerCase().trim(),
-        name: `${church.integration_first_name} ${church.integration_last_name || ""}`.trim(),
+        id: "church_head",
+        email: church.integration_email ? church.integration_email.toLowerCase().trim() : "",
+        name: headName,
+        displayName: headName,
         role: "integration_responsable",
         isHead: true,
         code: church.integration_access_code
@@ -818,18 +821,18 @@ export async function getIntegrationDropdownList(churchId: string) {
     // 3. Fetch active integration contexts
     const { data: contexts, error: contextsErr } = await supabase
       .from("user_contexts")
-      .select("user_id, email, display_name, role")
+      .select("id, user_id, email, display_name, role")
       .eq("church_id", churchId)
       .eq("context_type", "integration")
       .eq("active", true)
-      .in("role", ["integration_responsable", "integration_second", "integration_conseiller"]);
+      .in("role", ["integration_responsable", "integration_second", "integration_conseiller", "integration_observation", "conseiller"]);
 
     const contextUserIds = [...new Set((contexts || []).map((c: any) => c.user_id).filter(Boolean))];
     let contextProfiles: any[] = [];
     if (contextUserIds.length) {
       const { data: profs } = await supabase
         .from("profiles")
-        .select("id, email, display_name")
+        .select("id, email, display_name, first_name, last_name")
         .in("id", contextUserIds);
       contextProfiles = profs || [];
     }
@@ -838,13 +841,16 @@ export async function getIntegrationDropdownList(churchId: string) {
     if (!contextsErr && contexts) {
       contexts.forEach((c: any) => {
         const prof = contextProfileMap.get(c.user_id);
-        const email = (c.email || prof?.email)?.toLowerCase().trim();
-        const name = c.display_name || prof?.display_name || email;
-        if (email) {
+        const email = (c.email || prof?.email)?.toLowerCase().trim() || "";
+        const profileName = prof?.display_name || (prof?.first_name ? `${prof.first_name} ${prof.last_name || ""}`.trim() : "");
+        const name = (c.display_name || profileName || email).trim();
+        if (name || email) {
           list.push({
+            id: c.id || c.user_id,
             email,
-            name,
-            role: c.role,
+            name: name || email,
+            displayName: name || email,
+            role: c.role === "conseiller" ? "integration_conseiller" : c.role,
             isContext: true
           });
         }
@@ -854,20 +860,26 @@ export async function getIntegrationDropdownList(churchId: string) {
     // 4. Fetch active integration profiles
     const { data: profiles, error: profilesErr } = await supabase
       .from("profiles")
-      .select("email, display_name, role")
+      .select("id, email, display_name, first_name, last_name, role")
       .eq("church_id", churchId)
-      .eq("active", true)
-      .ilike("role", "integration_%");
+      .eq("active", true);
 
     if (!profilesErr && profiles) {
       profiles.forEach((p: any) => {
-        if (p.email) {
-          list.push({
-            email: p.email.toLowerCase().trim(),
-            name: p.display_name || p.email,
-            role: p.role,
-            isProfile: true
-          });
+        const role = (p.role || "").toLowerCase();
+        if (role.startsWith("integration_") || role === "conseiller") {
+          const email = p.email?.toLowerCase().trim() || "";
+          const name = (p.display_name || (p.first_name ? `${p.first_name} ${p.last_name || ""}`.trim() : "") || email).trim();
+          if (name || email) {
+            list.push({
+              id: p.id,
+              email,
+              name: name || email,
+              displayName: name || email,
+              role: role === "conseiller" ? "integration_conseiller" : p.role,
+              isProfile: true
+            });
+          }
         }
       });
     }
@@ -875,46 +887,108 @@ export async function getIntegrationDropdownList(churchId: string) {
     // 5. Fetch pending counselors
     const { data: pending, error: pendingErr } = await supabase
       .from("pending_counselors")
-      .select("email, first_name, last_name, role, access_code")
+      .select("id, email, first_name, last_name, role, access_code")
       .eq("church_id", churchId);
 
     if (!pendingErr && pending) {
       pending.forEach((p: any) => {
-        if (p.email) {
+        const email = (p.email?.includes("@poimen.local") ? "" : p.email?.toLowerCase().trim()) || "";
+        const name = `${p.first_name || ""} ${p.last_name || ""}`.trim();
+        if (name || email) {
           list.push({
-            email: p.email.toLowerCase().trim(),
-            name: `${p.first_name} ${p.last_name || ""}`.trim(),
+            id: p.id,
+            email,
+            name: name || email,
+            displayName: name || email,
             role: p.role || "integration_conseiller",
             isPending: true,
+            isObservation: p.role === "integration_observation",
             code: p.access_code
           });
         }
       });
     }
 
-    // Deduplicate by email
-    const uniqueMap = new Map<string, any>();
-    list.forEach(item => {
-      const email = item.email?.toLowerCase().trim();
-      if (email && !uniqueMap.has(email)) {
-        uniqueMap.set(email, {
-          email,
-          name: item.name || email,
-          role: item.role || "integration_conseiller",
-          isHead: item.isHead,
-          isPending: item.isPending,
-          code: item.code
+    // 6. Fetch observation counselors from integration_observation_members
+    try {
+      const { data: obsData, error: obsErr } = await supabase
+        .from("integration_observation_members")
+        .select("id, email, first_name, last_name, role")
+        .eq("church_id", churchId)
+        .eq("active", true);
+
+      if (!obsErr && obsData) {
+        obsData.forEach((obs: any) => {
+          const email = (obs.email?.includes("@poimen.local") ? "" : obs.email?.toLowerCase().trim()) || "";
+          const name = `${obs.first_name || ""} ${obs.last_name || ""}`.trim();
+          if (name || email) {
+            list.push({
+              id: obs.id,
+              email,
+              name: name || email,
+              displayName: name || email,
+              role: "integration_observation",
+              isObservation: true
+            });
+          }
         });
       }
+    } catch (e) {
+      // Ignore if table schema error
+    }
+
+    // Deduplicate by name and email so counselors without email are preserved
+    const uniqueMap = new Map<string, any>();
+    list.forEach(item => {
+      const email = (item.email || "").toLowerCase().trim();
+      const hasEmail = Boolean(email && !email.includes("@poimen.local"));
+      const rawName = (item.name || "").trim();
+      const normName = rawName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      const nameKey = normName ? `name:${normName}` : "";
+      const emailKey = hasEmail ? `email:${email}` : "";
+      const idKey = item.id ? `id:${item.id}` : "";
+
+      // Check if already registered under email or name
+      if (emailKey && uniqueMap.has(emailKey)) {
+        return;
+      }
+      if (nameKey && uniqueMap.has(nameKey)) {
+        const existing = uniqueMap.get(nameKey);
+        if (!existing.email && hasEmail) {
+          existing.email = email;
+          uniqueMap.set(emailKey, existing);
+        }
+        return;
+      }
+
+      const entry = {
+        id: item.id,
+        email: hasEmail ? email : "",
+        name: rawName || email,
+        displayName: rawName || email,
+        role: item.role || "integration_conseiller",
+        isHead: Boolean(item.isHead),
+        isPending: Boolean(item.isPending),
+        isObservation: Boolean(item.isObservation || item.role === "integration_observation"),
+        code: item.code
+      };
+
+      const primaryKey = nameKey || emailKey || idKey || `rand:${Math.random()}`;
+      uniqueMap.set(primaryKey, entry);
+      if (emailKey) uniqueMap.set(emailKey, entry);
+      if (nameKey) uniqueMap.set(nameKey, entry);
     });
 
-    const uniqueList = Array.from(uniqueMap.values());
+    const uniqueList = Array.from(new Set(uniqueMap.values()));
 
     const roleRank = (role: string) => {
       const r = (role || "").toLowerCase();
       if (r === "integration_responsable") return 1;
       if (r === "integration_second") return 2;
-      return 3;
+      if (r === "integration_conseiller") return 3;
+      if (r === "integration_observation") return 4;
+      return 5;
     };
 
     uniqueList.sort((a, b) => {

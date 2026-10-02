@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   Calendar, Download, Save, Eye, Edit3, Trash2, 
   ArrowLeft, Clock, RotateCcw, X, Copy, Plus, ClipboardCheck, ZoomIn, ZoomOut, MapPin
@@ -491,15 +491,28 @@ Bénédictions à tous pour le service ! ✨`;
     }
   };
 
-  // All known member names (first name uppercase)
-  const allKnownNames = Array.from(new Set(
-    teamMembers
-      .map(m => {
-        const fullName = m.display_name || m.name || "";
-        return fullName.split(" ")[0].toUpperCase();
-      })
-      .filter(Boolean)
-  ));
+  // All known member names (first name uppercase, from team members & existing seat assignments)
+  const allKnownNames = useMemo(() => {
+    const list: string[] = [];
+
+    (teamMembers || []).forEach(m => {
+      const fullName = (m.display_name || m.name || "").trim();
+      if (!fullName) return;
+      const firstName = fullName.split(" ")[0].toUpperCase();
+      if (firstName) list.push(firstName);
+    });
+
+    if (planData?.seats) {
+      planData.seats.forEach(s => {
+        if (s.member && s.member.trim()) {
+          const upper = s.member.trim().toUpperCase();
+          if (upper) list.push(upper);
+        }
+      });
+    }
+
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+  }, [teamMembers, planData]);
 
   if (loading || !planData) {
     return (

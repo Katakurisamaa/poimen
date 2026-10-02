@@ -130,13 +130,14 @@ export default function DashboardPage() {
       const churchConnectedEmail = (typeof window !== "undefined" ? (localStorage.getItem("church_connected_email") || "") : "").toLowerCase().trim();
 
       if (res.success && res.list && res.list.length > 0) {
-        setIntegrationList(res.list);
+        const selectableList = res.list.filter((m: any) => !m.isObservation && m.email);
+        setIntegrationList(selectableList.length > 0 ? selectableList : res.list);
         // Preselect the user who logged in at church connection if they are in the list, otherwise keep selected or pick first
-        const matchedMember = res.list.find((m: any) => m.email?.toLowerCase().trim() === churchConnectedEmail);
+        const matchedMember = selectableList.find((m: any) => m.email?.toLowerCase().trim() === churchConnectedEmail);
         if (matchedMember) {
           setSelectedIntegrationUser(matchedMember.email);
-        } else if (!selectedIntegrationUser || !res.list.some((m: any) => m.email === selectedIntegrationUser)) {
-          setSelectedIntegrationUser(res.list[0].email);
+        } else if (!selectedIntegrationUser || !selectableList.some((m: any) => m.email === selectedIntegrationUser)) {
+          setSelectedIntegrationUser(selectableList[0]?.email || "");
         }
       } else {
         // Fallback to department head from church
