@@ -7,6 +7,20 @@ import { supabase } from "@/lib/supabase";
 import { createIntegrationTeamMember, deactivateIntegrationTeamMember, listIntegrationTeam, updateIntegrationTeamMember, setCounselorDispatchPermission } from "@/app/actions/auth";
 import { getActiveUserInfo } from "@/lib/client-session";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import CustomSelect from "@/components/ui/CustomSelect";
+
+const NEW_ROLE_OPTIONS = [
+  { value: "integration_conseiller", label: "Conseiller Intégration" },
+  { value: "integration_second", label: "Second Intégration" },
+  { value: "integration_observation", label: "Conseiller en observation" }
+];
+
+const EDIT_ROLE_OPTIONS = [
+  { value: "integration_conseiller", label: "Conseiller Intégration" },
+  { value: "integration_second", label: "Second Intégration" },
+  { value: "integration_responsable", label: "Responsable Intégration" },
+  { value: "integration_observation", label: "Conseiller en observation" }
+];
 
 export default function IntegrationTeamPage() {
   const { notify, confirm } = useFeedback();
@@ -62,9 +76,9 @@ export default function IntegrationTeamPage() {
     setEditForm({
       firstName,
       lastName,
-      email: member.email,
+      email: member.email || "",
       accessCode: "",
-      role: member.role === "Responsable" ? "integration_responsable" : member.role === "Second" ? "integration_second" : "integration_conseiller",
+      role: member.isObservation ? "integration_observation" : member.role === "Responsable" ? "integration_responsable" : member.role === "Second" ? "integration_second" : "integration_conseiller",
       canDispatchAll: Boolean(member.canDispatchAll)
     });
     setIsEditing(true);
@@ -96,8 +110,12 @@ export default function IntegrationTeamPage() {
 
   const handleEditCounselor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editForm.firstName || !editForm.lastName || !editForm.email) {
-      notify("Veuillez remplir les champs obligatoires.");
+    if (!editForm.firstName || !editForm.lastName) {
+      notify("Veuillez renseigner le prénom et le nom.");
+      return;
+    }
+    if (editForm.role !== "integration_observation" && !editForm.email) {
+      notify("L'adresse e-mail est obligatoire pour ce rôle.");
       return;
     }
 
@@ -109,7 +127,7 @@ export default function IntegrationTeamPage() {
         contextId: editingMember.contextId,
         firstName: editForm.firstName,
         lastName: editForm.lastName,
-        email: editForm.email,
+        email: editForm.email || undefined,
         accessCode: editForm.accessCode || undefined,
         role: editForm.role,
         canDispatchAll: editForm.role === "integration_conseiller" ? editForm.canDispatchAll : undefined
@@ -174,35 +192,50 @@ export default function IntegrationTeamPage() {
 
   const handleAddCounselor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCounselor.firstName || !newCounselor.lastName || !newCounselor.email || !newCounselor.accessCode) {
-      notify("Veuillez remplir tous les champs.");
+    if (!newCounselor.firstName || !newCounselor.lastName) {
+      notify("Veuillez renseigner le nom et le prénom.");
       return;
+    }
+
+    const isObservation = newCounselor.role === "integration_observation";
+
+    if (!isObservation) {
+      if (!newCounselor.email || !newCounselor.accessCode) {
+        notify("Veuillez renseigner l'adresse e-mail et le mot de passe initial.");
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
-      // Verify counselor doesn't already exist in team
-      const existing = team.find(t => t.email.toLowerCase() === newCounselor.email.toLowerCase().trim());
-      if (existing) {
-        notify("Un membre avec cet e-mail fait déjà partie de l'équipe.");
-        setSubmitting(false);
-        return;
+      // Verify counselor doesn't already exist in team if email provided
+      if (newCounselor.email?.trim()) {
+        const existing = team.find(t => t.email && t.email.toLowerCase() === newCounselor.email.toLowerCase().trim());
+        if (existing) {
+          notify("Un membre avec cet e-mail fait déjà partie de l'équipe.");
+          setSubmitting(false);
+          return;
+        }
       }
 
       const res = await createIntegrationTeamMember({
         churchId: church.id,
         firstName: newCounselor.firstName,
         lastName: newCounselor.lastName,
-        email: newCounselor.email,
-        accessCode: newCounselor.accessCode,
+        email: newCounselor.email?.trim() || undefined,
+        accessCode: isObservation ? undefined : newCounselor.accessCode,
         role: newCounselor.role
       });
 
       if (!res.success) throw new Error(res.error);
 
-      notify(res.requiresPrimaryPassword
-        ? "Membre ajouté. Son compte existant conserve son mot de passe personnel."
-        : "Membre créé. Communiquez-lui son mot de passe initial par un canal privé.");
+      if (isObservation) {
+        notify("Conseiller en observation enregistré avec succès dans la base de données !");
+      } else {
+        notify(res.requiresPrimaryPassword
+          ? "Membre ajouté. Son compte existant conserve son mot de passe personnel."
+          : "Membre créé. Communiquez-lui son mot de passe initial par un canal privé.");
+      }
       
       setNewCounselor({ firstName: "", lastName: "", email: "", accessCode: "", role: "integration_conseiller" });
       setIsAdding(false);
@@ -216,7 +249,9 @@ export default function IntegrationTeamPage() {
   };
 
   const handleDeleteMember = async (member: any) => {
-    const confirmMsg = member.status === "pending"
+    const confirmMsg = member.isObservation
+      ? `Retirer ${member.name} des conseillers en observation ?`
+      : member.status === "pending"
       ? "Annuler l'invitation de ce conseiller ?"
       : "Supprimer définitivement ce conseiller de votre équipe ? Il perdra tout accès à ses affectations.";
       
@@ -231,7 +266,7 @@ export default function IntegrationTeamPage() {
       });
       if (!deactivation.success) throw new Error(deactivation.error);
 
-      notify("Membre retiré de l'équipe avec succès.");
+      notify(member.isObservation ? "Conseiller en observation retiré de l'équipe." : "Membre retiré de l'équipe avec succès.");
       await fetchTeam(church.id);
       return;
     } catch (err: any) {
@@ -267,30 +302,42 @@ export default function IntegrationTeamPage() {
       </header>
 
       {/* Team Load metrics */}
-      <div className="glass" style={{ border: "1px solid rgba(212, 175, 55, 0.15)", padding: 24 }}>
-        <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 700, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 0.5 }}>Charge de Suivi de l'Équipe</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(180px, 100%), 1fr))", gap: "clamp(10px, 2vw, 18px)" }}>
-          <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
-            <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total Conseillers</div>
-            <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--cream)", marginTop: 6 }}>{team.length}</div>
-            <div style={{ fontSize: 10, color: "var(--gold-light)", marginTop: 4 }}>{team.filter(t => t.status === "active").length} actifs · {team.filter(t => t.status === "pending").length} en attente</div>
-          </div>
-          <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
-            <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total affectations actives</div>
-            <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--sky)", marginTop: 6 }}>
-              {team.reduce((acc, t) => acc + t.workload, 0)}
+      {(() => {
+        const regularActive = team.filter(t => t.status === "active" && !t.isObservation);
+        const observationCount = team.filter(t => t.isObservation).length;
+        const pendingCount = team.filter(t => t.status === "pending").length;
+        const totalActiveWorkload = team.reduce((acc, t) => acc + (t.workload || 0), 0);
+        return (
+          <div className="glass" style={{ border: "1px solid rgba(212, 175, 55, 0.15)", padding: 24 }}>
+            <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 700, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 0.5 }}>Charge de Suivi de l'Équipe</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(180px, 100%), 1fr))", gap: "clamp(10px, 2vw, 18px)" }}>
+              <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+                <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total Conseillers</div>
+                <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--cream)", marginTop: 6 }}>{team.length}</div>
+                <div style={{ fontSize: 10, color: "var(--gold-light)", marginTop: 4 }}>
+                  {regularActive.length} actif{regularActive.length > 1 ? "s" : ""}
+                  {observationCount > 0 ? ` · ${observationCount} en observation` : ""}
+                  {pendingCount > 0 ? ` · ${pendingCount} en attente` : ""}
+                </div>
+              </div>
+              <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+                <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total affectations actives</div>
+                <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--sky)", marginTop: 6 }}>
+                  {totalActiveWorkload}
+                </div>
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Invités pris en charge</div>
+              </div>
+              <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+                <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Charge Moyenne</div>
+                <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--purple-light)", marginTop: 6 }}>
+                  {regularActive.length > 0 ? (totalActiveWorkload / regularActive.length).toFixed(1) : "0.0"}
+                </div>
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Suivis par conseiller actif</div>
+              </div>
             </div>
-            <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Invités pris en charge</div>
           </div>
-          <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
-            <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Charge Moyenne</div>
-            <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--purple-light)", marginTop: 6 }}>
-              {team.length > 0 ? (team.reduce((acc, t) => acc + t.workload, 0) / team.filter(t => t.status === "active").length || 0).toFixed(1) : "0.0"}
-            </div>
-            <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Suivis par conseiller actif</div>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Grid listing */}
       <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
@@ -320,25 +367,60 @@ export default function IntegrationTeamPage() {
                 </thead>
                 <tbody>
                   {team.map((member, i) => (
-                    <tr key={member.id} style={{ borderBottom: i < team.length - 1 ? "1px solid rgba(212,175,55,0.06)" : "none", background: member.status === "pending" ? "rgba(245,158,11,0.02)" : "transparent" }}>
+                    <tr key={member.id} style={{ borderBottom: i < team.length - 1 ? "1px solid rgba(212,175,55,0.06)" : "none", background: member.isObservation ? "rgba(245,158,11,0.02)" : member.status === "pending" ? "rgba(245,158,11,0.02)" : "transparent" }}>
                       <td style={{ padding: "16px 24px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <div className={`avatar avatar-gradient ${member.status === "pending" ? "avatar-effect-pulse" : ""}`} style={{ width: 34, height: 34, fontSize: 11, borderColor: member.status === "pending" ? "var(--orange)" : "" }}>
+                          <div 
+                            className={`avatar avatar-gradient ${member.status === "pending" ? "avatar-effect-pulse" : ""}`} 
+                            style={{ 
+                              width: 34, 
+                              height: 34, 
+                              fontSize: 11, 
+                              borderColor: member.isObservation ? "rgba(245, 158, 11, 0.6)" : member.status === "pending" ? "var(--orange)" : "",
+                              background: member.isObservation ? "rgba(245, 158, 11, 0.12)" : undefined
+                            }}
+                          >
                             {member.name[0] || ""}{member.name.split(" ")[1]?.[0] || ""}
                           </div>
                           <div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cream)" }}>{member.name}</div>
                             <div style={{ fontSize: 11, color: "var(--muted)", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
-                              <Mail size={11} /> {member.email}
+                              <Mail size={11} /> 
+                              {member.email ? (
+                                <span>{member.email}</span>
+                              ) : (
+                                <span style={{ fontStyle: "italic", opacity: 0.65 }}>Non renseigné</span>
+                              )}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: "16px 24px", fontSize: 13, color: "var(--cream-dim)" }}>{member.role}</td>
+                      <td style={{ padding: "16px 24px", fontSize: 13, color: "var(--cream-dim)" }}>
+                        {member.isObservation ? (
+                          <span style={{ 
+                            display: "inline-flex", 
+                            alignItems: "center", 
+                            gap: 5, 
+                            fontSize: 11, 
+                            fontWeight: 700, 
+                            color: "#f59e0b", 
+                            background: "rgba(245, 158, 11, 0.12)", 
+                            border: "1px solid rgba(245, 158, 11, 0.28)", 
+                            padding: "3px 10px", 
+                            borderRadius: 12 
+                          }}>
+                            En observation
+                          </span>
+                        ) : (
+                          member.role
+                        )}
+                      </td>
                       <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                        {member.role === "Responsable" || member.role === "Second" ? (
+                        {member.isObservation ? (
+                          <span style={{ fontSize: 13, color: "var(--muted)" }}>—</span>
+                        ) : member.role === "Responsable" || member.role === "Second" ? (
                           <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600, background: "rgba(212,175,55,0.08)", padding: "4px 10px", borderRadius: 12 }}>
-                            Leader (Total)
+                            Leader
                           </span>
                         ) : (
                           <button
@@ -371,7 +453,11 @@ export default function IntegrationTeamPage() {
                         )}
                       </td>
                       <td style={{ padding: "16px 24px" }}>
-                        {member.status === "active" ? (
+                        {member.isObservation ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "#f59e0b", background: "rgba(245, 158, 11, 0.1)", padding: "4px 10px", borderRadius: 12, fontWeight: 600 }}>
+                            En observation
+                          </span>
+                        ) : member.status === "active" ? (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--green)", background: "rgba(16,185,129,0.1)", padding: "4px 10px", borderRadius: 12, fontWeight: 600 }}>
                             <CheckCircle2 size={12} /> Actif
                           </span>
@@ -382,7 +468,9 @@ export default function IntegrationTeamPage() {
                         )}
                       </td>
                       <td style={{ padding: "16px 24px", textAlign: "center" }}>
-                        {member.status === "active" ? (
+                        {member.isObservation ? (
+                          <span style={{ color: "var(--muted)", fontSize: 12 }}>—</span>
+                        ) : member.status === "active" ? (
                           <span className={`badge ${member.workload > 5 ? "badge-red" : member.workload > 2 ? "badge-gold" : ""}`} style={{ fontSize: 12, padding: "3px 10px", fontWeight: 700 }}>
                             {member.workload} invités
                           </span>
@@ -391,7 +479,7 @@ export default function IntegrationTeamPage() {
                         )}
                       </td>
                       <td style={{ padding: "16px 24px", fontSize: 12, color: "var(--muted)" }}>
-                        {new Date(member.createdAt).toLocaleDateString("fr-FR")}
+                        {member.createdAt ? new Date(member.createdAt).toLocaleDateString("fr-FR") : "—"}
                       </td>
                       <td style={{ padding: "16px 24px", textAlign: "right", whiteSpace: "nowrap" }}>
                         <button 
@@ -410,7 +498,7 @@ export default function IntegrationTeamPage() {
                           style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", transition: "color 0.2s ease" }}
                           onMouseEnter={e => e.currentTarget.style.color = "var(--red)"}
                           onMouseLeave={e => e.currentTarget.style.color = "var(--muted)"}
-                          title={member.status === "pending" ? "Annuler l'invitation" : "Supprimer de l'équipe"}
+                          title={member.isObservation ? "Retirer de l'équipe" : member.status === "pending" ? "Annuler l'invitation" : "Supprimer de l'équipe"}
                         >
                           <Trash2 size={15} />
                         </button>
@@ -453,27 +541,48 @@ export default function IntegrationTeamPage() {
                   <input className="input" placeholder="Ex: Dupont" value={newCounselor.lastName} onChange={e => setNewCounselor({...newCounselor, lastName: e.target.value})} required style={{ height: 40 }} />
                 </div>
               </div>
-              <div>
-                <label className="form-label">Adresse e-mail</label>
-                <input className="input" type="email" placeholder="counselor@email.com" value={newCounselor.email} onChange={e => setNewCounselor({...newCounselor, email: e.target.value})} required style={{ height: 40 }} />
-              </div>
+
               <div>
                 <label className="form-label">Rôle dans l'équipe</label>
-                <select 
-                  className="input" 
+                <CustomSelect 
                   value={newCounselor.role} 
-                  onChange={e => setNewCounselor({...newCounselor, role: e.target.value})} 
-                  style={{ height: 40, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(212, 175, 55, 0.25)" }}
-                >
-                  <option value="integration_conseiller">Conseiller Intégration</option>
-                  <option value="integration_second">Second Intégration</option>
-                </select>
+                  onChange={val => setNewCounselor({...newCounselor, role: val})} 
+                  options={NEW_ROLE_OPTIONS}
+                />
               </div>
+
               <div>
-                <label className="form-label">Code d'accès secret (Mot de passe)</label>
-                <input className="input" type="password" autoComplete="new-password" minLength={12} maxLength={128} placeholder="12 caractères minimum" value={newCounselor.accessCode} onChange={e => setNewCounselor({...newCounselor, accessCode: e.target.value})} required style={{ height: 40, letterSpacing: 1.5 }} />
-                <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Ce code servira de mot de passe lors de sa toute première connexion.</p>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <label className="form-label" style={{ margin: 0 }}>Adresse e-mail</label>
+                  {newCounselor.role === "integration_observation" && (
+                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 500 }}>Facultatif</span>
+                  )}
+                </div>
+                <input 
+                  className="input" 
+                  type="email" 
+                  placeholder="counselor@email.com" 
+                  value={newCounselor.email} 
+                  onChange={e => setNewCounselor({...newCounselor, email: e.target.value})} 
+                  required={newCounselor.role !== "integration_observation"} 
+                  style={{ height: 40 }} 
+                />
               </div>
+
+              {newCounselor.role === "integration_observation" ? (
+                <div style={{ background: "rgba(212, 175, 55, 0.08)", border: "1px solid rgba(212, 175, 55, 0.25)", borderRadius: 10, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center" }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--gold)", flexShrink: 0 }} />
+                  <div style={{ fontSize: 12, color: "var(--cream)", lineHeight: 1.45 }}>
+                    <strong style={{ color: "var(--gold-light)" }}>Phase d'observation :</strong> Ce membre est répertorié dans la base pour le comptage de l'équipe et les plannings sans accès direct à l'application.
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="form-label">Code d'accès secret</label>
+                  <input className="input" type="password" autoComplete="new-password" minLength={12} maxLength={128} placeholder="12 caractères minimum" value={newCounselor.accessCode} onChange={e => setNewCounselor({...newCounselor, accessCode: e.target.value})} required style={{ height: 40, letterSpacing: 1.5 }} />
+                  <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Ce code servira de mot de passe lors de sa toute première connexion.</p>
+                </div>
+              )}
 
               <div style={{ display: "flex", gap: 12, paddingTop: 10 }}>
                 <button type="button" className="btn btn-subtle" style={{ flex: 1, height: 44 }} onClick={() => setIsAdding(false)}>Annuler</button>
@@ -516,25 +625,45 @@ export default function IntegrationTeamPage() {
                   <input className="input" placeholder="Ex: Dupont" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value})} required style={{ height: 40 }} />
                 </div>
               </div>
-              <div>
-                <label className="form-label">Adresse e-mail</label>
-                <input className="input" type="email" value={editForm.email} readOnly style={{ height: 40 }} />
-              </div>
+
               <div>
                 <label className="form-label">Rôle dans l'équipe</label>
-                <select 
-                  className="input" 
+                <CustomSelect 
                   value={editForm.role} 
-                  onChange={e => setEditForm({...editForm, role: e.target.value})} 
-                  style={{ height: 40, background: "var(--bg-deep)", color: "var(--cream)", border: "1px solid rgba(212, 175, 55, 0.25)" }}
-                >
-                  <option value="integration_conseiller">Conseiller Intégration</option>
-                  <option value="integration_second">Second Intégration</option>
-                  <option value="integration_responsable">Responsable Intégration</option>
-                </select>
+                  onChange={val => setEditForm({...editForm, role: val})} 
+                  options={EDIT_ROLE_OPTIONS}
+                />
               </div>
 
-              {editForm.role === "integration_conseiller" && (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <label className="form-label" style={{ margin: 0 }}>Adresse e-mail</label>
+                  {editingMember.isObservation && (
+                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 500 }}>Facultatif</span>
+                  )}
+                </div>
+                {editingMember.isObservation ? (
+                  <input 
+                    className="input" 
+                    type="email" 
+                    placeholder="counselor@email.com" 
+                    value={editForm.email} 
+                    onChange={e => setEditForm({...editForm, email: e.target.value})} 
+                    style={{ height: 40 }} 
+                  />
+                ) : (
+                  <input className="input" type="email" value={editForm.email} readOnly style={{ height: 40 }} />
+                )}
+              </div>
+
+              {editForm.role === "integration_observation" ? (
+                <div style={{ background: "rgba(212, 175, 55, 0.08)", border: "1px solid rgba(212, 175, 55, 0.25)", borderRadius: 10, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center" }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--gold)", flexShrink: 0 }} />
+                  <div style={{ fontSize: 12, color: "var(--cream)", lineHeight: 1.45 }}>
+                    <strong style={{ color: "var(--gold-light)" }}>Conseiller en observation :</strong> Ce membre ne possède pas d'accès direct à l'application et est comptabilisé dans les effectifs de l'équipe.
+                  </div>
+                </div>
+              ) : editForm.role === "integration_conseiller" ? (
                 <div style={{ background: "rgba(212, 175, 55, 0.05)", border: "1px solid rgba(212, 175, 55, 0.2)", borderRadius: 8, padding: 12 }}>
                   <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
                     <input 
@@ -551,10 +680,13 @@ export default function IntegrationTeamPage() {
                     </div>
                   </label>
                 </div>
+              ) : null}
+
+              {!editingMember.isObservation && (
+                <div>
+                  <p className="form-label">L’adresse de connexion et le mot de passe sont gérés par le titulaire du compte.</p>
+                </div>
               )}
-              <div>
-                <p className="form-label">L’adresse de connexion et le mot de passe sont gérés par le titulaire du compte.</p>
-              </div>
 
               <div style={{ display: "flex", gap: 12, paddingTop: 10 }}>
                 <button type="button" className="btn btn-subtle" style={{ flex: 1, height: 44 }} onClick={() => setIsEditing(false)}>Annuler</button>

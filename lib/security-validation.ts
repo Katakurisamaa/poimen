@@ -13,3 +13,12 @@ export function validTeamInput(value: { churchId?: unknown; firstName?: unknown;
     && [value.firstName, value.lastName].every(v => typeof v === "string" && v.trim().length > 0 && v.length <= 100)
     && typeof value.email === "string" && value.email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email.trim());
 }
+
+export function validObservationMemberInput(value: { churchId?: unknown; firstName?: unknown; lastName?: unknown; email?: unknown }): boolean {
+  const basic = isUuid(value.churchId)
+    && [value.firstName, value.lastName].every(v => typeof v === "string" && v.trim().length > 0 && (v as string).length <= 100);
+  if (!basic) return false;
+  if (!value.email || (typeof value.email === "string" && value.email.trim() === "")) return true;
+  return typeof value.email === "string" && value.email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email.trim());
+}
+

@@ -7,7 +7,7 @@ if (typeof process !== "undefined" && process.env) {
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
 import { SUPER_ADMIN_EMAIL, inferContextType, normalizeFamilyRole } from "@/lib/auth-contexts";
-import { isUuid, isFamilyLeader, validTeamInput } from "@/lib/security-validation";
+import { isUuid, isFamilyLeader, validTeamInput, validObservationMemberInput } from "@/lib/security-validation";
 
 type ResolvedAccess = {
   role: string;
@@ -266,23 +266,85 @@ export async function listIntegrationTeam(churchId: string) {
     }
   });
 
+  // Query observation counselors (dedicated table or fallback storage)
+  let obsMembers: any[] = [];
+  try {
+    const { data: obsData, error: obsErr } = await supabase
+      .from("integration_observation_members")
+      .select("*")
+      .eq("church_id", churchId)
+      .eq("active", true);
+
+    if (!obsErr && obsData) {
+      obsMembers = obsData;
+    }
+  } catch (e) {
+    // Ignore schema cache errors before migration
+  }
+
+  // Also query observation counselors stored in pending_counselors (pre-migration fallback)
+  try {
+    const { data: pendingObs } = await supabase
+      .from("pending_counselors")
+      .select("*")
+      .eq("church_id", churchId)
+      .eq("role", "integration_observation");
+
+    if (pendingObs && pendingObs.length > 0) {
+      const existingIds = new Set(obsMembers.map((m: any) => m.id));
+      pendingObs.forEach((p: any) => {
+        if (!existingIds.has(p.id)) {
+          obsMembers.push({
+            id: p.id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            email: p.email?.includes("@poimen.local") ? "" : p.email,
+            role: "integration_observation",
+            created_at: p.created_at,
+            isPendingStorage: true
+          });
+        }
+      });
+    }
+  } catch (e) {
+    // Ignore error
+  }
+
+  const regularTeam = (contexts || []).map((context: any) => {
+    const profile = profileMap.get(context.user_id);
+    return {
+      id: context.user_id,
+      contextId: context.id,
+      email: context.email || profile?.email || "",
+      name: context.display_name || profile?.display_name || context.email,
+      role: context.role === "integration_responsable" ? "Responsable" : context.role === "integration_second" ? "Second" : "Conseiller",
+      roleKey: context.role,
+      canDispatchAll: Boolean(context.metadata?.can_dispatch_all),
+      status: "active",
+      workload: workloadMap[context.user_id] || 0,
+      createdAt: context.created_at || profile?.created_at,
+      isObservation: false
+    };
+  });
+
+  const observationTeam = obsMembers.map((obs: any) => ({
+    id: obs.id,
+    contextId: obs.id,
+    email: obs.email && !obs.email.includes("@poimen.local") ? obs.email : "",
+    name: `${obs.first_name || ""} ${obs.last_name || ""}`.trim() || "Conseiller en observation",
+    role: "En observation",
+    roleKey: "integration_observation",
+    canDispatchAll: false,
+    status: "active",
+    workload: 0,
+    createdAt: obs.created_at || new Date().toISOString(),
+    isObservation: true,
+    isPendingStorage: Boolean(obs.isPendingStorage)
+  }));
+
   return {
     success: true,
-    team: (contexts || []).map((context: any) => {
-      const profile = profileMap.get(context.user_id);
-      return {
-        id: context.user_id,
-        contextId: context.id,
-        email: context.email || profile?.email,
-        name: context.display_name || profile?.display_name || context.email,
-        role: context.role === "integration_responsable" ? "Responsable" : context.role === "integration_second" ? "Second" : "Conseiller",
-        roleKey: context.role,
-        canDispatchAll: Boolean(context.metadata?.can_dispatch_all),
-        status: "active",
-        workload: workloadMap[context.user_id] || 0,
-        createdAt: context.created_at || profile?.created_at
-      };
-    })
+    team: [...regularTeam, ...observationTeam]
   };
 }
 
@@ -290,16 +352,71 @@ export async function createIntegrationTeamMember(params: {
   churchId: string;
   firstName: string;
   lastName: string;
-  email: string;
-  accessCode: string;
+  email?: string;
+  accessCode?: string;
   role: string;
 }) {
-  if (!params || !validTeamInput(params)) return { success: false, error: "Coordonnées invalides." };
-  const permission = await assertCanManageIntegrationTeam(params.churchId);
+  const permission = await assertCanManageIntegrationTeam(params?.churchId || "");
   if (!permission.ok) return { success: false, error: permission.error };
 
   const supabase = await getServiceSupabase();
-  const cleanEmail = params.email.toLowerCase().trim();
+
+  // Special handling for counselors in observation phase (no app access, email optional)
+  if (params?.role === "integration_observation") {
+    if (!params || !validObservationMemberInput(params)) {
+      return { success: false, error: "Coordonnées invalides (Prénom et nom requis)." };
+    }
+
+    const cleanEmail = params.email && typeof params.email === "string" && params.email.trim()
+      ? params.email.toLowerCase().trim()
+      : null;
+    const firstName = params.firstName.trim();
+    const lastName = params.lastName.trim();
+
+    // 1. Try inserting into integration_observation_members
+    const { data: obsCreated, error: obsErr } = await supabase
+      .from("integration_observation_members")
+      .insert({
+        church_id: params.churchId,
+        first_name: firstName,
+        last_name: lastName,
+        email: cleanEmail,
+        role: "integration_observation",
+        active: true
+      })
+      .select()
+      .maybeSingle();
+
+    if (obsErr) {
+      // 2. Fallback to pending_counselors if table not yet created via migration
+      const fallbackEmail = cleanEmail || `obs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}@poimen.local`;
+      const { error: fallbackErr } = await supabase
+        .from("pending_counselors")
+        .insert({
+          church_id: params.churchId,
+          first_name: firstName,
+          last_name: lastName,
+          email: fallbackEmail,
+          access_code: "OBSERVATION_NO_LOGIN",
+          role: "integration_observation"
+        });
+
+      if (fallbackErr) {
+        return { success: false, error: fallbackErr.message };
+      }
+    }
+
+    return {
+      success: true,
+      createdAuthUser: false,
+      requiresPrimaryPassword: false,
+      isObservation: true
+    };
+  }
+
+  if (!params || !validTeamInput(params)) return { success: false, error: "Coordonnées invalides." };
+
+  const cleanEmail = (params.email || "").toLowerCase().trim();
   const displayName = `${params.firstName.trim()} ${params.lastName.trim()}`.trim();
   const role = params.role === "integration_second" ? "integration_second" : "integration_conseiller";
   if (cleanEmail === SUPER_ADMIN_EMAIL) {
@@ -361,6 +478,49 @@ export async function deactivateIntegrationTeamMember(params: { churchId: string
   if (!permission.ok) return { success: false, error: permission.error };
 
   const supabase = await getServiceSupabase();
+
+  // 1. Check if member is in integration_observation_members
+  try {
+    const { data: obsMember } = await supabase
+      .from("integration_observation_members")
+      .select("id")
+      .eq("id", params.userId)
+      .eq("church_id", params.churchId)
+      .maybeSingle();
+
+    if (obsMember) {
+      const { error: delErr } = await supabase
+        .from("integration_observation_members")
+        .delete()
+        .eq("id", params.userId);
+      if (delErr) return { success: false, error: delErr.message };
+      return { success: true };
+    }
+  } catch (e) {
+    // Ignore error if table not yet created
+  }
+
+  // 2. Check if member is in pending_counselors (observation role)
+  try {
+    const { data: pendingObsMember } = await supabase
+      .from("pending_counselors")
+      .select("id, role")
+      .eq("id", params.userId)
+      .eq("church_id", params.churchId)
+      .maybeSingle();
+
+    if (pendingObsMember) {
+      const { error: delErr } = await supabase
+        .from("pending_counselors")
+        .delete()
+        .eq("id", params.userId);
+      if (delErr) return { success: false, error: delErr.message };
+      return { success: true };
+    }
+  } catch (e) {
+    // Ignore error
+  }
+
   const { data: targets, error: targetsError } = await supabase.from("user_contexts")
     .select("id, role, email").eq("user_id", params.userId).eq("church_id", params.churchId).eq("context_type", "integration");
   if (targetsError || !targets?.length) return { success: false, error: "Membre introuvable." };
@@ -775,19 +935,89 @@ export async function updateIntegrationTeamMember(params: {
   contextId: string;
   firstName: string;
   lastName: string;
-  email: string;
+  email?: string;
   accessCode?: string;
   role: string;
   canDispatchAll?: boolean;
 }) {
-  if (!params || !validTeamInput(params) || !isUuid(params.userId) || !isUuid(params.contextId)) {
-    return { success: false, error: "Membre invalide." };
-  }
-  const permission = await assertCanManageIntegrationTeam(params.churchId);
+  const permission = await assertCanManageIntegrationTeam(params?.churchId || "");
   if (!permission.ok) return { success: false, error: permission.error };
 
   const supabase = await getServiceSupabase();
-  const cleanEmail = params.email.toLowerCase().trim();
+
+  // 1. Check if target is an observation member in integration_observation_members
+  try {
+    const { data: obsMember } = await supabase
+      .from("integration_observation_members")
+      .select("*")
+      .eq("id", params.contextId || params.userId)
+      .eq("church_id", params.churchId)
+      .maybeSingle();
+
+    if (obsMember) {
+      if (!params.firstName?.trim() || !params.lastName?.trim()) {
+        return { success: false, error: "Le prénom et le nom sont obligatoires." };
+      }
+      const cleanEmail = params.email && typeof params.email === "string" && params.email.trim()
+        ? params.email.toLowerCase().trim()
+        : null;
+
+      const { error: updErr } = await supabase
+        .from("integration_observation_members")
+        .update({
+          first_name: params.firstName.trim(),
+          last_name: params.lastName.trim(),
+          email: cleanEmail,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", obsMember.id);
+
+      if (updErr) return { success: false, error: updErr.message };
+      return { success: true };
+    }
+  } catch (e) {
+    // Ignore error if table not yet created
+  }
+
+  // 2. Check if target is an observation member in pending_counselors
+  try {
+    const { data: pendingObs } = await supabase
+      .from("pending_counselors")
+      .select("*")
+      .eq("id", params.contextId || params.userId)
+      .eq("church_id", params.churchId)
+      .eq("role", "integration_observation")
+      .maybeSingle();
+
+    if (pendingObs) {
+      if (!params.firstName?.trim() || !params.lastName?.trim()) {
+        return { success: false, error: "Le prénom et le nom sont obligatoires." };
+      }
+      const cleanEmail = params.email && typeof params.email === "string" && params.email.trim()
+        ? params.email.toLowerCase().trim()
+        : pendingObs.email;
+
+      const { error: updErr } = await supabase
+        .from("pending_counselors")
+        .update({
+          first_name: params.firstName.trim(),
+          last_name: params.lastName.trim(),
+          email: cleanEmail
+        })
+        .eq("id", pendingObs.id);
+
+      if (updErr) return { success: false, error: updErr.message };
+      return { success: true };
+    }
+  } catch (e) {
+    // Ignore error
+  }
+
+  if (!params || !validTeamInput(params) || !isUuid(params.userId) || !isUuid(params.contextId)) {
+    return { success: false, error: "Membre invalide." };
+  }
+
+  const cleanEmail = (params.email || "").toLowerCase().trim();
   const displayName = `${params.firstName.trim()} ${params.lastName.trim()}`.trim();
   const role = params.role === "integration_second" ? "integration_second" : params.role === "integration_responsable" ? "integration_responsable" : "integration_conseiller";
 

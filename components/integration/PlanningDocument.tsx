@@ -131,7 +131,7 @@ export default function PlanningDocument({
               PLANNING DU SERVICE — DÉPARTEMENT INTÉGRATION
             </h1>
             <div className="planning-subtitle" style={{ fontSize: 11, color: "#64748b", fontWeight: 600, marginTop: 1 }}>
-              Accueillir • Orienter • Intégrer • Bâtir des Disciples
+              Accueillir • Orienter • Intégrer
             </div>
           </div>
         </div>
