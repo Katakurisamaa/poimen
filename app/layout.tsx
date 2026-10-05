@@ -44,7 +44,7 @@ export default function RootLayout({
         />
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("poimen_theme")==="dark"?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;document.documentElement.classList.toggle("dark",t==="dark");document.addEventListener("DOMContentLoaded",function(){document.body.dataset.theme=t;document.body.style.colorScheme=t;document.body.classList.toggle("dark",t==="dark");});}catch(e){document.documentElement.dataset.theme="light";document.addEventListener("DOMContentLoaded",function(){document.body.dataset.theme="light";});}`,
+            __html: `try{var s=localStorage.getItem("poimen_theme");var sysDark=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;var t=(s==="dark"||s==="light")?s:(sysDark?"dark":"light");document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;document.documentElement.classList.toggle("dark",t==="dark");document.addEventListener("DOMContentLoaded",function(){document.body.dataset.theme=t;document.body.style.colorScheme=t;document.body.classList.toggle("dark",t==="dark");});}catch(e){var d=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=d;document.addEventListener("DOMContentLoaded",function(){document.body.dataset.theme=d;});}`,
           }}
         />
       </head>

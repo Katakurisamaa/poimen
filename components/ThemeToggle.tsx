@@ -28,12 +28,45 @@ export default function ThemeToggle() {
     } catch {
       // localStorage may be disabled
     }
-    const currentDocTheme = document.documentElement.dataset.theme;
-    const nextTheme: ThemeMode =
-      saved === "dark" || currentDocTheme === "dark" ? "dark" : "light";
-    setTheme(nextTheme);
-    applyTheme(nextTheme);
+
+    const getSystemTheme = (): ThemeMode => {
+      if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        return "dark";
+      }
+      return "light";
+    };
+
+    const currentDocTheme = document.documentElement.dataset.theme as ThemeMode | undefined;
+    const initialTheme: ThemeMode =
+      (saved === "dark" || saved === "light")
+        ? saved
+        : (currentDocTheme === "dark" || currentDocTheme === "light")
+          ? currentDocTheme
+          : getSystemTheme();
+
+    setTheme(initialTheme);
+    applyTheme(initialTheme);
     setMounted(true);
+
+    // Écouter les changements de mode sombre/clair du système d'exploitation de l'appareil
+    if (typeof window !== "undefined" && window.matchMedia) {
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleSystemChange = (e: MediaQueryListEvent) => {
+        let currentSaved: string | null = null;
+        try {
+          currentSaved = localStorage.getItem(STORAGE_KEY);
+        } catch {}
+        // Ne basculer automatiquement que si l'utilisateur n'a pas fixé manuellement un choix
+        if (!currentSaved) {
+          const sysTheme: ThemeMode = e.matches ? "dark" : "light";
+          setTheme(sysTheme);
+          applyTheme(sysTheme);
+        }
+      };
+
+      mediaQuery.addEventListener("change", handleSystemChange);
+      return () => mediaQuery.removeEventListener("change", handleSystemChange);
+    }
   }, []);
 
   const toggleTheme = (e: React.MouseEvent<HTMLButtonElement>) => {
