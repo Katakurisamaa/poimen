@@ -5,6 +5,7 @@ import { useWorkspace } from "@/lib/use-workspace";
 import { roleLabel } from "@/lib/navigation";
 import { clearActiveSpace } from "@/lib/client-session";
 import styles from "@/components/experience/Experience.module.css";
+import NotificationCenter from "@/components/layout/NotificationCenter";
 
 export default function Header({ onMenuClick }: { bergerieName?: string; onMenuClick?: () => void }) {
   const workspace = useWorkspace();
@@ -19,7 +20,10 @@ export default function Header({ onMenuClick }: { bergerieName?: string; onMenuC
       <button type="button" className={styles.contextButton} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label={`Espace actif : ${title}. Changer d’espace`}>
         <span className={styles.contextIcon}><Church size={19} /></span><span><small>{workspace.churchName}</small><strong>{title}</strong></span><ChevronDown size={16} />
       </button>
-      <span className={styles.roleBadge}>{roleLabel(workspace.role)}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <NotificationCenter />
+        <span className={styles.roleBadge}>{roleLabel(workspace.role)}</span>
+      </div>
     </header>
     <dialog ref={ref} className={`${styles.dialog} ${styles.ui}`} aria-labelledby="space-title" onCancel={event => { event.preventDefault(); setOpen(false); }}>
       <div className={styles.sectionHeading}><span className={styles.kicker}>VOUS TRAVAILLEZ DANS</span><button type="button" className={styles.iconButton} onClick={() => setOpen(false)} aria-label="Fermer" autoFocus><X size={19} /></button></div>

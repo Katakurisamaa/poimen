@@ -42,3 +42,55 @@ self.addEventListener('fetch', (event) => {
     return response;
   })());
 });
+
+// Notifications Push & Interactions
+self.addEventListener('push', (event) => {
+  let data = {
+    title: 'Poimén — Suivi Pastoral',
+    body: 'Vous avez une notification importante.',
+    url: '/dashboard/affectation'
+  };
+
+  if (event.data) {
+    try {
+      data = { ...data, ...event.data.json() };
+    } catch {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || '/brand/icon-192.png',
+    badge: data.badge || '/brand/icon-192.png',
+    vibrate: [150, 50, 150],
+    data: { url: data.url || '/dashboard/affectation' },
+    actions: data.actions || [
+      { action: 'open', title: 'Ouvrir Poimén' }
+    ]
+  };
+
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/dashboard/affectation';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          if (targetUrl && client.navigate) {
+            client.navigate(targetUrl);
+          }
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
   Phone, Mail, Calendar, User, Eye, UserCheck, UserMinus, 
   AlertTriangle, ShieldCheck, Clock, UserPlus, PhoneCall,
@@ -101,7 +102,42 @@ export default function TriageListView({
   isLeader = false
 }: TriageListViewProps) {
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [activeMenuGuestId, setActiveMenuGuestId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (!activeMenuGuestId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveMenuGuestId(null);
+      }
+    };
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      // Do not close if clicking inside CustomSelect popup / dropdown, or inside the panel or trigger
+      if (
+        target.closest?.('[role="listbox"]') ||
+        target.closest?.(`.${styles.rowToolsPanel}`) ||
+        target.closest?.(`.${styles.btnActionsTrigger}`)
+      ) {
+        return;
+      }
+      setActiveMenuGuestId(null);
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside, { passive: true });
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [activeMenuGuestId]);
+
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr");
   const query = normalize(search.trim());
   const visibleGuests = guests.filter(guest => normalize([guest.firstName, guest.lastName, guest.phone, guest.email].filter(Boolean).join(" ")).includes(query));
@@ -412,24 +448,119 @@ export default function TriageListView({
                         <Edit3 size={14} /> Modifier
                       </button>
                     )}
-                    {((isLeader && onAssign) || onDeleteGuest || (isLeader && onEditGuest)) && (
-                      <details className={styles.rowTools} onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
-                        <summary aria-label={`Actions pour ${g.firstName} ${g.lastName}`}><MoreHorizontal size={18} /><span>Actions</span></summary>
-                        <div className={styles.rowToolsPanel}>
-                          {isLeader && onEditGuest && (
+                    {((isLeader && onAssign) || onDeleteGuest || (isLeader && onEditGuest)) && (() => {
+                      const isMenuOpen = activeMenuGuestId === g.id;
+                      const panelBody = (
+                        <>
+                          <div className={styles.mobileDragHandle} aria-hidden="true" />
+                          <div className={styles.panelHeader}>
+                            <div className={styles.panelTitle}>
+                              <strong>Actions rapides</strong>
+                              <small>{g.firstName} {g.lastName}</small>
+                            </div>
                             <button
                               type="button"
-                              className={styles.btnEditTool}
-                              onClick={() => onEditGuest(g)}
+                              className={styles.panelCloseBtn}
+                              onClick={() => setActiveMenuGuestId(null)}
+                              title="Fermer"
+                              aria-label="Fermer"
                             >
-                              <Edit3 size={14} /> Modifier le formulaire
+                              <X size={16} />
                             </button>
+                          </div>
+
+                          <div className={styles.panelContent}>
+                            {isLeader && onEditGuest && (
+                              <button
+                                type="button"
+                                className={styles.btnEditTool}
+                                onClick={() => {
+                                  setActiveMenuGuestId(null);
+                                  onEditGuest(g);
+                                }}
+                              >
+                                <Edit3 size={15} /> Modifier le formulaire
+                              </button>
+                            )}
+
+                            {isLeader && onAssign && (
+                              <div className={styles.assignmentField}>
+                                <span>Conseiller en charge</span>
+                                <CustomSelect
+                                  size="sm"
+                                  value={g.assigned_to || ""}
+                                  onChange={(val) => handleSelectCounselor(g.id, val)}
+                                  disabled={assigningId === g.id}
+                                  placeholder={assigningId === g.id ? "Affectation en cours..." : "Choisir un conseiller"}
+                                  options={counselorSelectOptions}
+                                  searchable
+                                />
+                              </div>
+                            )}
+
+                            {onDeleteGuest && (
+                              <button
+                                type="button"
+                                className={styles.btnDelete}
+                                onClick={() => {
+                                  setActiveMenuGuestId(null);
+                                  onDeleteGuest(g.id);
+                                }}
+                              >
+                                <Trash2 size={15} /> Supprimer définitivement
+                              </button>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            className={styles.mobileCloseBtn}
+                            onClick={() => setActiveMenuGuestId(null)}
+                          >
+                            Fermer
+                          </button>
+                        </>
+                      );
+
+                      return (
+                        <div className={`${styles.rowTools} ${isMenuOpen ? styles.rowToolsOpen : ""}`}>
+                          <button
+                            type="button"
+                            className={`${styles.btnActionsTrigger} ${isMenuOpen ? styles.btnActionsTriggerActive : ""}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuGuestId(isMenuOpen ? null : g.id);
+                            }}
+                            aria-expanded={isMenuOpen}
+                            aria-haspopup="dialog"
+                            aria-label={`Actions pour ${g.firstName} ${g.lastName}`}
+                            title="Options et actions"
+                          >
+                            <MoreHorizontal size={18} />
+                            <span>Actions</span>
+                          </button>
+
+                          {isMenuOpen && typeof document !== "undefined" && createPortal(
+                            <div
+                              className={styles.modalOverlay}
+                              onClick={() => setActiveMenuGuestId(null)}
+                              aria-hidden="true"
+                            >
+                              <div
+                                className={styles.rowToolsPanel}
+                                role="dialog"
+                                aria-modal="true"
+                                aria-label={`Actions pour ${g.firstName} ${g.lastName}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {panelBody}
+                              </div>
+                            </div>,
+                            document.body
                           )}
-                          {isLeader && onAssign && <div className={styles.assignmentField}><span>Conseiller en charge</span><CustomSelect size="sm" value={g.assigned_to || ""} onChange={val => handleSelectCounselor(g.id, val)} disabled={assigningId === g.id} placeholder="Choisir un conseiller" options={counselorSelectOptions} searchable /></div>}
-                          {onDeleteGuest && <button type="button" className={styles.btnDelete} onClick={() => onDeleteGuest(g.id)}><Trash2 size={14} /> Supprimer définitivement</button>}
                         </div>
-                      </details>
-                    )}
+                      );
+                    })()}
                   </>
                 )}
               </div>

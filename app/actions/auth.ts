@@ -1470,6 +1470,34 @@ export async function assignCounselorToGuest(params: {
       return { success: false, error: updateError.message };
     }
   }
+
+  // Enregistrement de la notification pour le conseiller (non-bloquant)
+  if (params.counselorId) {
+    try {
+      const { data: gData } = await supabase
+        .from("invites")
+        .select("first_name, last_name, civility, phone")
+        .eq("id", params.guestId)
+        .maybeSingle();
+
+      const guestFullName = [gData?.civility, gData?.first_name, gData?.last_name].filter(Boolean).join(" ").trim() || "Un nouvel invité";
+
+      await supabase.from("notifications").insert({
+        church_id: params.churchId,
+        user_id: params.counselorId,
+        type: "assignment",
+        title: "Nouvel invité confié",
+        message: `${guestFullName} vous a été confié(e) pour le suivi pastoral.`,
+        guest_id: params.guestId,
+        guest_name: guestFullName,
+        guest_phone: gData?.phone || null,
+        is_read: false
+      });
+    } catch {
+      // Ignoré sans bloquer si la table notifications n'a pas encore été créée
+    }
+  }
+
   return { success: true, responsible: respName };
 }
 

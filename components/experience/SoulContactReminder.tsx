@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { getActiveUserInfo, getActiveContext } from "@/lib/client-session";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import { updateAppBadge } from "@/lib/notifications";
 import styles from "./SoulContactReminder.module.css";
 import {
   Phone,
@@ -158,6 +159,7 @@ export default function SoulContactReminder() {
               detail: { count: urgentCount }
             })
           );
+          updateAppBadge(urgentCount);
         }
       }
     } catch (err) {

@@ -815,15 +815,264 @@
 .infoWrap { gap: 10px; }
 .card { align-items: flex-start; background: var(--surface-solid); }
 .actionsWrap { flex-basis: auto; align-self: center; }
-.rowTools { position: relative; }
-.rowTools summary { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 9px; cursor: pointer; color: var(--muted); font-size: 12px; list-style: none; }
-.rowTools summary::-webkit-details-marker { display: none; }
-.rowTools[open] summary { color: var(--gold); border-color: var(--gold); }
-.rowTools summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.rowToolsPanel { position: absolute; z-index: 20; right: 0; top: calc(100% + 8px); width: min(300px, calc(100vw - 64px)); padding: 16px; background: var(--surface-solid); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-dialog); display: grid; gap: 16px; }
-.assignmentField { display: grid; gap: 8px; font-size: 12px; color: var(--muted); }
-.rowToolsPanel .btnDelete { justify-content: flex-start; background: transparent; border-color: var(--border); }
+.rowTools {
+  position: relative;
+  display: inline-flex;
+}
+
+.rowToolsOpen {
+  z-index: 9990;
+}
+
+.btnActionsTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted, #9ca3af);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btnActionsTrigger:hover,
+.btnActionsTriggerActive {
+  color: var(--gold, #d4af37);
+  border-color: rgba(212, 175, 55, 0.4);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.btnActionsTrigger:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+/* Modal Overlay across the entire viewport */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: modalOverlayFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalOverlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Modal dialog on desktop: centered, perfectly visible, never cut off */
+.rowToolsPanel {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 20px 22px 22px;
+  background: var(--surface-solid, #131b26);
+  border: 1.5px solid var(--border-gold, rgba(212, 175, 55, 0.35));
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: modalScaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--cream, #f9fafb);
+}
+
+@keyframes modalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+
+.panelTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.panelTitle strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cream, #f9fafb);
+  letter-spacing: 0.02em;
+}
+
+.panelTitle small {
+  font-size: 12px;
+  color: var(--gold-light, #d4af37);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panelCloseBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  color: var(--muted, #9ca3af);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.panelCloseBtn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+
+.panelContent {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.assignmentField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted, #9ca3af);
+  font-weight: 500;
+}
+
+.rowToolsPanel .btnDelete {
+  justify-content: flex-start;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.rowToolsPanel .btnDelete:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+}
+
+.mobileDragHandle {
+  display: none;
+}
+
+.mobileCloseBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 11px;
+  color: var(--cream, #f9fafb);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mobileCloseBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 @media (max-width: 768px) {
-  .actionsWrap { flex-basis: auto; padding-top: 12px; border-top: 1px solid var(--border-light); }
-  .rowToolsPanel { width: min(300px, calc(100vw - 64px)); }
+  .actionsWrap {
+    flex-basis: auto;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  }
+
+  .rowTools {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .btnActionsTrigger {
+    width: 100%;
+    justify-content: center;
+    padding: 11px;
+    font-size: 13px;
+  }
+
+  /* Modal on mobile: bottom sheet docking */
+  .modalOverlay {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .rowToolsPanel {
+    max-width: 440px;
+    margin: 0 auto;
+    border-radius: 22px;
+    padding: 14px 18px 18px;
+    animation: sheetSlideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes sheetSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(32px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .mobileDragHandle {
+    display: block;
+    width: 38px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    margin: 0 auto 4px;
+  }
 }

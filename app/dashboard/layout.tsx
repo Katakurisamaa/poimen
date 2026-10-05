@@ -21,6 +21,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
+    const handleOutsideClickDetails = (e: MouseEvent) => {
+      const openTools = document.querySelectorAll("details.people-tools[open]");
+      openTools.forEach((el) => {
+        if (!el.contains(e.target as Node)) {
+          el.removeAttribute("open");
+        }
+      });
+    };
+    document.addEventListener("mousedown", handleOutsideClickDetails);
+    return () => document.removeEventListener("mousedown", handleOutsideClickDetails);
+  }, []);
+
+  useEffect(() => {
     const verifyAuth = async () => {
       const isLocalSuperAdmin = localStorage.getItem("is_super_admin") === "true";
 
