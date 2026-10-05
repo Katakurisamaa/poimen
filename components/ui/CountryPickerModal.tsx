@@ -324,6 +324,16 @@ export default function CountryPickerModal({
           color: "var(--cream, #fff)"
         }}
       >
+        {/* Mobile Drag Handle */}
+        <div style={{
+          width: 44,
+          height: 5,
+          borderRadius: 999,
+          background: "var(--muted, #8b949e)",
+          opacity: 0.35,
+          margin: "12px auto 0",
+        }} />
+
         {/* Header */}
         <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -351,32 +361,56 @@ export default function CountryPickerModal({
         </div>
 
         {/* Search Input */}
-        <div style={{ padding: "14px 20px 10px" }}>
-          <div style={{ position: "relative" }}>
-            <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--gold)", opacity: 0.8 }} />
+        <div style={{ padding: "14px 20px 12px" }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            width: "100%",
+            padding: "10px 14px",
+            background: "color-mix(in srgb, var(--cream, #fff) 4%, var(--bg-deep, #0f131a))",
+            border: "1px solid var(--ux-line, rgba(212, 175, 55, 0.25))",
+            borderRadius: 14,
+            boxSizing: "border-box",
+            transition: "all 0.2s ease"
+          }}>
+            <Search size={16} style={{ color: "var(--gold, #d4af37)", flexShrink: 0, opacity: 0.9 }} />
             <input 
               type="text"
-              className="input"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Rechercher un pays (ex: Canada, France, Gabon...)"
               autoFocus
               style={{
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                boxShadow: "none",
+                padding: 0,
+                margin: 0,
+                color: "var(--cream, #fff)",
+                fontFamily: "inherit",
+                fontSize: 14,
                 width: "100%",
-                paddingLeft: 40,
-                paddingRight: search ? 36 : 14,
-                height: 42,
-                fontSize: 13,
-                background: "rgba(0, 0, 0, 0.3)",
-                border: "1px solid rgba(212, 175, 55, 0.25)",
-                borderRadius: 10
+                lineHeight: 1.5
               }}
             />
             {search && (
               <button 
                 type="button" 
                 onClick={() => setSearch("")}
-                style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}
+                style={{
+                  background: "color-mix(in srgb, var(--cream, #fff) 8%, transparent)",
+                  border: "none",
+                  color: "var(--muted, #94a3b8)",
+                  cursor: "pointer",
+                  padding: 4,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+                aria-label="Effacer la recherche"
               >
                 <X size={14} />
               </button>
@@ -490,6 +524,26 @@ export default function CountryPickerModal({
           )}
         </div>
       </div>
+
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .modal-overlay {
+            align-items: flex-end !important;
+            padding: 0 !important;
+          }
+          .custom-modal {
+            max-width: 100% !important;
+            border-radius: 20px 20px 0 0 !important;
+            border-bottom: none !important;
+            max-height: 85vh !important;
+            animation: slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+          }
+        }
+        @keyframes slideUpModal {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+      `}</style>
     </div>,
     document.body
   );

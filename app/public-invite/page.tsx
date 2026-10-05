@@ -12,6 +12,30 @@ import CustomSelect from "@/components/ui/CustomSelect";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
 import CountryPickerModal, { COUNTRIES } from "@/components/ui/CountryPickerModal";
 
+const CIVILITY_OPTIONS = [
+  { value: "M.", label: "M." },
+  { value: "Mme.", label: "Mme." }
+];
+
+const EVENT_OPTIONS = [
+  { value: "Culte", label: "Culte du dimanche" },
+  { value: "Baptême", label: "Baptême" },
+  { value: "Évangélisation", label: "Évangélisation" },
+  { value: "Séminaire", label: "Séminaire" },
+  { value: "Autre", label: "Autre" }
+];
+
+const AGE_OPTIONS = [
+  { value: "Moins de 18 ans", label: "Moins de 18 ans" },
+  { value: "18-25 ans", label: "18-25 ans" },
+  { value: "26-30 ans", label: "26-30 ans" },
+  { value: "31-35 ans", label: "31-35 ans" },
+  { value: "36-40 ans", label: "36-40 ans" },
+  { value: "41-45 ans", label: "41-45 ans" },
+  { value: "46-50 ans", label: "46-50 ans" },
+  { value: "Plus de 50 ans", label: "Plus de 50 ans" }
+];
+
 export default function PublicInvitePage() {
   const [churches, setChurches] = useState<any[]>([]);
   const [selectedChurchId, setSelectedChurchId] = useState<string>("");
@@ -327,32 +351,25 @@ export default function PublicInvitePage() {
                 </div>
                 <div>
                   <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>ÉVÉNEMENT</label>
-                  <select 
-                    className="input" 
+                  <CustomSelect 
                     value={formData.event} 
-                    onChange={e => setFormData({...formData, event: e.target.value})}
-                  >
-                    <option value="Culte">Culte du dimanche</option>
-                    <option value="Baptême">Baptême</option>
-                    <option value="Évangélisation">Évangélisation</option>
-                    <option value="Séminaire">Séminaire</option>
-                    <option value="Autre">Autre</option>
-                  </select>
+                    onChange={val => setFormData({...formData, event: val})}
+                    options={EVENT_OPTIONS}
+                    searchable={false}
+                  />
                 </div>
               </div>
 
               {/* Civility, First Name, Last Name */}
-              <div className="form-grid-3" style={{ display: "grid", gridTemplateColumns: "100px 1fr 1fr", gap: 16 }}>
+              <div className="form-grid-3" style={{ display: "grid", gridTemplateColumns: "110px 1fr 1fr", gap: 16 }}>
                 <div>
                   <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>CIVILITÉ</label>
-                  <select 
-                    className="input" 
+                  <CustomSelect 
                     value={formData.civility} 
-                    onChange={e => setFormData({...formData, civility: e.target.value})}
-                  >
-                    <option value="M.">M.</option>
-                    <option value="Mme.">Mme.</option>
-                  </select>
+                    onChange={val => setFormData({...formData, civility: val})}
+                    options={CIVILITY_OPTIONS}
+                    searchable={false}
+                  />
                 </div>
                 <div>
                   <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>PRÉNOM *</label>
@@ -412,20 +429,12 @@ export default function PublicInvitePage() {
               <div className="form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div>
                   <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>TRANCHE D'ÂGE</label>
-                  <select 
-                    className="input" 
+                  <CustomSelect 
                     value={formData.age} 
-                    onChange={e => setFormData({...formData, age: e.target.value})}
-                  >
-                    <option value="Moins de 18 ans">Moins de 18 ans</option>
-                    <option value="18-25 ans">18-25 ans</option>
-                    <option value="26-30 ans">26-30 ans</option>
-                    <option value="31-35 ans">31-35 ans</option>
-                    <option value="36-40 ans">36-40 ans</option>
-                    <option value="41-45 ans">41-45 ans</option>
-                    <option value="46-50 ans">46-50 ans</option>
-                    <option value="Plus de 50 ans">Plus de 50 ans</option>
-                  </select>
+                    onChange={val => setFormData({...formData, age: val})}
+                    options={AGE_OPTIONS}
+                    searchable={false}
+                  />
                 </div>
                 <div>
                   <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>PAYS DE RÉSIDENCE *</label>
