@@ -2,6 +2,7 @@
   position: relative;
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .bellButton {
@@ -453,11 +454,16 @@
 
 /* Responsive adjustments */
 @media (max-width: 600px) {
+  .bellButton {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
   .popover {
     position: fixed;
-    top: 70px;
-    right: 12px;
-    left: 12px;
+    top: 68px;
+    right: 10px;
+    left: 10px;
     width: auto;
     max-height: calc(100dvh - 84px);
   }

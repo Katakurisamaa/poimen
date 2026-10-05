@@ -18,9 +18,14 @@ export default function Header({ onMenuClick }: { bergerieName?: string; onMenuC
     <header className={`${styles.topbar} ${styles.ui}`}>
       <button type="button" className={`${styles.iconButton} ${styles.mobileMenu}`} onClick={onMenuClick} aria-label="Ouvrir la navigation"><Menu size={21} /></button>
       <button type="button" className={styles.contextButton} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label={`Espace actif : ${title}. Changer d’espace`}>
-        <span className={styles.contextIcon}><Church size={19} /></span><span><small>{workspace.churchName}</small><strong>{title}</strong></span><ChevronDown size={16} />
+        <span className={styles.contextIcon}><Church size={19} /></span>
+        <span className={styles.contextInfo}>
+          <small>{workspace.churchName}</small>
+          <strong>{title}</strong>
+        </span>
+        <ChevronDown size={16} className={styles.contextChevron} />
       </button>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div className={styles.headerRight}>
         <NotificationCenter />
         <span className={styles.roleBadge}>{roleLabel(workspace.role)}</span>
       </div>

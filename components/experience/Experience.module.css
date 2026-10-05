@@ -22,7 +22,10 @@
 .secondary:hover { background: var(--gold-glow); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; }
 .avatar { display: inline-grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border: 1px solid var(--ux-line); border-radius: 50%; background: var(--bg); color: var(--ux-muted); font-size: 12px; }
-.roleBadge { display: inline-block; padding: 5px 10px; border: 1px solid var(--ux-line); border-radius: 7px; color: var(--ux-muted); font-size: 11px; }
+.roleBadge { display: inline-block; padding: 5px 10px; border: 1px solid var(--ux-line); border-radius: 7px; color: var(--ux-muted); font-size: 11px; white-space: nowrap; }
+.headerRight { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.contextInfo { min-width: 0; overflow: hidden; }
+.contextChevron { flex-shrink: 0; }
 .rail { position: fixed; inset: 0 auto 0 0; width: 260px; z-index: 40; background: var(--surface-solid); border-right: 1px solid var(--ux-line); display: flex; flex-direction: column; padding: 32px 16px 16px; }
 .brandLink { display: flex; align-items: center; min-height: 48px; padding: 0 10px; }
 .railContext { display: flex; align-items: center; gap: 9px; padding: 22px 14px; font-size: 12px; color: var(--ux-muted); overflow-wrap: anywhere; }
@@ -125,16 +128,22 @@
   .bottomNav > .selected { color: var(--gold); background: var(--gold-glow); font-weight: 650; }
   .mobileMenu { display: inline-flex; }
   .topbar { min-height: 70px; padding: 9px 130px 9px 20px; gap: 10px; }
-  .contextButton { margin-right: auto; }
+  .contextButton { margin-right: auto; min-width: 0; }
   .notices { bottom: calc(86px + env(safe-area-inset-bottom)); }
 }
+@media (max-width: 768px) {
+  .headerRight .roleBadge { display: none !important; }
+}
 @media (max-width: 600px) {
-  .topbar { padding: 7px 60px 7px 12px; min-height: 65px; }
-  .topbar > .roleBadge { display: none; }
+  .topbar { padding: 7px 54px 7px 10px; min-height: 60px; gap: 8px; justify-content: flex-start; }
+  .topbar > .roleBadge, .headerRight .roleBadge { display: none !important; }
   .contextIcon { display: none; }
-  .contextButton { flex: 1; }
-  .contextButton strong { font-size: 13px; max-width: calc(100vw - 156px); }
-  .contextButton > svg { margin-left: auto; }
+  .contextButton { flex: 1; min-width: 0; padding: 4px 4px 4px 0; gap: 6px; }
+  .contextInfo { min-width: 0; overflow: hidden; flex: 1; }
+  .contextButton strong { font-size: 13px; max-width: calc(100vw - 165px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contextButton small { font-size: 10px; max-width: calc(100vw - 165px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contextChevron { flex-shrink: 0; margin-left: 2px; }
+  .headerRight { gap: 6px; flex-shrink: 0; }
   .today { padding: 20px 16px; border-radius: 18px; }
   .today .sectionHeading h2 { font-size: 23px; }
   .today .sectionHeading p { font-size: 12px; }
