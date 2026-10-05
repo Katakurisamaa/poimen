@@ -190,25 +190,27 @@ export default function CustomSelect({
             {/* Search Input */}
             {shouldShowSearch && (
               <div className={styles.searchHeader}>
-                <Search size={14} className={styles.searchIcon} />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Rechercher…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className={styles.searchInput}
-                />
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() => setSearch("")}
-                    className={styles.clearSearch}
-                    aria-label="Effacer la recherche"
-                  >
-                    <X size={13} />
-                  </button>
-                )}
+                <div className={styles.searchBoxWrapper}>
+                  <Search size={16} className={styles.searchIcon} />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Rechercher…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className={styles.searchInput}
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch("")}
+                      className={styles.clearSearch}
+                      aria-label="Effacer la recherche"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
