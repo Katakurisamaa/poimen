@@ -453,12 +453,15 @@
 }
 
 /* Responsive adjustments */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .bellButton {
     width: 36px;
     height: 36px;
     border-radius: 10px;
   }
+}
+
+@media (max-width: 600px) {
   .popover {
     position: fixed;
     top: 68px;
