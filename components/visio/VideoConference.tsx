@@ -99,11 +99,15 @@ export default function VideoConference({
     let stream: MediaStream | null = null;
 
     try {
-      // 1. Essai complet : Caméra + Micro
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      // 1. Essai complet universel : Caméra + Micro
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+      }
       setIsVideoOff(false);
       setIsMicMuted(false);
     } catch (err: any) {
@@ -112,7 +116,7 @@ export default function VideoConference({
         // 2. Fallback Audio seul
         stream = await navigator.mediaDevices.getUserMedia({
           video: false,
-          audio: { echoCancellation: true, noiseSuppression: true },
+          audio: true,
         });
         setIsVideoOff(true);
         setIsMicMuted(false);
@@ -122,7 +126,7 @@ export default function VideoConference({
         try {
           // 3. Fallback Vidéo seule (si micro absent)
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+            video: true,
             audio: false,
           });
           setIsVideoOff(false);
@@ -142,21 +146,31 @@ export default function VideoConference({
     }
 
     setLocalStream(stream);
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
-      localVideoRef.current.play().catch(() => {});
-    }
     setIsLoading(false);
     return stream;
   }, [notify]);
 
+  // Synchroniser le flux local avec la balise vidéo dès le montage
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(() => {});
+    }
+  }, [localStream]);
+
   // Fonction pour réactiver micro/caméra une fois l'autorisation accordée
   const retryPermissions = async () => {
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      let newStream: MediaStream | null = null;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      } catch {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+      }
+
       setLocalStream(newStream);
       setPermissionError(null);
       setIsVideoOff(false);
