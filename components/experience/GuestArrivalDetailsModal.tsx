@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { 
   X, Phone, Mail, MapPin, Copy, Check, Circle, UserCheck, PhoneCall,
-  CheckCircle2, AlertCircle, PhoneOff, Clock, Sparkles, Home,
+  CheckCircle2, AlertCircle, PhoneOff, Clock, Home,
   Award, Shield, Edit3
 } from "lucide-react";
 import CustomSelect from "@/components/ui/CustomSelect";

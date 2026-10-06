@@ -9,7 +9,6 @@ import {
   UserPlus,
   CheckCircle2,
   Clock,
-  Sparkles,
   ExternalLink,
   ChevronRight,
   ShieldCheck,
@@ -207,7 +206,7 @@ export default function NotificationCenter() {
             {/* Bannière Push Notifications si non activées */}
             {showPushPrompt && (
               <div className={styles.pushBanner}>
-                <Sparkles size={18} className={styles.pushBannerIcon} />
+                <Bell size={18} className={styles.pushBannerIcon} />
                 <div className={styles.pushBannerText}>
                   <strong>Alertes sur votre écran d'accueil</strong>
                   <p>Soyez averti(e) dès qu'un invité vous est confié ou qu'un appel tarde, même appli fermée.</p>

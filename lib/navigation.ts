@@ -8,7 +8,7 @@ export type WorkspaceAccess = {
 export type NavItem = {
   label: string;
   href: string;
-  icon: "home" | "people" | "followup" | "calendar" | "report" | "team" | "outreach" | "profile" | "admin" | "church" | "book";
+  icon: "home" | "people" | "followup" | "calendar" | "report" | "team" | "outreach" | "profile" | "admin" | "church" | "book" | "video";
   description: string;
   matches?: string[];
 };
@@ -51,6 +51,7 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
       { label: "Approbations", href: "/dashboard/admin?tab=approvals", icon: "followup", description: "Examiner les demandes" },
     ],
     secondary: [
+      { label: "Visio", href: "/dashboard/visio", icon: "video", description: "Conférences et réunions vidéo" },
       { label: "Compte rendu de culte", href: "/cr-culte", icon: "report", description: "Préparer le compte rendu" },
       meditationItem,
       profile,
@@ -71,6 +72,7 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
     if (isNoe) {
       primary.push(meditationItem);
     }
+    secondary.push({ label: "Visio / Cellule", href: "/dashboard/visio?type=family", icon: "video", description: "Réunions de maison et partages d’écran" });
     secondary.push({ label: "Rapports", href: "/dashboard/reporting", icon: "report", description: "Bilan et export des rapports" });
     if (!isNoe) {
       secondary.push(meditationItem);
@@ -86,6 +88,9 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
     });
   }
   if (integrationLeader) secondary.push({ label: "Équipe", href: "/dashboard/equipe", icon: "team", description: "Responsables et conseillers" });
+  if (!familyLeader && (integration || counselor)) {
+    secondary.push({ label: "Visio & Entretiens", href: "/dashboard/visio?type=integration", icon: "video", description: "Réunions d’équipe et entretiens de suivi" });
+  }
   if (familyLeader || integration || responsible) secondary.push({ label: "Évangélisation", href: "/dashboard/evangelisation", icon: "outreach", description: "Rencontres et sorties" });
   if (integration) secondary.push({ label: "Compte rendu de culte", href: "/cr-culte", icon: "report", description: "Préparer le compte rendu" });
   secondary.push(profile);

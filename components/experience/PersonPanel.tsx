@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, Check, Circle, Mail, MapPin, Phone, UserRound, X, ArrowRight } from "lucide-react";
+import { CalendarDays, Check, Circle, Mail, MapPin, Phone, UserRound, Video, X, ArrowRight } from "lucide-react";
 import { summarizePerson } from "@/lib/person-summary";
 import styles from "./Experience.module.css";
 
@@ -41,8 +41,18 @@ export default function PersonPanel({ person, kind, onClose, onContinue, continu
     <section className={styles.panelContent} id="person-content" role="tabpanel" aria-labelledby={`person-tab-${tab}`}>
       {tab === "overview" && <>
         <div className={styles.nextAction}><span className={styles.kicker}>PROCHAINE ÉTAPE SUGGÉRÉE</span><p>{summary.nextAction}</p></div>
-        <h3>Coordonnées</h3>
+        <h3>Coordonnées & Échanges</h3>
         <div className={styles.contactList}>
+          {summary.contactAllowed && (
+            <a 
+              href={`/dashboard/visio?type=guest&guestName=${encodeURIComponent(summary.name)}&guestId=${encodeURIComponent(summary.id || "")}`} 
+              onClick={onClose}
+            >
+              <Video size={17} color="#d4af37" />
+              <span>Entretien Visioconférence<small>Lancer un appel vidéo ou inviter</small></span>
+              <ArrowRight size={16} />
+            </a>
+          )}
           {summary.phone && summary.contactAllowed ? <a href={`tel:${summary.phone.replace(/[^+\d]/g, "")}`}><Phone size={17} /><span>{summary.phone}<small>Appeler</small></span><ArrowRight size={16} /></a> : <p><Phone size={17} />{summary.phone || "Téléphone non renseigné"}</p>}
           {summary.email && summary.contactAllowed ? <a href={`mailto:${summary.email}`}><Mail size={17} /><span>{summary.email}<small>Écrire un e-mail</small></span><ArrowRight size={16} /></a> : <p><Mail size={17} />{summary.email || "E-mail non renseigné"}</p>}
           {summary.address && <p><MapPin size={17} />{summary.address}</p>}

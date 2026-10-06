@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { 
-  User, Check, X, Plus, Sparkles, MapPin, 
+  User, Check, X, Plus, MapPin, 
   ChevronRight, Edit2, RotateCcw, AlertCircle
 } from "lucide-react";
 import { 

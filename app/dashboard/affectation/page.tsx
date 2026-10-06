@@ -6,7 +6,7 @@ import {
   Search, Plus, UserPlus, Filter, CheckCircle2, XCircle, X, 
   Calendar, CalendarDays, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2, ListChecks, BarChart3,
-  LayoutGrid, Table as TableIcon, Sparkles, RotateCcw, Eye, FileText,
+  LayoutGrid, Table as TableIcon, RotateCcw, Eye, FileText,
   Clock, ShieldCheck, UserCheck, UserMinus, Users
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";

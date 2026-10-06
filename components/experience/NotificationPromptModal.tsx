@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Sparkles, Check, X, ShieldCheck, PhoneCall } from "lucide-react";
+import { Bell, Check, X, ShieldCheck, PhoneCall } from "lucide-react";
 import {
   isNotificationSupported,
   getNotificationPermission,
@@ -105,16 +105,16 @@ export default function NotificationPromptModal() {
 
         <div className={styles.benefitsList}>
           <div className={styles.benefitItem}>
-            <Sparkles size={14} />
-            <span>Alerte instantanée lors d&apos;une nouvelle affectation</span>
+            <Check size={14} />
+            <span>Alerte lors d&apos;une nouvelle affectation</span>
           </div>
           <div className={styles.benefitItem}>
             <PhoneCall size={14} />
-            <span>Rappels d&apos;appels bienveillants si un invité attend</span>
+            <span>Rappels pour le suivi des invités qui vous sont confiés</span>
           </div>
           <div className={styles.benefitItem}>
             <ShieldCheck size={14} />
-            <span>100% gratuit, discret et désactivable à tout moment</span>
+            <span>Discret et désactivable à tout moment</span>
           </div>
         </div>
 
