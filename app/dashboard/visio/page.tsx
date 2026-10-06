@@ -4,7 +4,7 @@ import { Suspense, useState, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Video, Users, Share2, Copy, Check, ShieldCheck, Monitor, 
-  House, UserCheck, MessageSquare, ArrowLeft, Play, Link as LinkIcon, ExternalLink, BarChart2
+  House, UserCheck, MessageSquare, ArrowLeft, Play, Link as LinkIcon, BarChart2
 } from "lucide-react";
 import { useWorkspace } from "@/lib/use-workspace";
 import { getActiveUserInfo, getActiveSpaceType } from "@/lib/client-session";
@@ -231,15 +231,6 @@ function VisioContent() {
             >
               <ArrowLeft size={16} /> Retour au tableau de bord
             </button>
-
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              onClick={() => window.open(`https://meet.jit.si/${roomName}`, "_blank", "noopener,noreferrer")}
-              title="Ouvrir directement dans un nouvel onglet"
-            >
-              <ExternalLink size={16} /> Ouvrir dans un nouvel onglet
-            </button>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: pollsOpen ? "minmax(0, 1fr) 390px" : "1fr", gap: 16, alignItems: "start" }}>
@@ -376,15 +367,6 @@ function VisioContent() {
               >
                 {copied ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
                 {copied ? "Lien copié !" : "Copier le lien d'invitation"}
-              </button>
-
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                onClick={() => window.open(`https://meet.jit.si/${roomName}`, "_blank", "noopener,noreferrer")}
-                title="Ouvrir la salle directement dans un nouvel onglet"
-              >
-                <ExternalLink size={16} /> Ouvrir dans un nouvel onglet
               </button>
 
               <button

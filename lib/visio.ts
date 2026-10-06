@@ -1,6 +1,7 @@
 /**
  * Utilities for Poimén Video Conferences (Visio).
- * Integrates with Jitsi Meet Embedded (free, unlimited participants & time, screen-sharing).
+ * Native WebRTC Video Conferences (Visio) for Poimén.
+ * Direct peer-to-peer audio, video, screen-sharing and interactive polls.
  */
 
 export function sanitizeRoomName(name: string): string {

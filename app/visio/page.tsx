@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Video, ShieldCheck, Monitor, Users, Play, ExternalLink } from "lucide-react";
+import { Video, ShieldCheck, Monitor, Users, Play } from "lucide-react";
 import PoimenLogo from "@/components/brand/PoimenLogo";
 import VideoConference from "@/components/visio/VideoConference";
 import InteractivePollPanel from "@/components/visio/InteractivePollPanel";
@@ -115,29 +115,6 @@ function PublicVisioContent() {
                 disabled={!displayName.trim()}
               >
                 <Play size={18} /> Rejoindre la visioconférence
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  window.open(`https://meet.jit.si/${roomParam}`, "_blank", "noopener,noreferrer");
-                }}
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--ux-line, rgba(255, 255, 255, 0.12))",
-                  color: "var(--cream, #f8fafc)",
-                  padding: "12px",
-                  borderRadius: "14px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  width: "100%",
-                }}
-              >
-                <ExternalLink size={15} /> Ouvrir dans un nouvel onglet
               </button>
             </form>
 
