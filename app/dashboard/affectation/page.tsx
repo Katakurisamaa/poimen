@@ -1039,7 +1039,7 @@ const selectedCounselorObj = useMemo(() => {
   const handleDeleteGuest = async (guestId: string) => {
     const guest = guests.find(g => g.id === guestId);
     if (guest && (guest.statutAffectation === 'conserve' || currentView === 'my_souls')) {
-      notify("Une personne suivie dans 'Mes brebis' ne peut pas être supprimée définitivement. Utilisez l'option 'Retirer' pour la déplacer dans 'Sans suite'.");
+      notify("Une personne suivie dans 'Mes âmes' ne peut pas être supprimée définitivement. Utilisez l'option 'Retirer' pour la déplacer dans 'Sans suite'.");
       return;
     }
     const isFamilyRole = !isIntegrationOrCounselor && userRoleClean !== "super_admin";
@@ -1331,7 +1331,7 @@ const selectedCounselorObj = useMemo(() => {
       payload
     });
     if (res.success) {
-      notify(`${qualifyingGuest.firstName} a été ajouté(e) avec succès à votre suivi "Mes brebis" !`);
+          notify(`${qualifyingGuest.firstName} a été ajouté(e) avec succès à votre suivi "Mes âmes" !`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
       }
@@ -1533,9 +1533,9 @@ const selectedCounselorObj = useMemo(() => {
 
       <div className="page-header fade-in people-page-header">
         <div>
-          <h2 className="page-title">Suivi</h2>
+          <h2 className="page-title">Mes âmes</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-            Vos premiers contacts, vos brebis suivies et les prochaines étapes de leur parcours.
+            Vos premiers contacts, les âmes que vous accompagnez et les prochaines étapes de leur parcours.
           </p>
         </div>
         <div className="people-page-actions">
@@ -1826,7 +1826,7 @@ const selectedCounselorObj = useMemo(() => {
 
       <IntegrationOverview items={[
         { label: "À contacter", value: myPendingGuests.length, detail: "Mes nouveaux premiers contacts", icon: <Phone size={16} />, onClick: () => setCurrentView("my_assignments") },
-        { label: "Mes brebis", value: mySoulsCount, detail: "Mon accompagnement en cours", icon: <UserCheck size={16} />, onClick: () => setCurrentView("my_souls") },
+        { label: "Mes âmes", value: mySoulsCount, detail: "Mon accompagnement en cours", icon: <UserCheck size={16} />, onClick: () => setCurrentView("my_souls") },
         (isIntegrationLeader || canDispatchAll)
           ? { label: "À affecter", value: unassignedGuests.length, detail: "Invités à confier à un conseiller", icon: <UserPlus size={16} />, onClick: () => setCurrentView("unassigned") }
           : { label: "Sans suite", value: retiredGuests.length, detail: "Historique des dossiers clôturés", icon: <Clock size={16} />, onClick: () => setCurrentView("retired") }
@@ -1867,7 +1867,7 @@ const selectedCounselorObj = useMemo(() => {
           </span>
         </button>
 
-        {/* Tab 3: Mes brebis (Toujours présent pour chaque utilisateur) */}
+        {/* Tab 3: Mes âmes (Toujours présent pour chaque utilisateur) */}
         <button 
           type="button"
           onClick={() => {
@@ -1882,7 +1882,7 @@ const selectedCounselorObj = useMemo(() => {
           <span className="invite-view-icon"><ListChecks size={18} /></span>
           <span className="invite-view-copy">
             <span className="invite-view-title">
-              Mes brebis {mySoulsCount > 0 && <span className="invite-view-count-badge gold">{mySoulsCount}</span>}
+              Mes âmes {mySoulsCount > 0 && <span className="invite-view-count-badge gold">{mySoulsCount}</span>}
             </span>
             <span className="invite-view-subtitle">Mon suivi spirituel actif</span>
           </span>
@@ -2153,7 +2153,7 @@ const selectedCounselorObj = useMemo(() => {
           {/* Modern Filters & Controls */}
           <PeopleListToolbar
             search={search} onSearch={setSearch}
-            countLabel={currentView === 'my_souls' ? `${filtered.length} brebis` : `${filtered.length} âme${filtered.length > 1 ? "s" : ""}`}
+            countLabel={`${filtered.length} âme${filtered.length > 1 ? "s" : ""}`}
             showModes={false}
             
             activeCount={Number(arrivalDatesFilter.length > 0 || arrivalMonth !== "all" || arrivalYear !== "all") + Number(localChurchFilter !== "all") + Number(familyFilter !== "all")} onReset={resetAllFilters}

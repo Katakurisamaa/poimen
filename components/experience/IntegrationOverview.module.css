@@ -3,16 +3,23 @@
 button.item { cursor: pointer; }
 button.item:hover { border-color: var(--gold); background: var(--card-hover); }
 button.item:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.top { display: flex; align-items: center; gap: 9px; color: var(--cream-dim); font-size: 13px; font-weight: 600; }
+.top { display: flex; align-items: center; gap: 9px; min-width: 0; color: var(--cream-dim); font-size: 13px; font-weight: 600; line-height: 1.45; }
+.top > span:not(.icon) { min-width: 0; overflow-wrap: anywhere; }
 .icon { display: grid; place-items: center; width: 30px; height: 30px; background: var(--gold-glow); color: var(--gold); border-radius: 9px; flex-shrink: 0; }
 .arrow { margin-left: auto; flex-shrink: 0; }
 .value { font-size: 32px; line-height: 1.15; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .detail { color: var(--muted); font-size: 12px; line-height: 1.5; }
-@media(max-width: 600px) { .overview { gap: 8px; } .item { padding: 12px; gap: 10px; } .top { flex-wrap: wrap; font-size: 11px; gap: 6px; } .icon { width: 26px; height: 26px; } .value { font-size: 26px; } .detail { font-size: 11px; } .arrow { display: none; } }
 @media(max-width: 768px) {
-  .item { padding: 12px 14px; gap: 6px; }
+  .overview { gap: 8px; }
+  .item { padding: 14px 12px; gap: 8px; }
   .detail { display: none; }
   .icon { display: none; }
-  .top { min-height: 32px; font-size: 12px; }
+  .top { min-height: 36px; font-size: 12px; white-space: normal; }
+  .arrow { display: none; }
   .value { font-size: 27px; }
+}
+@media(max-width: 360px) {
+  .overview { gap: 6px; }
+  .item { padding: 12px 8px; }
+  .value { font-size: 25px; }
 }

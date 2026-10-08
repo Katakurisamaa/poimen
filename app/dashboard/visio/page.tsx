@@ -11,6 +11,8 @@ import { getActiveUserInfo, getActiveSpaceType } from "@/lib/client-session";
 import { 
   buildRoomName, 
   getPublicVisioUrl, 
+  getVisioLinkNotice,
+  getJitsiVisioUrl,
   getWhatsAppShareUrl, 
   sanitizeRoomName,
   type VisioSpaceType 
@@ -191,6 +193,8 @@ function VisioContent() {
   ]);
 
   const publicUrl = getPublicVisioUrl(roomName, activeTab === "guest" ? guestNameInput : undefined);
+  const linkNotice = getVisioLinkNotice(publicUrl);
+  const jitsiUrl = getJitsiVisioUrl(roomName);
   const whatsappUrl = getWhatsAppShareUrl({
     roomName,
     title: meetingTitle,
@@ -233,7 +237,7 @@ function VisioContent() {
             </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: pollsOpen ? "minmax(0, 1fr) 390px" : "1fr", gap: 16, alignItems: "start" }}>
+          <div className={`${styles.meetingLayout} ${pollsOpen ? styles.withPolls : ""}`}>
             <VideoConference
               roomName={roomName}
               title={meetingTitle}
@@ -351,7 +355,17 @@ function VisioContent() {
               <span className={styles.roomValue}>{roomName}</span>
             </div>
 
+            {linkNotice && <p className={styles.linkNotice}><LinkIcon size={18} />{linkNotice}</p>}
+
             <div className={styles.actionsBar}>
+              <a
+                className={styles.btnJitsi}
+                href={jitsiUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Video size={18} /> Démarrer avec Jitsi (gratuit)
+              </a>
               <button
                 type="button"
                 className={styles.btnPrimary}

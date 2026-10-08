@@ -60,6 +60,23 @@ export function getPublicVisioUrl(roomName: string, participantName?: string): s
   return `${origin}/visio?${params.toString()}`;
 }
 
+export function getVisioLinkNotice(link: string): string | null {
+  if (!link.startsWith("http")) return null;
+  const url = new URL(link);
+  if (["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
+    return "Ce lien fonctionne uniquement sur cet ordinateur. Pour inviter depuis un autre appareil, ouvrez l'application avec son adresse HTTPS publique.";
+  }
+  if (url.protocol !== "https:") {
+    return "Pour utiliser la caméra et le micro depuis un autre appareil, partagez l'adresse HTTPS de l'application.";
+  }
+  return null;
+}
+
+/** Free hosted fallback for browsers that block the embedded WebRTC client. */
+export function getJitsiVisioUrl(roomName: string): string {
+  return `https://meet.jit.si/${sanitizeRoomName(roomName)}`;
+}
+
 export function getWhatsAppShareUrl({
   roomName,
   title,

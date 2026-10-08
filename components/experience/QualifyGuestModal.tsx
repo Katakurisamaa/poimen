@@ -141,7 +141,7 @@ export default function QualifyGuestModal({ isOpen, onClose, guest, onConfirm }:
 
         <form onSubmit={handleSubmit} className={styles.content}>
           <div className={styles.introNote}>
-            En conservant cette personne, l&apos;appel est marqué comme <strong>abouti</strong> et elle rejoint directement votre suivi <strong>Mes brebis</strong>. Cochez les informations relevées lors de ce premier échange :
+            En conservant cette personne, l&apos;appel est marqué comme <strong>abouti</strong> et elle rejoint directement votre suivi <strong>Mes âmes</strong>. Cochez les informations relevées lors de ce premier échange :
           </div>
 
           {/* Section Présence & Culte */}
@@ -304,7 +304,7 @@ export default function QualifyGuestModal({ isOpen, onClose, guest, onConfirm }:
                 </>
               ) : (
                 <>
-                  <Check size={15} /> Confirmer et ajouter à Mes brebis
+                  <Check size={15} /> Confirmer et ajouter à Mes âmes
                 </>
               )}
             </button>

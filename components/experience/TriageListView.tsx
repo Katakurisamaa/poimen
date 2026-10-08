@@ -183,7 +183,7 @@ export default function TriageListView({
         </h3>
         <p className={styles.emptySubtitle}>
           {mode === "unassigned" && "Tous les nouveaux arrivants ont déjà été attribués à un conseiller de l'équipe."}
-          {mode === "my_assignments" && "Vous n'avez aucune nouvelle personne en attente de premier contact. Vos brebis suivies se trouvent dans l'onglet 'Mes brebis'."}
+          {mode === "my_assignments" && "Vous n'avez aucune nouvelle personne en attente de premier contact. Vos âmes suivies se trouvent dans l'onglet 'Mes âmes'."}
           {mode === "retired" && "Les personnes retirées suite à un premier contact sans suite apparaîtront ici avec leur rapport de clôture."}
           {mode === "all_guests" && "Aucune personne ne correspond à vos filtres ou aucun invité n'a encore été enregistré."}
         </p>
@@ -384,7 +384,7 @@ export default function TriageListView({
                       type="button"
                       className={styles.btnConserver}
                       onClick={() => onOpenConserver && onOpenConserver(g)}
-                      title="Confirmer l'appel et conserver dans Mes brebis"
+                      title="Confirmer l'appel et conserver dans Mes âmes"
                     >
                       <UserCheck size={14} /> Conserver
                     </button>

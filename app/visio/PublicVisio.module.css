@@ -8,6 +8,12 @@
   font-family: var(--font-body), sans-serif;
 }
 
+.meetingContainer { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.meetingContainer > * { min-width: 0; }
+@media (min-width: 1100px) {
+  .meetingContainer.withPolls { grid-template-columns: minmax(0, 1fr) 360px; }
+}
+
 .prejoinContainer {
   flex: 1;
   display: flex;

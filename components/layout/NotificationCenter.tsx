@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   Bell,
@@ -8,10 +9,7 @@ import {
   Flame,
   UserPlus,
   CheckCircle2,
-  Clock,
-  ExternalLink,
   ChevronRight,
-  ShieldCheck,
   X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -35,11 +33,24 @@ export default function NotificationCenter() {
   const [urgentCount, setUrgentCount] = useState(0);
   const [pushStatus, setPushStatus] = useState<NotificationPermission | "unsupported">("default");
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [popoverPosition, setPopoverPosition] = useState({ top: 90, right: 20 });
 
-  // Synchroniser le statut des permissions de notifications
-  useEffect(() => {
-    setPushStatus(getNotificationPermission());
-  }, []);
+  const toggleNotifications = () => {
+    if (!isOpen) {
+      setPushStatus(getNotificationPermission());
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        setPopoverPosition({
+          top: Math.round(rect.bottom + 10),
+          right: Math.max(12, Math.round(window.innerWidth - rect.right))
+        });
+      }
+    }
+    setIsOpen((open) => !open);
+  };
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -87,7 +98,8 @@ export default function NotificationCenter() {
   }, []);
 
   useEffect(() => {
-    loadNotifications();
+    // Keep the first page paint independent of the notification refresh.
+    const initialRefresh = requestAnimationFrame(() => { void loadNotifications(); });
 
     // Événements locaux
     const handleUpdate = () => loadNotifications();
@@ -108,6 +120,7 @@ export default function NotificationCenter() {
       .subscribe();
 
     return () => {
+      cancelAnimationFrame(initialRefresh);
       window.removeEventListener("poimen:soul-updated", handleUpdate);
       window.removeEventListener("poimen:notifications-changed", handleUpdate);
       window.removeEventListener("poimen-session-change", handleUpdate);
@@ -119,14 +132,48 @@ export default function NotificationCenter() {
   useEffect(() => {
     if (!isOpen) return;
 
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current?.contains(target) ||
+        popoverRef.current?.contains(target) ||
+        backdropRef.current?.contains(target)
+      ) {
+        return;
+      }
+      if (containerRef.current) {
         setIsOpen(false);
       }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsOpen(false);
+      if (e.key === "Escape") {
+        setIsOpen(false);
+        return;
+      }
+
+      if (e.key === "Tab" && popoverRef.current) {
+        const focusable = Array.from(
+          popoverRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+          )
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) return;
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -134,6 +181,8 @@ export default function NotificationCenter() {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
     };
   }, [isOpen]);
 
@@ -173,8 +222,11 @@ export default function NotificationCenter() {
       <button
         type="button"
         className={`${styles.bellButton} ${urgentCount > 0 ? styles.hasUrgent : ""}`}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleNotifications}
         aria-label="Centre de notifications et alertes"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls="notification-center-dialog"
         title={unreadCount > 0 ? `${unreadCount} notification(s) en attente` : "Notifications"}
       >
         <Bell size={18} className={styles.bellIcon} />
@@ -186,21 +238,42 @@ export default function NotificationCenter() {
       </button>
 
       {/* Popover */}
-      {isOpen && (
+      {isOpen && typeof document !== "undefined" && createPortal((
         <>
-          <div className={styles.backdrop} onClick={() => setIsOpen(false)} />
-          <div className={styles.popover} role="dialog" aria-modal="true" aria-label="Notifications pastorales">
+          <div ref={backdropRef} className={styles.backdrop} onClick={() => setIsOpen(false)} />
+          <div
+            id="notification-center-dialog"
+            ref={popoverRef}
+            className={styles.popover}
+            style={{ top: `${popoverPosition.top}px`, right: `${popoverPosition.right}px` }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notification-center-title"
+          >
             {/* Header */}
             <div className={styles.header}>
-              <h3 className={styles.headerTitle}>
+              <h3 id="notification-center-title" className={styles.headerTitle}>
                 <span>Notifications</span>
-                {unreadCount > 0 && <span className={styles.countPill}>{unreadCount} nouvelle{unreadCount > 1 ? "s" : ""}</span>}
+                {unreadCount > 0 && <span className={styles.countPill}>{unreadCount} non lue{unreadCount > 1 ? "s" : ""}</span>}
               </h3>
-              {unreadCount > 0 && (
-                <button type="button" className={styles.markAllBtn} onClick={handleMarkAllRead}>
-                  Tout marquer comme lu
+              <div className={styles.headerActions}>
+                {unreadCount > 0 && (
+                  <button type="button" className={styles.markAllBtn} onClick={handleMarkAllRead} aria-label="Tout marquer comme lu">
+                    <span className={styles.markAllFull}>Tout marquer comme lu</span>
+                    <span className={styles.markAllCompact}>Tout lire</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  ref={closeButtonRef}
+                  className={styles.closeBtn}
+                  onClick={() => setIsOpen(false)}
+                  aria-label="Fermer les notifications"
+                  title="Fermer"
+                >
+                  <X size={16} />
                 </button>
-              )}
+              </div>
             </div>
 
             {/* Bannière Push Notifications si non activées */}
@@ -208,13 +281,13 @@ export default function NotificationCenter() {
               <div className={styles.pushBanner}>
                 <Bell size={18} className={styles.pushBannerIcon} />
                 <div className={styles.pushBannerText}>
-                  <strong>Alertes sur votre écran d'accueil</strong>
-                  <p>Soyez averti(e) dès qu'un invité vous est confié ou qu'un appel tarde, même appli fermée.</p>
-                  <button type="button" className={styles.activatePushBtn} onClick={handleActivatePush}>
-                    <Bell size={12} />
-                    Activer les alertes
-                  </button>
+                  <strong>Ne manquez aucune alerte</strong>
+                  <p>Invité confié ou appel à relancer, même appli fermée.</p>
                 </div>
+                <button type="button" className={styles.activatePushBtn} onClick={handleActivatePush}>
+                  <Bell size={12} />
+                  Activer
+                </button>
               </div>
             )}
 
@@ -224,6 +297,7 @@ export default function NotificationCenter() {
                 type="button"
                 className={`${styles.tab} ${filter === "all" ? styles.tabActive : ""}`}
                 onClick={() => setFilter("all")}
+                aria-pressed={filter === "all"}
               >
                 Toutes ({notifications.length})
               </button>
@@ -231,6 +305,7 @@ export default function NotificationCenter() {
                 type="button"
                 className={`${styles.tab} ${filter === "new" ? styles.tabActive : ""}`}
                 onClick={() => setFilter("new")}
+                aria-pressed={filter === "new"}
               >
                 Nouvelles ({notifications.filter((n) => n.type === "new_assignment").length})
               </button>
@@ -238,6 +313,7 @@ export default function NotificationCenter() {
                 type="button"
                 className={`${styles.tab} ${filter === "delayed" ? styles.tabActive : ""}`}
                 onClick={() => setFilter("delayed")}
+                aria-pressed={filter === "delayed"}
               >
                 Relances ({notifications.filter((n) => n.type === "call_delayed").length})
               </button>
@@ -287,10 +363,11 @@ export default function NotificationCenter() {
                               className={`${styles.callBtn} ${
                                 item.isUrgent ? styles.callBtnUrgent : ""
                               }`}
+                              aria-label={`Appeler ${item.guestName}`}
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Phone size={11} />
-                              Appeler {item.guestName.split(" ")[0]}
+                              Appeler
                             </a>
                           )}
                           <Link
@@ -298,7 +375,7 @@ export default function NotificationCenter() {
                             className={styles.viewBtn}
                             onClick={() => setIsOpen(false)}
                           >
-                            <span>Voir fiche</span>
+                            <span>Voir la fiche</span>
                             <ChevronRight size={12} />
                           </Link>
                         </div>
@@ -334,7 +411,7 @@ export default function NotificationCenter() {
             </div>
           </div>
         </>
-      )}
+      ), document.body)}
     </div>
   );
 }

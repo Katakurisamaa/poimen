@@ -7,12 +7,13 @@ import PoimenLogo from "@/components/brand/PoimenLogo";
 import VideoConference from "@/components/visio/VideoConference";
 import InteractivePollPanel from "@/components/visio/InteractivePollPanel";
 import styles from "./PublicVisio.module.css";
+import { FeedbackProvider } from "@/components/experience/FeedbackProvider";
 
 export default function PublicVisioPage() {
   return (
-    <Suspense fallback={null}>
+    <FeedbackProvider><Suspense fallback={null}>
       <PublicVisioContent />
-    </Suspense>
+    </Suspense></FeedbackProvider>
   );
 }
 
@@ -50,10 +51,9 @@ function PublicVisioContent() {
     <main className={styles.pageWrapper}>
       {hasJoined ? (
         <div 
-          className={styles.meetingContainer}
+          className={`${styles.meetingContainer} ${pollsOpen ? styles.withPolls : ""}`}
           style={{ 
             display: "grid", 
-            gridTemplateColumns: pollsOpen ? "minmax(0, 1fr) 380px" : "1fr", 
             gap: 12, 
             height: "100%", 
             width: "100%" 

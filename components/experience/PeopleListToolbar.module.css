@@ -134,8 +134,8 @@
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
-  background: var(--gold);
-  color: #0b0718;
+  background: var(--action-bg);
+  color: var(--action-ink);
   font-size: 10.5px;
   font-weight: 750;
 }
@@ -198,8 +198,8 @@
   min-height: 44px;
   border: 0;
   border-radius: 12px;
-  background: var(--gold);
-  color: #0b0718;
+  background: var(--action-bg);
+  color: var(--action-ink);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -304,4 +304,17 @@
     padding: 0;
     border: 0;
   }
+}
+
+@media (max-width: 700px) {
+  .toolbar { padding: 16px; border-radius: 16px; }
+  .searchRow { gap: 8px; }
+  .search { padding-inline: 12px; gap: 8px; }
+  :global(html[data-theme]) :global(body) .toolbar .search input { font-size: 16px !important; }
+  .results { flex-wrap: wrap; }
+  .resultInfo > span { font-size: 12px; }
+  .modes button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toolbar, .toolbar * { transition: none; }
 }

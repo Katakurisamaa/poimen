@@ -474,7 +474,8 @@ html[data-theme] body .integration-people-screen .invite-view-option {
 }
 html[data-theme] body .integration-people-screen .invite-view-option .invite-view-subtitle { display: none !important; }
 html[data-theme] body .integration-people-screen .invite-view-icon { display: none !important; }
-html[data-theme] body .integration-people-screen .invite-view-title { font-size: 12px !important; }
+html[data-theme] body .integration-people-screen .invite-view-title { font-size: 13px !important; line-height: 1.45; white-space: normal !important; max-width: 100%; overflow-wrap: anywhere; }
+html[data-theme] body .integration-people-screen .invite-view-copy { min-width: 0; max-width: 100%; align-items: center; }
 html[data-theme] body .integration-people-screen .invite-view-option.active { background: var(--surface-solid) !important; border-color: var(--border) !important; box-shadow: var(--shadow-soft) !important; }
 html[data-theme] body .integration-people-screen .invite-view-title > span { color: var(--gold) !important; opacity: 1 !important; }
 html[data-theme] body .integration-people-screen .people-page-header { margin-bottom: 0 !important; }
@@ -485,4 +486,23 @@ html[data-theme] body .integration-people-screen .people-page-header { margin-bo
 }
 @media(max-width: 700px) {
   html[data-theme] body .people-screen.integration-people-screen > .invite-view-switcher.integration-workflow-nav { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* A consistent reading rhythm for Integration, including long names and labels. */
+.integration-people-screen { min-width: 0; }
+.integration-people-screen :is(h2, h3, h4) { font-family: var(--font-body), sans-serif; line-height: 1.4; }
+.integration-people-screen :is(button, a) > svg { flex-shrink: 0; }
+html[data-theme] body .integration-people-screen .invite-view-option {
+  white-space: normal !important;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease !important;
+}
+.integration-people-screen :is(button, a, select, input):focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+@media (max-width: 380px) {
+  html[data-theme] body .people-screen.integration-people-screen > .invite-view-switcher.integration-workflow-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1440px) {
+  html[data-theme] body .people-screen.integration-people-screen > .invite-view-switcher.integration-workflow-nav { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme] body .integration-people-screen .invite-view-option { transition: none !important; }
 }

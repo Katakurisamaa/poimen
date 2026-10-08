@@ -13,13 +13,11 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  MoreHorizontal,
   Plus,
-  Flame,
   Clock,
   HeartHandshake,
   BarChart2,
-  ShieldCheck,
-  RotateCw,
   PhoneOff,
   Ban
 } from "lucide-react";
@@ -46,7 +44,8 @@ export interface UncontactedSoul {
 export default function SoulContactReminder() {
   const [souls, setSouls] = useState<UncontactedSoul[]>([]);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+  const [actionsId, setActionsId] = useState<string | null>(null);
   const [phoneEditId, setPhoneEditId] = useState<string | null>(null);
   const [phoneInput, setPhoneInput] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -170,7 +169,7 @@ export default function SoulContactReminder() {
   }, []);
 
   useEffect(() => {
-    fetchUncontactedSouls();
+    const initialFetch = requestAnimationFrame(() => { void fetchUncontactedSouls(); });
 
     // Listen to local soul update events
     const handleSoulUpdate = () => {
@@ -193,6 +192,7 @@ export default function SoulContactReminder() {
       .subscribe();
 
     return () => {
+      cancelAnimationFrame(initialFetch);
       window.removeEventListener("poimen:soul-updated", handleSoulUpdate);
       window.removeEventListener("poimen-session-change", fetchUncontactedSouls);
       supabase.removeChannel(channel);
@@ -465,65 +465,25 @@ export default function SoulContactReminder() {
 
   const allTentativesMade = urgentSouls.length === 0 && inProgressSouls.length > 0;
 
-  // Persistent floating reminder when collapsed
-  if (collapsed) {
-    return (
+  return (
+    <section className={styles.reminderContainer} aria-label="Rappels de suivi pastoral">
       <button
         type="button"
-        className={styles.floatingPill}
-        onClick={() => setCollapsed(false)}
-        title="Ouvrir les rappels de contact pastoraux"
+        className={styles.reminderHeader}
+        aria-expanded={!collapsed}
+        aria-controls="pastoral-reminder-list"
+        onClick={() => { setCollapsed(!collapsed); setActionsId(null); }}
       >
-        <Flame size={16} />
-        <span>
-          {urgentSouls.length > 0
-            ? `${urgentSouls.length} âme${urgentSouls.length > 1 ? "s" : ""} à contacter !`
-            : `${inProgressSouls.length} suivi${inProgressSouls.length > 1 ? "s" : ""} en cours`}
+        <HeartHandshake size={18} className={styles.headerIcon} />
+        <span className={styles.headerTitle}>Suivi pastoral</span>
+        <span className={styles.urgentBadge}>
+          {allTentativesMade ? inProgressSouls.length + " en attente" : urgentSouls.length + " à contacter"}
         </span>
+        {collapsed && <span className={styles.headerPreview}>{souls[0].first_name} {souls[0].last_name}{souls.length > 1 ? " et " + (souls.length - 1) + " autre(s)" : ""}</span>}
+        <span className={styles.toggleLabel}>{collapsed ? "Voir" : "Réduire"}</span>
+        {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
       </button>
-    );
-  }
-
-  return (
-    <div className={styles.reminderContainer}>
-      <div className={styles.reminderHeader}>
-        <div className={styles.headerLeft}>
-          <div className={styles.alertIconBox}>
-            <Flame size={22} />
-          </div>
-          <div className={styles.headerTitles}>
-            <h3>
-              {allTentativesMade
-                ? "Affectations prises en compte (Tentatives effectuées)"
-                : "Rappel d'Amour & Suivi Pastoral"}
-              <span className={styles.urgentBadge}>
-                {urgentSouls.length > 0
-                  ? `${urgentSouls.length} urgente${urgentSouls.length > 1 ? "s" : ""}`
-                  : "En veille douce"}
-              </span>
-            </h3>
-            <p>
-              {allTentativesMade
-                ? `Toutes vos âmes ont été prises en charge (${inProgressSouls.length} en attente de réponse). Relance suspendue pour 3 jours.`
-                : `${souls.length} âme${souls.length > 1 ? "s vous ont été confiées" : " vous a été confiée"}. Marquez vos tentatives d'appel ou validez la prise de contact.`}
-            </p>
-          </div>
-        </div>
-
-        <div className={styles.headerActions}>
-          <button
-            type="button"
-            className={styles.collapseBtn}
-            onClick={() => setCollapsed(true)}
-            title="Réduire l'alerte"
-          >
-            <ChevronUp size={16} />
-            <span>Réduire</span>
-          </button>
-        </div>
-      </div>
-
-      <div className={styles.soulsList}>
+      <div id="pastoral-reminder-list" className={styles.soulsList} hidden={collapsed}>
         {souls.map((soul) => {
           const days = getElapsedDays(soul.arrival_date);
           const hasPhone = Boolean(soul.phone && soul.phone.trim() !== "");
@@ -579,6 +539,7 @@ export default function SoulContactReminder() {
               {phoneEditId === soul.id ? (
                 <div className={styles.phoneForm}>
                   <input
+                    aria-label="Numéro de téléphone"
                     type="tel"
                     placeholder="Ex: 06 12 34 56 78"
                     value={phoneInput}
@@ -619,18 +580,6 @@ export default function SoulContactReminder() {
                       Appeler
                     </a>
 
-                    {/* Option A : Tentative effectuée (apaise l'alerte pour 3 jours) */}
-                    <button
-                      type="button"
-                      className={styles.tentativeBtn}
-                      onClick={() => handleMarkTentativeDone(soul)}
-                      disabled={isSavingThis}
-                      title="Signaler que vous avez essayé d'appeler (message vocal / sonné). Suspend la relance pour 3 jours."
-                    >
-                      <Clock size={13} />
-                      {tentativeInfo.isRecent ? "Nouvelle tentative" : "Tentative effectuée"}
-                    </button>
-
                     {/* Contact établi définitif */}
                     <button
                       type="button"
@@ -641,6 +590,22 @@ export default function SoulContactReminder() {
                     >
                       <CheckCircle2 size={13} />
                       Contact établi
+                    </button>
+
+                    <button type="button" className={styles.moreBtn} aria-label={"Autres actions pour " + soul.first_name} aria-expanded={actionsId === soul.id} aria-controls={"pastoral-actions-" + soul.id} onClick={() => setActionsId(actionsId === soul.id ? null : soul.id)}>
+                      <span className={styles.moreLabel}>Autres</span><MoreHorizontal size={16} />
+                    </button>
+                    <div id={"pastoral-actions-" + soul.id} className={styles.secondaryActions} hidden={actionsId !== soul.id}>
+                    {/* Option A : Tentative effectuée (apaise l'alerte pour 3 jours) */}
+                    <button
+                      type="button"
+                      className={styles.tentativeBtn}
+                      onClick={() => handleMarkTentativeDone(soul)}
+                      disabled={isSavingThis}
+                      title="Signaler que vous avez essayé d'appeler (message vocal / sonné). Suspend la relance pour 3 jours."
+                    >
+                      <Clock size={13} />
+                      {tentativeInfo.isRecent ? "Nouvelle tentative" : "Tentative effectuée"}
                     </button>
 
                     {/* Ne décroche pas */}
@@ -666,6 +631,7 @@ export default function SoulContactReminder() {
                       <Ban size={12} />
                       Faux numéro
                     </button>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -737,6 +703,6 @@ export default function SoulContactReminder() {
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
