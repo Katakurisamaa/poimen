@@ -466,7 +466,7 @@ export default function SoulContactReminder() {
   const allTentativesMade = urgentSouls.length === 0 && inProgressSouls.length > 0;
 
   return (
-    <section className={styles.reminderContainer} aria-label="Rappels de suivi pastoral">
+    <section className={styles.reminderContainer} data-urgent={urgentSouls.length > 0} aria-label="Rappels de suivi pastoral">
       <button
         type="button"
         className={styles.reminderHeader}
