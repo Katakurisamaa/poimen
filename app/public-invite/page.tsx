@@ -44,49 +44,21 @@ function YesNoToggle({
   onChange: (val: boolean) => void;
 }) {
   return (
-    <div
-      style={{
-        display: "inline-flex",
-        borderRadius: 8,
-        background: "rgba(0, 0, 0, 0.35)",
-        border: "1px solid rgba(212, 175, 55, 0.25)",
-        padding: 3,
-        gap: 3,
-        flexShrink: 0,
-      }}
-    >
+    <div className="yes-no-toggle-group">
       <button
         type="button"
         onClick={() => onChange(true)}
-        style={{
-          padding: "6px 16px",
-          borderRadius: 6,
-          fontSize: 12,
-          fontWeight: 600,
-          border: "none",
-          cursor: "pointer",
-          transition: "all 0.18s ease",
-          background: value === true ? "linear-gradient(135deg, #E6CA65 0%, #D4AF37 100%)" : "transparent",
-          color: value === true ? "#0B0717" : "var(--cream-dim)",
-          boxShadow: value === true ? "0 2px 8px rgba(212, 175, 55, 0.3)" : "none",
-        }}
+        className={`yes-no-btn ${value === true ? "active-yes" : ""}`}
+        aria-pressed={value === true}
       >
+        {value === true && <Check size={13} strokeWidth={2.5} style={{ marginRight: 4 }} />}
         Oui
       </button>
       <button
         type="button"
         onClick={() => onChange(false)}
-        style={{
-          padding: "6px 16px",
-          borderRadius: 6,
-          fontSize: 12,
-          fontWeight: 600,
-          border: "none",
-          cursor: "pointer",
-          transition: "all 0.18s ease",
-          background: value === false ? "rgba(255, 255, 255, 0.16)" : "transparent",
-          color: value === false ? "var(--cream)" : "var(--cream-dim)",
-        }}
+        className={`yes-no-btn ${value === false ? "active-no" : ""}`}
+        aria-pressed={value === false}
       >
         Non
       </button>
@@ -851,7 +823,7 @@ export default function PublicInvitePage() {
               </div>
 
               {/* Parcours spirituel & Église */}
-              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="question-card-section">
                 <h3 style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", letterSpacing: 1.5, textTransform: "uppercase", margin: 0 }}>
                   Parcours spirituel & Église *
                 </h3>
@@ -868,7 +840,7 @@ export default function PublicInvitePage() {
                   </div>
 
                   {/* Question Autre Église */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 14 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 14 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
                       <label style={{ fontSize: 13, fontWeight: 500, color: "var(--cream)", flex: 1, minWidth: 240, lineHeight: 1.4 }}>
                         Persévérez-vous déjà dans une autre église ? <span style={{ color: "var(--gold)" }}>*</span>
@@ -899,7 +871,7 @@ export default function PublicInvitePage() {
               </div>
 
               {/* Interests */}
-              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="question-card-section">
                 <h3 style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", letterSpacing: 1.5, textTransform: "uppercase", margin: 0 }}>
                   Intérêts & engagements *
                 </h3>
@@ -1033,6 +1005,102 @@ export default function PublicInvitePage() {
       <style jsx global>{`
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* Question Card Sections */
+        .question-card-section {
+          background: rgba(255, 255, 255, 0.025);
+          border: 1px solid rgba(212, 175, 55, 0.2);
+          border-radius: 14px;
+          padding: 20px 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        :global(html[data-theme="light"]) .question-card-section,
+        :global(body:not(.dark)) .question-card-section {
+          background: #fafafc;
+          border-color: rgba(212, 175, 55, 0.22);
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        :global(html[data-theme="dark"]) .question-card-section,
+        :global(body.dark) .question-card-section {
+          background: rgba(255, 255, 255, 0.03);
+          border-color: rgba(212, 175, 55, 0.2);
+        }
+
+        /* Segmented Oui / Non Toggles */
+        .yes-no-toggle-group {
+          display: inline-flex;
+          align-items: center;
+          border-radius: 10px;
+          background: #eef2f6;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          padding: 3px;
+          gap: 3px;
+          flex-shrink: 0;
+          box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+
+        :global(html[data-theme="dark"]) .yes-no-toggle-group,
+        :global(body.dark) .yes-no-toggle-group {
+          background: rgba(255, 255, 255, 0.06);
+          border-color: rgba(212, 175, 55, 0.22);
+          box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .yes-no-btn {
+          min-width: 58px;
+          height: 32px;
+          padding: 0 12px;
+          border-radius: 7px;
+          font-size: 13px;
+          font-weight: 600;
+          border: 1px solid transparent;
+          cursor: pointer;
+          background: transparent;
+          color: #64748b;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          user-select: none;
+        }
+
+        :global(html[data-theme="dark"]) .yes-no-btn,
+        :global(body.dark) .yes-no-btn {
+          color: var(--cream-dim, #C5BFB2);
+        }
+
+        .yes-no-btn:hover:not(.active-yes):not(.active-no) {
+          color: var(--cream, #0B0718);
+          background: rgba(212, 175, 55, 0.1);
+        }
+
+        .yes-no-btn.active-yes {
+          background: linear-gradient(135deg, #F5DC88 0%, #D4AF37 55%, #AA771C 100%) !important;
+          color: #0A0518 !important;
+          font-weight: 700 !important;
+          border-color: rgba(212, 175, 55, 0.45) !important;
+          box-shadow: 0 2px 8px rgba(212, 175, 55, 0.4) !important;
+        }
+
+        .yes-no-btn.active-no {
+          background: #ffffff !important;
+          color: #1e293b !important;
+          font-weight: 600 !important;
+          border-color: rgba(0, 0, 0, 0.1) !important;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+        }
+
+        :global(html[data-theme="dark"]) .yes-no-btn.active-no,
+        :global(body.dark) .yes-no-btn.active-no {
+          background: rgba(255, 255, 255, 0.18) !important;
+          color: #ffffff !important;
+          border-color: rgba(255, 255, 255, 0.18) !important;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+        }
 
         @media (max-width: 580px) {
           .form-grid-3 {
