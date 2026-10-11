@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { 
   Flame, Church, Loader2, CheckCircle2, XCircle,
   Calendar, MapPin, Mail, Phone, User as UserIcon,
-  ChevronDown
+  ChevronDown, UserPlus, Users, Check, Sparkles
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
@@ -36,19 +36,103 @@ const AGE_OPTIONS = [
   { value: "Plus de 50 ans", label: "Plus de 50 ans" }
 ];
 
+function YesNoToggle({
+  value,
+  onChange,
+}: {
+  value: boolean | null;
+  onChange: (val: boolean) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        borderRadius: 8,
+        background: "rgba(0, 0, 0, 0.35)",
+        border: "1px solid rgba(212, 175, 55, 0.25)",
+        padding: 3,
+        gap: 3,
+        flexShrink: 0,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        style={{
+          padding: "6px 16px",
+          borderRadius: 6,
+          fontSize: 12,
+          fontWeight: 600,
+          border: "none",
+          cursor: "pointer",
+          transition: "all 0.18s ease",
+          background: value === true ? "linear-gradient(135deg, #E6CA65 0%, #D4AF37 100%)" : "transparent",
+          color: value === true ? "#0B0717" : "var(--cream-dim)",
+          boxShadow: value === true ? "0 2px 8px rgba(212, 175, 55, 0.3)" : "none",
+        }}
+      >
+        Oui
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        style={{
+          padding: "6px 16px",
+          borderRadius: 6,
+          fontSize: 12,
+          fontWeight: 600,
+          border: "none",
+          cursor: "pointer",
+          transition: "all 0.18s ease",
+          background: value === false ? "rgba(255, 255, 255, 0.16)" : "transparent",
+          color: value === false ? "var(--cream)" : "var(--cream-dim)",
+        }}
+      >
+        Non
+      </button>
+    </div>
+  );
+}
+
 export default function PublicInvitePage() {
   const [churches, setChurches] = useState<any[]>([]);
   const [selectedChurchId, setSelectedChurchId] = useState<string>("");
   const [isUrlLocked, setIsUrlLocked] = useState(false);
   const [loadingChurches, setLoadingChurches] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"finish" | "add_another">("finish");
   const [success, setSuccess] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
+  const [lastSavedGuestName, setLastSavedGuestName] = useState<string>("");
+  const [sessionCount, setSessionCount] = useState<number>(0);
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
 
   // Form State
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    civility: string;
+    firstName: string;
+    lastName: string;
+    age: string;
+    phone: string;
+    email: string;
+    pays: string;
+    address: string;
+    arrivalDate: string;
+    event: string;
+    aps: boolean | null;
+    localChurch: boolean | null;
+    autreEglise: string;
+    aEteInvite: boolean;
+    parQui: string;
+    baptemeEau: boolean | null;
+    interetFormation: boolean | null;
+    interetCDM: boolean | null;
+    interetBapteme: boolean;
+    commentaire: string;
+  }>({
     civility: "M.",
     firstName: "",
     lastName: "",
@@ -59,14 +143,14 @@ export default function PublicInvitePage() {
     address: "",
     arrivalDate: new Date().toISOString().split('T')[0],
     event: "Culte",
-    aps: false,
-    localChurch: false,
+    aps: null,
+    localChurch: null,
     autreEglise: "",
     aEteInvite: false,
     parQui: "",
-    baptemeEau: false,
-    interetFormation: false,
-    interetCDM: false,
+    baptemeEau: null,
+    interetFormation: null,
+    interetCDM: null,
     interetBapteme: false,
     commentaire: "",
   });
@@ -119,39 +203,140 @@ export default function PublicInvitePage() {
     return val.replace(/[^0-9+\-\s()]/g, "");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const resetForNextGuest = (mode: "family" | "blank") => {
+    setSuccess(false);
+    setIsFinished(false);
+    setError(null);
+    if (mode === "family") {
+      setFormData(prev => ({
+        ...prev,
+        civility: prev.civility === "M." ? "Mme." : "M.",
+        firstName: "",
+        phone: "",
+        email: "",
+        age: "26-30 ans",
+        aps: null,
+        localChurch: null,
+        autreEglise: "",
+        baptemeEau: null,
+        interetFormation: null,
+        interetCDM: null,
+        interetBapteme: false,
+        commentaire: "",
+      }));
+      setBannerMessage("Informations de culte et de famille conservées. Vous pouvez saisir le prochain invité.");
+    } else {
+      setFormData(prev => ({
+        civility: "M.",
+        firstName: "",
+        lastName: "",
+        age: "26-30 ans",
+        phone: "",
+        email: "",
+        pays: "Belgique",
+        address: "",
+        arrivalDate: prev.arrivalDate,
+        event: prev.event,
+        aps: null,
+        localChurch: null,
+        autreEglise: "",
+        aEteInvite: false,
+        parQui: "",
+        baptemeEau: null,
+        interetFormation: null,
+        interetCDM: null,
+        interetBapteme: false,
+        commentaire: "",
+      }));
+      setBannerMessage(null);
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const handleSubmit = async (e?: React.FormEvent, mode: "finish" | "add_another" = "finish") => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     if (!selectedChurchId) {
       setError("Veuillez sélectionner votre église locale.");
+      return;
+    }
+    if (!formData.arrivalDate) {
+      setError("La date d'arrivée est requise.");
+      return;
+    }
+    if (!formData.event) {
+      setError("L'événement est requis.");
+      return;
+    }
+    if (!formData.civility) {
+      setError("La civilité est requise.");
       return;
     }
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       setError("Le prénom et le nom sont requis.");
       return;
     }
+    if (!formData.phone.trim()) {
+      setError("Le numéro de téléphone est requis.");
+      return;
+    }
+    if (!formData.pays) {
+      setError("Le pays de résidence est requis.");
+      return;
+    }
+    if (formData.aps === null) {
+      setError("Veuillez répondre à : « Avez-vous déjà accepté Jésus-Christ comme Sauveur et Seigneur ? » (Oui ou Non)");
+      return;
+    }
+    if (formData.localChurch === null) {
+      setError("Veuillez répondre à : « Persévérez-vous déjà dans une autre église ? » (Oui ou Non)");
+      return;
+    }
+    if (formData.localChurch === true && !formData.autreEglise.trim()) {
+      setError("Veuillez préciser le nom de votre église d'origine.");
+      return;
+    }
+    if (formData.baptemeEau === null) {
+      setError("Veuillez répondre à : « Déjà baptisé(e) par immersion » (Oui ou Non)");
+      return;
+    }
+    if (formData.interetFormation === null) {
+      setError("Veuillez répondre à : « Intérêt pour les formations (PCNC) » (Oui ou Non)");
+      return;
+    }
+    if (formData.interetCDM === null) {
+      setError("Veuillez répondre à : « Intérêt pour les Cellules (C.D.M) » (Oui ou Non)");
+      return;
+    }
 
+    setPendingAction(mode);
     setSubmitting(true);
     setError(null);
+
+    const savedName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
 
     const payload = {
       civility: formData.civility,
       first_name: formData.firstName.trim(),
       last_name: formData.lastName.trim(),
       age: formData.age,
-      phone: formData.phone.trim() || null,
+      phone: formData.phone.trim(),
       email: formData.email.trim() || null,
       address: formData.address.trim() || null,
       pays: formData.pays || "Belgique",
       arrival_date: formData.arrivalDate,
       event: formData.event,
-      aps: formData.aps,
-      local_church: formData.localChurch,
+      aps: formData.aps === true,
+      local_church: formData.localChurch === true,
       autre_eglise: formData.localChurch ? (formData.autreEglise.trim() || null) : null,
       a_ete_invite: formData.aEteInvite,
       par_qui: formData.aEteInvite ? formData.parQui.trim() : null,
-      bapteme_eau: formData.baptemeEau,
-      interet_formation: formData.interetFormation,
-      interet_cdm: formData.interetCDM,
+      bapteme_eau: formData.baptemeEau === true,
+      interet_formation: formData.interetFormation === true,
+      interet_cdm: formData.interetCDM === true,
       interet_bapteme: formData.interetBapteme,
       commentaire: formData.commentaire.trim() || null,
       church_id: selectedChurchId,
@@ -159,6 +344,37 @@ export default function PublicInvitePage() {
       responsible: "Non assigné",
       assigned_to: null,
       created_by: null,
+    };
+
+    const onSaveSuccess = () => {
+      setLastSavedGuestName(savedName);
+      setSessionCount(prev => prev + 1);
+      if (mode === "add_another") {
+        setFormData(prev => ({
+          ...prev,
+          civility: prev.civility === "M." ? "Mme." : "M.",
+          firstName: "",
+          // Conserve le nom de famille pour les membres de la même famille
+          phone: "",
+          email: "",
+          age: "26-30 ans",
+          aps: null,
+          localChurch: null,
+          autreEglise: "",
+          baptemeEau: null,
+          interetFormation: null,
+          interetCDM: null,
+          interetBapteme: false,
+          commentaire: "",
+        }));
+        setBannerMessage(`✓ ${savedName} a été enregistré(e) avec succès ! Vous pouvez renseigner le prochain invité.`);
+        if (typeof window !== "undefined") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      } else {
+        setSuccess(true);
+        setIsFinished(false);
+      }
     };
 
     try {
@@ -190,12 +406,12 @@ export default function PublicInvitePage() {
           }
           const { error: retryErr } = await supabase.from("invites").insert(fallbackPayload);
           if (retryErr) throw retryErr;
-          setSuccess(true);
+          onSaveSuccess();
           return;
         }
         throw insErr;
       }
-      setSuccess(true);
+      onSaveSuccess();
     } catch (err: any) {
       console.error("Error inserting invite:", err.message);
       setError("Une erreur est survenue lors de l'enregistrement. Veuillez réessayer.");
@@ -263,62 +479,189 @@ export default function PublicInvitePage() {
         </header>
 
         <AnimatePresence mode="wait">
-          {success ? (
+          {isFinished ? (
             <motion.div 
+              key="finished"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               className="glass"
-              style={{ textAlign: "center", padding: "50px 30px", border: "1px solid var(--green)", borderRadius: 16 }}
+              style={{ textAlign: "center", padding: "50px 30px", border: "1px solid rgba(212, 175, 55, 0.35)", borderRadius: 16 }}
             >
-              <div style={{ width: 70, height: 70, borderRadius: "50%", background: "rgba(16, 185, 129, 0.1)", border: "1px solid var(--green)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", color: "var(--green)" }}>
+              <div style={{ width: 70, height: 70, borderRadius: "50%", background: "rgba(212, 175, 55, 0.12)", border: "1px solid var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", color: "var(--gold)" }}>
                 <CheckCircle2 size={36} />
               </div>
-              <h2 style={{ fontSize: 24, fontWeight: 700, color: "var(--green)", marginBottom: 14 }}>Enregistrement Réussi !</h2>
-              <p style={{ fontSize: 14, color: "var(--cream-dim)", lineHeight: 1.6, maxWidth: 450, margin: "0 auto" }}>
-                Merci d'avoir rempli cette fiche. Vos informations ont été enregistrées avec succès et transmises à l'équipe d'intégration. Soyez abondamment béni(e) !
+              <h2 style={{ fontSize: 24, fontWeight: 700, color: "var(--gold)", marginBottom: 14 }}>Saisie Terminée !</h2>
+              <p style={{ fontSize: 14, color: "var(--cream-dim)", lineHeight: 1.6, maxWidth: 450, margin: "0 auto 28px" }}>
+                Toutes les fiches d'invités ont été enregistrées avec succès et transmises au Département d'Intégration. Merci pour votre dévouement et que Dieu vous bénisse abondamment !
               </p>
               <button 
+                type="button"
                 className="btn btn-outline" 
-                style={{ marginTop: 30, borderColor: "var(--gold)", color: "var(--gold)" }}
-                onClick={() => {
-                  setSuccess(false);
-                  setFormData({
-                    civility: "M.",
-                    firstName: "",
-                    lastName: "",
-                    age: "26-30 ans",
-                    phone: "",
-                    email: "",
-                    pays: "Belgique",
-                    address: "",
-                    arrivalDate: new Date().toISOString().split('T')[0],
-                    event: "Culte",
-                    aps: false,
-                    localChurch: false,
-                    autreEglise: "",
-                    aEteInvite: false,
-                    parQui: "",
-                    baptemeEau: false,
-                    interetFormation: false,
-                    interetCDM: false,
-                    interetBapteme: false,
-                    commentaire: "",
-                  });
-                }}
+                style={{ borderColor: "var(--gold)", color: "var(--gold)", margin: "0 auto", gap: 8 }}
+                onClick={() => resetForNextGuest("blank")}
               >
-                Enregistrer un autre invité
+                <UserPlus size={16} />
+                <span>Remplir une nouvelle fiche</span>
+              </button>
+            </motion.div>
+          ) : success ? (
+            <motion.div 
+              key="success"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="glass"
+              style={{ textAlign: "center", padding: "40px 24px", border: "1px solid var(--green)", borderRadius: 16 }}
+            >
+              <div style={{ width: 66, height: 66, borderRadius: "50%", background: "rgba(16, 185, 129, 0.12)", border: "1px solid var(--green)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", color: "var(--green)" }}>
+                <CheckCircle2 size={36} />
+              </div>
+              <h2 style={{ fontSize: 24, fontWeight: 700, color: "var(--green)", marginBottom: 12 }}>Enregistrement Réussi !</h2>
+              <p style={{ fontSize: 14, color: "var(--cream-dim)", lineHeight: 1.6, maxWidth: 480, margin: "0 auto 26px" }}>
+                {lastSavedGuestName ? (
+                  <>La fiche de <strong style={{ color: "var(--cream)", fontWeight: 600 }}>{lastSavedGuestName}</strong> a été enregistrée avec succès et transmise à l'équipe d'intégration.</>
+                ) : (
+                  <>Merci d'avoir rempli cette fiche. Vos informations ont été enregistrées avec succès et transmises à l'équipe d'intégration.</>
+                )}
+              </p>
+
+              {/* Question: Souhaitez-vous enregistrer un autre invité ? */}
+              <div style={{ 
+                background: "rgba(255, 255, 255, 0.03)", 
+                border: "1px solid rgba(212, 175, 55, 0.25)", 
+                borderRadius: 14, 
+                padding: "22px 18px",
+                margin: "0 auto 22px",
+                maxWidth: 520,
+                textAlign: "left"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                  <Users size={18} style={{ color: "var(--gold)" }} />
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--gold)", margin: 0 }}>
+                    Souhaitez-vous enregistrer un autre invité ?
+                  </h3>
+                </div>
+                <p style={{ fontSize: 13, color: "var(--cream-dim)", margin: "0 0 16px 0", lineHeight: 1.4 }}>
+                  Par exemple un conjoint, un membre de sa famille, un ami ou une autre personne présente :
+                </p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <button 
+                    type="button"
+                    className="btn btn-primary" 
+                    style={{ 
+                      width: "100%", 
+                      minHeight: 50, 
+                      padding: "10px 16px",
+                      justifyContent: "flex-start", 
+                      fontSize: 14, 
+                      fontWeight: 600,
+                      gap: 12
+                    }}
+                    onClick={() => resetForNextGuest("family")}
+                  >
+                    <Users size={18} style={{ flexShrink: 0 }} />
+                    <div style={{ textAlign: "left" }}>
+                      <div>Ajouter un membre de la même famille / groupe</div>
+                      <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.9 }}>
+                        Conserve l'église, la date, l'adresse, le nom et qui l'a invité
+                      </div>
+                    </div>
+                  </button>
+
+                  <button 
+                    type="button"
+                    className="btn btn-outline" 
+                    style={{ 
+                      width: "100%", 
+                      minHeight: 50, 
+                      padding: "10px 16px",
+                      justifyContent: "flex-start", 
+                      fontSize: 14, 
+                      fontWeight: 600,
+                      borderColor: "rgba(212, 175, 55, 0.45)",
+                      color: "var(--cream)",
+                      gap: 12
+                    }}
+                    onClick={() => resetForNextGuest("blank")}
+                  >
+                    <UserPlus size={18} style={{ color: "var(--gold)", flexShrink: 0 }} />
+                    <div style={{ textAlign: "left" }}>
+                      <div>Nouvel invité indépendant</div>
+                      <div style={{ fontSize: 11, fontWeight: 400, color: "var(--muted)" }}>
+                        Formulaire vierge (garde l'église et la date du culte)
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <button 
+                type="button"
+                className="btn btn-ghost" 
+                style={{ 
+                  color: "var(--cream-dim)", 
+                  fontSize: 13, 
+                  textDecoration: "underline", 
+                  background: "transparent", 
+                  border: "none", 
+                  cursor: "pointer",
+                  padding: "8px 12px"
+                }}
+                onClick={() => setIsFinished(true)}
+              >
+                Non, terminer la saisie
               </button>
             </motion.div>
           ) : (
             <motion.form 
-              onSubmit={handleSubmit}
+              key="form"
+              onSubmit={(e) => handleSubmit(e, "finish")}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className="glass"
               style={{ padding: "40px 30px", border: "1px solid rgba(212, 175, 55, 0.25)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 24 }}
             >
+              {/* Banner Message */}
+              {bannerMessage && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    padding: "14px 18px",
+                    borderRadius: 12,
+                    background: "rgba(16, 185, 129, 0.12)",
+                    border: "1px solid var(--green)",
+                    color: "var(--cream)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    fontSize: 14
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <CheckCircle2 size={18} style={{ color: "var(--green)", flexShrink: 0 }} />
+                    <span>{bannerMessage}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBannerMessage(null)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--cream-dim)",
+                      cursor: "pointer",
+                      padding: 4,
+                      fontSize: 16
+                    }}
+                  >
+                    ✕
+                  </button>
+                </motion.div>
+              )}
               {/* Church Selector */}
               <div>
                 <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>ÉGLISE LOCALE *</label>
@@ -350,7 +693,7 @@ export default function PublicInvitePage() {
                   />
                 </div>
                 <div>
-                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>ÉVÉNEMENT</label>
+                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>ÉVÉNEMENT *</label>
                   <CustomSelect 
                     value={formData.event} 
                     onChange={val => setFormData({...formData, event: val})}
@@ -363,7 +706,7 @@ export default function PublicInvitePage() {
               {/* Civility, First Name, Last Name */}
               <div className="form-grid-3" style={{ display: "grid", gridTemplateColumns: "110px 1fr 1fr", gap: 16 }}>
                 <div>
-                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>CIVILITÉ</label>
+                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>CIVILITÉ *</label>
                   <CustomSelect 
                     value={formData.civility} 
                     onChange={val => setFormData({...formData, civility: val})}
@@ -396,11 +739,12 @@ export default function PublicInvitePage() {
               {/* Phone & Email */}
               <div className="form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div>
-                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>TÉLÉPHONE</label>
+                  <label className="form-label" style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>TÉLÉPHONE *</label>
                   <div style={{ position: "relative" }}>
                     <Phone size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)", opacity: 0.7 }} />
                     <input 
                       className="input" 
+                      required
                       value={formData.phone} 
                       onKeyDown={handlePhoneKeyDown}
                       onChange={e => setFormData({...formData, phone: handlePhoneChange(e.target.value)})} 
@@ -507,47 +851,46 @@ export default function PublicInvitePage() {
               </div>
 
               {/* Parcours spirituel & Église */}
-              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
-                <h3 style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", letterSpacing: 1.5, textTransform: "uppercase", margin: 0 }}>Parcours spirituel & Église</h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <input 
-                      type="checkbox" 
-                      id="aps" 
-                      checked={formData.aps} 
-                      onChange={e => setFormData({...formData, aps: e.target.checked})} 
-                      style={{ width: 17, height: 17, marginTop: 2, accentColor: "var(--gold)" }} 
-                    />
-                    <label htmlFor="aps" style={{ fontSize: 13, cursor: "pointer", lineHeight: 1.4 }}>
-                      Avez-vous déjà accepté Jésus-Christ comme votre Sauveur et Seigneur de votre vie ?
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
+                <h3 style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", letterSpacing: 1.5, textTransform: "uppercase", margin: 0 }}>
+                  Parcours spirituel & Église *
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {/* Question Jésus-Christ */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: "var(--cream)", flex: 1, minWidth: 240, lineHeight: 1.4 }}>
+                      Avez-vous déjà accepté Jésus-Christ comme votre Sauveur et Seigneur de votre vie ? <span style={{ color: "var(--gold)" }}>*</span>
                     </label>
+                    <YesNoToggle 
+                      value={formData.aps} 
+                      onChange={(val) => setFormData({ ...formData, aps: val })} 
+                    />
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                      <input 
-                        type="checkbox" 
-                        id="localChurch" 
-                        checked={formData.localChurch} 
-                        onChange={e => setFormData({...formData, localChurch: e.target.checked})} 
-                        style={{ width: 17, height: 17, marginTop: 2, accentColor: "var(--gold)" }} 
-                      />
-                      <label htmlFor="localChurch" style={{ fontSize: 13, cursor: "pointer", lineHeight: 1.4 }}>
-                        Persévérez-vous déjà dans une autre église ?
+                  {/* Question Autre Église */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                      <label style={{ fontSize: 13, fontWeight: 500, color: "var(--cream)", flex: 1, minWidth: 240, lineHeight: 1.4 }}>
+                        Persévérez-vous déjà dans une autre église ? <span style={{ color: "var(--gold)" }}>*</span>
                       </label>
+                      <YesNoToggle 
+                        value={formData.localChurch} 
+                        onChange={(val) => setFormData({ ...formData, localChurch: val })} 
+                      />
                     </div>
 
-                    {formData.localChurch && (
-                      <div className="fade-in" style={{ paddingLeft: 27, paddingTop: 4 }}>
+                    {formData.localChurch === true && (
+                      <div className="fade-in" style={{ paddingTop: 6 }}>
                         <label className="form-label" style={{ display: "block", marginBottom: 6, fontSize: 11, color: "var(--cream-dim)" }}>
-                          NOM DE VOTRE ÉGLISE LOCALE
+                          NOM DE VOTRE ÉGLISE D'ORIGINE *
                         </label>
                         <input 
                           className="input" 
+                          required
                           value={formData.autreEglise} 
                           onChange={e => setFormData({...formData, autreEglise: e.target.value})} 
                           placeholder="Ex: Nom de l'église, ville..." 
-                          style={{ height: 38 }}
+                          style={{ height: 40 }}
                         />
                       </div>
                     )}
@@ -556,25 +899,59 @@ export default function PublicInvitePage() {
               </div>
 
               {/* Interests */}
-              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
-                <h3 style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", letterSpacing: 1.5, textTransform: "uppercase", margin: 0 }}>Intérêts & engagements</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <input type="checkbox" id="baptemeEau" checked={formData.baptemeEau} onChange={e => setFormData({...formData, baptemeEau: e.target.checked})} style={{ width: 16, height: 16 }} />
-                    <label htmlFor="baptemeEau" style={{ fontSize: 13, cursor: "pointer" }}>Déjà baptisé(e) par immersion</label>
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
+                <h3 style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", letterSpacing: 1.5, textTransform: "uppercase", margin: 0 }}>
+                  Intérêts & engagements *
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {/* Baptisé immersion */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: "var(--cream)", flex: 1, minWidth: 240, lineHeight: 1.4 }}>
+                      Déjà baptisé(e) par immersion <span style={{ color: "var(--gold)" }}>*</span>
+                    </label>
+                    <YesNoToggle 
+                      value={formData.baptemeEau} 
+                      onChange={(val) => setFormData({ ...formData, baptemeEau: val })} 
+                    />
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <input type="checkbox" id="interetFormation" checked={formData.interetFormation} onChange={e => setFormData({...formData, interetFormation: e.target.checked})} style={{ width: 16, height: 16 }} />
-                    <label htmlFor="interetFormation" style={{ fontSize: 13, cursor: "pointer" }}>Intérêt pour les formations (PCNC)</label>
+
+                  {/* Formations PCNC */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 14 }}>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: "var(--cream)", flex: 1, minWidth: 240, lineHeight: 1.4 }}>
+                      Intérêt pour les formations (PCNC) <span style={{ color: "var(--gold)" }}>*</span>
+                    </label>
+                    <YesNoToggle 
+                      value={formData.interetFormation} 
+                      onChange={(val) => setFormData({ ...formData, interetFormation: val })} 
+                    />
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <input type="checkbox" id="interetCDM" checked={formData.interetCDM} onChange={e => setFormData({...formData, interetCDM: e.target.checked})} style={{ width: 16, height: 16 }} />
-                    <label htmlFor="interetCDM" style={{ fontSize: 13, cursor: "pointer" }}>Intérêt pour les Cellules (C.D.M)</label>
+
+                  {/* Cellules CDM */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 14 }}>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: "var(--cream)", flex: 1, minWidth: 240, lineHeight: 1.4 }}>
+                      Intérêt pour les Cellules (C.D.M) <span style={{ color: "var(--gold)" }}>*</span>
+                    </label>
+                    <YesNoToggle 
+                      value={formData.interetCDM} 
+                      onChange={(val) => setFormData({ ...formData, interetCDM: val })} 
+                    />
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <input type="checkbox" id="interetBapteme" checked={formData.interetBapteme} onChange={e => setFormData({...formData, interetBapteme: e.target.checked})} style={{ width: 16, height: 16 }} />
-                    <label htmlFor="interetBapteme" style={{ fontSize: 13, cursor: "pointer" }}>Je souhaite me faire baptiser</label>
-                  </div>
+
+                  {/* Souhait de baptême */}
+                  {formData.baptemeEau === false && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, borderTop: "1px dashed rgba(212,175,55,0.25)", paddingTop: 12 }} className="fade-in">
+                      <input 
+                        type="checkbox" 
+                        id="interetBapteme" 
+                        checked={formData.interetBapteme} 
+                        onChange={e => setFormData({...formData, interetBapteme: e.target.checked})} 
+                        style={{ width: 16, height: 16, accentColor: "var(--gold)" }} 
+                      />
+                      <label htmlFor="interetBapteme" style={{ fontSize: 13, cursor: "pointer", color: "var(--gold-light)" }}>
+                        Je souhaite me faire baptiser
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -597,14 +974,50 @@ export default function PublicInvitePage() {
                 </div>
               )}
 
-              <button 
-                type="submit" 
-                className="btn btn-primary" 
-                style={{ width: "100%", height: 52, justifyContent: "center", fontSize: 15, fontWeight: 700 }}
-                disabled={submitting}
-              >
-                {submitting ? <Loader2 className="animate-spin" /> : "Valider l'enregistrement"}
-              </button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="form-action-grid">
+                <button 
+                  type="button" 
+                  onClick={(e) => handleSubmit(e, "add_another")}
+                  className="btn btn-outline" 
+                  style={{ 
+                    height: 52, 
+                    justifyContent: "center", 
+                    fontSize: 14, 
+                    fontWeight: 600,
+                    borderColor: "rgba(212, 175, 55, 0.5)", 
+                    color: "var(--gold)",
+                    background: "rgba(212, 175, 55, 0.05)",
+                    gap: 8 
+                  }}
+                  disabled={submitting}
+                >
+                  {submitting && pendingAction === "add_another" ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <>
+                      <UserPlus size={18} />
+                      <span>Enregistrer & ajouter un autre</span>
+                    </>
+                  )}
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={(e) => handleSubmit(e, "finish")}
+                  className="btn btn-primary" 
+                  style={{ height: 52, justifyContent: "center", fontSize: 14, fontWeight: 700, gap: 8 }}
+                  disabled={submitting}
+                >
+                  {submitting && pendingAction === "finish" ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <>
+                      <Check size={18} />
+                      <span>Valider l'enregistrement</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.form>
           )}
         </AnimatePresence>
@@ -626,6 +1039,9 @@ export default function PublicInvitePage() {
             grid-template-columns: 1fr !important;
           }
           .form-grid-2 {
+            grid-template-columns: 1fr !important;
+          }
+          .form-action-grid {
             grid-template-columns: 1fr !important;
           }
         }
