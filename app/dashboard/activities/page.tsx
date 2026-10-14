@@ -2,11 +2,12 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
 import { 
-  Plus, Calendar, Clock, MapPin, ChevronRight, XCircle, 
+  Plus, Calendar, Clock, MapPin, ChevronRight, XCircle, ArrowLeft,
   Search, CheckCircle2, List, Grid3X3, Users, BarChart3,
   ChevronDown, ChevronUp, MoreHorizontal, Trash2,
   AlertTriangle, TrendingUp, Pencil, Maximize2, Minimize2, Zap
@@ -967,12 +968,28 @@ export default function ActivitiesPage() {
   }
 
   if (error) {
+    const requiresFamilyContext = error.includes("casquette Famille de Disciples");
     return (
       <div className="glass" style={{ padding: 40, textAlign: "center", margin: 20 }}>
-        <XCircle size={40} style={{ color: "var(--red)", marginBottom: 15, opacity: 0.5 }} />
-        <h3 style={{ color: "var(--cream)", marginBottom: 10 }}>Oups !</h3>
-        <p style={{ color: "var(--muted)" }}>{error}</p>
-        <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={() => window.location.reload()}>Réessayer</button>
+        {requiresFamilyContext ? (
+          <>
+            <Users size={40} style={{ color: "var(--gold-light)", marginBottom: 15 }} />
+            <h3 style={{ color: "var(--cream)", marginBottom: 10 }}>Disponible dans un espace Famille</h3>
+            <p style={{ color: "var(--muted)", maxWidth: 480, margin: "0 auto" }}>
+              Le suivi des activités concerne les membres d’une Famille de Disciples. Utilisez le sélecteur d’espace en haut de page pour ouvrir une Famille, puis revenez dans Activités.
+            </p>
+            <Link href="/dashboard" className="btn btn-primary" style={{ display: "inline-flex", marginTop: 20 }}>
+              <ArrowLeft size={16} /> Retour à l’accueil
+            </Link>
+          </>
+        ) : (
+          <>
+            <XCircle size={40} style={{ color: "var(--red)", marginBottom: 15, opacity: 0.5 }} />
+            <h3 style={{ color: "var(--cream)", marginBottom: 10 }}>Oups !</h3>
+            <p style={{ color: "var(--muted)" }}>{error}</p>
+            <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={() => window.location.reload()}>Réessayer</button>
+          </>
+        )}
       </div>
     );
   }

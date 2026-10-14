@@ -17,6 +17,8 @@
 .iconButton:hover { background: var(--gold-glow); color: var(--cream); }
 .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; padding: 10px 18px; border-radius: 12px; border: 1px solid var(--ux-line); font-size: 13px !important; font-weight: 600 !important; }
 .primary { background: var(--action-bg); border-color: var(--action-bg); color: var(--action-ink); }
+.destructive { background: #a31620; border-color: #a31620; color: #fff; }
+.destructive:hover { background: #85121a; border-color: #85121a; }
 .secondary { background: transparent; color: var(--cream); }
 .primary:hover { filter: brightness(1.08); }
 .secondary:hover { background: var(--gold-glow); }

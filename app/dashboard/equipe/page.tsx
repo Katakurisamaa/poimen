@@ -288,6 +288,35 @@ export default function IntegrationTeamPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "clamp(16px, 3vw, 28px)" }} className="fade-in">
+      <style jsx global>{`
+        @media (max-width: 700px) {
+          .integration-team-table-wrap { overflow: visible !important; }
+          .integration-team-table { display: block; width: 100% !important; min-width: 0 !important; }
+          .integration-team-table thead {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+          }
+          .integration-team-table tbody { display: block; padding: 0 14px; }
+          .integration-team-table tbody tr {
+            display: block; margin: 12px 0; padding: 10px 14px;
+            border: 1px solid var(--border); border-radius: 14px;
+            background: var(--surface-solid);
+          }
+          .integration-team-table tbody td {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            min-width: 0; padding: 9px 0 !important; border-bottom: 1px solid var(--border);
+            font-size: 12px !important; text-align: right !important;
+          }
+          .integration-team-table tbody td::before {
+            content: attr(data-label); flex: 0 0 34%; color: var(--muted);
+            font-size: 9px; font-weight: 700; letter-spacing: .6px;
+            text-align: left; text-transform: uppercase;
+          }
+          .integration-team-table tbody td:first-child { justify-content: flex-start; }
+          .integration-team-table tbody td:first-child > div:last-child { min-width: 0; overflow-wrap: anywhere; }
+          .integration-team-table tbody td:last-child { justify-content: flex-end; border-bottom: 0; }
+        }
+      `}</style>
       <header style={{ borderBottom: "1px solid rgba(212, 175, 55, 0.12)", paddingBottom: "clamp(12px, 2vw, 20px)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--gold-light)", marginBottom: 4 }}>
@@ -352,8 +381,8 @@ export default function IntegrationTeamPage() {
               <button className="btn btn-primary" onClick={() => setIsAdding(true)}><Plus size={16} /> Ajouter le premier conseiller</button>
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
+            <div className="integration-team-table-wrap" role="region" aria-label="Membres de l’équipe — faites défiler horizontalement pour voir toutes les colonnes" tabIndex={0} style={{ overflowX: "auto" }}>
+              <table className="integration-team-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(212,175,55,0.1)", textAlign: "left" }}>
                     <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Nom & Prénom</th>
@@ -368,7 +397,7 @@ export default function IntegrationTeamPage() {
                 <tbody>
                   {team.map((member, i) => (
                     <tr key={member.id} style={{ borderBottom: i < team.length - 1 ? "1px solid rgba(212,175,55,0.06)" : "none", background: member.isObservation ? "rgba(245,158,11,0.02)" : member.status === "pending" ? "rgba(245,158,11,0.02)" : "transparent" }}>
-                      <td style={{ padding: "16px 24px" }}>
+                      <td data-label="Membre" style={{ padding: "16px 24px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <div 
                             className={`avatar avatar-gradient ${member.status === "pending" ? "avatar-effect-pulse" : ""}`} 
@@ -395,7 +424,7 @@ export default function IntegrationTeamPage() {
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: "16px 24px", fontSize: 13, color: "var(--cream-dim)" }}>
+                      <td data-label="Rôle" style={{ padding: "16px 24px", fontSize: 13, color: "var(--cream-dim)" }}>
                         {member.isObservation ? (
                           <span style={{ 
                             display: "inline-flex", 
@@ -415,7 +444,7 @@ export default function IntegrationTeamPage() {
                           member.role
                         )}
                       </td>
-                      <td style={{ padding: "16px 20px", textAlign: "center" }}>
+                      <td data-label="Délégation" style={{ padding: "16px 20px", textAlign: "center" }}>
                         {member.isObservation ? (
                           <span style={{ fontSize: 13, color: "var(--muted)" }}>—</span>
                         ) : member.role === "Responsable" || member.role === "Second" ? (
@@ -452,7 +481,7 @@ export default function IntegrationTeamPage() {
                           </button>
                         )}
                       </td>
-                      <td style={{ padding: "16px 24px" }}>
+                      <td data-label="Statut" style={{ padding: "16px 24px" }}>
                         {member.isObservation ? (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "#f59e0b", background: "rgba(245, 158, 11, 0.1)", padding: "4px 10px", borderRadius: 12, fontWeight: 600 }}>
                             En observation
@@ -467,7 +496,7 @@ export default function IntegrationTeamPage() {
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: "16px 24px", textAlign: "center" }}>
+                      <td data-label="Charge active" style={{ padding: "16px 24px", textAlign: "center" }}>
                         {member.isObservation ? (
                           <span style={{ color: "var(--muted)", fontSize: 12 }}>—</span>
                         ) : member.status === "active" ? (
@@ -478,10 +507,10 @@ export default function IntegrationTeamPage() {
                           <span style={{ color: "var(--muted)", fontSize: 12 }}>—</span>
                         )}
                       </td>
-                      <td style={{ padding: "16px 24px", fontSize: 12, color: "var(--muted)" }}>
+                      <td data-label="Enregistré le" style={{ padding: "16px 24px", fontSize: 12, color: "var(--muted)" }}>
                         {member.createdAt ? new Date(member.createdAt).toLocaleDateString("fr-FR") : "—"}
                       </td>
-                      <td style={{ padding: "16px 24px", textAlign: "right", whiteSpace: "nowrap" }}>
+                      <td data-label="Actions" style={{ padding: "16px 24px", textAlign: "right", whiteSpace: "nowrap" }}>
                         <button 
                           className="btn-icon" 
                           onClick={() => handleStartEdit(member)}

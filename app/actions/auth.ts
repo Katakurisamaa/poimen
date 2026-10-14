@@ -186,8 +186,7 @@ async function assertCanReadIntegrationTeam(churchId: string) {
     return { ok: true, user };
   }
 
-  const supabase = await getServiceSupabase();
-  const { data: memberships, error: membershipError } = await supabase.from("user_contexts")
+  const { data: memberships, error: membershipError } = await serverSupabase.from("user_contexts")
     .select("role, active").eq("user_id", user.id).eq("church_id", churchId).eq("context_type", "integration");
   if (membershipError) return { ok: false, error: "Vérification des droits impossible." };
   if (memberships?.length) {
@@ -196,7 +195,7 @@ async function assertCanReadIntegrationTeam(churchId: string) {
       : { ok: false, error: "Accès désactivé." };
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await serverSupabase
     .from("profiles")
     .select("role, church_id")
     .eq("id", user.id)
@@ -208,7 +207,7 @@ async function assertCanReadIntegrationTeam(churchId: string) {
     return { ok: true, user };
   }
 
-  const { data: context } = await supabase
+  const { data: context } = await serverSupabase
     .from("user_contexts")
     .select("role, church_id")
     .eq("user_id", user.id)
@@ -346,6 +345,50 @@ export async function listIntegrationTeam(churchId: string) {
     success: true,
     team: [...regularTeam, ...observationTeam]
   };
+}
+
+export async function listIntegrationPresenceMembers(churchId: string) {
+  const permission = await assertCanReadIntegrationTeam(churchId);
+  if (!permission.ok) return { success: false, error: permission.error, members: [] };
+
+  const supabase = await getServiceSupabase();
+  const { data: contexts, error } = await supabase
+    .from("user_contexts")
+    .select("user_id, display_name, role")
+    .eq("church_id", churchId)
+    .eq("context_type", "integration")
+    .eq("active", true)
+    .in("role", ["integration_responsable", "integration_second", "integration_conseiller"]);
+
+  if (error) return { success: false, error: error.message, members: [] };
+
+  const memberMap = new Map<string, { id: string; name: string; role: string }>();
+  for (const context of contexts || []) {
+    if (!context.user_id) continue;
+    memberMap.set(context.user_id, {
+      id: context.user_id,
+      name: context.display_name?.trim() || "Membre de l’équipe",
+      role: context.role
+    });
+  }
+
+  // Include legacy integration accounts that predate user_contexts.
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, display_name, role, email")
+    .eq("church_id", churchId)
+    .eq("active", true);
+
+  for (const profile of profiles || []) {
+    if (!profile.id || memberMap.has(profile.id) || !profile.role?.toLowerCase().startsWith("integration_")) continue;
+    memberMap.set(profile.id, {
+      id: profile.id,
+      name: profile.display_name?.trim() || profile.email?.split("@")[0] || "Membre de l’équipe",
+      role: profile.role
+    });
+  }
+
+  return { success: true, members: [...memberMap.values()] };
 }
 
 export async function createIntegrationTeamMember(params: {

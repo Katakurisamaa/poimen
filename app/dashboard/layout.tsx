@@ -11,6 +11,7 @@ import { supabase, getSafeSession } from "@/lib/supabase";
 import { SUPER_ADMIN_EMAIL, contextToUserInfo } from "@/lib/auth-contexts";
 import SoulContactReminder from "@/components/experience/SoulContactReminder";
 import NotificationPromptModal from "@/components/experience/NotificationPromptModal";
+import IntegrationPresence from "@/components/integration/IntegrationPresence";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -281,6 +282,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className={`main-area ${isFullWidth ? "full-width" : ""}`}>
         <Header onMenuClick={() => setMobileOpen(!mobileOpen)} />
         <main className="page-content">
+          {isIntegration && <IntegrationPresence />}
           <NotificationPromptModal />
           <SoulContactReminder />
           {children}

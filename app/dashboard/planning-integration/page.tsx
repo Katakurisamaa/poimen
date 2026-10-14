@@ -16,7 +16,7 @@ import {
 import PlanningDocument from "@/components/integration/PlanningDocument";
 import { getPlanningIntegration, savePlanningIntegration } from "@/app/actions/planning-integration";
 import { getIntegrationDropdownList } from "@/app/actions/auth";
-import { getMonthWeeks, getNextWeekPeriod } from "@/lib/planning-dates";
+import { getMonthWeeks, getNextWeekPeriod, parseWeekEndDate } from "@/lib/planning-dates";
 import styles from "@/components/integration/PlanningIntegration.module.css";
 import IntegrationSubNav from "@/components/integration/IntegrationSubNav";
 import CustomMonthPicker from "@/components/ui/CustomMonthPicker";
@@ -96,6 +96,8 @@ export default function PlanningIntegrationPage() {
   const [saving, setSaving] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [collapsedWeekIds, setCollapsedWeekIds] = useState<Set<string>>(new Set());
 
   // Selected Month (Format: "YYYY-MM")
   const today = new Date();
@@ -107,6 +109,43 @@ export default function PlanningIntegrationPage() {
 
   // Active Planning Data
   const [planningData, setPlanningData] = useState<PlanningIntegrationData | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    const updateViewport = () => setIsCompactViewport(media.matches);
+    updateViewport();
+    media.addEventListener("change", updateViewport);
+    return () => media.removeEventListener("change", updateViewport);
+  }, []);
+
+  const planningWeekIds = planningData?.weeks.map((week) => week.id).join("|") || "";
+  useEffect(() => {
+    if (!planningData || loading || planningData.month_key !== selectedMonth) return;
+    if (!isCompactViewport) {
+      setCollapsedWeekIds(new Set());
+      return;
+    }
+
+    const today = new Date();
+    const isCurrentMonth = selectedMonth === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    const currentWeekIndex = isCurrentMonth
+      ? planningData.weeks.findIndex((week) => {
+          const endDate = parseWeekEndDate(week.periode);
+          return endDate && endDate >= new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        })
+      : 0;
+    const expandedIndex = currentWeekIndex >= 0 ? currentWeekIndex : planningData.weeks.length - 1;
+    setCollapsedWeekIds(new Set(planningData.weeks.filter((_, index) => index !== expandedIndex).map((week) => week.id)));
+  }, [isCompactViewport, loading, planningData?.month_key, planningWeekIds, selectedMonth]);
+
+  const toggleWeekCollapsed = (weekId: string) => {
+    setCollapsedWeekIds((current) => {
+      const updated = new Set(current);
+      if (updated.has(weekId)) updated.delete(weekId);
+      else updated.add(weekId);
+      return updated;
+    });
+  };
 
   // Initialize Church and load data
   useEffect(() => {
@@ -794,6 +833,16 @@ export default function PlanningIntegrationPage() {
                   </div>
 
                   <button
+                    type="button"
+                    className={styles.weekToggle}
+                    onClick={() => toggleWeekCollapsed(week.id)}
+                    aria-expanded={!collapsedWeekIds.has(week.id)}
+                    aria-controls={`week-content-${week.id}`}
+                  >
+                    {collapsedWeekIds.has(week.id) ? <><Eye size={14} /> Afficher les affectations</> : <><X size={14} /> Masquer les affectations</>}
+                  </button>
+
+                  <button
                     onClick={() => handleRemoveWeek(week.id, idx)}
                     className={styles.btnRemoveWeek}
                     title="Supprimer cette semaine"
@@ -803,7 +852,10 @@ export default function PlanningIntegrationPage() {
                 </div>
 
                 {/* 4-Columns Subgrid for Week Slots */}
-                <div className={styles.weekGrid}>
+                <div
+                  id={`week-content-${week.id}`}
+                  className={`${styles.weekGrid} ${collapsedWeekIds.has(week.id) ? styles.weekGridCollapsed : ""}`}
+                >
                   
                   {/* 1. Jeûne et Prière (Lundi) */}
                   <div className={styles.slotBox}>

@@ -4,14 +4,15 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { 
   Copy, Check, Share2, Maximize, Minimize, PhoneOff, 
   Mic, MicOff, Video, VideoOff, Monitor, BarChart2,
-  Users, AlertCircle 
+  Users, AlertCircle, Wifi, MessageSquare, Send, Hand, ShieldCheck, UserX
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { getPublicVisioUrl, getVisioLinkNotice, getJitsiVisioUrl, getWhatsAppShareUrl } from "@/lib/visio";
+import { getPublicVisioUrl, getWhatsAppShareUrl } from "@/lib/visio";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import styles from "./VideoConference.module.css";
+import type { VisioDeviceSelection } from "./VisioPreflight";
 
-const ICE_SERVERS: RTCIceServer[] = [
+const STUN_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
   { urls: "stun:stun2.l.google.com:19302" },
@@ -27,7 +28,13 @@ interface RemotePeer {
   stream: MediaStream;
   isMuted?: boolean;
   isVideoOff?: boolean;
+  connection?: "connected" | "reconnecting" | "failed";
+  quality?: "good" | "fair" | "poor";
+  handRaised?: boolean;
 }
+
+interface ChatMessage { id: string; peerId: string; name: string; text: string; createdAt: number; }
+interface WaitingParticipant { peerId: string; name: string; }
 
 interface VideoConferenceProps {
   roomName: string;
@@ -38,6 +45,24 @@ interface VideoConferenceProps {
   onLeave?: () => void;
   onTogglePolls?: () => void;
   pollsOpen?: boolean;
+  isHost?: boolean;
+  mediaDevices?: VisioDeviceSelection;
+}
+
+async function getIceServers(): Promise<{ servers: RTCIceServer[]; hasTurn: boolean }> {
+  const endpoint = process.env.NEXT_PUBLIC_TURN_CREDENTIALS_URL || "/api/visio/turn-credentials";
+  try {
+    const response = await fetch(endpoint, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw new Error(`TURN credentials unavailable (${response.status})`);
+    const body = await response.json();
+    const servers: RTCIceServer[] = Array.isArray(body.iceServers) ? body.iceServers :
+      body.urls && body.username && body.credential ? [{ urls: body.urls, username: body.username, credential: body.credential }] : [];
+    const valid = servers.filter(server => server.urls && (String(server.urls).includes("turn:") || String(server.urls).includes("turns:")));
+    return { servers: [...STUN_SERVERS, ...valid], hasTurn: valid.length > 0 };
+  } catch (error) {
+    console.warn("Relais TURN indisponible, la salle utilisera une connexion directe:", error);
+    return { servers: STUN_SERVERS, hasTurn: false };
+  }
 }
 
 function mediaErrorMessage(error: unknown) {
@@ -68,6 +93,8 @@ export default function VideoConference({
   onLeave,
   onTogglePolls,
   pollsOpen,
+  isHost = false,
+  mediaDevices,
 }: VideoConferenceProps) {
   const { notify } = useFeedback();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,6 +113,17 @@ export default function VideoConference({
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [networkState, setNetworkState] = useState<"connecting" | "connected" | "reconnecting">("connecting");
+  const [hasTurnRelay, setHasTurnRelay] = useState(false);
+  const [roomLocked, setRoomLocked] = useState(true);
+  const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([]);
+  const [isWaitingRoom, setIsWaitingRoom] = useState(false);
+  const [joinRejected, setJoinRejected] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
+  const [handRaised, setHandRaised] = useState(false);
+  const [toastReaction, setToastReaction] = useState("");
 
   // UI states
   const [copied, setCopied] = useState(false);
@@ -99,10 +137,13 @@ export default function VideoConference({
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const mediaRequestRef = useRef(0);
   const channelRef = useRef<any>(null);
+  const iceServersRef = useRef<RTCIceServer[]>(STUN_SERVERS);
+  const roomLockedRef = useRef(roomLocked);
+  const onLeaveRef = useRef(onLeave);
+  const approvedPeerIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => { onLeaveRef.current = onLeave; }, [onLeave]);
 
   const publicUrl = getPublicVisioUrl(roomName, guestName);
-  const linkNotice = getVisioLinkNotice(publicUrl);
-  const jitsiUrl = getJitsiVisioUrl(roomName);
   const whatsappUrl = getWhatsAppShareUrl({ roomName, title, guestName });
 
   // Flush queued candidates once remote description is set
@@ -141,14 +182,18 @@ export default function VideoConference({
     let stream: MediaStream | null = null;
 
     try {
-      // 1. Essai complet universel : Caméra + Micro
+      const audioConstraint: MediaTrackConstraints = mediaDevices?.audioDeviceId
+        ? { deviceId: { exact: mediaDevices.audioDeviceId }, echoCancellation: true, noiseSuppression: true }
+        : { echoCancellation: true, noiseSuppression: true };
+      const videoConstraint: MediaTrackConstraints = mediaDevices?.videoDeviceId
+        ? { deviceId: { exact: mediaDevices.videoDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        : { width: { ideal: 1280 }, height: { ideal: 720 } };
+
+      // Essai avec les périphériques choisis à l'écran de préparation.
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint, audio: audioConstraint });
       } catch {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: { echoCancellation: true, noiseSuppression: true },
-        });
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       }
       setIsVideoOff(false);
       setIsMicMuted(false);
@@ -197,7 +242,7 @@ export default function VideoConference({
     setLocalStream(stream);
     setIsLoading(false);
     return stream;
-  }, [notify]);
+  }, [mediaDevices, notify]);
 
   // Synchroniser le flux local avec la balise vidéo dès le montage
   useEffect(() => {
@@ -263,7 +308,7 @@ export default function VideoConference({
       if (channelRef.current) {
         channelRef.current.send({
           type: "broadcast", event: "PEER_JOIN",
-          payload: { peerId: localPeerId, peerName: userName },
+          payload: { peerId: localPeerId, peerName: userName, isHost },
         });
         channelRef.current.send({
           type: "broadcast",
@@ -295,7 +340,7 @@ export default function VideoConference({
       peerConnectionsRef.current.delete(peerId);
     }
 
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
 
     // Ajouter toutes les pistes locales disponibles
     streamToShare.getTracks().forEach((track) => {
@@ -329,11 +374,11 @@ export default function VideoConference({
 
     // Réception du flux distant
     pc.ontrack = (event) => {
-    const incomingStream = event.streams[0] ?? new MediaStream([event.track]);
+      const incomingStream = event.streams[0] ?? new MediaStream([event.track]);
       setRemotePeers((prev) => {
         const existing = prev.find((p) => p.id === peerId);
         if (existing) {
-          return prev.map((p) => (p.id === peerId ? { ...p, stream: incomingStream } : p));
+          return prev.map((p) => (p.id === peerId ? { ...p, stream: incomingStream, name: peerName } : p));
         }
         return [...prev, { id: peerId, name: peerName, stream: incomingStream }];
       });
@@ -341,11 +386,58 @@ export default function VideoConference({
 
     // Allow a brief network interruption, then release departed peers.
     let disconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    let statsTimer: ReturnType<typeof setInterval> | undefined;
+    const updatePeerStatus = (connection: RemotePeer["connection"], quality?: RemotePeer["quality"]) => {
+      setRemotePeers(prev => prev.map(peer => peer.id === peerId ? { ...peer, connection, quality: quality ?? peer.quality } : peer));
+    };
+    const restartIce = async () => {
+      if (localPeerId < peerId || !channelRef.current || pc.signalingState !== "stable") return;
+      try {
+        const offer = await pc.createOffer({ iceRestart: true });
+        await pc.setLocalDescription(offer);
+        channelRef.current.send({ type: "broadcast", event: "WEBRTC_OFFER", payload: {
+          toPeerId: peerId, fromPeerId: localPeerId, fromPeerName: userName, sdp: offer,
+        } });
+      } catch (error) { console.warn("La reconnexion automatique WebRTC a échoué:", error); }
+    };
+    pc.oniceconnectionstatechange = () => {
+      clearTimeout(disconnectTimer);
+      if (["connected", "completed"].includes(pc.iceConnectionState)) {
+        updatePeerStatus("connected", "good");
+        setNetworkState("connected");
+        if (!statsTimer) statsTimer = setInterval(() => {
+          void pc.getStats().then(report => {
+            let received = 0; let lost = 0; let jitter = 0;
+            report.forEach(stat => {
+              if (stat.type === "inbound-rtp" && !stat.isRemote && (stat.kind === "audio" || stat.kind === "video")) {
+                received += Number(stat.packetsReceived || 0);
+                lost += Number(stat.packetsLost || 0);
+                jitter = Math.max(jitter, Number(stat.jitter || 0));
+              }
+            });
+            const lossRate = received + lost ? lost / (received + lost) : 0;
+            const quality = lossRate > 0.08 || jitter > 0.05 ? "poor" : lossRate > 0.025 || jitter > 0.03 ? "fair" : "good";
+            updatePeerStatus("connected", quality);
+          }).catch(() => {});
+        }, 5000);
+      } else if (pc.iceConnectionState === "disconnected") {
+        updatePeerStatus("reconnecting", "fair");
+        setNetworkState("reconnecting");
+        void restartIce();
+        disconnectTimer = setTimeout(() => {
+          if (pc.iceConnectionState === "disconnected") void restartIce();
+        }, 4000);
+      } else if (pc.iceConnectionState === "failed") {
+        updatePeerStatus("reconnecting", "poor");
+        setNetworkState("reconnecting");
+        void restartIce();
+      }
+    };
     pc.onconnectionstatechange = () => {
       clearTimeout(disconnectTimer);
       if (pc.connectionState === "disconnected") {
         disconnectTimer = setTimeout(() => {
-          if (pc.connectionState === "disconnected") pc.close();
+          if (pc.connectionState === "disconnected") void restartIce();
         }, 10000);
       }
       if (["failed", "closed"].includes(pc.connectionState) && peerConnectionsRef.current.get(peerId)?.pc === pc) {
@@ -355,9 +447,13 @@ export default function VideoConference({
       }
     };
 
+    pc.addEventListener("signalingstatechange", () => {
+      if (pc.signalingState === "closed") { clearInterval(statsTimer); clearTimeout(disconnectTimer); }
+    });
+
     peerConnectionsRef.current.set(peerId, { pc, name: peerName });
     return pc;
-  }, [localPeerId]);
+  }, [localPeerId, userName]);
 
   // 3. Cycle de vie WebRTC et Signaling Supabase
   useEffect(() => {
@@ -369,6 +465,14 @@ export default function VideoConference({
       // Let an immediately cancelled mount finish before opening physical devices.
       await Promise.resolve();
       if (!isSubscribed) return;
+      roomLockedRef.current = true;
+      setRoomLocked(true);
+      setWaitingParticipants([]);
+      setChatMessages([]);
+      const iceConfig = await getIceServers();
+      if (!isSubscribed) return;
+      iceServersRef.current = iceConfig.servers;
+      setHasTurnRelay(iceConfig.hasTurn);
       const stream = await initLocalMedia();
       if (!stream || !isSubscribed) {
         stream?.getTracks().forEach(track => track.stop());
@@ -386,6 +490,16 @@ export default function VideoConference({
         .on("broadcast", { event: "PEER_JOIN" }, async ({ payload }) => {
           if (!payload?.peerId || payload.peerId === localPeerId) return;
           const { peerId, peerName } = payload;
+
+          if (isHost && !payload.isHost && roomLockedRef.current && !approvedPeerIdsRef.current.has(peerId)) {
+            setWaitingParticipants(previous => previous.some(person => person.peerId === peerId)
+              ? previous : [...previous, { peerId, name: peerName || "Invité" }]);
+            channel.send({ type: "broadcast", event: "LOBBY_WAITING", payload: { toPeerId: peerId } });
+            return;
+          }
+          if (!isHost && roomLockedRef.current) return;
+          if (peerConnectionsRef.current.get(peerId)?.pc.signalingState !== undefined
+            && peerConnectionsRef.current.get(peerId)?.pc.signalingState !== "closed") return;
 
           // L'ancien pair prend l'initiative d'envoyer l'offre SDP
           const pc = createPeerConnection(peerId, peerName, localStreamRef.current!);
@@ -411,7 +525,8 @@ export default function VideoConference({
           if (payload?.toPeerId !== localPeerId) return;
           const { fromPeerId, fromPeerName, sdp } = payload;
 
-          const pc = createPeerConnection(fromPeerId, fromPeerName, localStreamRef.current!);
+          const currentPeer = peerConnectionsRef.current.get(fromPeerId);
+          const pc = currentPeer?.pc || createPeerConnection(fromPeerId, fromPeerName, localStreamRef.current!);
           try {
             await pc.setRemoteDescription(new RTCSessionDescription(sdp));
             flushPendingIceCandidates(fromPeerId, pc);
@@ -474,6 +589,58 @@ export default function VideoConference({
             )
           );
         })
+        .on("broadcast", { event: "ROOM_LOCK" }, ({ payload }) => {
+          const locked = Boolean(payload?.locked);
+          setRoomLocked(locked);
+          roomLockedRef.current = locked;
+          if (!isHost) {
+            channel.send({ type: "broadcast", event: "PEER_JOIN", payload: { peerId: localPeerId, peerName: userName, isHost: false } });
+          }
+        })
+        .on("broadcast", { event: "LOBBY_WAITING" }, ({ payload }) => {
+          if (payload?.toPeerId === localPeerId) { setNetworkState("connecting"); setIsWaitingRoom(true); }
+        })
+        .on("broadcast", { event: "LOBBY_APPROVED" }, ({ payload }) => {
+          if (payload?.toPeerId !== localPeerId) return;
+          setIsWaitingRoom(false);
+          setJoinRejected(false);
+          setWaitingParticipants([]);
+          setNetworkState("connecting");
+        })
+        .on("broadcast", { event: "LOBBY_REJECTED" }, ({ payload }) => {
+          if (payload?.toPeerId !== localPeerId) return;
+          setIsWaitingRoom(false);
+          setJoinRejected(true);
+          notify("Votre demande d'accès à la salle a été refusée.");
+        })
+        .on("broadcast", { event: "CHAT_MESSAGE" }, ({ payload }) => {
+          if (!payload?.messageId || !payload?.text || !payload?.peerId) return;
+          setChatMessages(previous => [...previous.slice(-99), {
+            id: payload.messageId, peerId: payload.peerId, name: payload.name || "Participant",
+            text: String(payload.text).slice(0, 500), createdAt: Number(payload.createdAt) || Date.now(),
+          }]);
+        })
+        .on("broadcast", { event: "REACTION" }, ({ payload }) => {
+          if (!payload?.reaction || !payload?.peerId) return;
+          const name = payload.name || "Un participant";
+          setToastReaction(`${name} ${payload.reaction}`);
+          window.setTimeout(() => setToastReaction(""), 2600);
+        })
+        .on("broadcast", { event: "HAND_STATUS" }, ({ payload }) => {
+          if (!payload?.peerId) return;
+          setRemotePeers(previous => previous.map(peer => peer.id === payload.peerId ? { ...peer, handRaised: Boolean(payload.raised) } : peer));
+        })
+        .on("broadcast", { event: "MODERATION" }, ({ payload }) => {
+          if (payload?.toPeerId !== localPeerId) return;
+          if (payload.action === "mute") {
+            localStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = false; });
+            setIsMicMuted(true);
+            notify("L'animateur a demandé la coupure de votre micro.");
+          } else if (payload.action === "remove") {
+            notify("Vous avez été retiré de la réunion.");
+            onLeaveRef.current?.();
+          }
+        })
         .on("broadcast", { event: "PEER_LEAVE" }, ({ payload }) => {
           if (!payload?.peerId) return;
           const peerObj = peerConnectionsRef.current.get(payload.peerId);
@@ -481,15 +648,17 @@ export default function VideoConference({
             peerObj.pc.close();
             peerConnectionsRef.current.delete(payload.peerId);
           }
+          approvedPeerIdsRef.current.delete(payload.peerId);
           setRemotePeers((prev) => prev.filter((p) => p.id !== payload.peerId));
         })
         .subscribe((status) => {
           if (status === "SUBSCRIBED") {
+            if (isHost) channel.send({ type: "broadcast", event: "ROOM_LOCK", payload: { locked: roomLockedRef.current } });
             // Annoncer notre arrivée dans la salle
             channel.send({
               type: "broadcast",
               event: "PEER_JOIN",
-              payload: { peerId: localPeerId, peerName: userName },
+              payload: { peerId: localPeerId, peerName: userName, isHost },
             });
           }
         });
@@ -525,7 +694,7 @@ export default function VideoConference({
         screenTrackRef.current.stop();
       }
     };
-  }, [roomName, localPeerId, userName, initLocalMedia, createPeerConnection, flushPendingIceCandidates]);
+  }, [roomName, localPeerId, userName, isHost, initLocalMedia, createPeerConnection, flushPendingIceCandidates, notify]);
 
   // Basculer le micro (Mute / Unmute)
   const toggleMic = () => {
@@ -633,6 +802,61 @@ export default function VideoConference({
     }
   };
 
+  const toggleWaitingRoom = () => {
+    const nextLocked = !roomLocked;
+    setRoomLocked(nextLocked);
+    roomLockedRef.current = nextLocked;
+    channelRef.current?.send({ type: "broadcast", event: "ROOM_LOCK", payload: { locked: nextLocked } });
+    notify(nextLocked ? "La salle d'attente est activée pour les invités." : "La salle est ouverte aux invités.");
+  };
+
+  const respondToWaitingParticipant = async (person: WaitingParticipant, approved: boolean) => {
+    channelRef.current?.send({ type: "broadcast", event: approved ? "LOBBY_APPROVED" : "LOBBY_REJECTED", payload: { toPeerId: person.peerId } });
+    setWaitingParticipants(previous => previous.filter(item => item.peerId !== person.peerId));
+    if (!approved || !localStreamRef.current || !channelRef.current) return;
+    approvedPeerIdsRef.current.add(person.peerId);
+    const pc = createPeerConnection(person.peerId, person.name, localStreamRef.current);
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      channelRef.current.send({ type: "broadcast", event: "WEBRTC_OFFER", payload: {
+        toPeerId: person.peerId, fromPeerId: localPeerId, fromPeerName: userName, sdp: offer,
+      } });
+    } catch (error) { console.error("Impossible de joindre l'invité approuvé:", error); }
+  };
+
+  const sendChatMessage = (event: React.FormEvent) => {
+    event.preventDefault();
+    const text = chatDraft.trim().slice(0, 500);
+    if (!text || !channelRef.current) return;
+    const message: ChatMessage = { id: `${localPeerId}-${Date.now()}`, peerId: localPeerId, name: userName, text, createdAt: Date.now() };
+    setChatMessages(previous => [...previous.slice(-99), message]);
+    channelRef.current.send({ type: "broadcast", event: "CHAT_MESSAGE", payload: { messageId: message.id, peerId: localPeerId, name: userName, text, createdAt: message.createdAt } });
+    setChatDraft("");
+  };
+
+  const sendReaction = (reaction: string) => {
+    channelRef.current?.send({ type: "broadcast", event: "REACTION", payload: { peerId: localPeerId, name: userName, reaction } });
+    setToastReaction(`Vous ${reaction}`);
+    window.setTimeout(() => setToastReaction(""), 2200);
+  };
+
+  const toggleHand = () => {
+    const raised = !handRaised;
+    setHandRaised(raised);
+    channelRef.current?.send({ type: "broadcast", event: "HAND_STATUS", payload: { peerId: localPeerId, raised } });
+  };
+
+  const moderatePeer = (peerId: string, action: "mute" | "remove") => {
+    channelRef.current?.send({ type: "broadcast", event: "MODERATION", payload: { toPeerId: peerId, action } });
+    if (action === "remove") {
+      peerConnectionsRef.current.get(peerId)?.pc.close();
+      peerConnectionsRef.current.delete(peerId);
+      approvedPeerIdsRef.current.delete(peerId);
+      setRemotePeers(previous => previous.filter(peer => peer.id !== peerId));
+    }
+  };
+
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
     if (!isFullscreen) {
@@ -673,9 +897,9 @@ export default function VideoConference({
     >
       <header className={styles.topBar}>
         <div className={styles.roomInfo}>
-            <span className={`${styles.liveBadge} ${mediaMode === "blocked" ? styles.liveBadgeWarning : ""}`}>
+          <span className={`${styles.liveBadge} ${mediaMode === "blocked" || networkState === "reconnecting" ? styles.liveBadgeWarning : ""}`}>
             <span className={styles.liveDot} />
-            {isLoading ? "Connexion..." : mediaMode === "blocked" ? "Mode écoute" : "En direct"}
+            {isLoading ? "Connexion..." : mediaMode === "blocked" ? "Mode écoute" : networkState === "reconnecting" ? "Reconnexion..." : isWaitingRoom ? "En attente d'accès" : "En direct"}
           </span>
           <div className={styles.titleGroup}>
             <h3 className={styles.title}>{title}</h3>
@@ -718,6 +942,16 @@ export default function VideoConference({
             </button>
           )}
 
+          <button type="button" className={`${styles.btnAction} ${chatOpen ? styles.btnActive : ""}`} onClick={() => setChatOpen(open => !open)} aria-pressed={chatOpen} title="Ouvrir le chat de la réunion">
+            <MessageSquare size={16} /><span>Chat ({chatMessages.length})</span>
+          </button>
+
+          {isHost && (
+            <button type="button" className={`${styles.btnAction} ${roomLocked ? styles.btnActive : ""}`} onClick={toggleWaitingRoom} aria-pressed={roomLocked} title={roomLocked ? "Ouvrir la salle aux invités (admission d'interface)" : "Activer l'admission d'interface"}>
+              <ShieldCheck size={16} /><span>{roomLocked ? "Salle d'attente" : "Salle ouverte"}{waitingParticipants.length ? ` · ${waitingParticipants.length}` : ""}</span>
+            </button>
+          )}
+
           <button
             type="button"
             className={styles.btnAction}
@@ -742,7 +976,11 @@ export default function VideoConference({
         </div>
       </header>
 
-      {linkNotice && <p className={styles.linkNotice}>{linkNotice}</p>}
+      <div className={styles.networkBar} role="status" aria-live="polite">
+        <Wifi size={14} />
+        <span>{networkState === "reconnecting" ? "Connexion instable · tentative de reconnexion" : remotePeers.some(peer => peer.quality === "poor") ? "Qualité réseau faible" : remotePeers.some(peer => peer.quality === "fair") ? "Qualité réseau moyenne" : "Connexion active"}</span>
+        <span className={hasTurnRelay ? styles.turnReady : styles.turnMissing}>{hasTurnRelay ? "Relais TURN disponible" : "Relais TURN non configuré"}</span>
+      </div>
       <div className={styles.stageWrapper}>
         {isLoading && (
           <div className={styles.noticeBanner}>
@@ -769,9 +1007,6 @@ export default function VideoConference({
             >
               Réessayer
             </button>
-              <a className={styles.btnJitsi} href={jitsiUrl} target="_blank" rel="noreferrer">
-                Rejoindre avec Jitsi
-              </a>
           </div>
         )}
 
@@ -781,6 +1016,29 @@ export default function VideoConference({
             <span>Vous êtes seul(e) dans cette réunion. Partagez le lien d'invitation pour accueillir les participants.</span>
           </div>
         )}
+
+        {(isWaitingRoom || joinRejected) && (
+          <div className={styles.waitingRoomOverlay} role="status">
+            <ShieldCheck size={24} />
+            <strong>{joinRejected ? "Demande refusée" : "En attente d’admission"}</strong>
+            <span>{joinRejected ? "Contactez l’organisateur pour réessayer." : "Votre demande a été envoyée. Vous serez connecté dès qu’un membre de l’équipe vous aura admis."}</span>
+            {joinRejected && <button type="button" onClick={() => { setJoinRejected(false); setIsWaitingRoom(true); channelRef.current?.send({ type: "broadcast", event: "PEER_JOIN", payload: { peerId: localPeerId, peerName: userName, isHost: false } }); }}>Demander à nouveau</button>}
+          </div>
+        )}
+
+        {isHost && waitingParticipants.length > 0 && (
+          <div className={styles.lobbyPanel}>
+            <strong>Invités en attente</strong>
+            <small>Cette admission facilite la réunion, mais le lien reste accessible hors de ce contrôle d’interface.</small>
+            {waitingParticipants.map(person => <div className={styles.lobbyRow} key={person.peerId}>
+              <span>{person.name}</span>
+              <button type="button" onClick={() => void respondToWaitingParticipant(person, true)}>Admettre</button>
+              <button type="button" onClick={() => void respondToWaitingParticipant(person, false)}>Refuser</button>
+            </div>)}
+          </div>
+        )}
+
+        {toastReaction && <div className={styles.reactionToast} role="status">{toastReaction}</div>}
 
         {/* Grille Vidéo Native */}
         <div className={`${styles.videoGrid} ${gridClass}`}>
@@ -823,10 +1081,20 @@ export default function VideoConference({
 
           {/* Tuiles Vidéos Distantes */}
           {remotePeers.map((peer) => (
-            <RemoteVideoTile key={peer.id} peer={peer} />
+            <RemoteVideoTile key={peer.id} peer={peer} isHost={isHost} onModerate={moderatePeer} />
           ))}
         </div>
       </div>
+
+      {chatOpen && <aside className={styles.chatPanel} aria-label="Chat de la réunion">
+        <div className={styles.chatHeader}><strong>Messages de la réunion</strong><button type="button" onClick={() => setChatOpen(false)} aria-label="Fermer le chat">×</button></div>
+        <div className={styles.chatMessages} aria-live="polite">
+          {chatMessages.length === 0 ? <p className={styles.chatEmpty}>Aucun message pour le moment. Envoyez une information à l’équipe.</p> : chatMessages.map(message => <article className={styles.chatMessage} key={message.id}>
+            <strong>{message.name}{message.peerId === localPeerId ? " · vous" : ""}</strong><p>{message.text}</p><time>{new Date(message.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</time>
+          </article>)}
+        </div>
+        <form className={styles.chatForm} onSubmit={sendChatMessage}><input aria-label="Votre message" maxLength={500} value={chatDraft} onChange={event => setChatDraft(event.target.value)} placeholder="Écrire un message…" /><button type="submit" disabled={!chatDraft.trim()} aria-label="Envoyer"><Send size={16} /></button></form>
+      </aside>}
 
       {/* Barre de contrôle flottante en bas */}
       <footer className={styles.controlsBar}>
@@ -876,6 +1144,13 @@ export default function VideoConference({
           </button>
         )}
 
+        <button type="button" className={`${styles.ctrlBtn} ${handRaised ? styles.ctrlBtnActive : ""}`} onClick={toggleHand} aria-pressed={handRaised} title={handRaised ? "Baisser la main" : "Lever la main"}>
+          <Hand size={18} /><span>{handRaised ? "Main levée" : "Lever la main"}</span>
+        </button>
+        <div className={styles.reactionControls} aria-label="Réactions rapides">
+          {["👍", "👏", "❤️"].map(reaction => <button type="button" key={reaction} onClick={() => sendReaction(reaction)} aria-label={`Réagir ${reaction}`}>{reaction}</button>)}
+        </div>
+
         {onLeave && (
           <button
             type="button"
@@ -893,7 +1168,7 @@ export default function VideoConference({
 }
 
 // Composant Tuile pour les participants distants
-function RemoteVideoTile({ peer }: { peer: RemotePeer }) {
+function RemoteVideoTile({ peer, isHost, onModerate }: { peer: RemotePeer; isHost: boolean; onModerate: (peerId: string, action: "mute" | "remove") => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
 
@@ -942,12 +1217,19 @@ function RemoteVideoTile({ peer }: { peer: RemotePeer }) {
 
       <div className={styles.tileOverlay}>
         <span className={styles.tileName}>{peer.name}</span>
+        {peer.handRaised && <span className={styles.handBadge} title="Main levée"><Hand size={14} /></span>}
         {peer.isMuted && (
           <span className={styles.mutedBadge} title="Micro coupé">
             <MicOff size={13} color="#ef4444" />
           </span>
         )}
       </div>
+      {peer.connection === "reconnecting" && <span className={styles.peerConnectionBadge}>Reconnexion…</span>}
+      {peer.quality && <span className={`${styles.qualityBadge} ${peer.quality === "poor" ? styles.qualityPoor : peer.quality === "fair" ? styles.qualityFair : ""}`} aria-label={`Qualité réseau ${peer.quality === "good" ? "bonne" : peer.quality === "fair" ? "moyenne" : "faible"}`}><Wifi size={13} /></span>}
+      {isHost && <div className={styles.moderationActions}>
+        <button type="button" onClick={() => onModerate(peer.id, "mute")} title={`Demander à ${peer.name} de couper son micro`}><MicOff size={14} /> Demander coupure</button>
+        <button type="button" onClick={() => onModerate(peer.id, "remove")} title={`Retirer ${peer.name} de la réunion`}><UserX size={14} /> Retirer</button>
+      </div>}
     </div>
   );
 }

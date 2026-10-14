@@ -106,7 +106,9 @@
   font-family: monospace;
 }
 
-.linkNotice { margin: 0; padding: 12px 18px; background: var(--gold-glow); color: var(--cream); border-bottom: 1px solid var(--border); font-size: 12px; line-height: 1.6; }
+.networkBar { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 18px; border-bottom: 1px solid var(--ux-line); color: var(--ux-muted); background: var(--surface, #141824); font-size: 11px; }
+.turnReady, .turnMissing { margin-left: auto; font-weight: 700; }
+.turnReady { color: #6ee7b7; }.turnMissing { color: #fbbf24; }
 
 .actions {
   display: flex;
@@ -173,6 +175,18 @@
   min-height: 480px;
   overflow: hidden;
 }
+
+.waitingRoomOverlay { position: absolute; z-index: 30; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; color: #f8fafc; background: #070910e8; backdrop-filter: blur(12px); }
+.waitingRoomOverlay > svg { color: var(--gold, #d4af37); }
+.waitingRoomOverlay strong { font-size: 20px; }
+.waitingRoomOverlay span { max-width: 400px; color: #cbd5e1; font-size: 14px; line-height: 1.6; }
+.waitingRoomOverlay button { min-height: 42px; padding: 0 16px; border: 1px solid #ffffff30; border-radius: 9px; color: #f8fafc; background: #ffffff12; font: inherit; cursor: pointer; }
+.lobbyPanel { position: absolute; z-index: 25; top: 16px; right: 16px; width: min(340px, calc(100% - 32px)); padding: 12px; border: 1px solid #d4af3755; border-radius: 12px; color: #f8fafc; background: #111827ee; box-shadow: 0 12px 36px #0008; }
+.lobbyPanel > strong { display: block; margin-bottom: 8px; font-size: 13px; }
+.lobbyPanel > small { display: block; margin: -2px 0 8px; color: #fcd34d; font-size: 10px; line-height: 1.45; }
+.lobbyRow { display: flex; align-items: center; gap: 6px; padding: 8px 0; border-top: 1px solid #ffffff16; font-size: 12px; }
+.lobbyRow > span { flex: 1; }.lobbyRow button { min-height: 32px; padding: 0 9px; border: 1px solid #ffffff28; border-radius: 7px; color: #f8fafc; background: #ffffff12; font: inherit; cursor: pointer; }.lobbyRow button:first-of-type { color: #6ee7b7; }
+.reactionToast { position: absolute; z-index: 18; bottom: 18px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border: 1px solid #ffffff25; border-radius: 999px; color: #fff; background: #111827e8; box-shadow: 0 8px 28px #0008; font-weight: 700; }
 
 .videoGrid {
   flex: 1;
@@ -302,6 +316,13 @@
   border-radius: 4px;
   padding: 2px 4px;
 }
+.handBadge { display: inline-flex; color: #fde68a; }
+.qualityBadge, .peerConnectionBadge { position: absolute; top: 10px; right: 10px; z-index: 8; display: flex; align-items: center; justify-content: center; min-width: 28px; height: 27px; padding: 0 7px; border: 1px solid #ffffff25; border-radius: 8px; color: #6ee7b7; background: #070910bb; }
+.qualityFair { color: #fbbf24; }.qualityPoor, .peerConnectionBadge { color: #f87171; }
+.peerConnectionBadge { right: 46px; width: auto; font-size: 10px; }
+.moderationActions { position: absolute; top: 10px; left: 10px; z-index: 9; display: flex; gap: 5px; opacity: 0; transition: opacity .15s ease; }
+.videoTile:hover .moderationActions, .videoTile:focus-within .moderationActions { opacity: 1; }
+.moderationActions button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 7px; border: 1px solid #ffffff30; border-radius: 7px; color: #fff; background: #070910cc; font: inherit; font-size: 10px; cursor: pointer; }
 
 /* Waiting call hint */
 .waitingHint {
@@ -336,6 +357,13 @@
   border-top: 1px solid var(--ux-line, rgba(255, 255, 255, 0.08));
   flex-wrap: wrap;
 }
+.reactionControls { display: flex; gap: 4px; align-items: center; padding: 4px; border: 1px solid var(--ux-line, #ffffff20); border-radius: 11px; background: var(--surface-solid, #0f121d); }
+.reactionControls button { width: 36px; height: 38px; border: 0; border-radius: 8px; background: transparent; font-size: 19px; cursor: pointer; }.reactionControls button:hover { background: #ffffff14; }
+.chatPanel { position: absolute; z-index: 35; top: 66px; right: 12px; bottom: 86px; display: flex; flex-direction: column; width: min(340px, calc(100% - 24px)); border: 1px solid #ffffff24; border-radius: 14px; color: #f8fafc; background: #0f121df5; box-shadow: 0 18px 50px #0009; }
+.chatHeader { display: flex; align-items: center; justify-content: space-between; padding: 13px 14px; border-bottom: 1px solid #ffffff18; font-size: 13px; }.chatHeader button { width: 30px; height: 30px; border: 0; border-radius: 7px; color: #cbd5e1; background: #ffffff10; font-size: 20px; cursor: pointer; }
+.chatMessages { flex: 1; overflow-y: auto; padding: 12px; }.chatEmpty { color: #94a3b8; font-size: 12px; line-height: 1.6; }.chatMessage { position: relative; margin-bottom: 10px; padding: 9px 10px 20px; border: 1px solid #ffffff14; border-radius: 10px; background: #ffffff08; overflow-wrap: anywhere; }.chatMessage strong { color: #fde68a; font-size: 11px; }.chatMessage p { margin: 5px 0 0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }.chatMessage time { position: absolute; right: 9px; bottom: 5px; color: #94a3b8; font-size: 9px; }
+.chatForm { display: flex; align-items: center; gap: 8px; padding: 10px; border-top: 1px solid #ffffff18; }.chatForm input { min-width: 0; flex: 1 1 auto; height: 40px; padding: 0 12px; border: 1px solid #ffffff25; border-radius: 8px; color: #fff; background: #070910; font: inherit; font-size: 12px; }.chatForm button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; color: #111827; background: var(--gold, #d4af37); cursor: pointer; line-height: 0; }.chatForm button svg { display: block; margin: 0; }
+.chatForm button:disabled { opacity: .65; cursor: not-allowed; }
 
 .ctrlBtn {
   display: inline-flex;
@@ -434,25 +462,6 @@
   transform: translateY(-1px);
 }
 
-.btnJitsi {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 14px;
-  border-radius: 8px;
-  background: rgba(16, 185, 129, 0.16);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  color: #6ee7b7;
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.btnJitsi:hover {
-  background: rgba(16, 185, 129, 0.26);
-}
-
 .spinner {
   width: 44px;
   height: 44px;
@@ -498,10 +507,86 @@
     border-radius: 12px;
     padding: 6px 12px;
   }
+  .networkBar { padding: 6px 10px; flex-wrap: wrap; }.turnReady, .turnMissing { margin-left: 0; }
+  .moderationActions { opacity: 1; flex-direction: column; }.moderationActions button { min-height: 34px; }
+  .chatPanel { top: 90px; bottom: 78px; }
 }
 
 .container :is(button, a):focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.container button:disabled { opacity: .55; cursor: wait; }
+.container button:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Keep the stage flexible in native fullscreen so the top and bottom controls
+   always fit inside the viewport instead of being pushed below it. */
+.fullscreen {
+  display: flex;
+  min-height: 0 !important;
+  max-height: 100dvh !important;
+  height: 100dvh !important;
+  overflow: hidden;
+  background: var(--surface-solid, #fffaf4);
+}
+.fullscreen .topBar { flex: 0 0 auto; max-height: 30dvh; overflow-y: auto; }
+.fullscreen .stageWrapper { flex: 1 1 0; min-height: 0; height: auto; }
+.fullscreen .videoGrid { min-height: 0; }
+.fullscreen .videoTile { min-height: 0; }
+.fullscreen .controlsBar {
+  flex: 0 0 auto;
+  max-height: 24dvh;
+  overflow-y: auto;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.fullscreen .chatPanel { z-index: 100001; }
+
+@media (max-height: 760px) {
+  .fullscreen .topBar { padding-block: 8px; gap: 7px; }
+  .fullscreen .networkBar { min-height: 28px; padding-block: 3px; }
+  .fullscreen .controlsBar { gap: 7px; padding-block: 7px; }
+  .fullscreen .ctrlBtn { height: 46px; min-height: 46px; }
+}
+
+@media (max-width: 700px) {
+  .fullscreen .topBar { max-height: 25dvh; padding: 8px; }
+  .fullscreen .roomInfo { width: auto; flex: 1 1 100%; flex-direction: row; align-items: center; }
+  .fullscreen .actions { width: 100%; flex-wrap: nowrap; overflow-x: auto; padding: 2px 1px 5px; }
+  .fullscreen .btnAction { flex: 0 0 auto; }
+  .fullscreen .controlsBar { max-height: 18dvh; flex-wrap: nowrap; justify-content: flex-start; gap: 5px; overflow-x: auto; overflow-y: hidden; padding: 6px; scrollbar-width: thin; }
+  .fullscreen .ctrlBtn { flex: 0 0 auto; min-width: 46px; width: 46px; min-height: 46px; height: 46px; padding: 5px; font-size: 9px; }
+  .fullscreen .ctrlBtn span { display: none; }
+  .fullscreen .reactionControls { flex: 0 0 auto; }
+  .fullscreen .reactionControls button { width: 30px; }
+}
+
+/* Contrast corrections for both application themes. */
+:global(html[data-theme="light"]) .btnActive,
+:global(body[data-theme="light"]) .btnActive,
+:global(html[data-theme="light"]) .ctrlBtnActive,
+:global(body[data-theme="light"]) .ctrlBtnActive {
+  color: #684900 !important;
+  background: #f6edcf !important;
+  border-color: #9a7626 !important;
+}
+:global(html[data-theme="light"]) .btnWhatsApp,
+:global(body[data-theme="light"]) .btnWhatsApp { color: #12643e; background: #e8f5ed; border-color: #6ca982; }
+:global(html[data-theme="light"]) .btnDanger,
+:global(body[data-theme="light"]) .btnDanger { color: #a31620; background: #fff0f0; border-color: #d9898e; }
+:global(html[data-theme="light"]) .roomCode,
+:global(body[data-theme="light"]) .roomCode,
+:global(html[data-theme="light"]) .networkBar,
+:global(body[data-theme="light"]) .networkBar { color: #4b5563; }
+:global(html[data-theme="light"]) .turnReady,
+:global(body[data-theme="light"]) .turnReady { color: #176b42; }
+:global(html[data-theme="light"]) .turnMissing,
+:global(body[data-theme="light"]) .turnMissing { color: #805300; }
+:global(html[data-theme="light"]) .container button:disabled,
+:global(body[data-theme="light"]) .container button:disabled {
+  opacity: 1;
+  color: #596273;
+  background: #eef1f5;
+  border-color: #c3cad4;
+}
+:global(html[data-theme="dark"]) .container button:disabled,
+:global(body[data-theme="dark"]) .container button:disabled { opacity: 1; color: #aeb9ca; background: #252f3d; border-color: #536174; }
+
 @media (prefers-reduced-motion: reduce) {
   .container *, .container *::before { animation: none; transition: none; }
 }

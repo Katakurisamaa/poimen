@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Award, BarChart3, Check, CheckCircle2, ChevronLeft, Clock3, Copy, Download, Eye, EyeOff, HelpCircle, History, ListOrdered, Loader2, LockKeyhole, MessageSquare, Pencil, Play, Plus, RefreshCw, Send, Trash2, Users, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Award, BarChart3, Check, CheckCircle2, ChevronDown, ChevronLeft, Clock3, Copy, Download, Eye, EyeOff, HelpCircle, History, ListOrdered, Loader2, LockKeyhole, MessageSquare, Pencil, Play, Plus, RefreshCw, Send, Trash2, Users, X } from "lucide-react";
 import { validateDraft } from "@/lib/poll-engine";
 import type { PollCommand, PollDraft, PollSnapshot, PollType, PollView } from "@/types/visio-poll";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
@@ -16,7 +17,21 @@ function freshDraft(): PollDraft {
 
 export default function InteractivePollPanel(props: Props) {
   // Room changes reset requests, draft and selection as one unit.
-  return <PollPanel key={`${props.roomName}:${props.isHost}`} {...props} />;
+  const [fullscreenTarget, setFullscreenTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const syncFullscreenTarget = () => {
+      setFullscreenTarget(document.fullscreenElement instanceof HTMLElement ? document.fullscreenElement : null);
+    };
+    syncFullscreenTarget();
+    document.addEventListener("fullscreenchange", syncFullscreenTarget);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreenTarget);
+  }, []);
+
+  const panel = <PollPanel key={`${props.roomName}:${props.isHost}`} {...props} />;
+  return fullscreenTarget
+    ? createPortal(<div className={styles.fullscreenPortal}>{panel}</div>, fullscreenTarget)
+    : panel;
 }
 
 function PollPanel({ roomName, isHost = false, userName = "Participant", onClose }: Props) {
@@ -95,6 +110,13 @@ function PollPanel({ roomName, isHost = false, userName = "Participant", onClose
     if (data?.polls.some(item => item.status === "open") && !await confirm("Lancer cette question clôturera les votes de la question actuelle. Continuer ?")) return;
     if (await send({ action: poll.status === "draft" ? "launch" : "reopen", pollId: poll.id }, "Les participants peuvent répondre.")) { setTab("live"); setHistoryId(null); }
   };
+  const removePoll = async (poll: PollView) => {
+    const noun = poll.totalVotes === 1 ? "réponse" : "réponses";
+    const message = `Supprimer définitivement « ${poll.question} » et ses ${poll.totalVotes} ${noun} pour tous les participants ? Cette action est irréversible.`;
+    if (await confirm(message, { title: "Supprimer le sondage ?", confirmLabel: "Supprimer définitivement", tone: "danger" })) {
+      await send({ action: "remove", pollId: poll.id }, "Question et réponses supprimées.");
+    }
+  };
 
   return <section className={styles.panel} aria-label="Sondages et quiz">
     <header className={styles.header}>
@@ -130,6 +152,7 @@ function PollPanel({ roomName, isHost = false, userName = "Participant", onClose
             <button type="button" className={styles.secondary} disabled={busy} onClick={() => void send({ action: "results", pollId: selected.id }, selected.revealResults ? "Résultats masqués." : "Résultats publiés.")}>{selected.revealResults ? <EyeOff size={16} /> : <Eye size={16} />}{selected.revealResults ? "Masquer les résultats" : "Publier les résultats"}</button>
             {selected.type === "quiz" && <button type="button" className={styles.secondary} disabled={busy || selected.status !== "closed"} title={selected.status === "open" ? "Clôturez les votes avant de révéler la réponse" : undefined} onClick={() => void send({ action: "answer", pollId: selected.id }, selected.revealAnswer ? "Correction masquée." : "Correction révélée.")}><Award size={16} />{selected.revealAnswer ? "Masquer la correction" : "Révéler la correction"}</button>}
             <button type="button" className={styles.secondary} disabled={busy} onClick={() => void send({ action: "duplicate", pollId: selected.id }, "Copie ajoutée à la file.")}><Copy size={16} /> Dupliquer</button>
+            <button type="button" className={`${styles.secondary} ${styles.dangerAction}`} disabled={busy} onClick={() => void removePoll(selected)}><Trash2 size={16} /> Supprimer cette question</button>
             {drafts[0] && <button type="button" className={styles.primary} disabled={busy} onClick={() => void launch(drafts[0])}><Play size={16} /> Question suivante</button>}
           </div></div>}
         </> : <Empty icon="live" title={data ? "En attente de la prochaine question" : "Préparons les échanges"} text={canDesign ? "Préparez une question, puis lancez-la pour permettre aux participants de répondre." : "La question apparaîtra ici dès que l’animateur la lancera."} />}
@@ -155,10 +178,56 @@ function PollComposer({ draft, onChange, preview, setPreview }: { draft: PollDra
       <button type="button" className={styles.iconButton} disabled={draft.options.length <= 2} aria-label={`Supprimer l’option ${index + 1}`} onClick={() => onChange({ ...draft, options: draft.options.filter(item => item.id !== option.id), correctOptionId: draft.correctOptionId === option.id ? undefined : draft.correctOptionId })}><X size={17} /></button>
     </div>)}<button type="button" className={styles.textButton} disabled={draft.options.length >= 8} onClick={() => onChange({ ...draft, options: [...draft.options, { id: crypto.randomUUID(), text: "" }] })}><Plus size={16} /> Ajouter une réponse ({draft.options.length}/8)</button></fieldset>}
     {draft.type === "quiz" && <label className={styles.field}>Explication ou référence biblique <span className={styles.help}>Facultatif · visible lors de la correction</span><textarea rows={2} maxLength={1000} value={draft.explanation} placeholder="Ex. Matthieu 5:9 — Heureux ceux qui procurent la paix…" onChange={event => onChange({ ...draft, explanation: event.target.value })} /></label>}
-    <label className={styles.field}>Temps pour répondre<select value={draft.durationSeconds} onChange={event => onChange({ ...draft, durationSeconds: Number(event.target.value) })}><option value={0}>Sans limite · clôture manuelle</option><option value={30}>30 secondes</option><option value={60}>1 minute</option><option value={120}>2 minutes</option><option value={300}>5 minutes</option><option value={600}>10 minutes</option></select></label>
+    <div className={styles.field}><span>Temps pour répondre</span><DurationPicker value={draft.durationSeconds} onChange={durationSeconds => onChange({ ...draft, durationSeconds })} /></div>
     <p className={styles.tip}><EyeOff size={17} /> Les résultats restent masqués jusqu’à votre décision. La correction du quiz reste confidentielle.</p>
     <button type="button" className={styles.secondary} aria-expanded={preview} onClick={() => setPreview(!preview)}><Eye size={16} />{preview ? "Masquer l’aperçu" : "Aperçu participant"}</button>
     {preview && <div className={styles.preview}><p className={styles.eyebrow}>APERÇU · AUCUN VOTE ENVOYÉ</p><h4>{draft.question || "Votre question"}</h4>{draft.type === "open" ? <p className={styles.help}>Le participant pourra rédiger une réponse libre.</p> : draft.options.map((option, index) => <div key={option.id} className={styles.previewOption}><span>{String.fromCharCode(65 + index)}</span>{option.text || `Réponse ${index + 1}`}</div>)}</div>}
+  </div>;
+}
+
+const pollDurations = [
+  { value: 0, label: "Sans limite · clôture manuelle" },
+  { value: 30, label: "30 secondes" },
+  { value: 60, label: "1 minute" },
+  { value: 120, label: "2 minutes" },
+  { value: 300, label: "5 minutes" },
+  { value: 600, label: "10 minutes" },
+];
+
+function DurationPicker({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const selected = pollDurations.find(option => option.value === value) ?? pollDurations[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return <div className={styles.durationPicker} ref={rootRef}>
+    <button ref={triggerRef} type="button" className={styles.durationTrigger} aria-haspopup="listbox" aria-expanded={open} aria-controls="poll-duration-options" onClick={() => setOpen(current => !current)}>
+      <span>{selected.label}</span><ChevronDown size={17} aria-hidden="true" />
+    </button>
+    {open && <div className={styles.durationOptions} id="poll-duration-options" role="listbox" aria-label="Temps pour répondre">
+      {pollDurations.map(option => <button type="button" role="option" aria-selected={option.value === value} className={styles.durationOption} key={option.value} onClick={() => { onChange(option.value); setOpen(false); triggerRef.current?.focus(); }}>
+        <span>{option.label}</span>{option.value === value && <Check size={16} aria-hidden="true" />}
+      </button>)}
+    </div>}
   </div>;
 }
 

@@ -82,7 +82,7 @@ export function transition(state: PollState, command: PollCommand, actor: { vote
       check(next.polls.length < 100, "Limite de 100 questions atteinte.");
       next.polls.push({ ...poll, id: newId, createdAt: now, status: "draft", startedAt: undefined, closesAt: undefined, revealResults: false, revealAnswer: false, ballots: [] });
       break;
-    case "remove": check(poll.status === "draft", "Seuls les brouillons peuvent être supprimés."); next.polls = next.polls.filter(item => item.id !== poll.id); break;
+    case "remove": next.polls = next.polls.filter(item => item.id !== poll.id); break;
     default: throw new PollError("Action inconnue.");
   }
   return next;

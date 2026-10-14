@@ -3,7 +3,7 @@
 import { Suspense, useState, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
-  Video, Users, Share2, Copy, Check, ShieldCheck, Monitor, 
+  Video, Users, Share2, Copy, Check, Monitor,
   House, UserCheck, MessageSquare, ArrowLeft, Play, Link as LinkIcon, BarChart2
 } from "lucide-react";
 import { useWorkspace } from "@/lib/use-workspace";
@@ -11,8 +11,6 @@ import { getActiveUserInfo, getActiveSpaceType } from "@/lib/client-session";
 import { 
   buildRoomName, 
   getPublicVisioUrl, 
-  getVisioLinkNotice,
-  getJitsiVisioUrl,
   getWhatsAppShareUrl, 
   sanitizeRoomName,
   type VisioSpaceType 
@@ -20,6 +18,7 @@ import {
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import VideoConference from "@/components/visio/VideoConference";
 import InteractivePollPanel from "@/components/visio/InteractivePollPanel";
+import VisioPreflight, { type VisioDeviceSelection } from "@/components/visio/VisioPreflight";
 import styles from "./VisioDashboard.module.css";
 
 export default function VisioPage() {
@@ -108,6 +107,8 @@ function VisioContent() {
   const [customRoomInput, setCustomRoomInput] = useState("");
   const [guestNameInput, setGuestNameInput] = useState(paramGuestName || "");
   const [copied, setCopied] = useState(false);
+  const [showPreflight, setShowPreflight] = useState(false);
+  const [mediaDevices, setMediaDevices] = useState<VisioDeviceSelection>({});
 
   // Sync if params change
   useEffect(() => {
@@ -193,8 +194,6 @@ function VisioContent() {
   ]);
 
   const publicUrl = getPublicVisioUrl(roomName, activeTab === "guest" ? guestNameInput : undefined);
-  const linkNotice = getVisioLinkNotice(publicUrl);
-  const jitsiUrl = getJitsiVisioUrl(roomName);
   const whatsappUrl = getWhatsAppShareUrl({
     roomName,
     title: meetingTitle,
@@ -244,6 +243,8 @@ function VisioContent() {
               userName={userName}
               userEmail={userEmail}
               guestName={activeTab === "guest" ? guestNameInput : undefined}
+              mediaDevices={mediaDevices}
+              isHost={true}
               onTogglePolls={() => setPollsOpen(!pollsOpen)}
               pollsOpen={pollsOpen}
               onLeave={() => {
@@ -262,6 +263,13 @@ function VisioContent() {
             )}
           </div>
         </div>
+      ) : showPreflight ? (
+        <VisioPreflight
+          name={userName}
+          title={meetingTitle}
+          onJoin={devices => { setMediaDevices(devices); setShowPreflight(false); setInMeeting(true); }}
+          onCancel={() => setShowPreflight(false)}
+        />
       ) : (
         <>
           <header className={styles.header}>
@@ -295,6 +303,7 @@ function VisioContent() {
                   type="button"
                   className={`${styles.tabBtn} ${activeTab === tab.id ? styles.active : ""}`}
                   onClick={() => setActiveTab(tab.id)}
+                  aria-pressed={activeTab === tab.id}
                 >
                   <Icon size={16} /> {tab.label}
                 </button>
@@ -355,29 +364,20 @@ function VisioContent() {
               <span className={styles.roomValue}>{roomName}</span>
             </div>
 
-            {linkNotice && <p className={styles.linkNotice}><LinkIcon size={18} />{linkNotice}</p>}
-
             <div className={styles.actionsBar}>
-              <a
-                className={styles.btnJitsi}
-                href={jitsiUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Video size={18} /> Démarrer avec Jitsi (gratuit)
-              </a>
               <button
                 type="button"
                 className={styles.btnPrimary}
-                onClick={() => setInMeeting(true)}
+                onClick={() => setShowPreflight(true)}
               >
-                <Play size={18} /> Démarrer la visioconférence
+                <Play size={18} /> Vérifier le matériel et démarrer
               </button>
 
               <button
                 type="button"
                 className={styles.btnSecondary}
                 onClick={handleCopyLink}
+                title="Copier le lien d'invitation"
               >
                 {copied ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
                 {copied ? "Lien copié !" : "Copier le lien d'invitation"}
@@ -387,6 +387,7 @@ function VisioContent() {
                 type="button"
                 className={styles.btnSecondary}
                 onClick={handleShareWhatsApp}
+                title="Partager l'invitation sur WhatsApp"
               >
                 <Share2 size={16} color="#25d366" /> Inviter sur WhatsApp
               </button>
@@ -446,11 +447,11 @@ function VisioContent() {
 
             <div className={styles.featureCard}>
               <div className={styles.featureIcon}>
-                <ShieldCheck size={20} />
+                <LinkIcon size={20} />
               </div>
               <div className={styles.featureText}>
-                <h4>Chiffrement & Sécurité</h4>
-                <p>Flux audio et vidéo protégés avec isolation des salles.</p>
+                <h4>Accès par lien</h4>
+                <p>Toute personne disposant du lien peut tenter de rejoindre la salle. Partagez-le uniquement avec les participants concernés.</p>
               </div>
             </div>
           </div>

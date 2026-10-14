@@ -4506,19 +4506,19 @@ textarea {
 .page-title,
 .profile-title,
 body h1 {
-  font-weight: 760 !important;
-  line-height: 1.06 !important;
+  font-weight: 650 !important;
+  line-height: 1.18 !important;
 }
 
 h2,
 h3,
 .section-title,
 .profile-avatar-name {
-  font-weight: 700 !important;
+  font-weight: 600 !important;
 }
 
 .stat-value {
-  font-weight: 760 !important;
+  font-weight: 700 !important;
 }
 
 .stat-label,
@@ -4541,7 +4541,7 @@ h3,
 .activity-view-option,
 .evang-mode-option,
 .evang-scope-option {
-  font-weight: 650 !important;
+  font-weight: 600 !important;
 }
 
 .nav-item {

@@ -97,7 +97,7 @@ html[data-theme] body {
     font-size: clamp(25px, 2.5vw, 36px) !important;
     line-height: 1.2;
     letter-spacing: -.045em !important;
-    font-weight: 700 !important;
+    font-weight: 650 !important;
     color: var(--cream) !important;
     background: none !important;
     -webkit-text-fill-color: currentColor;

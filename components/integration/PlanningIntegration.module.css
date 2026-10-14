@@ -747,6 +747,10 @@
   margin-bottom: 14px;
 }
 
+.weekToggle {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .weekHeader {
     flex-direction: column;
@@ -837,10 +841,31 @@
   gap: 12px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .weekGrid {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .weekGridCollapsed {
+    display: none;
+  }
+
+  .weekToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--gold-light);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
   }
 }
 

@@ -74,7 +74,7 @@ test('untrusted commands cannot control a room or invent options', () => {
   for (const action of ['launch', 'close', 'reopen', 'results', 'answer', 'duplicate', 'remove']) assert.throws(() => transition(launched(), { action, pollId: 'q1' }, guest, 3000, 'unused'), /animateur/);
   assert.throws(() => transition(launched(), { ...vote, optionId: 'not-an-option' }, guest, 3000, 'unused'), /proposée/);
   assert.throws(() => transition(launched(), { ...vote, pollId: 'old-poll' }, guest, 3000, 'unused'), /existe/);
-  assert.throws(() => transition(launched(), { action: 'remove', pollId: 'q1' }, host, 3000, 'unused'), /brouillons/);
+  assert.equal(transition(launched(), { action: 'remove', pollId: 'q1' }, host, 3000, 'unused').polls.length, 0);
 });
 
 test('stable option IDs preserve the correct answer when another option is removed', () => {

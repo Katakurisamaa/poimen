@@ -72,11 +72,6 @@ export function getVisioLinkNotice(link: string): string | null {
   return null;
 }
 
-/** Free hosted fallback for browsers that block the embedded WebRTC client. */
-export function getJitsiVisioUrl(roomName: string): string {
-  return `https://meet.jit.si/${sanitizeRoomName(roomName)}`;
-}
-
 export function getWhatsAppShareUrl({
   roomName,
   title,
