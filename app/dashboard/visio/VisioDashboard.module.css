@@ -215,6 +215,14 @@
   flex-shrink: 0;
 }
 
+.roomError {
+  flex: 1 1 100%;
+  margin: 0;
+  color: #b4232c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .privateLinkRow {
   display: flex;
   align-items: stretch;

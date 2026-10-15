@@ -23,6 +23,15 @@ async function context(request: NextRequest) {
   const roomName = request.nextUrl.searchParams.get("room") || "";
   if (!/^[a-z0-9-]{3,180}$/.test(roomName)) throw new PollError("Salle invalide.");
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (roomName.startsWith("poimen-prive-")) {
+    const { data: privateRoom, error: roomError } = await db.from("visio_custom_rooms")
+      .select("is_active").eq("room_name", roomName).maybeSingle();
+    if (roomError) {
+      if (["PGRST205", "42P01"].includes(roomError.code || "")) throw new PollError("La gestion des salles privées n’est pas encore activée. Appliquez la migration Supabase des salles personnalisées.", 503);
+      throw new PollError("Vérification de la salle impossible. Réessayez.", 503);
+    }
+    if (privateRoom && !privateRoom.is_active) throw new PollError("Cette salle personnalisée a été supprimée.", 410);
+  }
   const session = createServerClient(url, anon, { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } });
   const { data: { user } } = await session.auth.getUser();
   const sign = (id: string) => createHmac("sha256", key).update(`poll-voter:${id}`).digest("hex");

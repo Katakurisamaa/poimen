@@ -109,6 +109,7 @@ interface VideoConferenceProps {
   participantId?: string;
   guestName?: string;
   onLeave?: () => void;
+  onRoomUnavailable?: (message: string) => void;
   onTogglePolls?: () => void;
   onClosePolls?: () => void;
   pollsOpen?: boolean;
@@ -171,6 +172,7 @@ export default function VideoConference({
   guestName,
   participantId: participantIdProp,
   onLeave,
+  onRoomUnavailable,
   onTogglePolls,
   onClosePolls,
   pollsOpen,
@@ -221,6 +223,7 @@ export default function VideoConference({
   const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([]);
   const [isWaitingRoom, setIsWaitingRoom] = useState(false);
   const [joinRejected, setJoinRejected] = useState(false);
+  const [privateRoomUnavailable, setPrivateRoomUnavailable] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
@@ -254,6 +257,7 @@ export default function VideoConference({
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const mediaRequestRef = useRef(0);
   const channelRef = useRef<any>(null);
+  const privateRoomRevokedRef = useRef(false);
   const iceServersRef = useRef<RTCIceServer[]>(STUN_SERVERS);
   const roomLockedRef = useRef(roomLocked);
   const meetingStartedAtRef = useRef<number | null>(null);
@@ -265,6 +269,48 @@ export default function VideoConference({
   const isAdmittedRef = useRef(isHost);
   const reactionTimersRef = useRef<Set<number>>(new Set());
   useEffect(() => { onLeaveRef.current = onLeave; }, [onLeave]);
+
+  const stopForUnavailablePrivateRoom = useCallback((message: string) => {
+    if (privateRoomRevokedRef.current) return;
+    privateRoomRevokedRef.current = true;
+    setPrivateRoomUnavailable(message);
+    setIsLoading(false);
+    setMeetingStartedAt(null);
+    meetingStartedAtRef.current = null;
+    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    localStreamRef.current = null;
+    setLocalStream(null);
+    peerConnectionsRef.current.forEach(({ pc }) => pc.close());
+    peerConnectionsRef.current.clear();
+    setRemotePeers([]);
+    const channel = channelRef.current;
+    channelRef.current = null;
+    if (channel) void channel.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!roomName.startsWith("poimen-prive-")) return;
+    let active = true;
+    let requestInFlight = false;
+    const checkRoom = async () => {
+      if (requestInFlight || privateRoomRevokedRef.current) return;
+      requestInFlight = true;
+      try {
+        const response = await fetch(`/api/visio/custom-rooms?room=${encodeURIComponent(roomName)}`, { cache: "no-store" });
+        const result = await response.json().catch(() => ({})) as { active?: boolean; error?: string };
+        if (!active) return;
+        if (response.ok && result.active === false) {
+          stopForUnavailablePrivateRoom("L’animateur a supprimé cette salle. Ce lien est désactivé.");
+        } else if (response.status < 500 && !response.ok && !privateRoomUnavailable) {
+          stopForUnavailablePrivateRoom(result.error || "Impossible de vérifier que cette salle est toujours disponible.");
+        }
+      } catch {
+        // A temporary status-check failure is handled by the signaling startup check.
+      } finally { requestInFlight = false; }
+    };
+    const interval = window.setInterval(() => { void checkRoom(); }, 4000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [roomName, privateRoomUnavailable, stopForUnavailablePrivateRoom]);
 
   const showCallNotice = useCallback((message: string) => {
     setCallNotice(message);
@@ -855,6 +901,25 @@ export default function VideoConference({
       // Let an immediately cancelled mount finish before opening physical devices.
       await Promise.resolve();
       if (!isSubscribed) return;
+      if (roomName.startsWith("poimen-prive-")) {
+        try {
+          const response = await fetch(`/api/visio/custom-rooms?room=${encodeURIComponent(roomName)}`, { cache: "no-store" });
+          const result = await response.json().catch(() => ({})) as { active?: boolean; error?: string };
+          if (!isSubscribed) return;
+          if (!response.ok) {
+            stopForUnavailablePrivateRoom(result.error || "Impossible de vérifier que cette salle est toujours disponible.");
+            return;
+          }
+          if (result.active === false) {
+            stopForUnavailablePrivateRoom("L’animateur a supprimé cette salle. Ce lien est désactivé.");
+            return;
+          }
+        } catch {
+          if (isSubscribed) stopForUnavailablePrivateRoom("Impossible de vérifier que cette salle est toujours disponible. Réessayez plus tard.");
+          return;
+        }
+      }
+      if (!isSubscribed || privateRoomRevokedRef.current) return;
       setMeetingStartedAt(null);
       meetingStartedAtRef.current = null;
       setMeetingElapsedSeconds(0);
@@ -872,7 +937,7 @@ export default function VideoConference({
       iceServersRef.current = iceConfig.servers;
       setHasTurnRelay(iceConfig.hasTurn);
       const stream = await initLocalMedia();
-      if (!stream || !isSubscribed) {
+      if (!stream || !isSubscribed || privateRoomRevokedRef.current) {
         stream?.getTracks().forEach(track => track.stop());
         return;
       }
@@ -1292,7 +1357,7 @@ export default function VideoConference({
         screenTrackRef.current.stop();
       }
     };
-  }, [roomName, localPeerId, participantId, userName, isHost, initLocalMedia, createPeerConnection, flushPendingIceCandidates, notify, showReaction, showCallNotice]);
+  }, [roomName, localPeerId, participantId, userName, isHost, initLocalMedia, createPeerConnection, flushPendingIceCandidates, notify, showReaction, showCallNotice, stopForUnavailablePrivateRoom]);
 
   // Basculer le micro (Mute / Unmute)
   const toggleMic = () => {
@@ -1706,6 +1771,18 @@ export default function VideoConference({
             >
               Gérer l'accès
             </button>
+          </div>
+        )}
+
+        {privateRoomUnavailable && (
+          <div className={styles.waitingRoomOverlay} role="alert">
+            <AlertCircle size={24} />
+            <strong>Salle personnalisée indisponible</strong>
+            <span>{privateRoomUnavailable}</span>
+            <button type="button" onClick={() => {
+              if (onRoomUnavailable) onRoomUnavailable(privateRoomUnavailable);
+              else onLeaveRef.current?.();
+            }}>Quitter</button>
           </div>
         )}
 
