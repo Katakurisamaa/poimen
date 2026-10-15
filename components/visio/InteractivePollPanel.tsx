@@ -6,6 +6,7 @@ import { Award, BarChart3, Check, CheckCircle2, ChevronDown, ChevronLeft, Clock3
 import { validateDraft } from "@/lib/poll-engine";
 import type { PollCommand, PollDraft, PollSnapshot, PollType, PollView } from "@/types/visio-poll";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import { animateVisioPanelExit } from "./interaction-transition";
 import styles from "./InteractivePollPanel.module.css";
 
 type Props = { roomName: string; isHost?: boolean; userName?: string; onClose?: () => void };
@@ -21,16 +22,24 @@ export default function InteractivePollPanel(props: Props) {
 
   useEffect(() => {
     const syncFullscreenTarget = () => {
-      setFullscreenTarget(document.fullscreenElement instanceof HTMLElement ? document.fullscreenElement : null);
+      const interactionDock = document.querySelector<HTMLElement>('[data-visio-interaction-dock="true"]');
+      const nativeTarget = document.fullscreenElement instanceof HTMLElement ? document.fullscreenElement : null;
+      const immersiveTarget = document.querySelector<HTMLElement>('[data-visio-fullscreen-mode="true"]');
+      setFullscreenTarget(interactionDock ?? nativeTarget ?? immersiveTarget);
     };
     syncFullscreenTarget();
+    const observer = new MutationObserver(syncFullscreenTarget);
+    observer.observe(document.body, { attributes: true, childList: true, subtree: true, attributeFilter: ["data-visio-fullscreen-mode"] });
     document.addEventListener("fullscreenchange", syncFullscreenTarget);
-    return () => document.removeEventListener("fullscreenchange", syncFullscreenTarget);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("fullscreenchange", syncFullscreenTarget);
+    };
   }, []);
 
   const panel = <PollPanel key={`${props.roomName}:${props.isHost}`} {...props} />;
   return fullscreenTarget
-    ? createPortal(<div className={styles.fullscreenPortal}>{panel}</div>, fullscreenTarget)
+    ? createPortal(<div className={styles.fullscreenPortal} data-visio-poll-panel="true">{panel}</div>, fullscreenTarget)
     : panel;
 }
 
@@ -46,6 +55,7 @@ function PollPanel({ roomName, isHost = false, userName = "Participant", onClose
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const mounted = useRef(false);
+  const closingRef = useRef(false);
   const busyRef = useRef(false);
   const requestId = useRef(0);
   const [receivedAt, setReceivedAt] = useState(0);
@@ -93,6 +103,17 @@ function PollPanel({ roomName, isHost = false, userName = "Participant", onClose
     } finally { busyRef.current = false; if (mounted.current) setBusy(false); }
   }, [endpoint, notify]);
 
+  const closePanel = async () => {
+    if (!onClose || closingRef.current) return;
+    closingRef.current = true;
+    try {
+      const shouldClose = await animateVisioPanelExit(document.querySelector<HTMLElement>('[data-visio-poll-panel="true"]'));
+      if (shouldClose) onClose();
+    } finally {
+      closingRef.current = false;
+    }
+  };
+
   const drafts = data?.polls.filter(poll => poll.status === "draft") || [];
   const history = data?.polls.filter(poll => poll.status === "closed").sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0)) || [];
   const live = data?.polls.find(poll => poll.status === "open") || history[0];
@@ -122,7 +143,7 @@ function PollPanel({ roomName, isHost = false, userName = "Participant", onClose
     <header className={styles.header}>
       <span className={styles.headerIcon}><BarChart3 size={20} /></span>
       <div><h3>Sondages & quiz</h3><p>{data?.canManage ? "Animez les échanges, une question à la fois." : "Votre avis compte."}</p></div>
-      {onClose && <button type="button" className={styles.iconButton} aria-label="Fermer les sondages" onClick={onClose}><X size={20} /></button>}
+      {onClose && <button type="button" className={styles.iconButton} aria-label="Fermer les sondages" onClick={() => void closePanel()}><X size={20} /></button>}
     </header>
     <div className={styles.connection} role="status"><span className={error ? styles.offlineDot : styles.onlineDot} />{error ? "Synchronisation interrompue" : data ? "Réponses synchronisées automatiquement" : "Connexion aux sondages…"}{busy && <Loader2 size={14} className={styles.spin} />}</div>
     {error && <div className={styles.error} role="alert"><p>{error}</p><button type="button" onClick={() => void load()} disabled={busy}><RefreshCw size={15} /> Réessayer</button></div>}

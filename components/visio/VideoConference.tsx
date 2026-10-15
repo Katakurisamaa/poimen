@@ -4,11 +4,12 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { 
   Copy, Check, Share2, Maximize, Minimize, PhoneOff, 
   Mic, MicOff, Video, VideoOff, Monitor, BarChart2,
-  Users, AlertCircle, Wifi, MessageSquare, Send, Hand, ShieldCheck, UserX
+  Users, AlertCircle, Wifi, MessageSquare, Send, Hand, ShieldCheck, UserX, Smile, Clock
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getPublicVisioUrl, getWhatsAppShareUrl } from "@/lib/visio";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
+import { animateVisioPanelExit } from "./interaction-transition";
 import styles from "./VideoConference.module.css";
 import type { VisioDeviceSelection } from "./VisioPreflight";
 
@@ -35,6 +36,58 @@ interface RemotePeer {
 
 interface ChatMessage { id: string; peerId: string; name: string; text: string; createdAt: number; }
 interface WaitingParticipant { peerId: string; name: string; }
+interface FloatingReaction { id: string; peerId: string; name: string; reaction: string; left: number; duration: number; }
+const quickReactions: ReadonlyArray<{ emoji: string; label: string }> = [
+  { emoji: "👍", label: "J’aime" },
+  { emoji: "👏", label: "Applaudissements" },
+  { emoji: "❤️", label: "Cœur" },
+  { emoji: "🙌", label: "Amen" },
+  { emoji: "🙏", label: "Prière" },
+  { emoji: "😂", label: "Rire" },
+  { emoji: "😭", label: "Pleurs" },
+  { emoji: "😮", label: "Étonné" },
+];
+
+function formatMeetingDuration(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const paddedMinutes = String(minutes).padStart(2, "0");
+  const paddedSeconds = String(seconds).padStart(2, "0");
+  return hours > 0
+    ? `${String(hours).padStart(2, "0")}:${paddedMinutes}:${paddedSeconds}`
+    : `${paddedMinutes}:${paddedSeconds}`;
+}
+
+const animatedEmojiCodes: Record<string, string> = {
+  "👍": "1f44d",
+  "👏": "1f44f",
+  "❤️": "2764_fe0f",
+  "🙌": "1f64c",
+  "🙏": "1f64f",
+  "😂": "1f602",
+  "😭": "1f62d",
+  "😮": "1f62e",
+};
+
+function AnimatedReactionEmoji({ emoji, className, animated = false }: { emoji: string; className: string; animated?: boolean }) {
+  const [assetFailed, setAssetFailed] = useState(false);
+  const baseClass = `${className} ${styles.animatedReaction}`;
+  const code = animatedEmojiCodes[emoji];
+
+  if (!animated || !code || assetFailed) {
+    return <span className={baseClass} aria-hidden="true">{emoji}</span>;
+  }
+
+  const assetBase = `https://fonts.gstatic.com/s/e/notoemoji/latest/${code}`;
+  return <span className={baseClass} aria-hidden="true">
+    <picture className={styles.animatedSticker}>
+      <source srcSet={`${assetBase}/512.webp`} type="image/webp" />
+      <img src={`${assetBase}/512.gif`} alt="" referrerPolicy="no-referrer" onError={() => setAssetFailed(true)} />
+    </picture>
+    <span className={styles.animatedEmojiFallback}>{emoji}</span>
+  </span>;
+}
 
 interface VideoConferenceProps {
   roomName: string;
@@ -44,6 +97,7 @@ interface VideoConferenceProps {
   guestName?: string;
   onLeave?: () => void;
   onTogglePolls?: () => void;
+  onClosePolls?: () => void;
   pollsOpen?: boolean;
   isHost?: boolean;
   mediaDevices?: VisioDeviceSelection;
@@ -92,12 +146,17 @@ export default function VideoConference({
   guestName,
   onLeave,
   onTogglePolls,
+  onClosePolls,
   pollsOpen,
   isHost = false,
   mediaDevices,
 }: VideoConferenceProps) {
   const { notify } = useFeedback();
   const containerRef = useRef<HTMLDivElement>(null);
+  const reactionPickerRef = useRef<HTMLDivElement>(null);
+  const reactionTriggerRef = useRef<HTMLButtonElement>(null);
+  const closingChatRef = useRef(false);
+  const closingPollsRef = useRef(false);
 
   // Unique client peer ID
   const [localPeerId] = useState(
@@ -114,6 +173,8 @@ export default function VideoConference({
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [networkState, setNetworkState] = useState<"connecting" | "connected" | "reconnecting">("connecting");
+  const [meetingStartedAt, setMeetingStartedAt] = useState<number | null>(null);
+  const [meetingElapsedSeconds, setMeetingElapsedSeconds] = useState(0);
   const [hasTurnRelay, setHasTurnRelay] = useState(false);
   const [roomLocked, setRoomLocked] = useState(true);
   const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([]);
@@ -122,11 +183,15 @@ export default function VideoConference({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
+  const [reactionsOpen, setReactionsOpen] = useState(false);
+  const [reactionPickerBottom, setReactionPickerBottom] = useState(96);
   const [handRaised, setHandRaised] = useState(false);
-  const [toastReaction, setToastReaction] = useState("");
+  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+  const [reactionAnnouncement, setReactionAnnouncement] = useState("");
 
   // UI states
   const [copied, setCopied] = useState(false);
+  // The meeting opens in an immersive layout; this state tracks only native fullscreen.
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Refs for WebRTC
@@ -141,7 +206,76 @@ export default function VideoConference({
   const roomLockedRef = useRef(roomLocked);
   const onLeaveRef = useRef(onLeave);
   const approvedPeerIdsRef = useRef<Set<string>>(new Set());
+  const reactionTimersRef = useRef<Set<number>>(new Set());
   useEffect(() => { onLeaveRef.current = onLeave; }, [onLeave]);
+
+  useEffect(() => {
+    if (meetingStartedAt === null) {
+      setMeetingElapsedSeconds(0);
+      return;
+    }
+    const updateElapsedTime = () => setMeetingElapsedSeconds(Math.floor((Date.now() - meetingStartedAt) / 1000));
+    updateElapsedTime();
+    const timer = window.setInterval(updateElapsedTime, 1000);
+    return () => window.clearInterval(timer);
+  }, [meetingStartedAt]);
+
+  const showReaction = useCallback((peerId: string, name: string, reaction: string) => {
+    const option = quickReactions.find(item => item.emoji === reaction);
+    if (!option) return;
+    const duration = 3600;
+    const id = `${peerId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const safeName = name.slice(0, 48) || "Un participant";
+    setFloatingReactions(previous => [...previous.slice(-11), {
+      id,
+      peerId,
+      name: safeName,
+      reaction,
+      left: 13 + Math.random() * 74,
+      duration,
+    }]);
+    setReactionAnnouncement(`${safeName} : ${option.label}`);
+    const timeout = window.setTimeout(() => {
+      setFloatingReactions(previous => previous.filter(item => item.id !== id));
+      reactionTimersRef.current.delete(timeout);
+    }, duration);
+    reactionTimersRef.current.add(timeout);
+  }, []);
+
+  useEffect(() => () => {
+    reactionTimersRef.current.forEach(timeout => window.clearTimeout(timeout));
+    reactionTimersRef.current.clear();
+  }, []);
+
+  useEffect(() => {
+    if (!reactionsOpen) return;
+    const syncPickerPosition = () => {
+      const footer = reactionPickerRef.current?.closest("footer");
+      if (!footer) return;
+      const viewport = window.visualViewport;
+      const viewportBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      setReactionPickerBottom(Math.max(8, viewportBottom - footer.getBoundingClientRect().top + 8));
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!reactionPickerRef.current?.contains(event.target as Node)) setReactionsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setReactionsOpen(false);
+      reactionTriggerRef.current?.focus();
+    };
+    syncPickerPosition();
+    window.addEventListener("resize", syncPickerPosition);
+    window.visualViewport?.addEventListener("resize", syncPickerPosition);
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("resize", syncPickerPosition);
+      window.visualViewport?.removeEventListener("resize", syncPickerPosition);
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [reactionsOpen]);
 
   const publicUrl = getPublicVisioUrl(roomName, guestName);
   const whatsappUrl = getWhatsAppShareUrl({ roomName, title, guestName });
@@ -465,6 +599,8 @@ export default function VideoConference({
       // Let an immediately cancelled mount finish before opening physical devices.
       await Promise.resolve();
       if (!isSubscribed) return;
+      setMeetingStartedAt(null);
+      setMeetingElapsedSeconds(0);
       roomLockedRef.current = true;
       setRoomLocked(true);
       setWaitingParticipants([]);
@@ -598,17 +734,23 @@ export default function VideoConference({
           }
         })
         .on("broadcast", { event: "LOBBY_WAITING" }, ({ payload }) => {
-          if (payload?.toPeerId === localPeerId) { setNetworkState("connecting"); setIsWaitingRoom(true); }
+          if (payload?.toPeerId === localPeerId) {
+            setMeetingStartedAt(null);
+            setNetworkState("connecting");
+            setIsWaitingRoom(true);
+          }
         })
         .on("broadcast", { event: "LOBBY_APPROVED" }, ({ payload }) => {
           if (payload?.toPeerId !== localPeerId) return;
           setIsWaitingRoom(false);
           setJoinRejected(false);
           setWaitingParticipants([]);
+          setMeetingStartedAt(Date.now());
           setNetworkState("connecting");
         })
         .on("broadcast", { event: "LOBBY_REJECTED" }, ({ payload }) => {
           if (payload?.toPeerId !== localPeerId) return;
+          setMeetingStartedAt(null);
           setIsWaitingRoom(false);
           setJoinRejected(true);
           notify("Votre demande d'accès à la salle a été refusée.");
@@ -622,9 +764,7 @@ export default function VideoConference({
         })
         .on("broadcast", { event: "REACTION" }, ({ payload }) => {
           if (!payload?.reaction || !payload?.peerId) return;
-          const name = payload.name || "Un participant";
-          setToastReaction(`${name} ${payload.reaction}`);
-          window.setTimeout(() => setToastReaction(""), 2600);
+          showReaction(String(payload.peerId), String(payload.name || "Un participant"), String(payload.reaction));
         })
         .on("broadcast", { event: "HAND_STATUS" }, ({ payload }) => {
           if (!payload?.peerId) return;
@@ -653,6 +793,7 @@ export default function VideoConference({
         })
         .subscribe((status) => {
           if (status === "SUBSCRIBED") {
+            setMeetingStartedAt(current => current ?? Date.now());
             if (isHost) channel.send({ type: "broadcast", event: "ROOM_LOCK", payload: { locked: roomLockedRef.current } });
             // Annoncer notre arrivée dans la salle
             channel.send({
@@ -694,7 +835,7 @@ export default function VideoConference({
         screenTrackRef.current.stop();
       }
     };
-  }, [roomName, localPeerId, userName, isHost, initLocalMedia, createPeerConnection, flushPendingIceCandidates, notify]);
+  }, [roomName, localPeerId, userName, isHost, initLocalMedia, createPeerConnection, flushPendingIceCandidates, notify, showReaction]);
 
   // Basculer le micro (Mute / Unmute)
   const toggleMic = () => {
@@ -837,14 +978,64 @@ export default function VideoConference({
 
   const sendReaction = (reaction: string) => {
     channelRef.current?.send({ type: "broadcast", event: "REACTION", payload: { peerId: localPeerId, name: userName, reaction } });
-    setToastReaction(`Vous ${reaction}`);
-    window.setTimeout(() => setToastReaction(""), 2200);
+    showReaction(localPeerId, userName, reaction);
   };
 
   const toggleHand = () => {
     const raised = !handRaised;
     setHandRaised(raised);
     channelRef.current?.send({ type: "broadcast", event: "HAND_STATUS", payload: { peerId: localPeerId, raised } });
+  };
+
+  const closeChatPanel = async () => {
+    if (closingChatRef.current) return;
+    closingChatRef.current = true;
+    try {
+      const shouldClose = await animateVisioPanelExit(containerRef.current?.querySelector<HTMLElement>('[aria-label="Chat de la réunion"]'));
+      if (shouldClose) setChatOpen(false);
+    } finally {
+      closingChatRef.current = false;
+    }
+  };
+
+  const closePollsPanel = async () => {
+    if (closingPollsRef.current) return;
+    closingPollsRef.current = true;
+    try {
+      const shouldClose = await animateVisioPanelExit(containerRef.current?.querySelector<HTMLElement>('[data-visio-poll-panel="true"]'));
+      if (shouldClose) (onClosePolls ?? onTogglePolls)?.();
+    } finally {
+      closingPollsRef.current = false;
+    }
+  };
+
+  const toggleChat = () => {
+    if (closingChatRef.current || closingPollsRef.current || containerRef.current?.querySelector<HTMLElement>('[data-visio-interaction-dock="true"]')?.dataset.visioClosing === "true") return;
+    setReactionsOpen(false);
+    if (chatOpen) {
+      void closeChatPanel();
+    } else if (pollsOpen) {
+      void closePollsPanel().then(() => setChatOpen(true));
+    } else {
+      setChatOpen(true);
+    }
+  };
+
+  const togglePolls = () => {
+    if (closingChatRef.current || closingPollsRef.current || containerRef.current?.querySelector<HTMLElement>('[data-visio-interaction-dock="true"]')?.dataset.visioClosing === "true") return;
+    setReactionsOpen(false);
+    if (pollsOpen) {
+      void closePollsPanel();
+    } else if (chatOpen) {
+      void closeChatPanel().then(() => onTogglePolls?.());
+    } else {
+      onTogglePolls?.();
+    }
+  };
+
+  const leaveMeeting = () => {
+    if (document.fullscreenElement && document.exitFullscreen) void document.exitFullscreen().catch(() => {});
+    onLeave?.();
   };
 
   const moderatePeer = (peerId: string, action: "mute" | "remove") => {
@@ -858,24 +1049,17 @@ export default function VideoConference({
   };
 
   const toggleFullscreen = () => {
-    if (!containerRef.current) return;
     if (!isFullscreen) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen().catch(() => setIsFullscreen(true));
-      } else {
-        setIsFullscreen(true);
-      }
+      const target = containerRef.current;
+      if (target?.requestFullscreen) void target.requestFullscreen().catch(() => {});
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => setIsFullscreen(false));
-      } else {
-        setIsFullscreen(false);
-      }
+      if (document.fullscreenElement && document.exitFullscreen) void document.exitFullscreen().catch(() => {});
     }
   };
 
   useEffect(() => {
     const updateFullscreen = () => setIsFullscreen(document.fullscreenElement === containerRef.current);
+    updateFullscreen();
     document.addEventListener("fullscreenchange", updateFullscreen);
     return () => document.removeEventListener("fullscreenchange", updateFullscreen);
   }, []);
@@ -893,7 +1077,8 @@ export default function VideoConference({
   return (
     <div
       ref={containerRef}
-      className={`${styles.container} ${isFullscreen ? styles.fullscreen : ""}`}
+      className={`${styles.container} ${styles.fullscreen} ${chatOpen || pollsOpen ? styles.interactionsOpen : ""}`}
+      data-visio-fullscreen-mode="true"
     >
       <header className={styles.topBar}>
         <div className={styles.roomInfo}>
@@ -933,8 +1118,8 @@ export default function VideoConference({
           {onTogglePolls && (
             <button
               type="button"
-              className={`${styles.btnAction} ${pollsOpen ? styles.btnActive : ""}`}
-              onClick={onTogglePolls}
+              className={`${styles.btnAction} ${styles.btnMobileDuplicate} ${pollsOpen ? styles.btnActive : ""}`}
+              onClick={togglePolls}
               title="Sondages et Quizz interactifs"
             >
               <BarChart2 size={16} />
@@ -942,7 +1127,7 @@ export default function VideoConference({
             </button>
           )}
 
-          <button type="button" className={`${styles.btnAction} ${chatOpen ? styles.btnActive : ""}`} onClick={() => setChatOpen(open => !open)} aria-pressed={chatOpen} title="Ouvrir le chat de la réunion">
+          <button type="button" className={`${styles.btnAction} ${styles.btnMobileDuplicate} ${chatOpen ? styles.btnActive : ""}`} onClick={toggleChat} aria-pressed={chatOpen} title="Ouvrir le chat de la réunion">
             <MessageSquare size={16} /><span>Chat ({chatMessages.length})</span>
           </button>
 
@@ -956,7 +1141,7 @@ export default function VideoConference({
             type="button"
             className={styles.btnAction}
             onClick={toggleFullscreen}
-            title={isFullscreen ? "Quitter le plein écran" : "Passer en plein écran"}
+            title={isFullscreen ? "Quitter le plein écran natif" : "Passer en plein écran natif"}
           >
             {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
             <span>{isFullscreen ? "Réduire" : "Plein écran"}</span>
@@ -979,8 +1164,13 @@ export default function VideoConference({
       <div className={styles.networkBar} role="status" aria-live="polite">
         <Wifi size={14} />
         <span>{networkState === "reconnecting" ? "Connexion instable · tentative de reconnexion" : remotePeers.some(peer => peer.quality === "poor") ? "Qualité réseau faible" : remotePeers.some(peer => peer.quality === "fair") ? "Qualité réseau moyenne" : "Connexion active"}</span>
+        {meetingStartedAt !== null && !isWaitingRoom && !joinRejected && <span className={styles.meetingDuration} title="Durée de la réunion" aria-live="off">
+          <Clock size={12} aria-hidden="true" />
+          <span>Durée {formatMeetingDuration(meetingElapsedSeconds)}</span>
+        </span>}
         <span className={hasTurnRelay ? styles.turnReady : styles.turnMissing}>{hasTurnRelay ? "Relais TURN disponible" : "Relais TURN non configuré"}</span>
       </div>
+      <div className={`${styles.stageAndDock} ${chatOpen || pollsOpen ? styles.stageAndDockOpen : ""}`}>
       <div className={styles.stageWrapper}>
         {isLoading && (
           <div className={styles.noticeBanner}>
@@ -1038,7 +1228,13 @@ export default function VideoConference({
           </div>
         )}
 
-        {toastReaction && <div className={styles.reactionToast} role="status">{toastReaction}</div>}
+        <div className={styles.reactionLayer}>
+          {floatingReactions.map(item => <div key={item.id} className={styles.floatingReaction} style={{ left: `${item.left}%`, animationDuration: `${item.duration}ms` }}>
+            <AnimatedReactionEmoji emoji={item.reaction} className={styles.floatingEmoji} animated />
+            <span className={styles.floatingName}>{item.peerId === localPeerId ? "Vous" : item.name}</span>
+          </div>)}
+          <span className={styles.srOnly} role="status" aria-live="polite">{reactionAnnouncement}</span>
+        </div>
 
         {/* Grille Vidéo Native */}
         <div className={`${styles.videoGrid} ${gridClass}`}>
@@ -1086,18 +1282,29 @@ export default function VideoConference({
         </div>
       </div>
 
-      {chatOpen && <aside className={styles.chatPanel} aria-label="Chat de la réunion">
-        <div className={styles.chatHeader}><strong>Messages de la réunion</strong><button type="button" onClick={() => setChatOpen(false)} aria-label="Fermer le chat">×</button></div>
-        <div className={styles.chatMessages} aria-live="polite">
-          {chatMessages.length === 0 ? <p className={styles.chatEmpty}>Aucun message pour le moment. Envoyez une information à l’équipe.</p> : chatMessages.map(message => <article className={styles.chatMessage} key={message.id}>
-            <strong>{message.name}{message.peerId === localPeerId ? " · vous" : ""}</strong><p>{message.text}</p><time>{new Date(message.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</time>
-          </article>)}
-        </div>
-        <form className={styles.chatForm} onSubmit={sendChatMessage}><input aria-label="Votre message" maxLength={500} value={chatDraft} onChange={event => setChatDraft(event.target.value)} placeholder="Écrire un message…" /><button type="submit" disabled={!chatDraft.trim()} aria-label="Envoyer"><Send size={16} /></button></form>
-      </aside>}
+      <div
+        className={`${styles.interactionDock} ${chatOpen || pollsOpen ? styles.interactionDockOpen : ""}`}
+        data-visio-interaction-dock="true"
+        aria-hidden={!chatOpen && !pollsOpen}
+      >
+        {chatOpen && <aside className={`${styles.chatPanel} ${styles.dockPanel}`} aria-label="Chat de la réunion">
+          <div className={styles.chatHeader}><strong>Messages de la réunion</strong><button type="button" onClick={() => void closeChatPanel()} aria-label="Fermer le chat">×</button></div>
+          <div className={styles.chatMessages} aria-live="polite">
+            {chatMessages.length === 0 ? <div className={styles.chatEmptyState}>
+              <span className={styles.chatEmptyIcon} aria-hidden="true"><MessageSquare size={20} /></span>
+              <strong>Aucun message pour l’instant</strong>
+              <p>Démarrez la conversation avec l’équipe.</p>
+            </div> : chatMessages.map(message => <article className={styles.chatMessage} key={message.id}>
+              <strong>{message.name}{message.peerId === localPeerId ? " · vous" : ""}</strong><p>{message.text}</p><time>{new Date(message.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</time>
+            </article>)}
+          </div>
+          <form className={styles.chatForm} onSubmit={sendChatMessage}><input aria-label="Votre message" maxLength={500} value={chatDraft} onChange={event => setChatDraft(event.target.value)} placeholder="Écrire un message…" /><button type="submit" disabled={!chatDraft.trim()} aria-label="Envoyer"><Send size={16} /></button></form>
+        </aside>}
+      </div>
+      </div>
 
       {/* Barre de contrôle flottante en bas */}
-      <footer className={styles.controlsBar}>
+      <footer className={`${styles.controlsBar} ${chatOpen || pollsOpen ? styles.controlsBarHidden : ""}`}>
           <button
           type="button"
           className={`${styles.ctrlBtn} ${isMicMuted ? styles.ctrlBtnOff : ""}`}
@@ -1136,7 +1343,7 @@ export default function VideoConference({
           <button
             type="button"
             className={`${styles.ctrlBtn} ${pollsOpen ? styles.ctrlBtnActive : ""}`}
-            onClick={onTogglePolls}
+            onClick={togglePolls}
             title="Sondages & Quizz"
           >
             <BarChart2 size={18} />
@@ -1147,15 +1354,44 @@ export default function VideoConference({
         <button type="button" className={`${styles.ctrlBtn} ${handRaised ? styles.ctrlBtnActive : ""}`} onClick={toggleHand} aria-pressed={handRaised} title={handRaised ? "Baisser la main" : "Lever la main"}>
           <Hand size={18} /><span>{handRaised ? "Main levée" : "Lever la main"}</span>
         </button>
-        <div className={styles.reactionControls} aria-label="Réactions rapides">
-          {["👍", "👏", "❤️"].map(reaction => <button type="button" key={reaction} onClick={() => sendReaction(reaction)} aria-label={`Réagir ${reaction}`}>{reaction}</button>)}
+        <button type="button" className={`${styles.ctrlBtn} ${chatOpen ? styles.ctrlBtnActive : ""}`} onClick={toggleChat} aria-pressed={chatOpen} title="Ouvrir le chat de la réunion">
+          <MessageSquare size={18} /><span>Chat</span>
+        </button>
+        <div className={styles.reactionPickerWrap} ref={reactionPickerRef}>
+          <button
+            type="button"
+            className={`${styles.ctrlBtn} ${reactionsOpen ? styles.ctrlBtnActive : ""}`}
+            ref={reactionTriggerRef}
+            onClick={() => setReactionsOpen(open => !open)}
+            aria-label="Choisir une réaction"
+            aria-haspopup="dialog"
+            aria-expanded={reactionsOpen}
+            title="Réactions"
+          >
+            <Smile size={19} /><span>Réactions</span>
+          </button>
+          {reactionsOpen && <div className={styles.reactionPicker} style={{ bottom: `${reactionPickerBottom}px` }} role="dialog" aria-label="Choisir une réaction">
+            {quickReactions.map(reaction => <button
+              type="button"
+              key={reaction.emoji}
+              className={styles.reactionOption}
+              onClick={() => { sendReaction(reaction.emoji); setReactionsOpen(false); }}
+              aria-label={reaction.emoji === "🙌" ? "Dire Amen" : `Réagir : ${reaction.label}`}
+            >
+              <AnimatedReactionEmoji emoji={reaction.emoji} className={styles.reactionEmoji} />
+            </button>)}
+          </div>}
         </div>
+
+        <button type="button" className={`${styles.ctrlBtn} ${styles.ctrlBtnMobileDuplicate} ${isFullscreen ? styles.ctrlBtnActive : ""}`} onClick={toggleFullscreen} aria-pressed={isFullscreen} title={isFullscreen ? "Quitter le plein écran natif" : "Passer en plein écran natif"}>
+          {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}<span>{isFullscreen ? "Réduire" : "Plein écran"}</span>
+        </button>
 
         {onLeave && (
           <button
             type="button"
-            className={`${styles.ctrlBtn} ${styles.ctrlBtnLeave}`}
-            onClick={onLeave}
+            className={`${styles.ctrlBtn} ${styles.ctrlBtnMobileDuplicate} ${styles.ctrlBtnLeave}`}
+            onClick={leaveMeeting}
             title="Quitter la réunion"
           >
             <PhoneOff size={18} />

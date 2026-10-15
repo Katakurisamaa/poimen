@@ -255,9 +255,6 @@
 
 .meetingLayout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .meetingLayout > * { min-width: 0; }
-@media (min-width: 1280px) {
-  .meetingLayout.withPolls { grid-template-columns: minmax(0, 1fr) 360px; }
-}
 
 .featuresGrid {
   display: grid;

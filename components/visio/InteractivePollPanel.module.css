@@ -1,6 +1,8 @@
 .panel { --line: var(--border); --muted-text: var(--muted); width: 100%; min-width: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface-solid); color: var(--cream); font: 14px/1.55 var(--font-body), sans-serif; box-shadow: var(--shadow-soft); }
-.fullscreenPortal { position: absolute; z-index: 100000; top: max(96px, 16dvh); right: 12px; bottom: 12px; width: min(420px, calc(100% - 24px)); min-height: 0; filter: drop-shadow(0 12px 30px rgba(0,0,0,.35)); }
-.fullscreenPortal .panel { height: 100%; min-height: 0; max-height: 100%; border-radius: 16px; }
+.fullscreenPortal { position: relative; z-index: 1; display: flex; flex: 1 1 auto; align-self: stretch; width: 100%; max-width: none; height: 100%; min-width: 0; min-height: 0; margin-inline: 0; animation: pollPanelSlideIn 260ms cubic-bezier(.2,.75,.25,1) both; }
+@keyframes pollPanelSlideIn { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pollPanelRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+.fullscreenPortal .panel { height: 100%; min-height: 0; max-height: 100%; border-radius: 0; border-inline: 0; box-shadow: none; }
 .fullscreenPortal .content { flex: 1 1 0; min-height: 0; max-height: none; overflow: auto; }
 :global(html[data-theme="light"]) .panel, :global(body[data-theme="light"]) .panel { --muted-text: #5b514a; --gold: #765500; --green: #176b42; --red: #a31620; --line: #d1c8bb; }
 .panel *, .panel *::before { box-sizing: border-box; }
@@ -129,5 +131,12 @@
   .actions > .secondary { flex: 1 1 auto; }
   .footer { padding: 12px; }
 }
-@media (max-width: 640px) { .fullscreenPortal { top: max(80px, 18dvh); right: 8px; bottom: 8px; width: min(420px, calc(100% - 16px)); } }
+@media (max-width: 640px) {
+  .fullscreenPortal { flex-basis: 100%; width: 100%; max-width: 100%; }
+  .fullscreenPortal .panel { height: 100%; }
+  .fullscreenPortal .content { min-height: 0; overflow: auto; }
+}
+@media (max-width: 700px) {
+  .fullscreenPortal { animation-name: pollPanelRise; }
+}
 @media (prefers-reduced-motion: reduce) { .panel *, .panel *::before { animation: none; transition: none; } }

@@ -107,6 +107,7 @@
 }
 
 .networkBar { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 18px; border-bottom: 1px solid var(--ux-line); color: var(--ux-muted); background: var(--surface, #141824); font-size: 11px; }
+.meetingDuration { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
 .turnReady, .turnMissing { margin-left: auto; font-weight: 700; }
 .turnReady { color: #6ee7b7; }.turnMissing { color: #fbbf24; }
 
@@ -186,7 +187,27 @@
 .lobbyPanel > small { display: block; margin: -2px 0 8px; color: #fcd34d; font-size: 10px; line-height: 1.45; }
 .lobbyRow { display: flex; align-items: center; gap: 6px; padding: 8px 0; border-top: 1px solid #ffffff16; font-size: 12px; }
 .lobbyRow > span { flex: 1; }.lobbyRow button { min-height: 32px; padding: 0 9px; border: 1px solid #ffffff28; border-radius: 7px; color: #f8fafc; background: #ffffff12; font: inherit; cursor: pointer; }.lobbyRow button:first-of-type { color: #6ee7b7; }
-.reactionToast { position: absolute; z-index: 18; bottom: 18px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border: 1px solid #ffffff25; border-radius: 999px; color: #fff; background: #111827e8; box-shadow: 0 8px 28px #0008; font-weight: 700; }
+.reactionLayer { position: absolute; z-index: 16; inset: 0; overflow: hidden; pointer-events: none; }
+.floatingReaction { position: absolute; bottom: 5%; display: flex; flex-direction: column; align-items: center; gap: 4px; animation: reactionRise 3600ms cubic-bezier(.18,.72,.28,1) both; will-change: transform, opacity; filter: drop-shadow(0 4px 8px #0008); }
+.animatedReaction { position: relative; display: grid; flex: 0 0 auto; place-items: center; overflow: visible; line-height: 1; filter: drop-shadow(0 3px 4px #0003); }
+.animatedSticker { display: block; width: 100%; height: 100%; }
+.animatedSticker img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.animatedEmojiFallback { display: none; }
+.floatingEmoji { width: clamp(72px, 9vw, 104px); height: clamp(72px, 9vw, 104px); font-size: clamp(62px, 8vw, 92px); animation: reactionEmojiPop 620ms cubic-bezier(.2,1.5,.4,1) both; transform-origin: center; }
+.floatingName { max-width: min(180px, 40vw); overflow: hidden; padding: 3px 9px; border: 1px solid #ffffff30; border-radius: 999px; color: #fff; background: #090d18cc; font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@keyframes reactionRise {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(.45) rotate(-14deg); }
+  12% { opacity: 1; transform: translate(-50%, -12px) scale(1.08) rotate(0); }
+  78% { opacity: 1; transform: translate(calc(-50% + 8px), -56vh) scale(1.12) rotate(7deg); }
+  100% { opacity: 0; transform: translate(calc(-50% + 22px), -72vh) scale(.92) rotate(16deg); }
+}
+@keyframes reactionEmojiPop {
+  0% { transform: scale(.25) rotate(-24deg); }
+  55% { transform: scale(1.35) rotate(10deg); }
+  78% { transform: scale(.9) rotate(-5deg); }
+  100% { transform: scale(1) rotate(0); }
+}
 
 .videoGrid {
   flex: 1;
@@ -348,6 +369,7 @@
 
 /* Floating Controls Bar at Bottom */
 .controlsBar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -357,12 +379,34 @@
   border-top: 1px solid var(--ux-line, rgba(255, 255, 255, 0.08));
   flex-wrap: wrap;
 }
-.reactionControls { display: flex; gap: 4px; align-items: center; padding: 4px; border: 1px solid var(--ux-line, #ffffff20); border-radius: 11px; background: var(--surface-solid, #0f121d); }
-.reactionControls button { width: 36px; height: 38px; border: 0; border-radius: 8px; background: transparent; font-size: 19px; cursor: pointer; }.reactionControls button:hover { background: #ffffff14; }
-.chatPanel { position: absolute; z-index: 35; top: 66px; right: 12px; bottom: 86px; display: flex; flex-direction: column; width: min(340px, calc(100% - 24px)); border: 1px solid #ffffff24; border-radius: 14px; color: #f8fafc; background: #0f121df5; box-shadow: 0 18px 50px #0009; }
-.chatHeader { display: flex; align-items: center; justify-content: space-between; padding: 13px 14px; border-bottom: 1px solid #ffffff18; font-size: 13px; }.chatHeader button { width: 30px; height: 30px; border: 0; border-radius: 7px; color: #cbd5e1; background: #ffffff10; font-size: 20px; cursor: pointer; }
-.chatMessages { flex: 1; overflow-y: auto; padding: 12px; }.chatEmpty { color: #94a3b8; font-size: 12px; line-height: 1.6; }.chatMessage { position: relative; margin-bottom: 10px; padding: 9px 10px 20px; border: 1px solid #ffffff14; border-radius: 10px; background: #ffffff08; overflow-wrap: anywhere; }.chatMessage strong { color: #fde68a; font-size: 11px; }.chatMessage p { margin: 5px 0 0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }.chatMessage time { position: absolute; right: 9px; bottom: 5px; color: #94a3b8; font-size: 9px; }
-.chatForm { display: flex; align-items: center; gap: 8px; padding: 10px; border-top: 1px solid #ffffff18; }.chatForm input { min-width: 0; flex: 1 1 auto; height: 40px; padding: 0 12px; border: 1px solid #ffffff25; border-radius: 8px; color: #fff; background: #070910; font: inherit; font-size: 12px; }.chatForm button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; color: #111827; background: var(--gold, #d4af37); cursor: pointer; line-height: 0; }.chatForm button svg { display: block; margin: 0; }
+.reactionPickerWrap { position: relative; flex: 0 0 auto; }
+.reactionPicker { position: fixed; z-index: 100000; left: 50%; right: auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; width: min(292px, calc(100vw - 16px)); padding: 9px; border: 1px solid var(--border, #ffffff24); border-radius: 14px; color: var(--cream, #f8fafc); background: var(--surface-solid, #101522); box-shadow: 0 12px 36px #0008; animation: pickerRise 180ms ease-out both; }
+.reactionOption { display: grid; min-width: 0; min-height: 54px; place-items: center; padding: 5px 2px; border: 0; border-radius: 9px; color: inherit; background: transparent; cursor: pointer; }
+.reactionOption:hover, .reactionOption:focus-visible { background: var(--card-hover, #ffffff14); }
+.reactionEmoji { width: 40px; height: 40px; overflow: visible; font-size: 31px; }
+.reactionOption:hover .animatedReaction, .reactionOption:focus-visible .animatedReaction { filter: drop-shadow(0 4px 7px #0004) brightness(1.08); }
+@keyframes pickerRise { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .animatedSticker { display: none; }
+  .animatedEmojiFallback { display: block; }
+  .floatingEmoji { animation: none; }
+}
+.interactionDock { position: relative; z-index: 25; display: flex; flex: 0 0 0; align-items: stretch; justify-content: flex-end; width: 0; height: 0; min-width: 0; min-height: 0; max-width: 0; padding: 0; overflow: hidden; box-sizing: border-box; opacity: 0; transition: height 280ms cubic-bezier(.2,.75,.25,1), width 280ms cubic-bezier(.2,.75,.25,1), min-height 280ms cubic-bezier(.2,.75,.25,1), flex-basis 280ms cubic-bezier(.2,.75,.25,1), opacity 180ms ease; }
+.interactionDockOpen { flex: 0 0 clamp(300px, 30vw, 400px); width: clamp(300px, 30vw, 400px); height: auto; min-height: 0; max-width: clamp(300px, 30vw, 400px); padding: 0; border-left: 1px solid var(--ux-line, rgba(255,255,255,.1)); background: var(--surface-solid, #0f121d); opacity: 1; }
+.controlsBarHidden { display: none; }
+.dockPanel { position: relative; inset: auto; flex: 1 1 auto; width: 100%; max-width: none; height: 100%; max-height: 100%; margin-inline: 0; box-sizing: border-box; animation: dockPanelSlideIn 260ms cubic-bezier(.2,.75,.25,1) both; }
+@keyframes dockPanelSlideIn { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes dockPanelRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+.chatPanel { position: absolute; z-index: 35; top: 66px; right: 12px; bottom: 86px; display: flex; flex-direction: column; width: min(340px, calc(100% - 24px)); border: 1px solid var(--border, #ffffff24); border-radius: 14px; color: var(--cream, #f8fafc); background: var(--surface-solid, #0f121d); box-shadow: 0 18px 50px #0009; }
+.chatPanel.dockPanel { position: relative; inset: auto; width: 100%; max-width: none; margin: 0; border-inline: 0; border-radius: 0; box-shadow: none; }
+.chatHeader { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; padding: 13px 14px; border-bottom: 1px solid var(--border, #ffffff18); color: var(--cream, #f8fafc); background: var(--surface-solid, #0f121d); font-size: 13px; }.chatHeader button { width: 30px; height: 30px; border: 1px solid var(--border, #ffffff18); border-radius: 7px; color: var(--cream-dim, #cbd5e1); background: var(--bg-deep, #ffffff10); font-size: 20px; cursor: pointer; }.chatHeader button:hover { background: var(--card-hover, #ffffff18); }
+.chatMessages { display: flex; flex: 1; min-height: 0; flex-direction: column; overflow-y: auto; padding: 0; background: var(--bg-deep, #101522); }
+.chatEmptyState { display: flex; flex: 1; min-width: 100%; min-height: 150px; box-sizing: border-box; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px 14px; text-align: center; background: radial-gradient(ellipse at center, var(--gold-glow, #d4af3714), transparent 58%), var(--bg-deep, #101522); }
+.chatEmptyIcon { display: grid; width: 42px; height: 42px; place-items: center; margin-bottom: 2px; border: 1px solid var(--border, #d4af3750); border-radius: 14px; color: var(--gold-light, #e3c65c); background: var(--gold-glow, #d4af3714); }
+.chatEmptyState strong { color: var(--cream, #f8fafc); font-size: 13px; font-weight: 500; }
+.chatEmptyState p { max-width: 250px; margin: 0; color: var(--cream-dim, #aeb9ca); font-size: 11px; line-height: 1.5; }
+.chatMessage { position: relative; margin: 12px 12px 0; padding: 9px 10px 20px; border: 1px solid var(--border, #ffffff14); border-radius: 10px; color: var(--cream, #f8fafc); background: var(--surface-solid, #0f121d); overflow-wrap: anywhere; }.chatMessage strong { color: var(--gold-light, #fde68a); font-size: 11px; }.chatMessage p { margin: 5px 0 0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }.chatMessage time { position: absolute; right: 9px; bottom: 5px; color: var(--cream-dim, #94a3b8); font-size: 9px; }
+.chatForm { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding: 10px; border-top: 1px solid var(--border, #ffffff18); background: var(--surface-solid, #0f121d); }.chatForm input { min-width: 0; flex: 1 1 auto; height: 40px; padding: 0 12px; border: 1px solid var(--border, #ffffff25); border-radius: 8px; color: var(--cream, #fff); background: var(--bg-deep, #070910); font: inherit; font-size: 12px; }.chatForm input::placeholder { color: var(--muted, #94a3b8); }.chatForm button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; color: var(--action-ink, #111827); background: var(--gold, #d4af37); cursor: pointer; line-height: 0; }.chatForm button svg { display: block; margin: 0; }
 .chatForm button:disabled { opacity: .65; cursor: not-allowed; }
 
 .ctrlBtn {
@@ -526,16 +570,19 @@
   background: var(--surface-solid, #fffaf4);
 }
 .fullscreen .topBar { flex: 0 0 auto; max-height: 30dvh; overflow-y: auto; }
-.fullscreen .stageWrapper { flex: 1 1 0; min-height: 0; height: auto; }
+.fullscreen .stageAndDock { display: flex; flex: 1 1 0; flex-direction: row; min-width: 0; min-height: 0; overflow: hidden; }
+.fullscreen .stageWrapper { flex: 1 1 0; min-width: 0; min-height: 0; height: auto; }
+.fullscreen.interactionsOpen .stageWrapper { min-height: 24dvh; }
 .fullscreen .videoGrid { min-height: 0; }
 .fullscreen .videoTile { min-height: 0; }
 .fullscreen .controlsBar {
   flex: 0 0 auto;
   max-height: 24dvh;
-  overflow-y: auto;
+  overflow: visible;
   padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
 }
-.fullscreen .chatPanel { z-index: 100001; }
+.fullscreen .interactionDock { flex-basis: 0; width: 0; height: auto; padding: 0; }
+.fullscreen .interactionDockOpen { flex-basis: clamp(300px, 30vw, 400px); width: clamp(300px, 30vw, 400px); max-width: clamp(300px, 30vw, 400px); height: auto; min-height: 0; padding: 0; }
 
 @media (max-height: 760px) {
   .fullscreen .topBar { padding-block: 8px; gap: 7px; }
@@ -545,15 +592,38 @@
 }
 
 @media (max-width: 700px) {
-  .fullscreen .topBar { max-height: 25dvh; padding: 8px; }
-  .fullscreen .roomInfo { width: auto; flex: 1 1 100%; flex-direction: row; align-items: center; }
+  .videoElement { object-fit: contain; background: #070910; }
+  .fullscreen .topBar { max-height: 20dvh; padding: 6px 8px; }
+  .fullscreen .roomInfo { width: 100%; flex: 0 0 auto; flex-direction: row; align-items: center; gap: 8px; }
+  .fullscreen .title { font-size: 13px; }
+  .fullscreen .roomCode { display: none; }
+  .fullscreen .networkBar { min-height: 20px; gap: 5px; padding: 2px 8px; font-size: 10px; }
+  .fullscreen .turnReady,
+  .fullscreen .turnMissing { display: none; }
   .fullscreen .actions { width: 100%; flex-wrap: nowrap; overflow-x: auto; padding: 2px 1px 5px; }
   .fullscreen .btnAction { flex: 0 0 auto; }
-  .fullscreen .controlsBar { max-height: 18dvh; flex-wrap: nowrap; justify-content: flex-start; gap: 5px; overflow-x: auto; overflow-y: hidden; padding: 6px; scrollbar-width: thin; }
-  .fullscreen .ctrlBtn { flex: 0 0 auto; min-width: 46px; width: 46px; min-height: 46px; height: 46px; padding: 5px; font-size: 9px; }
+  .fullscreen .btnMobileDuplicate,
+  .fullscreen .ctrlBtnMobileDuplicate { display: none; }
+  .fullscreen .stageAndDock { flex-direction: column; }
+  .fullscreen .stageWrapper { min-height: 0; }
+  .fullscreen .videoGrid { place-content: stretch; padding: 8px; }
+  .fullscreen .grid1 { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .fullscreen .videoTile { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; border-radius: 12px; }
+  .fullscreen .controlsBar { max-height: none; flex: 0 0 auto; flex-wrap: nowrap; justify-content: space-between; gap: 3px; overflow: hidden; padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)); }
+  .fullscreen .ctrlBtn { flex: 1 1 0; min-width: 0; width: auto; min-height: 42px; height: 42px; padding: 4px 2px; font-size: 9px; }
   .fullscreen .ctrlBtn span { display: none; }
-  .fullscreen .reactionControls { flex: 0 0 auto; }
-  .fullscreen .reactionControls button { width: 30px; }
+  .fullscreen .reactionPickerWrap { flex: 1 1 0; min-width: 0; }
+  .fullscreen .reactionPickerWrap > .ctrlBtn { width: 100%; }
+  .fullscreen .reactionPicker { gap: 4px; width: min(292px, calc(100vw - 24px)); padding: 7px; }
+  .fullscreen .interactionDock { flex-basis: 0; width: 100%; height: 0; max-width: 100%; padding-inline: 8px; border-left: 0; }
+  .fullscreen .interactionDockOpen { flex-basis: 56dvh; width: 100%; height: 56dvh; min-height: 42dvh; max-height: 60dvh; max-width: 100%; padding-inline: 0; border-left: 0; }
+  .fullscreen .dockPanel { flex-basis: 100%; width: 100%; max-width: 100%; animation-name: dockPanelRise; }
+}
+
+@media (max-height: 600px) and (max-width: 700px) {
+  .fullscreen .interactionDockOpen { flex-basis: 50dvh; height: 50dvh; min-height: 38dvh; }
+  .fullscreen .chatHeader { padding-block: 7px; }
+  .fullscreen .chatForm { padding: 6px; }
 }
 
 /* Contrast corrections for both application themes. */

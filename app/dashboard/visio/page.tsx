@@ -236,7 +236,7 @@ function VisioContent() {
             </button>
           </div>
 
-          <div className={`${styles.meetingLayout} ${pollsOpen ? styles.withPolls : ""}`}>
+          <div className={styles.meetingLayout}>
             <VideoConference
               roomName={roomName}
               title={meetingTitle}
@@ -267,7 +267,11 @@ function VisioContent() {
         <VisioPreflight
           name={userName}
           title={meetingTitle}
-          onJoin={devices => { setMediaDevices(devices); setShowPreflight(false); setInMeeting(true); }}
+          onJoin={devices => {
+            setMediaDevices(devices);
+            setShowPreflight(false);
+            setInMeeting(true);
+          }}
           onCancel={() => setShowPreflight(false)}
         />
       ) : (

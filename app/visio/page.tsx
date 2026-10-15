@@ -88,7 +88,10 @@ function PublicVisioContent() {
         <VisioPreflight
           name={displayName.trim()}
           title={`Salle ${roomParam}`}
-          onJoin={devices => { setMediaDevices(devices); setHasJoined(true); }}
+          onJoin={devices => {
+            setMediaDevices(devices);
+            setHasJoined(true);
+          }}
           onCancel={() => setShowPreflight(false)}
         />
       ) : (
