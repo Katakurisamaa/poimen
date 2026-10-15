@@ -23,6 +23,8 @@ function PublicVisioContent() {
   const searchParams = useSearchParams();
   const roomParam = searchParams.get("room") || "poimen-reunion";
   const nameParam = searchParams.get("name") || "";
+  const titleParam = searchParams.get("title") || "";
+  const roomTitle = titleParam.trim() || `Salle ${roomParam}`;
 
   const [displayName, setDisplayName] = useState(nameParam);
   const [hasJoined, setHasJoined] = useState(false);
@@ -64,7 +66,7 @@ function PublicVisioContent() {
         >
           <VideoConference
             roomName={roomParam}
-            title="Visioconférence Poimén"
+            title={roomTitle}
             userName={displayName.trim()}
             mediaDevices={mediaDevices}
             isHost={false}
@@ -87,7 +89,7 @@ function PublicVisioContent() {
       ) : showPreflight ? (
         <VisioPreflight
           name={displayName.trim()}
-          title={`Salle ${roomParam}`}
+          title={roomTitle}
           onJoin={devices => {
             setMediaDevices(devices);
             setHasJoined(true);
@@ -98,7 +100,7 @@ function PublicVisioContent() {
         <div className={styles.prejoinContainer}>
           <div className={styles.prejoinCard}>
             <div className={styles.brandRow}><PoimenLogo /><p className={styles.brandSubtitle}>Espace de Visioconférence & Partage d'Écran</p></div>
-            <div className={styles.roomBadge}><Video size={16} /><span>Salle : {roomParam}</span></div>
+            <div className={styles.roomBadge}><Video size={16} /><span>{roomTitle}</span></div>
             <form className={styles.formBox} onSubmit={event => { event.preventDefault(); if (displayName.trim()) handleJoin(); }}>
               <label htmlFor="participant-name">Votre prénom et nom pour la réunion :</label>
               <input id="participant-name" className={styles.inputName} type="text" placeholder="Ex. Jean Dupont" value={displayName} onChange={event => setDisplayName(event.target.value)} autoFocus required />

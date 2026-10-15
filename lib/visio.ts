@@ -15,6 +15,18 @@ export function sanitizeRoomName(name: string): string {
 
 export type VisioSpaceType = "family" | "integration" | "guest" | "custom";
 
+export function matchesLobbyAdmission(
+  payload: { toPeerId?: unknown; toParticipantId?: unknown } | null | undefined,
+  localPeerId: string,
+  participantId: string,
+): boolean {
+  return payload?.toPeerId === localPeerId || payload?.toParticipantId === participantId;
+}
+
+export function wasLobbyAdmissionDelivered(...statuses: string[]): boolean {
+  return statuses.includes("ok");
+}
+
 export function buildRoomName({
   churchName,
   spaceType,
@@ -48,14 +60,19 @@ export function buildRoomName({
   return `poimen-${cleanChurch}-integration-equipe`;
 }
 
-export function getPublicVisioUrl(roomName: string, participantName?: string): string {
+export function getPublicVisioUrl(roomName: string, participantName?: string, roomTitle?: string): string {
   if (typeof window === "undefined") {
-    return `/visio?room=${encodeURIComponent(roomName)}`;
+    const params = new URLSearchParams({ room: roomName });
+    if (roomTitle?.trim()) params.set("title", roomTitle.trim());
+    return `/visio?${params.toString()}`;
   }
   const origin = window.location.origin;
   const params = new URLSearchParams({ room: roomName });
   if (participantName && participantName.trim()) {
     params.set("name", participantName.trim());
+  }
+  if (roomTitle?.trim()) {
+    params.set("title", roomTitle.trim());
   }
   return `${origin}/visio?${params.toString()}`;
 }
@@ -77,16 +94,21 @@ export function getWhatsAppShareUrl({
   title,
   guestName,
   origin,
+  roomTitle,
 }: {
   roomName: string;
   title: string;
   guestName?: string;
   origin?: string;
+  roomTitle?: string;
 }): string {
   const base = origin || (typeof window !== "undefined" ? window.location.origin : "");
   const params = new URLSearchParams({ room: roomName });
   if (guestName && guestName.trim()) {
     params.set("name", guestName.trim());
+  }
+  if (roomTitle?.trim()) {
+    params.set("title", roomTitle.trim());
   }
   const link = `${base}/visio?${params.toString()}`;
 

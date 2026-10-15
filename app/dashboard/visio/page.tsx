@@ -4,7 +4,7 @@ import { Suspense, useState, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Video, Users, Share2, Copy, Check, Monitor,
-  House, UserCheck, MessageSquare, ArrowLeft, Play, Link as LinkIcon, BarChart2
+  House, UserCheck, MessageSquare, ArrowLeft, Play, Link as LinkIcon, BarChart2, LockKeyhole
 } from "lucide-react";
 import { useWorkspace } from "@/lib/use-workspace";
 import { getActiveUserInfo, getActiveSpaceType } from "@/lib/client-session";
@@ -49,6 +49,7 @@ function VisioContent() {
   const paramType = (searchParams.get("type") as VisioSpaceType) || "";
   const paramGuestName = searchParams.get("guestName") || "";
   const paramGuestId = searchParams.get("guestId") || "";
+  const paramTitle = searchParams.get("title") || "";
 
   // Respect workspace lanes strictly ("Chacun reste dans son couloir")
   const spaceType = getActiveSpaceType();
@@ -105,10 +106,43 @@ function VisioContent() {
 
   // Field states
   const [customRoomInput, setCustomRoomInput] = useState("");
+  const [customRoomId, setCustomRoomId] = useState("");
+  const [customRoomLoadedForKey, setCustomRoomLoadedForKey] = useState("");
+  const [confirmDeleteCustomRoom, setConfirmDeleteCustomRoom] = useState(false);
   const [guestNameInput, setGuestNameInput] = useState(paramGuestName || "");
   const [copied, setCopied] = useState(false);
   const [showPreflight, setShowPreflight] = useState(false);
   const [mediaDevices, setMediaDevices] = useState<VisioDeviceSelection>({});
+  const customRoomStorageKey = `poimen:custom-visio-room:${sanitizeRoomName(`${user?.church_id || workspace.churchName || "icc"}-${user?.id || userEmail || "account"}`)}`;
+
+  useEffect(() => {
+    if (!mounted || !workspace.ready) return;
+
+    setCustomRoomLoadedForKey("");
+    setCustomRoomId("");
+    setCustomRoomInput("");
+    try {
+      const stored = window.localStorage.getItem(customRoomStorageKey);
+      if (stored) {
+        const saved = JSON.parse(stored) as { roomName?: unknown; title?: unknown };
+        if (typeof saved.roomName === "string" && saved.roomName.startsWith("poimen-prive-")) {
+          setCustomRoomId(saved.roomName);
+          setCustomRoomInput(typeof saved.title === "string" ? saved.title : "");
+        }
+      }
+    } catch {
+      window.localStorage.removeItem(customRoomStorageKey);
+    }
+    setCustomRoomLoadedForKey(customRoomStorageKey);
+  }, [mounted, workspace.ready, customRoomStorageKey]);
+
+  useEffect(() => {
+    if (!mounted || !workspace.ready || customRoomLoadedForKey !== customRoomStorageKey || !customRoomId) return;
+    window.localStorage.setItem(customRoomStorageKey, JSON.stringify({
+      roomName: customRoomId,
+      title: customRoomInput.trim() || "Salle personnalisée",
+    }));
+  }, [mounted, workspace.ready, customRoomLoadedForKey, customRoomStorageKey, customRoomId, customRoomInput]);
 
   // Sync if params change
   useEffect(() => {
@@ -125,7 +159,7 @@ function VisioContent() {
     if (paramRoom) {
       return {
         roomName: paramRoom,
-        meetingTitle: "Réunion Poimén",
+        meetingTitle: paramTitle || "Réunion Poimén",
         description: "Rejoindre la salle spécifiée",
       };
     }
@@ -173,32 +207,65 @@ function VisioContent() {
     }
 
     // custom tab
-    const code = customRoomInput.trim() || "reunion-generale";
-    const room = buildRoomName({
-      churchName: church,
-      customCode: code,
-    });
+    const title = customRoomInput.trim() || "Salle personnalisée";
     return {
-      roomName: room,
-      meetingTitle: `Salle : ${code}`,
-      description: "Salle de réunion avec lien d'accès direct.",
+      roomName: customRoomId,
+      meetingTitle: title,
+      description: "Créez une salle nommée avec un lien d’invitation privé réutilisable.",
     };
   }, [
     paramRoom, 
+    paramTitle,
     activeTab, 
     workspace, 
     guestNameInput, 
     customRoomInput, 
+    customRoomId,
     paramGuestId,
     isFamily
   ]);
 
-  const publicUrl = getPublicVisioUrl(roomName, activeTab === "guest" ? guestNameInput : undefined);
+  const publicUrl = getPublicVisioUrl(
+    roomName,
+    activeTab === "guest" ? guestNameInput : undefined,
+    activeTab === "custom" && customRoomId ? meetingTitle : undefined,
+  );
   const whatsappUrl = getWhatsAppShareUrl({
     roomName,
     title: meetingTitle,
     guestName: activeTab === "guest" ? guestNameInput : undefined,
+    roomTitle: activeTab === "custom" && customRoomId ? meetingTitle : undefined,
   });
+
+  const handleCreateCustomRoom = () => {
+    const title = customRoomInput.trim();
+    if (!title) {
+      notify("Donnez un nom à votre salle avant de créer son lien.");
+      return;
+    }
+    if (!window.crypto?.getRandomValues) {
+      notify("La création d’un lien privé nécessite un navigateur sécurisé.");
+      return;
+    }
+    const bytes = new Uint8Array(18);
+    window.crypto.getRandomValues(bytes);
+    const roomId = `poimen-prive-${Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("")}`;
+    window.localStorage.setItem(customRoomStorageKey, JSON.stringify({ roomName: roomId, title }));
+    setCustomRoomId(roomId);
+    setCustomRoomLoadedForKey(customRoomStorageKey);
+    notify("Votre lien privé réutilisable est prêt.");
+  };
+
+  const handleDeleteCustomRoom = () => {
+    if (!customRoomId) return;
+    window.localStorage.removeItem(customRoomStorageKey);
+    setCustomRoomId("");
+    setCustomRoomInput("");
+    setConfirmDeleteCustomRoom(false);
+    setPollsOpen(false);
+    setCopied(false);
+    notify("Salle supprimée de ce navigateur. Les liens déjà partagés restent utilisables.");
+  };
 
   const handleCopyLink = async () => {
     try {
@@ -228,6 +295,7 @@ function VisioContent() {
               type="button" 
               className={styles.btnSecondary}
               onClick={() => {
+                if (!window.confirm("Voulez-vous quitter cet appel et revenir au tableau de bord ?")) return;
                 setInMeeting(false);
                 router.push("/dashboard/visio");
               }}
@@ -352,36 +420,91 @@ function VisioContent() {
             {activeTab === "custom" && (
               <div className={styles.inputsRow}>
                 <div className={styles.inputField}>
-                  <label htmlFor="custom-room-field">Nom ou code de la salle</label>
+                  <label htmlFor="custom-room-field">Nom de la salle</label>
                   <input
                     id="custom-room-field"
                     type="text"
-                    placeholder="Ex: point-hebdo, priere-matin..."
+                    placeholder="Ex. Point hebdomadaire, prière du matin…"
+                    maxLength={80}
                     value={customRoomInput}
                     onChange={(e) => setCustomRoomInput(e.target.value)}
                   />
                 </div>
+                <div className={styles.customRoomCreation}>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={handleCreateCustomRoom}
+                    disabled={!customRoomLoadedForKey || customRoomLoadedForKey !== customRoomStorageKey || !customRoomInput.trim()}
+                  >
+                    <LockKeyhole size={16} />
+                    {customRoomId ? "Générer un autre lien privé" : "Créer mon lien privé réutilisable"}
+                  </button>
+                  {customRoomId && !confirmDeleteCustomRoom && (
+                    <button
+                      type="button"
+                      className={styles.btnDanger}
+                      onClick={() => setConfirmDeleteCustomRoom(true)}
+                    >
+                      Supprimer la salle
+                    </button>
+                  )}
+                  <p>
+                    {customRoomId
+                      ? "Le code privé reste stable quand vous renommez la salle. Recopiez le lien actualisé pour afficher le nouveau nom ; l’ancienne adresse mène toujours à la salle."
+                      : "Un lien aléatoire sera créé et conservé dans ce navigateur pour retrouver la salle."}
+                  </p>
+                  {confirmDeleteCustomRoom && customRoomId && (
+                    <div className={styles.deleteRoomConfirm} role="group" aria-labelledby="delete-room-title" aria-describedby="delete-room-description">
+                      <div>
+                        <strong id="delete-room-title">Supprimer cette salle enregistrée ?</strong>
+                        <p id="delete-room-description">Elle sera retirée de ce navigateur. Les liens déjà partagés resteront utilisables.</p>
+                      </div>
+                      <div className={styles.deleteRoomActions}>
+                        <button type="button" className={styles.btnDanger} onClick={handleDeleteCustomRoom}>Confirmer la suppression</button>
+                        <button type="button" className={styles.btnSecondary} onClick={() => setConfirmDeleteCustomRoom(false)}>Annuler</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            <div className={styles.roomPreviewBox}>
-              <span className={styles.roomLabel}>Identifiant de la salle :</span>
-              <span className={styles.roomValue}>{roomName}</span>
-            </div>
+            {activeTab === "custom" && customRoomId ? (
+              <div className={styles.roomPreviewBox}>
+                <span className={styles.roomLabel}>Lien privé réutilisable</span>
+                <strong className={styles.roomValue}>{meetingTitle}</strong>
+                <div className={styles.privateLinkRow}>
+                  <input aria-label="Lien privé de la salle" readOnly value={publicUrl} onFocus={event => event.currentTarget.select()} />
+                  <button type="button" className={styles.btnSecondary} onClick={handleCopyLink} title="Copier le lien privé">
+                    {copied ? <Check size={16} /> : <Copy size={16} />}
+                    <span>{copied ? "Copié" : "Copier"}</span>
+                  </button>
+                </div>
+                <p className={styles.privateLinkNote}>Toute personne qui possède ce lien peut rejoindre la salle. Gardez-le privé.</p>
+              </div>
+            ) : (
+              <div className={styles.roomPreviewBox}>
+                <span className={styles.roomLabel}>{activeTab === "custom" ? "Salle personnalisée" : "Identifiant de la salle"}</span>
+                <span className={styles.roomValue}>{roomName || "Créez d’abord un lien privé pour cette salle"}</span>
+              </div>
+            )}
 
             <div className={styles.actionsBar}>
               <button
                 type="button"
                 className={styles.btnPrimary}
                 onClick={() => setShowPreflight(true)}
+                disabled={activeTab === "custom" && !customRoomId}
               >
-                <Play size={18} /> Vérifier le matériel et démarrer
+                <Play size={18} /> {activeTab === "custom" && !customRoomId ? "Créez d’abord le lien de la salle" : "Vérifier le matériel et démarrer"}
               </button>
 
               <button
                 type="button"
                 className={styles.btnSecondary}
                 onClick={handleCopyLink}
+                disabled={activeTab === "custom" && !customRoomId}
                 title="Copier le lien d'invitation"
               >
                 {copied ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
@@ -392,6 +515,7 @@ function VisioContent() {
                 type="button"
                 className={styles.btnSecondary}
                 onClick={handleShareWhatsApp}
+                disabled={activeTab === "custom" && !customRoomId}
                 title="Partager l'invitation sur WhatsApp"
               >
                 <Share2 size={16} color="#25d366" /> Inviter sur WhatsApp
@@ -401,6 +525,7 @@ function VisioContent() {
                 type="button"
                 className={styles.btnSecondary}
                 onClick={() => setPollsOpen(!pollsOpen)}
+                disabled={activeTab === "custom" && !customRoomId}
               >
                 <BarChart2 size={16} color="#d4af37" />
                 {pollsOpen ? "Masquer les interactions" : "Sondages & Quizz"}

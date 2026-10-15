@@ -152,6 +152,92 @@
   word-break: break-all;
 }
 
+.customRoomCreation {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.customRoomCreation p,
+.privateLinkNote {
+  margin: 0;
+  color: var(--ux-muted, #94a3b8);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.btnDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 14px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.btnDanger:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.deleteRoomConfirm {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 14px;
+  background: rgba(239, 68, 68, 0.07);
+}
+
+.deleteRoomConfirm strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--cream, #f8fafc);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.deleteRoomActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.privateLinkRow {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+
+.privateLinkRow input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--ux-line, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  background: var(--bg, #0b0d14);
+  color: var(--cream, #f8fafc);
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.privateLinkRow input:focus-visible {
+  outline: 2px solid var(--gold, #d4af37);
+  outline-offset: 2px;
+}
+
 :global(html[data-theme="light"]) .roomPreviewBox,
 :global(body:not(.dark)) .roomPreviewBox {
   background: #f4f6fa;
@@ -166,6 +252,13 @@
 :global(html[data-theme="light"]) .roomValue,
 :global(body:not(.dark)) .roomValue {
   color: #8a6500;
+}
+
+:global(html[data-theme="light"]) .privateLinkRow input,
+:global(body:not(.dark)) .privateLinkRow input {
+  background: #fff;
+  border-color: #d7dde8;
+  color: #1f2937;
 }
 
 .inputsRow {
@@ -231,6 +324,14 @@
 .btnPrimary:hover {
   filter: brightness(1.1);
   transform: translateY(-1px);
+}
+
+.btnPrimary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: none;
+  transform: none;
+  box-shadow: none;
 }
 
 .btnSecondary {
@@ -358,6 +459,43 @@
 
   .roomValue {
     font-size: 13px;
+  }
+
+  .customRoomCreation {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .customRoomCreation .btnSecondary {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .customRoomCreation .btnDanger {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .deleteRoomConfirm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .deleteRoomActions {
+    flex-direction: column;
+  }
+
+  .deleteRoomActions > * {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .privateLinkRow {
+    flex-direction: column;
+  }
+
+  .privateLinkRow .btnSecondary {
+    min-height: 44px;
   }
 
   .actionsBar {

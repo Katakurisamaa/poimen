@@ -260,17 +260,23 @@ function PollQuestion({ poll, canManage, now, busy, userName, send }: { poll: Po
   const canVote = !closed && !poll.myVote;
   const TypeIcon = icons[poll.type];
   const showCorrection = poll.type === "quiz" && poll.revealAnswer && closed;
+  const voteWasCorrect = Boolean(poll.myVote?.optionId && poll.myVote.optionId === poll.correctOptionId);
   return <div className={styles.question}>
     <div className={styles.questionMeta}><span><TypeIcon size={16} />{labels[poll.type]}</span><span className={closed ? styles.closed : styles.live}>{closed ? "Clôturé" : "À vous de répondre"}</span></div>
     <h4>{poll.question}</h4>
     <div className={styles.statistics}><span><Users size={16} />{poll.totalVotes} réponse{poll.totalVotes !== 1 ? "s" : ""}</span>{remaining !== null && !closed && <span className={remaining <= 10 ? styles.urgent : ""} role="timer" aria-label="Temps restant"><Clock3 size={16} />{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</span>}</div>
+    {showCorrection && poll.myVote?.optionId && <div className={`${styles.quizResult} ${voteWasCorrect ? styles.quizSuccess : styles.quizMiss}`} role="status" aria-live="polite">
+      <span className={styles.quizResultIcon} aria-hidden="true">{voteWasCorrect ? <CheckCircle2 size={22} /> : <X size={22} />}</span>
+      <div><strong>{voteWasCorrect ? "Bonne réponse !" : "Pas cette fois"}</strong><p>{voteWasCorrect ? "Vous avez trouvé la bonne réponse." : "Regardez la correction et retenez la bonne réponse."}</p></div>
+    </div>}
     {canManage && <p className={styles.help}>{poll.revealResults ? "Les participants voient les résultats." : "Résultats visibles uniquement par vous."}</p>}
     {poll.type !== "open" ? <div className={styles.votes} role="group" aria-label="Choisir une réponse">{poll.options.map((option, index) => {
       const count = poll.counts?.[option.id] || 0;
       const percent = poll.totalVotes ? Math.round(count * 100 / poll.totalVotes) : 0;
       const chosen = (poll.myVote?.optionId || optionId) === option.id;
       const correct = showCorrection && poll.correctOptionId === option.id;
-      return <button key={option.id} type="button" className={`${styles.voteOption} ${chosen ? styles.chosen : ""} ${correct ? styles.correct : ""}`} aria-pressed={chosen} disabled={!canVote || busy} onClick={() => setOptionId(option.id)}>
+      const incorrect = showCorrection && poll.myVote?.optionId === option.id && !correct;
+      return <button key={option.id} type="button" className={`${styles.voteOption} ${chosen ? styles.chosen : ""} ${correct ? styles.correct : ""} ${incorrect ? styles.incorrect : ""}`} aria-pressed={chosen} disabled={!canVote || busy} onClick={() => setOptionId(option.id)}>
         {poll.counts && <span className={styles.bar} style={{ width: `${percent}%` }} />}
         <span className={styles.optionLetter}>{correct ? <Check size={17} /> : String.fromCharCode(65 + index)}</span><span className={styles.optionText}>{option.text}{chosen && <small>{poll.myVote ? "Votre réponse" : "Sélectionnée"}</small>}{correct && <small>Bonne réponse</small>}</span>{poll.counts && <span className={styles.count}>{percent}%<small>{count} vote{count !== 1 ? "s" : ""}</small></span>}
       </button>;

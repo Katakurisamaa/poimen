@@ -119,6 +119,7 @@
 }
 
 .btnAction {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -176,6 +177,9 @@
   min-height: 480px;
   overflow: hidden;
 }
+.callNotice { position: absolute; z-index: 28; top: 12px; left: 50%; width: min(92%, 560px); max-height: 76px; overflow: hidden; padding: 10px 14px; transform: translateX(-50%); border: 1px solid color-mix(in srgb,var(--gold,#d4af37) 42%,var(--ux-line,rgba(255,255,255,.12))); border-radius: 13px; color: var(--cream,#f8fafc); background: color-mix(in srgb,var(--surface-solid,#0f121d) 94%,transparent); box-shadow: 0 10px 28px #0007; backdrop-filter: blur(12px); font-size: 12px; line-height: 1.45; text-align: center; text-wrap: pretty; animation: callNoticeEnter 220ms cubic-bezier(.2,.75,.25,1) both; pointer-events: none; }
+@keyframes callNoticeEnter { from { opacity: 0; transform: translate(-50%,-8px); } to { opacity: 1; transform: translate(-50%,0); } }
+@media (prefers-reduced-motion: reduce) { .callNotice { animation: none; } }
 
 .waitingRoomOverlay { position: absolute; z-index: 30; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; color: #f8fafc; background: #070910e8; backdrop-filter: blur(12px); }
 .waitingRoomOverlay > svg { color: var(--gold, #d4af37); }
@@ -405,11 +409,12 @@
 .chatEmptyIcon { display: grid; width: 42px; height: 42px; place-items: center; margin-bottom: 2px; border: 1px solid var(--border, #d4af3750); border-radius: 14px; color: var(--gold-light, #e3c65c); background: var(--gold-glow, #d4af3714); }
 .chatEmptyState strong { color: var(--cream, #f8fafc); font-size: 13px; font-weight: 500; }
 .chatEmptyState p { max-width: 250px; margin: 0; color: var(--cream-dim, #aeb9ca); font-size: 11px; line-height: 1.5; }
-.chatMessage { position: relative; margin: 12px 12px 0; padding: 9px 10px 20px; border: 1px solid var(--border, #ffffff14); border-radius: 10px; color: var(--cream, #f8fafc); background: var(--surface-solid, #0f121d); overflow-wrap: anywhere; }.chatMessage strong { color: var(--gold-light, #fde68a); font-size: 11px; }.chatMessage p { margin: 5px 0 0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }.chatMessage time { position: absolute; right: 9px; bottom: 5px; color: var(--cream-dim, #94a3b8); font-size: 9px; }
+.chatMessage { display: flex; flex-direction: column; align-self: flex-start; width: fit-content; max-width: min(86%, 420px); margin: 12px auto 0 12px; padding: 8px 11px 9px; border: 1px solid var(--border, #ffffff14); border-radius: 14px 14px 14px 4px; color: var(--cream, #f8fafc); background: var(--surface-solid, #0f121d); overflow-wrap: anywhere; }.chatMessageOwn { align-self: flex-end; margin: 12px 12px 0 auto; border-color: color-mix(in srgb, var(--gold, #d4af37) 42%, var(--border, #ffffff14)); border-radius: 14px 14px 4px 14px; background: color-mix(in srgb, var(--gold, #d4af37) 14%, var(--surface-solid, #0f121d)); }.chatMessageMeta { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }.chatMessage strong { color: var(--gold-light, #fde68a); font-size: 10px; font-weight: 600; }.chatMessageOwn strong { color: var(--cream, #f8fafc); }.chatMessage p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }.chatMessage time { flex-shrink: 0; color: var(--cream-dim, #94a3b8); font-size: 9px; }
 .chatForm { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding: 10px; border-top: 1px solid var(--border, #ffffff18); background: var(--surface-solid, #0f121d); }.chatForm input { min-width: 0; flex: 1 1 auto; height: 40px; padding: 0 12px; border: 1px solid var(--border, #ffffff25); border-radius: 8px; color: var(--cream, #fff); background: var(--bg-deep, #070910); font: inherit; font-size: 12px; }.chatForm input::placeholder { color: var(--muted, #94a3b8); }.chatForm button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; color: var(--action-ink, #111827); background: var(--gold, #d4af37); cursor: pointer; line-height: 0; }.chatForm button svg { display: block; margin: 0; }
 .chatForm button:disabled { opacity: .65; cursor: not-allowed; }
 
 .ctrlBtn {
+  position: relative;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -437,6 +442,8 @@
   border-color: rgba(212, 175, 55, 0.45) !important;
   color: var(--gold, #d4af37) !important;
 }
+
+.notificationBadge { position: absolute; z-index: 3; top: -3px; right: -3px; display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; border: 2px solid var(--surface-solid, #0f121d); border-radius: 999px; color: #fff; background: #dc2626; font-size: 9px; font-weight: 700; line-height: 1; box-shadow: 0 1px 5px #0005; }
 
 .ctrlBtnOff {
   background: rgba(239, 68, 68, 0.18) !important;
@@ -564,8 +571,8 @@
 .fullscreen {
   display: flex;
   min-height: 0 !important;
-  max-height: 100dvh !important;
-  height: 100dvh !important;
+  max-height: var(--visio-viewport-height, 100dvh) !important;
+  height: var(--visio-viewport-height, 100dvh) !important;
   overflow: hidden;
   background: var(--surface-solid, #fffaf4);
 }
@@ -609,14 +616,17 @@
   .fullscreen .videoGrid { place-content: stretch; padding: 8px; }
   .fullscreen .grid1 { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   .fullscreen .videoTile { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; border-radius: 12px; }
-  .fullscreen .controlsBar { max-height: none; flex: 0 0 auto; flex-wrap: nowrap; justify-content: space-between; gap: 3px; overflow: hidden; padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)); }
-  .fullscreen .ctrlBtn { flex: 1 1 0; min-width: 0; width: auto; min-height: 42px; height: 42px; padding: 4px 2px; font-size: 9px; }
+  .fullscreen .controlsBar { max-height: none; flex: 0 0 auto; flex-wrap: nowrap; justify-content: space-between; gap: 3px; overflow: visible; padding: 9px 10px calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .fullscreen .ctrlBtn { flex: 1 1 0; min-width: 0; width: auto; min-height: 46px; height: 46px; padding: 4px 2px; font-size: 9px; }
   .fullscreen .ctrlBtn span { display: none; }
+  .fullscreen .ctrlBtn .notificationBadge, .fullscreen .btnAction .notificationBadge { display: grid; }
   .fullscreen .reactionPickerWrap { flex: 1 1 0; min-width: 0; }
   .fullscreen .reactionPickerWrap > .ctrlBtn { width: 100%; }
   .fullscreen .reactionPicker { gap: 4px; width: min(292px, calc(100vw - 24px)); padding: 7px; }
   .fullscreen .interactionDock { flex-basis: 0; width: 100%; height: 0; max-width: 100%; padding-inline: 8px; border-left: 0; }
   .fullscreen .interactionDockOpen { flex-basis: 56dvh; width: 100%; height: 56dvh; min-height: 42dvh; max-height: 60dvh; max-width: 100%; padding-inline: 0; border-left: 0; }
+  .fullscreen .stageAndDockOpen:has(.interactionDockOpen :is(input:focus, textarea:focus)) .stageWrapper { flex: 0 0 clamp(84px, 15dvh, 128px); min-height: 84px; }
+  .fullscreen .interactionDockOpen:has(:is(input:focus, textarea:focus)) { flex: 1 1 0; height: auto; min-height: 0; max-height: none; }
   .fullscreen .dockPanel { flex-basis: 100%; width: 100%; max-width: 100%; animation-name: dockPanelRise; }
 }
 
@@ -656,6 +666,316 @@
 }
 :global(html[data-theme="dark"]) .container button:disabled,
 :global(body[data-theme="dark"]) .container button:disabled { opacity: 1; color: #aeb9ca; background: #252f3d; border-color: #536174; }
+
+/* ==========================================================================
+   MODALES PERSONNALISÉES VISIO (Autorisation, Actualisation, Quitter l'appel)
+   ========================================================================== */
+.modalBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 8, 15, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 18px;
+  animation: modalFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modalCard {
+  position: relative;
+  width: 100%;
+  max-width: 490px;
+  background: var(--surface-solid, #131724);
+  border: 1px solid var(--ux-line, rgba(255, 255, 255, 0.12));
+  border-radius: 22px;
+  padding: 28px 24px 22px;
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: var(--cream, #f8fafc);
+  animation: modalScaleUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: center;
+  overflow: hidden;
+}
+
+.modalCloseBtn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--ux-muted, #94a3b8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modalCloseBtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  transform: scale(1.06);
+}
+
+.modalIconWrapper {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.modalIconPermission {
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.22) 0%, rgba(212, 175, 55, 0.05) 70%);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  color: var(--gold, #d4af37);
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.2);
+}
+
+.modalIconReload {
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.25) 0%, rgba(245, 158, 11, 0.05) 70%);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #f59e0b;
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.25);
+}
+
+.modalIconLeave {
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.05) 70%);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.25);
+}
+
+.modalHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.modalTitle {
+  font-family: var(--font-body), sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--cream, #f8fafc);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.modalDescription {
+  font-size: 13.5px;
+  color: var(--ux-muted, #94a3b8);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.modalHighlightBox {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.modalHighlightWarning {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+.modalHighlightDanger {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+.modalPointRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--cream, #f1f5f9);
+}
+
+.modalPointIcon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.modalActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.modalBtnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 1 180px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  background: linear-gradient(135deg, #d4af37 0%, #aa8214 100%);
+  color: #0d111b;
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+}
+
+.modalBtnPrimary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.45);
+  filter: brightness(1.08);
+}
+
+.modalBtnDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 1 180px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+}
+
+.modalBtnDanger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45);
+  filter: brightness(1.08);
+}
+
+.modalBtnSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 1 140px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid var(--ux-line, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cream, #e2e8f0);
+}
+
+.modalBtnSecondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .modalCard {
+    padding: 22px 16px 18px;
+    gap: 15px;
+    border-radius: 18px;
+  }
+  .modalActions {
+    flex-direction: column-reverse;
+  }
+  .modalBtnPrimary,
+  .modalBtnDanger,
+  .modalBtnSecondary {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+}
+
+/* Thème clair pour les modales */
+:global(html[data-theme="light"]) .modalCard,
+:global(body[data-theme="light"]) .modalCard {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  color: #0f172a;
+}
+:global(html[data-theme="light"]) .modalTitle,
+:global(body[data-theme="light"]) .modalTitle {
+  color: #0f172a;
+}
+:global(html[data-theme="light"]) .modalDescription,
+:global(body[data-theme="light"]) .modalDescription {
+  color: #64748b;
+}
+:global(html[data-theme="light"]) .modalHighlightBox,
+:global(body[data-theme="light"]) .modalHighlightBox {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+:global(html[data-theme="light"]) .modalPointRow,
+:global(body[data-theme="light"]) .modalPointRow {
+  color: #334155;
+}
+:global(html[data-theme="light"]) .modalBtnSecondary,
+:global(body[data-theme="light"]) .modalBtnSecondary {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+:global(html[data-theme="light"]) .modalBtnSecondary:hover,
+:global(body[data-theme="light"]) .modalBtnSecondary:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+:global(html[data-theme="light"]) .modalCloseBtn,
+:global(body[data-theme="light"]) .modalCloseBtn {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .container *, .container *::before { animation: none; transition: none; }

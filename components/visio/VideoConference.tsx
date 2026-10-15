@@ -4,10 +4,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { 
   Copy, Check, Share2, Maximize, Minimize, PhoneOff, 
   Mic, MicOff, Video, VideoOff, Monitor, BarChart2,
-  Users, AlertCircle, Wifi, MessageSquare, Send, Hand, ShieldCheck, UserX, Smile, Clock
+  Users, AlertCircle, Wifi, MessageSquare, Send, Hand, ShieldCheck, UserX, Smile, Clock,
+  RotateCcw, AlertTriangle, Lock, Camera, X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { getPublicVisioUrl, getWhatsAppShareUrl } from "@/lib/visio";
+import { getPublicVisioUrl, getWhatsAppShareUrl, matchesLobbyAdmission, wasLobbyAdmissionDelivered } from "@/lib/visio";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import { animateVisioPanelExit } from "./interaction-transition";
 import styles from "./VideoConference.module.css";
@@ -181,6 +182,10 @@ export default function VideoConference({
   const reactionTriggerRef = useRef<HTMLButtonElement>(null);
   const closingChatRef = useRef(false);
   const closingPollsRef = useRef(false);
+  const chatOpenRef = useRef(false);
+  const lastChatNotificationAtRef = useRef(0);
+  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
+  const callNoticeTimerRef = useRef<number | null>(null);
 
   // Unique client peer ID
   const [localPeerId] = useState(
@@ -217,6 +222,9 @@ export default function VideoConference({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [unreadPollCount, setUnreadPollCount] = useState(0);
+  const [callNotice, setCallNotice] = useState("");
   const [reactionsOpen, setReactionsOpen] = useState(false);
   const [reactionPickerBottom, setReactionPickerBottom] = useState(96);
   const [handRaised, setHandRaised] = useState(false);
@@ -227,6 +235,13 @@ export default function VideoConference({
   const [copied, setCopied] = useState(false);
   // The meeting opens in an immersive layout; this state tracks only native fullscreen.
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const allowPageExitRef = useRef(false);
+
+  // Modales personnalisées Visio
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [showReloadModal, setShowReloadModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const pendingNavigationUrlRef = useRef<string | null>(null);
 
   // Refs for WebRTC
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -248,6 +263,68 @@ export default function VideoConference({
   const reactionTimersRef = useRef<Set<number>>(new Set());
   useEffect(() => { onLeaveRef.current = onLeave; }, [onLeave]);
 
+  const showCallNotice = useCallback((message: string) => {
+    setCallNotice(message);
+    if (callNoticeTimerRef.current !== null) window.clearTimeout(callNoticeTimerRef.current);
+    callNoticeTimerRef.current = window.setTimeout(() => {
+      callNoticeTimerRef.current = null;
+      setCallNotice("");
+    }, 4200);
+  }, []);
+
+  useEffect(() => () => {
+    if (callNoticeTimerRef.current !== null) window.clearTimeout(callNoticeTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (allowPageExitRef.current) return;
+      event.preventDefault();
+      event.returnValue = "Attention : si vous actualisez la page, vous serez déconnecté(e) de l'appel.";
+      return event.returnValue;
+    };
+
+    const confirmLinkNavigation = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      const destination = new URL(anchor.href, window.location.href);
+      if (destination.origin === window.location.origin
+        && destination.pathname === window.location.pathname
+        && destination.search === window.location.search) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      pendingNavigationUrlRef.current = anchor.href;
+      setShowLeaveModal(true);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Interception des raccourcis d'actualisation de la page (F5, Ctrl+R, Cmd+R)
+      if (event.key === "F5" || ((event.ctrlKey || event.metaKey) && (event.key === "r" || event.key === "R"))) {
+        event.preventDefault();
+        setShowReloadModal(true);
+      }
+      // Fermeture des modales avec la touche Échap
+      if (event.key === "Escape") {
+        setShowPermissionModal(false);
+        setShowReloadModal(false);
+        setShowLeaveModal(false);
+      }
+    };
+
+    window.addEventListener("beforeunload", beforeUnload);
+    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("click", confirmLinkNavigation, true);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("click", confirmLinkNavigation, true);
+    };
+  }, []);
+
   useEffect(() => {
     if (meetingStartedAt === null) {
       setMeetingElapsedSeconds(0);
@@ -258,6 +335,69 @@ export default function VideoConference({
     const timer = window.setInterval(updateElapsedTime, 1000);
     return () => window.clearInterval(timer);
   }, [meetingStartedAt]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const viewport = window.visualViewport;
+    const syncViewportHeight = () => {
+      container.style.setProperty("--visio-viewport-height", `${Math.round(viewport?.height || window.innerHeight)}px`);
+    };
+    syncViewportHeight();
+    viewport?.addEventListener("resize", syncViewportHeight);
+    window.addEventListener("resize", syncViewportHeight);
+    return () => {
+      viewport?.removeEventListener("resize", syncViewportHeight);
+      window.removeEventListener("resize", syncViewportHeight);
+      container.style.removeProperty("--visio-viewport-height");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (meetingStartedAt === null || isWaitingRoom || joinRejected) return;
+    const controller = new AbortController();
+    let requestInFlight = false;
+    let hasInitialSnapshot = false;
+    let previousOpenPoll = "";
+
+    const refreshPollStatus = async () => {
+      if (requestInFlight || document.visibilityState !== "visible") return;
+      requestInFlight = true;
+      try {
+        const response = await fetch(`/api/visio/polls?room=${encodeURIComponent(roomName)}`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) return;
+        const snapshot: { polls?: { id?: string; status?: string; startedAt?: number; createdAt?: number; question?: string }[] } = await response.json();
+        const openPoll = snapshot.polls?.find(poll => poll.status === "open");
+        const signature = openPoll ? `${openPoll.id || ""}:${openPoll.startedAt || openPoll.createdAt || 0}` : "";
+        if (hasInitialSnapshot && signature && signature !== previousOpenPoll && !pollsOpen) {
+          setUnreadPollCount(count => Math.min(99, count + 1));
+          showCallNotice(`Nouveau sondage : ${(openPoll?.question || "une nouvelle question").slice(0, 110)}`);
+        }
+        previousOpenPoll = signature;
+        hasInitialSnapshot = true;
+      } catch {
+        // Une perte temporaire du service de sondage ne doit pas interrompre l'appel.
+      } finally {
+        requestInFlight = false;
+      }
+    };
+
+    const interval = window.setInterval(() => { void refreshPollStatus(); }, 4000);
+    const refreshWhenVisible = () => { void refreshPollStatus(); };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    void refreshPollStatus();
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [meetingStartedAt, roomName, isWaitingRoom, joinRejected, pollsOpen, showCallNotice]);
+
+  useEffect(() => {
+    if (chatOpen) chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [chatMessages, chatOpen]);
 
   const showReaction = useCallback((peerId: string, name: string, reaction: string) => {
     const option = quickReactions.find(item => item.emoji === reaction);
@@ -403,6 +543,7 @@ export default function VideoConference({
           setIsMicMuted(true);
           setPermissionError(mediaErrorMessage(totalErr || err));
           setMediaMode("blocked");
+          setShowPermissionModal(true);
         }
       }
     }
@@ -688,12 +829,33 @@ export default function VideoConference({
           console.warn("Impossible de publier la présence dans la réunion:", error);
         }
       };
+      let localAdmissionHandled = false;
+      const admitLocalParticipant = async (proposedStart?: unknown) => {
+        if (isHost || localAdmissionHandled) return;
+        localAdmissionHandled = true;
+        const candidateStart = Number(proposedStart);
+        const startedAt = Number.isFinite(candidateStart) && candidateStart > 0
+          ? candidateStart
+          : meetingStartedAtRef.current || Date.now();
+        setIsWaitingRoom(false);
+        setJoinRejected(false);
+        setMeetingStartedAt(startedAt);
+        meetingStartedAtRef.current = startedAt;
+        approvedPeerIdsRef.current.add(participantId);
+        setNetworkState("connecting");
+        await trackPresence(true, startedAt);
+        channel.send({
+          type: "broadcast",
+          event: "PEER_JOIN",
+          payload: { peerId: localPeerId, participantId, peerName: userName, isHost: false, isAdmitted: true, meetingStartedAt: startedAt },
+        });
+      };
       const announceAdmission = (admittedParticipantId: string) => {
         if (revokedParticipantsRef.current.has(admittedParticipantId) || rejectedParticipantsRef.current.has(admittedParticipantId)) return;
         approvedPeerIdsRef.current.add(admittedParticipantId);
         if (!announcedAdmissionsRef.current.has(admittedParticipantId)) {
           announcedAdmissionsRef.current.add(admittedParticipantId);
-          channel.send({ type: "broadcast", event: "ROOM_PEER_ADMITTED", payload: { participantId: admittedParticipantId } });
+          channel.send({ type: "broadcast", event: "ROOM_PEER_ADMITTED", payload: { participantId: admittedParticipantId, meetingStartedAt: meetingStartedAtRef.current } });
         }
       };
 
@@ -884,7 +1046,7 @@ export default function VideoConference({
           }
         })
         .on("broadcast", { event: "LOBBY_WAITING" }, async ({ payload }) => {
-          if (payload?.toPeerId === localPeerId) {
+          if (payload?.toPeerId === localPeerId && !approvedPeerIdsRef.current.has(participantId)) {
             setMeetingStartedAt(null);
             meetingStartedAtRef.current = null;
             await trackPresence(false, null);
@@ -893,17 +1055,8 @@ export default function VideoConference({
           }
         })
         .on("broadcast", { event: "LOBBY_APPROVED" }, async ({ payload }) => {
-          if (payload?.toPeerId !== localPeerId) return;
-          setIsWaitingRoom(false);
-          setJoinRejected(false);
-          setWaitingParticipants([]);
-          const startedAt = Number(payload.meetingStartedAt) || Date.now();
-          meetingStartedAtRef.current = startedAt;
-          setMeetingStartedAt(startedAt);
-          await trackPresence(true, startedAt);
-          approvedPeerIdsRef.current.add(participantId);
-          setNetworkState("connecting");
-          channel.send({ type: "broadcast", event: "PEER_JOIN", payload: { peerId: localPeerId, participantId, peerName: userName, isHost: false, isAdmitted: true } });
+          if (!matchesLobbyAdmission(payload, localPeerId, participantId)) return;
+          await admitLocalParticipant(payload.meetingStartedAt);
         })
         .on("broadcast", { event: "LOBBY_REJECTED" }, async ({ payload }) => {
           if (payload?.toPeerId !== localPeerId) return;
@@ -919,6 +1072,7 @@ export default function VideoConference({
             const admittedParticipantId = String(payload.participantId);
             approvedPeerIdsRef.current.add(admittedParticipantId);
             announcedAdmissionsRef.current.add(admittedParticipantId);
+            if (admittedParticipantId === participantId) void admitLocalParticipant(payload.meetingStartedAt);
           }
         })
         .on("broadcast", { event: "ROOM_PEER_REVOKED" }, ({ payload }) => {
@@ -940,10 +1094,19 @@ export default function VideoConference({
         })
         .on("broadcast", { event: "CHAT_MESSAGE" }, ({ payload }) => {
           if (!payload?.messageId || !payload?.text || !payload?.peerId) return;
+          if (payload.peerId === localPeerId) return;
           setChatMessages(previous => [...previous.slice(-99), {
             id: payload.messageId, peerId: payload.peerId, name: payload.name || "Participant",
             text: String(payload.text).slice(0, 500), createdAt: Number(payload.createdAt) || Date.now(),
           }]);
+          if (!chatOpenRef.current) {
+            setUnreadChatCount(count => Math.min(99, count + 1));
+            const now = Date.now();
+            if (now - lastChatNotificationAtRef.current > 4000) {
+              lastChatNotificationAtRef.current = now;
+              showCallNotice(`Nouveau message de ${String(payload.name || "un participant").slice(0, 48)}.`);
+            }
+          }
         })
         .on("broadcast", { event: "REACTION" }, ({ payload }) => {
           if (!payload?.reaction || !payload?.peerId) return;
@@ -1050,7 +1213,7 @@ export default function VideoConference({
         screenTrackRef.current.stop();
       }
     };
-  }, [roomName, localPeerId, participantId, userName, isHost, initLocalMedia, createPeerConnection, flushPendingIceCandidates, notify, showReaction]);
+  }, [roomName, localPeerId, participantId, userName, isHost, initLocalMedia, createPeerConnection, flushPendingIceCandidates, notify, showReaction, showCallNotice]);
 
   // Basculer le micro (Mute / Unmute)
   const toggleMic = () => {
@@ -1069,6 +1232,7 @@ export default function VideoConference({
         });
       }
     } else {
+      setShowPermissionModal(true);
       void retryPermissions();
     }
   };
@@ -1090,6 +1254,7 @@ export default function VideoConference({
         });
       }
     } else {
+      setShowPermissionModal(true);
       void retryPermissions();
     }
   };
@@ -1170,22 +1335,37 @@ export default function VideoConference({
   const respondToWaitingParticipant = async (person: WaitingParticipant, approved: boolean) => {
     const channel = channelRef.current;
     if (!channel) return;
-    setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId));
     if (!approved) {
       rejectedParticipantsRef.current.add(person.participantId);
-      await channel.send({ type: "broadcast", event: "LOBBY_REJECTED", payload: { toPeerId: person.peerId } });
+      const status = await channel.send({ type: "broadcast", event: "LOBBY_REJECTED", payload: { toPeerId: person.peerId, toParticipantId: person.participantId } });
+      if (status !== "ok") {
+        rejectedParticipantsRef.current.delete(person.participantId);
+        notify("Le refus n’a pas pu être transmis. Réessayez.");
+        return;
+      }
+      setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId));
       return;
     }
     rejectedParticipantsRef.current.delete(person.participantId);
     revokedParticipantsRef.current.delete(person.participantId);
     approvedPeerIdsRef.current.add(person.participantId);
     announcedAdmissionsRef.current.add(person.participantId);
-    await channel.send({ type: "broadcast", event: "ROOM_PEER_ADMITTED", payload: { participantId: person.participantId } });
-    await channel.send({
-      type: "broadcast",
-      event: "LOBBY_APPROVED",
-      payload: { toPeerId: person.peerId, participantId: person.participantId, meetingStartedAt: meetingStartedAtRef.current },
-    });
+    const admissionPayload = { participantId: person.participantId, meetingStartedAt: meetingStartedAtRef.current };
+    const [roomStatus, directStatus] = await Promise.all([
+      channel.send({ type: "broadcast", event: "ROOM_PEER_ADMITTED", payload: admissionPayload }),
+      channel.send({
+        type: "broadcast",
+        event: "LOBBY_APPROVED",
+        payload: { toPeerId: person.peerId, toParticipantId: person.participantId, ...admissionPayload },
+      }),
+    ]);
+    if (!wasLobbyAdmissionDelivered(roomStatus, directStatus)) {
+      approvedPeerIdsRef.current.delete(person.participantId);
+      announcedAdmissionsRef.current.delete(person.participantId);
+      notify("L’admission n’a pas pu être transmise. La personne reste en attente, réessayez.");
+      return;
+    }
+    setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId));
   };
 
   const sendChatMessage = (event: React.FormEvent) => {
@@ -1214,7 +1394,7 @@ export default function VideoConference({
     closingChatRef.current = true;
     try {
       const shouldClose = await animateVisioPanelExit(containerRef.current?.querySelector<HTMLElement>('[aria-label="Chat de la réunion"]'));
-      if (shouldClose) setChatOpen(false);
+      if (shouldClose) { chatOpenRef.current = false; setChatOpen(false); }
     } finally {
       closingChatRef.current = false;
     }
@@ -1237,8 +1417,10 @@ export default function VideoConference({
     if (chatOpen) {
       void closeChatPanel();
     } else if (pollsOpen) {
-      void closePollsPanel().then(() => setChatOpen(true));
+      void closePollsPanel().then(() => { chatOpenRef.current = true; setUnreadChatCount(0); setChatOpen(true); });
     } else {
+      chatOpenRef.current = true;
+      setUnreadChatCount(0);
       setChatOpen(true);
     }
   };
@@ -1249,15 +1431,16 @@ export default function VideoConference({
     if (pollsOpen) {
       void closePollsPanel();
     } else if (chatOpen) {
-      void closeChatPanel().then(() => onTogglePolls?.());
+      void closeChatPanel().then(() => { setUnreadPollCount(0); onTogglePolls?.(); });
     } else {
+      setUnreadPollCount(0);
       onTogglePolls?.();
     }
   };
 
   const leaveMeeting = () => {
-    if (document.fullscreenElement && document.exitFullscreen) void document.exitFullscreen().catch(() => {});
-    onLeave?.();
+    pendingNavigationUrlRef.current = null;
+    setShowLeaveModal(true);
   };
 
   const moderatePeer = (peerId: string, action: "mute" | "remove") => {
@@ -1306,6 +1489,7 @@ export default function VideoConference({
       ref={containerRef}
       className={`${styles.container} ${styles.fullscreen} ${chatOpen || pollsOpen ? styles.interactionsOpen : ""}`}
       data-visio-fullscreen-mode="true"
+      style={{ height: "var(--visio-viewport-height, 100dvh)", maxHeight: "var(--visio-viewport-height, 100dvh)" }}
     >
       <header className={styles.topBar}>
         <div className={styles.roomInfo}>
@@ -1347,15 +1531,18 @@ export default function VideoConference({
               type="button"
               className={`${styles.btnAction} ${styles.btnMobileDuplicate} ${pollsOpen ? styles.btnActive : ""}`}
               onClick={togglePolls}
-              title="Sondages et Quizz interactifs"
+              title={pollsOpen ? "Fermer les sondages" : "Ouvrir les sondages et quiz interactifs"}
+              aria-label={`${pollsOpen ? "Fermer" : "Ouvrir"} les sondages${unreadPollCount ? `, ${unreadPollCount} nouveau${unreadPollCount > 1 ? "x" : ""}` : ""}`}
             >
               <BarChart2 size={16} />
               <span>Sondages</span>
+              {unreadPollCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadPollCount > 9 ? "9+" : unreadPollCount}</span>}
             </button>
           )}
 
-          <button type="button" className={`${styles.btnAction} ${styles.btnMobileDuplicate} ${chatOpen ? styles.btnActive : ""}`} onClick={toggleChat} aria-pressed={chatOpen} title="Ouvrir le chat de la réunion">
+          <button type="button" className={`${styles.btnAction} ${styles.btnMobileDuplicate} ${chatOpen ? styles.btnActive : ""}`} onClick={toggleChat} aria-pressed={chatOpen} aria-label={`${chatOpen ? "Fermer" : "Ouvrir"} le chat${unreadChatCount ? `, ${unreadChatCount} nouveau${unreadChatCount > 1 ? "x" : ""} message${unreadChatCount > 1 ? "s" : ""}` : ""}`} title={chatOpen ? "Fermer le chat" : "Ouvrir le chat de la réunion"}>
             <MessageSquare size={16} /><span>Chat ({chatMessages.length})</span>
+            {unreadChatCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadChatCount > 9 ? "9+" : unreadChatCount}</span>}
           </button>
 
           {isHost && (
@@ -1378,7 +1565,7 @@ export default function VideoConference({
             <button
               type="button"
               className={`${styles.btnAction} ${styles.btnDanger}`}
-              onClick={onLeave}
+              onClick={leaveMeeting}
               title="Quitter la réunion"
             >
               <PhoneOff size={16} />
@@ -1399,6 +1586,7 @@ export default function VideoConference({
       </div>
       <div className={`${styles.stageAndDock} ${chatOpen || pollsOpen ? styles.stageAndDockOpen : ""}`}>
       <div className={styles.stageWrapper}>
+        {callNotice && <div className={styles.callNotice} role="status" aria-live="polite">{callNotice}</div>}
         {isLoading && (
           <div className={styles.noticeBanner}>
             <div className={styles.spinner} />
@@ -1419,10 +1607,10 @@ export default function VideoConference({
             <button
               type="button"
               className={styles.btnRetryPermission}
-              onClick={retryPermissions}
+              onClick={() => setShowPermissionModal(true)}
               disabled={isLoading}
             >
-              Réessayer
+              Gérer l'accès
             </button>
           </div>
         )}
@@ -1521,9 +1709,10 @@ export default function VideoConference({
               <span className={styles.chatEmptyIcon} aria-hidden="true"><MessageSquare size={20} /></span>
               <strong>Aucun message pour l’instant</strong>
               <p>Démarrez la conversation avec l’équipe.</p>
-            </div> : chatMessages.map(message => <article className={styles.chatMessage} key={message.id}>
-              <strong>{message.name}{message.peerId === localPeerId ? " · vous" : ""}</strong><p>{message.text}</p><time>{new Date(message.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</time>
+            </div> : chatMessages.map(message => <article className={`${styles.chatMessage} ${message.peerId === localPeerId ? styles.chatMessageOwn : ""}`} key={message.id}>
+              <div className={styles.chatMessageMeta}><strong>{message.peerId === localPeerId ? "Vous" : message.name}</strong><time>{new Date(message.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</time></div><p>{message.text}</p>
             </article>)}
+            <div ref={chatMessagesEndRef} aria-hidden="true" />
           </div>
           <form className={styles.chatForm} onSubmit={sendChatMessage}><input aria-label="Votre message" maxLength={500} value={chatDraft} onChange={event => setChatDraft(event.target.value)} placeholder="Écrire un message…" /><button type="submit" disabled={!chatDraft.trim()} aria-label="Envoyer"><Send size={16} /></button></form>
         </aside>}
@@ -1571,18 +1760,21 @@ export default function VideoConference({
             type="button"
             className={`${styles.ctrlBtn} ${pollsOpen ? styles.ctrlBtnActive : ""}`}
             onClick={togglePolls}
-            title="Sondages & Quizz"
+            aria-label={`${pollsOpen ? "Fermer" : "Ouvrir"} les sondages${unreadPollCount ? `, ${unreadPollCount} nouveau${unreadPollCount > 1 ? "x" : ""}` : ""}`}
+            title={pollsOpen ? "Fermer les sondages" : "Ouvrir les sondages & quiz"}
           >
             <BarChart2 size={18} />
             <span>Sondages</span>
+            {unreadPollCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadPollCount > 9 ? "9+" : unreadPollCount}</span>}
           </button>
         )}
 
         <button type="button" className={`${styles.ctrlBtn} ${handRaised ? styles.ctrlBtnActive : ""}`} onClick={toggleHand} aria-pressed={handRaised} title={handRaised ? "Baisser la main" : "Lever la main"}>
           <Hand size={18} /><span>{handRaised ? "Main levée" : "Lever la main"}</span>
         </button>
-        <button type="button" className={`${styles.ctrlBtn} ${chatOpen ? styles.ctrlBtnActive : ""}`} onClick={toggleChat} aria-pressed={chatOpen} title="Ouvrir le chat de la réunion">
+        <button type="button" className={`${styles.ctrlBtn} ${chatOpen ? styles.ctrlBtnActive : ""}`} onClick={toggleChat} aria-pressed={chatOpen} aria-label={`${chatOpen ? "Fermer" : "Ouvrir"} le chat${unreadChatCount ? `, ${unreadChatCount} nouveau${unreadChatCount > 1 ? "x" : ""} message${unreadChatCount > 1 ? "s" : ""}` : ""}`} title={chatOpen ? "Fermer le chat" : "Ouvrir le chat de la réunion"}>
           <MessageSquare size={18} /><span>Chat</span>
+          {unreadChatCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadChatCount > 9 ? "9+" : unreadChatCount}</span>}
         </button>
         <div className={styles.reactionPickerWrap} ref={reactionPickerRef}>
           <button
@@ -1617,7 +1809,7 @@ export default function VideoConference({
         {onLeave && (
           <button
             type="button"
-            className={`${styles.ctrlBtn} ${styles.ctrlBtnMobileDuplicate} ${styles.ctrlBtnLeave}`}
+            className={`${styles.ctrlBtn} ${styles.ctrlBtnLeave}`}
             onClick={leaveMeeting}
             title="Quitter la réunion"
           >
@@ -1626,6 +1818,246 @@ export default function VideoConference({
           </button>
         )}
       </footer>
+
+      {/* 1. Modale d'autorisation caméra et micro */}
+      {showPermissionModal && (
+        <div
+          className={styles.modalBackdrop}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="permission-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowPermissionModal(false);
+          }}
+        >
+          <div className={styles.modalCard}>
+            <button
+              type="button"
+              className={styles.modalCloseBtn}
+              onClick={() => setShowPermissionModal(false)}
+              aria-label="Fermer la boîte de dialogue"
+            >
+              <X size={16} />
+            </button>
+
+            <div className={`${styles.modalIconWrapper} ${styles.modalIconPermission}`}>
+              <Camera size={28} />
+            </div>
+
+            <div className={styles.modalHeader}>
+              <h3 id="permission-modal-title" className={styles.modalTitle}>
+                Autorisation du micro et de la caméra
+              </h3>
+              <p className={styles.modalDescription}>
+                Pour échanger avec les autres participants et être vu(e), votre navigateur a besoin de votre autorisation d'accès.
+              </p>
+            </div>
+
+            <div className={styles.modalHighlightBox}>
+              <div className={styles.modalPointRow}>
+                <Check size={16} className={styles.modalPointIcon} style={{ color: "#10b981" }} />
+                <span><strong>Échanges fraternels :</strong> Participez activement aux prières, partages et discussions.</span>
+              </div>
+              <div className={styles.modalPointRow}>
+                <ShieldCheck size={16} className={styles.modalPointIcon} style={{ color: "var(--gold, #d4af37)" }} />
+                <span><strong>Vie privée préservée :</strong> Les flux vidéo et audio sont chiffrés de bout en bout et jamais enregistrés.</span>
+              </div>
+              <div className={styles.modalPointRow}>
+                <Lock size={16} className={styles.modalPointIcon} style={{ color: "#38bdf8" }} />
+                <span><strong>Contrôle total :</strong> Vous pouvez couper votre micro ou votre caméra d’un simple clic à tout moment.</span>
+              </div>
+              {permissionError && (
+                <div className={styles.modalPointRow} style={{ color: "#fbbf24", borderTop: "1px dashed rgba(245, 158, 11, 0.3)", paddingTop: 8, marginTop: 4 }}>
+                  <AlertCircle size={16} className={styles.modalPointIcon} style={{ color: "#f59e0b" }} />
+                  <span><em>Astuce :</em> Si l'accès est bloqué, cliquez sur l'icône de cadenas ou de réglages à gauche de l'adresse web pour autoriser micro et caméra, puis cliquez ci-dessous.</span>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.modalBtnSecondary}
+                onClick={() => setShowPermissionModal(false)}
+              >
+                Continuer en écoute seule
+              </button>
+              <button
+                type="button"
+                className={styles.modalBtnPrimary}
+                disabled={isLoading}
+                onClick={async () => {
+                  await retryPermissions();
+                  if (!permissionError) setShowPermissionModal(false);
+                }}
+              >
+                <Camera size={16} />
+                <span>{isLoading ? "Activation..." : "Activer micro et caméra"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Modale d'actualisation de la page pendant l'appel */}
+      {showReloadModal && (
+        <div
+          className={styles.modalBackdrop}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="reload-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowReloadModal(false);
+          }}
+        >
+          <div className={styles.modalCard}>
+            <button
+              type="button"
+              className={styles.modalCloseBtn}
+              onClick={() => setShowReloadModal(false)}
+              aria-label="Fermer la boîte de dialogue"
+            >
+              <X size={16} />
+            </button>
+
+            <div className={`${styles.modalIconWrapper} ${styles.modalIconReload}`}>
+              <RotateCcw size={28} />
+            </div>
+
+            <div className={styles.modalHeader}>
+              <h3 id="reload-modal-title" className={styles.modalTitle}>
+                Actualiser la page ?
+              </h3>
+              <p className={styles.modalDescription}>
+                Attention : si vous actualisez la page, vous serez immédiatement déconnecté(e) de l'appel.
+              </p>
+            </div>
+
+            <div className={`${styles.modalHighlightBox} ${styles.modalHighlightWarning}`}>
+              <div className={styles.modalPointRow}>
+                <AlertTriangle size={18} className={styles.modalPointIcon} style={{ color: "#f59e0b" }} />
+                <div>
+                  <strong>Votre connexion à la réunion sera coupée.</strong>
+                  <p style={{ margin: "4px 0 0", fontSize: 12.5, opacity: 0.95, lineHeight: 1.4 }}>
+                    Votre transmission vidéo et audio s'arrêtera pour vous et tous les participants. Vous devrez rejoindre la salle à nouveau (et attendre l’admission par l'animateur si la salle est verrouillée).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.modalBtnSecondary}
+                style={{ color: "#ef4444", borderColor: "rgba(239, 68, 68, 0.35)" }}
+                onClick={() => {
+                  setShowReloadModal(false);
+                  allowPageExitRef.current = true;
+                  window.location.reload();
+                }}
+              >
+                <RotateCcw size={15} />
+                <span>Actualiser et quitter</span>
+              </button>
+              <button
+                type="button"
+                className={styles.modalBtnPrimary}
+                autoFocus
+                onClick={() => setShowReloadModal(false)}
+              >
+                <Check size={16} />
+                <span>Rester dans l'appel</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Modale pour sortir / quitter l'appel */}
+      {showLeaveModal && (
+        <div
+          className={styles.modalBackdrop}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="leave-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowLeaveModal(false);
+          }}
+        >
+          <div className={styles.modalCard}>
+            <button
+              type="button"
+              className={styles.modalCloseBtn}
+              onClick={() => {
+                pendingNavigationUrlRef.current = null;
+                setShowLeaveModal(false);
+              }}
+              aria-label="Fermer la boîte de dialogue"
+            >
+              <X size={16} />
+            </button>
+
+            <div className={`${styles.modalIconWrapper} ${styles.modalIconLeave}`}>
+              <PhoneOff size={28} />
+            </div>
+
+            <div className={styles.modalHeader}>
+              <h3 id="leave-modal-title" className={styles.modalTitle}>
+                Quitter la réunion ?
+              </h3>
+              <p className={styles.modalDescription}>
+                {isHost
+                  ? "Vous êtes l'animateur de cet appel. Si vous quittez, la salle continuera pour les autres participants."
+                  : "Êtes-vous sûr(e) de vouloir vous déconnecter de cette visioconférence ?"}
+              </p>
+            </div>
+
+            <div className={`${styles.modalHighlightBox} ${styles.modalHighlightDanger}`}>
+              <div className={styles.modalPointRow}>
+                <PhoneOff size={16} className={styles.modalPointIcon} style={{ color: "#ef4444" }} />
+                <span>
+                  Votre micro et votre caméra seront immédiatement éteints et vous sortirez de l'espace de réunion.
+                </span>
+              </div>
+            </div>
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.modalBtnSecondary}
+                onClick={() => {
+                  pendingNavigationUrlRef.current = null;
+                  setShowLeaveModal(false);
+                }}
+              >
+                Annuler et rester
+              </button>
+              <button
+                type="button"
+                className={styles.modalBtnDanger}
+                autoFocus
+                onClick={() => {
+                  setShowLeaveModal(false);
+                  allowPageExitRef.current = true;
+                  if (document.fullscreenElement && document.exitFullscreen) {
+                    void document.exitFullscreen().catch(() => {});
+                  }
+                  if (pendingNavigationUrlRef.current) {
+                    const url = pendingNavigationUrlRef.current;
+                    pendingNavigationUrlRef.current = null;
+                    window.location.href = url;
+                  } else {
+                    onLeave?.();
+                  }
+                }}
+              >
+                <PhoneOff size={16} />
+                <span>Quitter la réunion</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
