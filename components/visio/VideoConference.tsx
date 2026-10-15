@@ -139,9 +139,15 @@ function getGuestParticipantId(roomName: string) {
   try {
     const existingId = window.sessionStorage.getItem(storageKey);
     if (existingId) return existingId;
-    return `guest_${crypto.randomUUID()}`;
+    const newId = `guest_${crypto.randomUUID()}`;
+    window.sessionStorage.setItem(storageKey, newId);
+    return newId;
   } catch {
-    return `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+    const fallback = `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+    try {
+      window.sessionStorage.setItem(storageKey, fallback);
+    } catch {}
+    return fallback;
   }
 }
 
@@ -328,8 +334,12 @@ export default function VideoConference({
   const revokedParticipantsRef = useRef<Set<string>>(new Set());
   const rejectedParticipantsRef = useRef<Set<string>>(new Set());
   const isAdmittedRef = useRef(isHost);
+  const isWaitingRoomRef = useRef(false);
+  const notifiedLobbyPeersRef = useRef<Set<string>>(new Set());
+  const respondingLobbyPeersRef = useRef<Set<string>>(new Set());
   const reactionTimersRef = useRef<Set<number>>(new Set());
   useEffect(() => { onLeaveRef.current = onLeave; }, [onLeave]);
+  useEffect(() => { isWaitingRoomRef.current = isWaitingRoom; }, [isWaitingRoom]);
 
   const stopForUnavailablePrivateRoom = useCallback((message: string) => {
     if (privateRoomRevokedRef.current) return;
@@ -1041,11 +1051,13 @@ export default function VideoConference({
         const startedAt = Number.isFinite(candidateStart) && candidateStart > 0
           ? candidateStart
           : meetingStartedAtRef.current || Date.now();
+        isWaitingRoomRef.current = false;
         setIsWaitingRoom(false);
         setJoinRejected(false);
         setMeetingStartedAt(startedAt);
         meetingStartedAtRef.current = startedAt;
         approvedPeerIdsRef.current.add(participantId);
+        approvedPeerIdsRef.current.add(localPeerId);
         setNetworkState("connecting");
         await trackPresence(true, startedAt);
         channel.send({
@@ -1054,12 +1066,18 @@ export default function VideoConference({
           payload: { peerId: localPeerId, participantId, peerName: userName, isHost: false, isAdmitted: true, meetingStartedAt: startedAt },
         });
       };
-      const announceAdmission = (admittedParticipantId: string) => {
+      const announceAdmission = (admittedParticipantId: string, admittedPeerId?: string) => {
         if (revokedParticipantsRef.current.has(admittedParticipantId) || rejectedParticipantsRef.current.has(admittedParticipantId)) return;
         approvedPeerIdsRef.current.add(admittedParticipantId);
+        if (admittedPeerId) approvedPeerIdsRef.current.add(admittedPeerId);
         if (!announcedAdmissionsRef.current.has(admittedParticipantId)) {
           announcedAdmissionsRef.current.add(admittedParticipantId);
-          channel.send({ type: "broadcast", event: "ROOM_PEER_ADMITTED", payload: { participantId: admittedParticipantId, meetingStartedAt: meetingStartedAtRef.current } });
+          if (admittedPeerId) announcedAdmissionsRef.current.add(admittedPeerId);
+          channel.send({
+            type: "broadcast",
+            event: "ROOM_PEER_ADMITTED",
+            payload: { participantId: admittedParticipantId, peerId: admittedPeerId, meetingStartedAt: meetingStartedAtRef.current },
+          });
         }
       };
 
@@ -1081,12 +1099,16 @@ export default function VideoConference({
               }
               if (isHost && !presence.isHost) {
                 if (revokedParticipantsRef.current.has(presence.participantId) || rejectedParticipantsRef.current.has(presence.participantId)) continue;
-                if (presence.isAdmitted) announceAdmission(presence.participantId);
-                else if (roomLockedRef.current) waitingNow.push({
-                  peerId: presence.peerId,
-                  participantId: presence.participantId,
-                  name: presence.peerName || "Invité",
-                });
+                const isApproved = presence.isAdmitted || approvedPeerIdsRef.current.has(presence.participantId) || approvedPeerIdsRef.current.has(presence.peerId);
+                if (isApproved) {
+                  announceAdmission(presence.participantId, presence.peerId);
+                } else if (roomLockedRef.current) {
+                  waitingNow.push({
+                    peerId: presence.peerId,
+                    participantId: presence.participantId,
+                    name: presence.peerName || "Invité",
+                  });
+                }
               }
             }
           }
@@ -1100,12 +1122,34 @@ export default function VideoConference({
             }
           }
 
-          if (isHost && waitingNow.length) {
-            setWaitingParticipants(previous => dedupeWaitingList([...previous, ...waitingNow]));
-            waitingNow.forEach(person => channel.send({ type: "broadcast", event: "LOBBY_WAITING", payload: { toPeerId: person.peerId } }));
-          }
           if (isHost) {
-            setWaitingParticipants(previous => previous.filter(person => activePeerIds.has(person.peerId)));
+            setWaitingParticipants(previous => {
+              const combined = dedupeWaitingList([...previous, ...waitingNow]);
+              return combined.filter(person =>
+                activePeerIds.has(person.peerId) &&
+                !approvedPeerIdsRef.current.has(person.participantId) &&
+                !approvedPeerIdsRef.current.has(person.peerId) &&
+                !revokedParticipantsRef.current.has(person.participantId) &&
+                !rejectedParticipantsRef.current.has(person.participantId)
+              );
+            });
+
+            if (waitingNow.length) {
+              waitingNow.forEach(person => {
+                if (
+                  !approvedPeerIdsRef.current.has(person.participantId) &&
+                  !approvedPeerIdsRef.current.has(person.peerId) &&
+                  !notifiedLobbyPeersRef.current.has(person.peerId)
+                ) {
+                  notifiedLobbyPeersRef.current.add(person.peerId);
+                  channel.send({
+                    type: "broadcast",
+                    event: "LOBBY_WAITING",
+                    payload: { toPeerId: person.peerId, toParticipantId: person.participantId },
+                  });
+                }
+              });
+            }
           }
 
           const stalePeerIds: string[] = [];
@@ -1124,21 +1168,25 @@ export default function VideoConference({
           const { peerId, peerName } = payload;
           const peerParticipantId = String(payload.participantId || peerId);
           rejectedParticipantsRef.current.delete(peerParticipantId);
-          const isAlreadyAdmitted = Object.values(channel.presenceState<RoomPresence>()).flat().some(
-            presence => presence.peerId === peerId && presence.participantId === peerParticipantId && presence.isAdmitted
+          rejectedParticipantsRef.current.delete(peerId);
+          const isAlreadyAdmitted = approvedPeerIdsRef.current.has(peerParticipantId) || approvedPeerIdsRef.current.has(peerId) || Object.values(channel.presenceState<RoomPresence>()).flat().some(
+            presence => (presence.peerId === peerId || presence.participantId === peerParticipantId) && (presence.isAdmitted || approvedPeerIdsRef.current.has(presence.participantId))
           );
-          if (isHost && isAlreadyAdmitted) announceAdmission(peerParticipantId);
-          if (isHost && !roomLockedRef.current && !payload.isHost) announceAdmission(peerParticipantId);
+          if (isHost && isAlreadyAdmitted) announceAdmission(peerParticipantId, peerId);
+          if (isHost && !roomLockedRef.current && !payload.isHost) announceAdmission(peerParticipantId, peerId);
 
-          if (isHost && !payload.isHost && roomLockedRef.current && !approvedPeerIdsRef.current.has(peerParticipantId)) {
+          if (isHost && !payload.isHost && roomLockedRef.current && !approvedPeerIdsRef.current.has(peerParticipantId) && !approvedPeerIdsRef.current.has(peerId)) {
             setWaitingParticipants(previous => dedupeWaitingList([
               { peerId, participantId: peerParticipantId, name: peerName || "Invité" },
               ...previous
-            ]));
-            channel.send({ type: "broadcast", event: "LOBBY_WAITING", payload: { toPeerId: peerId } });
+            ]).filter(p => !approvedPeerIdsRef.current.has(p.participantId) && !approvedPeerIdsRef.current.has(p.peerId)));
+            if (!notifiedLobbyPeersRef.current.has(peerId)) {
+              notifiedLobbyPeersRef.current.add(peerId);
+              channel.send({ type: "broadcast", event: "LOBBY_WAITING", payload: { toPeerId: peerId, toParticipantId: peerParticipantId } });
+            }
             return;
           }
-          if (!isHost && roomLockedRef.current && !payload.isHost && !approvedPeerIdsRef.current.has(peerParticipantId)) return;
+          if (!isHost && roomLockedRef.current && !payload.isHost && !approvedPeerIdsRef.current.has(peerParticipantId) && !approvedPeerIdsRef.current.has(peerId)) return;
           if (peerConnectionsRef.current.get(peerId)?.pc.signalingState !== undefined
             && peerConnectionsRef.current.get(peerId)?.pc.signalingState !== "closed") return;
 
@@ -1272,12 +1320,19 @@ export default function VideoConference({
           }
         })
         .on("broadcast", { event: "LOBBY_WAITING" }, async ({ payload }) => {
-          if (payload?.toPeerId === localPeerId && !approvedPeerIdsRef.current.has(participantId)) {
-            setMeetingStartedAt(null);
-            meetingStartedAtRef.current = null;
-            await trackPresence(false, null);
-            setNetworkState("connecting");
-            setIsWaitingRoom(true);
+          if (
+            matchesLobbyAdmission(payload, localPeerId, participantId) &&
+            !approvedPeerIdsRef.current.has(participantId) &&
+            !approvedPeerIdsRef.current.has(localPeerId)
+          ) {
+            if (!isWaitingRoomRef.current) {
+              isWaitingRoomRef.current = true;
+              setMeetingStartedAt(null);
+              meetingStartedAtRef.current = null;
+              await trackPresence(false, null);
+              setNetworkState("connecting");
+              setIsWaitingRoom(true);
+            }
           }
         })
         .on("broadcast", { event: "LOBBY_APPROVED" }, async ({ payload }) => {
@@ -1285,7 +1340,7 @@ export default function VideoConference({
           await admitLocalParticipant(payload.meetingStartedAt);
         })
         .on("broadcast", { event: "LOBBY_REJECTED" }, async ({ payload }) => {
-          if (payload?.toPeerId !== localPeerId) return;
+          if (!matchesLobbyAdmission(payload, localPeerId, participantId)) return;
           setMeetingStartedAt(null);
           meetingStartedAtRef.current = null;
           await trackPresence(false, null);
@@ -1294,11 +1349,19 @@ export default function VideoConference({
           notify("Votre demande d'accès à la salle a été refusée.");
         })
         .on("broadcast", { event: "ROOM_PEER_ADMITTED" }, ({ payload }) => {
-          if (payload?.participantId) {
-            const admittedParticipantId = String(payload.participantId);
-            approvedPeerIdsRef.current.add(admittedParticipantId);
-            announcedAdmissionsRef.current.add(admittedParticipantId);
-            if (admittedParticipantId === participantId) void admitLocalParticipant(payload.meetingStartedAt);
+          if (payload?.participantId || payload?.peerId) {
+            const admittedParticipantId = String(payload.participantId || "");
+            const admittedPeerId = String(payload.peerId || "");
+            if (admittedParticipantId) approvedPeerIdsRef.current.add(admittedParticipantId);
+            if (admittedPeerId) approvedPeerIdsRef.current.add(admittedPeerId);
+            if (admittedParticipantId) announcedAdmissionsRef.current.add(admittedParticipantId);
+            if (admittedPeerId) announcedAdmissionsRef.current.add(admittedPeerId);
+            if (isHost) {
+              setWaitingParticipants(prev => prev.filter(p => p.participantId !== admittedParticipantId && p.peerId !== admittedPeerId));
+            }
+            if (admittedParticipantId === participantId || admittedPeerId === localPeerId) {
+              void admitLocalParticipant(payload.meetingStartedAt);
+            }
           }
         })
         .on("broadcast", { event: "ROOM_PEER_REVOKED" }, ({ payload }) => {
@@ -1364,7 +1427,8 @@ export default function VideoConference({
             peerConnectionsRef.current.delete(payload.peerId);
           }
           setRemotePeers((prev) => prev.filter((p) => p.id !== payload.peerId));
-          if (isHost) setWaitingParticipants(previous => previous.filter(person => person.peerId !== payload.peerId));
+          notifiedLobbyPeersRef.current.delete(payload.peerId);
+          if (isHost) setWaitingParticipants(previous => previous.filter(person => person.peerId !== payload.peerId && person.participantId !== payload.participantId));
         })
         .subscribe(async (status) => {
           if (status === "SUBSCRIBED") {
@@ -1630,37 +1694,62 @@ export default function VideoConference({
   const respondToWaitingParticipant = async (person: WaitingParticipant, approved: boolean) => {
     const channel = channelRef.current;
     if (!channel) return;
-    if (!approved) {
-      rejectedParticipantsRef.current.add(person.participantId);
-      const status = await channel.send({ type: "broadcast", event: "LOBBY_REJECTED", payload: { toPeerId: person.peerId, toParticipantId: person.participantId } });
-      if (status !== "ok") {
-        rejectedParticipantsRef.current.delete(person.participantId);
-        notify("Le refus n’a pas pu être transmis. Réessayez.");
+    if (respondingLobbyPeersRef.current.has(person.participantId) || respondingLobbyPeersRef.current.has(person.peerId)) {
+      return;
+    }
+    respondingLobbyPeersRef.current.add(person.participantId);
+    respondingLobbyPeersRef.current.add(person.peerId);
+
+    try {
+      if (!approved) {
+        rejectedParticipantsRef.current.add(person.participantId);
+        rejectedParticipantsRef.current.add(person.peerId);
+        notifiedLobbyPeersRef.current.delete(person.peerId);
+        const status = await channel.send({ type: "broadcast", event: "LOBBY_REJECTED", payload: { toPeerId: person.peerId, toParticipantId: person.participantId } });
+        if (status !== "ok") {
+          rejectedParticipantsRef.current.delete(person.participantId);
+          rejectedParticipantsRef.current.delete(person.peerId);
+          notify("Le refus n’a pas pu être transmis. Réessayez.");
+          return;
+        }
+        setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId && item.peerId !== person.peerId));
         return;
       }
+      rejectedParticipantsRef.current.delete(person.participantId);
+      rejectedParticipantsRef.current.delete(person.peerId);
+      revokedParticipantsRef.current.delete(person.participantId);
+      revokedParticipantsRef.current.delete(person.peerId);
+      approvedPeerIdsRef.current.add(person.participantId);
+      approvedPeerIdsRef.current.add(person.peerId);
+      announcedAdmissionsRef.current.add(person.participantId);
+      announcedAdmissionsRef.current.add(person.peerId);
+      notifiedLobbyPeersRef.current.delete(person.peerId);
+
+      // Immédiatement retirer de l'interface pour éviter tout doublon visuel
       setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId && item.peerId !== person.peerId));
-      return;
+
+      const admissionPayload = { participantId: person.participantId, peerId: person.peerId, meetingStartedAt: meetingStartedAtRef.current };
+      const [roomStatus, directStatus] = await Promise.all([
+        channel.send({ type: "broadcast", event: "ROOM_PEER_ADMITTED", payload: admissionPayload }),
+        channel.send({
+          type: "broadcast",
+          event: "LOBBY_APPROVED",
+          payload: { toPeerId: person.peerId, toParticipantId: person.participantId, ...admissionPayload },
+        }),
+      ]);
+      if (!wasLobbyAdmissionDelivered(roomStatus, directStatus)) {
+        approvedPeerIdsRef.current.delete(person.participantId);
+        approvedPeerIdsRef.current.delete(person.peerId);
+        announcedAdmissionsRef.current.delete(person.participantId);
+        announcedAdmissionsRef.current.delete(person.peerId);
+        notify("L’admission n’a pas pu être transmise. La personne reste en attente, réessayez.");
+        setWaitingParticipants(previous => dedupeWaitingList([...previous, person]));
+        return;
+      }
+    } finally {
+      respondingLobbyPeersRef.current.delete(person.participantId);
+      respondingLobbyPeersRef.current.delete(person.peerId);
     }
-    rejectedParticipantsRef.current.delete(person.participantId);
-    revokedParticipantsRef.current.delete(person.participantId);
-    approvedPeerIdsRef.current.add(person.participantId);
-    announcedAdmissionsRef.current.add(person.participantId);
-    const admissionPayload = { participantId: person.participantId, meetingStartedAt: meetingStartedAtRef.current };
-    const [roomStatus, directStatus] = await Promise.all([
-      channel.send({ type: "broadcast", event: "ROOM_PEER_ADMITTED", payload: admissionPayload }),
-      channel.send({
-        type: "broadcast",
-        event: "LOBBY_APPROVED",
-        payload: { toPeerId: person.peerId, toParticipantId: person.participantId, ...admissionPayload },
-      }),
-    ]);
-    if (!wasLobbyAdmissionDelivered(roomStatus, directStatus)) {
-      approvedPeerIdsRef.current.delete(person.participantId);
-      announcedAdmissionsRef.current.delete(person.participantId);
-      notify("L’admission n’a pas pu être transmise. La personne reste en attente, réessayez.");
-      return;
-    }
-    setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId && item.peerId !== person.peerId));
   };
 
   const sendChatMessage = (event: React.FormEvent) => {
@@ -2284,11 +2373,20 @@ export default function VideoConference({
           <div className={styles.lobbyPanel}>
             <strong>Invités en attente</strong>
             <small>Cette admission facilite la réunion, mais le lien reste accessible hors de ce contrôle d’interface.</small>
-            {waitingParticipants.map(person => <div className={styles.lobbyRow} key={person.peerId}>
-              <span>{person.name}</span>
-              <button type="button" onClick={() => void respondToWaitingParticipant(person, true)}>Admettre</button>
-              <button type="button" onClick={() => void respondToWaitingParticipant(person, false)}>Refuser</button>
-            </div>)}
+            {waitingParticipants.map(person => {
+              const isResponding = respondingLobbyPeersRef.current.has(person.participantId) || respondingLobbyPeersRef.current.has(person.peerId);
+              return (
+                <div className={styles.lobbyRow} key={person.peerId}>
+                  <span>{person.name}</span>
+                  <button type="button" disabled={isResponding} onClick={() => void respondToWaitingParticipant(person, true)}>
+                    {isResponding ? "Admission..." : "Admettre"}
+                  </button>
+                  <button type="button" disabled={isResponding} onClick={() => void respondToWaitingParticipant(person, false)}>
+                    Refuser
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
