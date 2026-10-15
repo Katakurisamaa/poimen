@@ -25,6 +25,7 @@ const STUN_SERVERS: RTCIceServer[] = [
 
 interface RemotePeer {
   id: string;
+  participantId: string;
   name: string;
   stream: MediaStream;
   isMuted?: boolean;
@@ -35,7 +36,16 @@ interface RemotePeer {
 }
 
 interface ChatMessage { id: string; peerId: string; name: string; text: string; createdAt: number; }
-interface WaitingParticipant { peerId: string; name: string; }
+interface WaitingParticipant { peerId: string; participantId: string; name: string; }
+interface RoomPresence {
+  peerId: string;
+  participantId: string;
+  peerName: string;
+  isHost: boolean;
+  isAdmitted: boolean;
+  connectedAt: number;
+  meetingStartedAt: number | null;
+}
 interface FloatingReaction { id: string; peerId: string; name: string; reaction: string; left: number; duration: number; }
 const quickReactions: ReadonlyArray<{ emoji: string; label: string }> = [
   { emoji: "👍", label: "J’aime" },
@@ -94,6 +104,7 @@ interface VideoConferenceProps {
   title: string;
   userName?: string;
   userEmail?: string;
+  participantId?: string;
   guestName?: string;
   onLeave?: () => void;
   onTogglePolls?: () => void;
@@ -101,6 +112,18 @@ interface VideoConferenceProps {
   pollsOpen?: boolean;
   isHost?: boolean;
   mediaDevices?: VisioDeviceSelection;
+}
+
+function getGuestParticipantId(roomName: string) {
+  if (typeof window === "undefined") return `guest_${roomName}`;
+  const storageKey = `poimen-visio-participant:${roomName}`;
+  try {
+    const existingId = window.sessionStorage.getItem(storageKey);
+    if (existingId) return existingId;
+    return `guest_${crypto.randomUUID()}`;
+  } catch {
+    return `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+  }
 }
 
 async function getIceServers(): Promise<{ servers: RTCIceServer[]; hasTurn: boolean }> {
@@ -144,6 +167,7 @@ export default function VideoConference({
   title,
   userName = "Participant",
   guestName,
+  participantId: participantIdProp,
   onLeave,
   onTogglePolls,
   onClosePolls,
@@ -162,6 +186,16 @@ export default function VideoConference({
   const [localPeerId] = useState(
     () => `peer_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`
   );
+  const [fallbackParticipantId] = useState(() => getGuestParticipantId(roomName));
+  const participantId = participantIdProp || fallbackParticipantId;
+
+  useEffect(() => {
+    if (participantIdProp) return;
+    try {
+      const storageKey = `poimen-visio-participant:${roomName}`;
+      if (!window.sessionStorage.getItem(storageKey)) window.sessionStorage.setItem(storageKey, fallbackParticipantId);
+    } catch {}
+  }, [participantIdProp, roomName, fallbackParticipantId]);
 
   // Media states
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -197,15 +231,20 @@ export default function VideoConference({
   // Refs for WebRTC
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const peerConnectionsRef = useRef<Map<string, { pc: RTCPeerConnection; name: string }>>(new Map());
+  const peerConnectionsRef = useRef<Map<string, { pc: RTCPeerConnection; name: string; participantId: string }>>(new Map());
   const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const mediaRequestRef = useRef(0);
   const channelRef = useRef<any>(null);
   const iceServersRef = useRef<RTCIceServer[]>(STUN_SERVERS);
   const roomLockedRef = useRef(roomLocked);
+  const meetingStartedAtRef = useRef<number | null>(null);
   const onLeaveRef = useRef(onLeave);
   const approvedPeerIdsRef = useRef<Set<string>>(new Set());
+  const announcedAdmissionsRef = useRef<Set<string>>(new Set());
+  const revokedParticipantsRef = useRef<Set<string>>(new Set());
+  const rejectedParticipantsRef = useRef<Set<string>>(new Set());
+  const isAdmittedRef = useRef(isHost);
   const reactionTimersRef = useRef<Set<number>>(new Set());
   useEffect(() => { onLeaveRef.current = onLeave; }, [onLeave]);
 
@@ -442,7 +481,7 @@ export default function VideoConference({
       if (channelRef.current) {
         channelRef.current.send({
           type: "broadcast", event: "PEER_JOIN",
-          payload: { peerId: localPeerId, peerName: userName, isHost },
+          payload: { peerId: localPeerId, participantId, peerName: userName, isHost, isAdmitted: isAdmittedRef.current },
         });
         channelRef.current.send({
           type: "broadcast",
@@ -467,12 +506,16 @@ export default function VideoConference({
   };
 
   // 2. Créer une connexion RTCPeerConnection avec un pair
-  const createPeerConnection = useCallback((peerId: string, peerName: string, streamToShare: MediaStream) => {
-    // Si une connexion existe déjà, la fermer
-    if (peerConnectionsRef.current.has(peerId)) {
-      peerConnectionsRef.current.get(peerId)?.pc.close();
-      peerConnectionsRef.current.delete(peerId);
-    }
+  const createPeerConnection = useCallback((peerId: string, peerName: string, streamToShare: MediaStream, peerParticipantId = peerId) => {
+    // Un participant ne garde qu'une seule connexion, même s'il revient avec un nouvel ID WebRTC.
+    peerConnectionsRef.current.forEach((entry, existingPeerId) => {
+      if (existingPeerId === peerId || entry.participantId === peerParticipantId) {
+        entry.pc.close();
+        peerConnectionsRef.current.delete(existingPeerId);
+        pendingIceCandidatesRef.current.delete(existingPeerId);
+      }
+    });
+    setRemotePeers(previous => previous.filter(peer => peer.participantId !== peerParticipantId));
 
     const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
 
@@ -510,11 +553,11 @@ export default function VideoConference({
     pc.ontrack = (event) => {
       const incomingStream = event.streams[0] ?? new MediaStream([event.track]);
       setRemotePeers((prev) => {
-        const existing = prev.find((p) => p.id === peerId);
+        const existing = prev.find((p) => p.participantId === peerParticipantId);
         if (existing) {
-          return prev.map((p) => (p.id === peerId ? { ...p, stream: incomingStream, name: peerName } : p));
+          return prev.map((p) => (p.participantId === peerParticipantId ? { ...p, id: peerId, stream: incomingStream, name: peerName } : p));
         }
-        return [...prev, { id: peerId, name: peerName, stream: incomingStream }];
+        return [...prev, { id: peerId, participantId: peerParticipantId, name: peerName, stream: incomingStream }];
       });
     };
 
@@ -530,7 +573,7 @@ export default function VideoConference({
         const offer = await pc.createOffer({ iceRestart: true });
         await pc.setLocalDescription(offer);
         channelRef.current.send({ type: "broadcast", event: "WEBRTC_OFFER", payload: {
-          toPeerId: peerId, fromPeerId: localPeerId, fromPeerName: userName, sdp: offer,
+          toPeerId: peerId, fromPeerId: localPeerId, fromParticipantId: participantId, fromPeerName: userName, sdp: offer,
         } });
       } catch (error) { console.warn("La reconnexion automatique WebRTC a échoué:", error); }
     };
@@ -585,9 +628,9 @@ export default function VideoConference({
       if (pc.signalingState === "closed") { clearInterval(statsTimer); clearTimeout(disconnectTimer); }
     });
 
-    peerConnectionsRef.current.set(peerId, { pc, name: peerName });
+    peerConnectionsRef.current.set(peerId, { pc, name: peerName, participantId: peerParticipantId });
     return pc;
-  }, [localPeerId, userName]);
+  }, [localPeerId, participantId, userName]);
 
   // 3. Cycle de vie WebRTC et Signaling Supabase
   useEffect(() => {
@@ -600,9 +643,15 @@ export default function VideoConference({
       await Promise.resolve();
       if (!isSubscribed) return;
       setMeetingStartedAt(null);
+      meetingStartedAtRef.current = null;
       setMeetingElapsedSeconds(0);
       roomLockedRef.current = true;
       setRoomLocked(true);
+      approvedPeerIdsRef.current.clear();
+      announcedAdmissionsRef.current.clear();
+      revokedParticipantsRef.current.clear();
+      rejectedParticipantsRef.current.clear();
+      isAdmittedRef.current = isHost;
       setWaitingParticipants([]);
       setChatMessages([]);
       const iceConfig = await getIceServers();
@@ -618,27 +667,121 @@ export default function VideoConference({
 
       const channelName = `poimen-webrtc-${roomName}`;
       const channel = supabase.channel(channelName, {
-        config: { broadcast: { self: false } },
+        config: { broadcast: { self: false }, presence: { key: localPeerId } },
       });
+      const connectedAt = Date.now();
+      let resolvePresenceReady: () => void = () => {};
+      const presenceReady = new Promise<void>(resolve => { resolvePresenceReady = resolve; });
+      const trackPresence = async (isAdmitted: boolean, startedAt = meetingStartedAtRef.current) => {
+        isAdmittedRef.current = isAdmitted;
+        try {
+          await channel.track({
+          peerId: localPeerId,
+          participantId,
+          peerName: userName,
+          isHost,
+          isAdmitted,
+          connectedAt,
+          meetingStartedAt: startedAt,
+          } satisfies RoomPresence);
+        } catch (error) {
+          console.warn("Impossible de publier la présence dans la réunion:", error);
+        }
+      };
+      const announceAdmission = (admittedParticipantId: string) => {
+        if (revokedParticipantsRef.current.has(admittedParticipantId) || rejectedParticipantsRef.current.has(admittedParticipantId)) return;
+        approvedPeerIdsRef.current.add(admittedParticipantId);
+        if (!announcedAdmissionsRef.current.has(admittedParticipantId)) {
+          announcedAdmissionsRef.current.add(admittedParticipantId);
+          channel.send({ type: "broadcast", event: "ROOM_PEER_ADMITTED", payload: { participantId: admittedParticipantId } });
+        }
+      };
 
       // Annonce de présence et négociation
       channel
+        .on("presence", { event: "sync" }, () => {
+          resolvePresenceReady();
+          const state = channel.presenceState<RoomPresence>();
+          const activePeerIds = new Set<string>();
+          const startTimes: number[] = [];
+          const waitingNow: WaitingParticipant[] = [];
+
+          for (const presences of Object.values(state)) {
+            for (const presence of presences) {
+              if (!presence.peerId || !presence.participantId) continue;
+              activePeerIds.add(presence.peerId);
+              if ((presence.isHost || presence.isAdmitted) && Number.isFinite(presence.meetingStartedAt) && presence.meetingStartedAt) {
+                startTimes.push(presence.meetingStartedAt);
+              }
+              if (isHost && !presence.isHost) {
+                if (revokedParticipantsRef.current.has(presence.participantId) || rejectedParticipantsRef.current.has(presence.participantId)) continue;
+                if (presence.isAdmitted) announceAdmission(presence.participantId);
+                else if (roomLockedRef.current) waitingNow.push({
+                  peerId: presence.peerId,
+                  participantId: presence.participantId,
+                  name: presence.peerName || "Invité",
+                });
+              }
+            }
+          }
+
+          if (startTimes.length) {
+            const recoveredStart = Math.min(...startTimes);
+            if (meetingStartedAtRef.current === null || recoveredStart < meetingStartedAtRef.current) {
+              meetingStartedAtRef.current = recoveredStart;
+              setMeetingStartedAt(recoveredStart);
+              if (isHost) channel.send({ type: "broadcast", event: "ROOM_LOCK", payload: { locked: roomLockedRef.current, meetingStartedAt: recoveredStart } });
+            }
+          }
+
+          if (isHost && waitingNow.length) {
+            setWaitingParticipants(previous => {
+              const byParticipant = new Map(previous.map(person => [person.participantId, person]));
+              waitingNow.forEach(person => byParticipant.set(person.participantId, person));
+              return Array.from(byParticipant.values());
+            });
+            waitingNow.forEach(person => channel.send({ type: "broadcast", event: "LOBBY_WAITING", payload: { toPeerId: person.peerId } }));
+          }
+          if (isHost) {
+            setWaitingParticipants(previous => previous.filter(person => activePeerIds.has(person.peerId)));
+          }
+
+          const stalePeerIds: string[] = [];
+          peerConnectionsRef.current.forEach(({ pc }, peerId) => {
+            if (!activePeerIds.has(peerId)) {
+              pc.close();
+              peerConnectionsRef.current.delete(peerId);
+              pendingIceCandidatesRef.current.delete(peerId);
+              stalePeerIds.push(peerId);
+            }
+          });
+          if (stalePeerIds.length) setRemotePeers(previous => previous.filter(peer => !stalePeerIds.includes(peer.id)));
+        })
         .on("broadcast", { event: "PEER_JOIN" }, async ({ payload }) => {
           if (!payload?.peerId || payload.peerId === localPeerId) return;
           const { peerId, peerName } = payload;
+          const peerParticipantId = String(payload.participantId || peerId);
+          rejectedParticipantsRef.current.delete(peerParticipantId);
+          const isAlreadyAdmitted = Object.values(channel.presenceState<RoomPresence>()).flat().some(
+            presence => presence.peerId === peerId && presence.participantId === peerParticipantId && presence.isAdmitted
+          );
+          if (isHost && isAlreadyAdmitted) announceAdmission(peerParticipantId);
+          if (isHost && !roomLockedRef.current && !payload.isHost) announceAdmission(peerParticipantId);
 
-          if (isHost && !payload.isHost && roomLockedRef.current && !approvedPeerIdsRef.current.has(peerId)) {
-            setWaitingParticipants(previous => previous.some(person => person.peerId === peerId)
-              ? previous : [...previous, { peerId, name: peerName || "Invité" }]);
+          if (isHost && !payload.isHost && roomLockedRef.current && !approvedPeerIdsRef.current.has(peerParticipantId)) {
+            setWaitingParticipants(previous => {
+              const next = previous.filter(person => person.participantId !== peerParticipantId);
+              return [...next, { peerId, participantId: peerParticipantId, name: peerName || "Invité" }];
+            });
             channel.send({ type: "broadcast", event: "LOBBY_WAITING", payload: { toPeerId: peerId } });
             return;
           }
-          if (!isHost && roomLockedRef.current) return;
+          if (!isHost && roomLockedRef.current && !payload.isHost && !approvedPeerIdsRef.current.has(peerParticipantId)) return;
           if (peerConnectionsRef.current.get(peerId)?.pc.signalingState !== undefined
             && peerConnectionsRef.current.get(peerId)?.pc.signalingState !== "closed") return;
 
           // L'ancien pair prend l'initiative d'envoyer l'offre SDP
-          const pc = createPeerConnection(peerId, peerName, localStreamRef.current!);
+          const pc = createPeerConnection(peerId, peerName, localStreamRef.current!, peerParticipantId);
           try {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
@@ -649,6 +792,7 @@ export default function VideoConference({
               payload: {
                 toPeerId: peerId,
                 fromPeerId: localPeerId,
+                fromParticipantId: participantId,
                 fromPeerName: userName,
                 sdp: offer,
               },
@@ -662,7 +806,7 @@ export default function VideoConference({
           const { fromPeerId, fromPeerName, sdp } = payload;
 
           const currentPeer = peerConnectionsRef.current.get(fromPeerId);
-          const pc = currentPeer?.pc || createPeerConnection(fromPeerId, fromPeerName, localStreamRef.current!);
+          const pc = currentPeer?.pc || createPeerConnection(fromPeerId, fromPeerName, localStreamRef.current!, String(payload.fromParticipantId || fromPeerId));
           try {
             await pc.setRemoteDescription(new RTCSessionDescription(sdp));
             flushPendingIceCandidates(fromPeerId, pc);
@@ -725,35 +869,74 @@ export default function VideoConference({
             )
           );
         })
-        .on("broadcast", { event: "ROOM_LOCK" }, ({ payload }) => {
+        .on("broadcast", { event: "ROOM_LOCK" }, async ({ payload }) => {
           const locked = Boolean(payload?.locked);
           setRoomLocked(locked);
           roomLockedRef.current = locked;
-          if (!isHost) {
-            channel.send({ type: "broadcast", event: "PEER_JOIN", payload: { peerId: localPeerId, peerName: userName, isHost: false } });
+          if (Number.isFinite(payload?.meetingStartedAt) && payload.meetingStartedAt) {
+            meetingStartedAtRef.current = payload.meetingStartedAt;
+            setMeetingStartedAt(payload.meetingStartedAt);
+          }
+          if (!isHost && !locked) {
+            approvedPeerIdsRef.current.add(participantId);
+            await trackPresence(true, meetingStartedAtRef.current);
+            channel.send({ type: "broadcast", event: "PEER_JOIN", payload: { peerId: localPeerId, participantId, peerName: userName, isHost: false, isAdmitted: true } });
           }
         })
-        .on("broadcast", { event: "LOBBY_WAITING" }, ({ payload }) => {
+        .on("broadcast", { event: "LOBBY_WAITING" }, async ({ payload }) => {
           if (payload?.toPeerId === localPeerId) {
             setMeetingStartedAt(null);
+            meetingStartedAtRef.current = null;
+            await trackPresence(false, null);
             setNetworkState("connecting");
             setIsWaitingRoom(true);
           }
         })
-        .on("broadcast", { event: "LOBBY_APPROVED" }, ({ payload }) => {
+        .on("broadcast", { event: "LOBBY_APPROVED" }, async ({ payload }) => {
           if (payload?.toPeerId !== localPeerId) return;
           setIsWaitingRoom(false);
           setJoinRejected(false);
           setWaitingParticipants([]);
-          setMeetingStartedAt(Date.now());
+          const startedAt = Number(payload.meetingStartedAt) || Date.now();
+          meetingStartedAtRef.current = startedAt;
+          setMeetingStartedAt(startedAt);
+          await trackPresence(true, startedAt);
+          approvedPeerIdsRef.current.add(participantId);
           setNetworkState("connecting");
+          channel.send({ type: "broadcast", event: "PEER_JOIN", payload: { peerId: localPeerId, participantId, peerName: userName, isHost: false, isAdmitted: true } });
         })
-        .on("broadcast", { event: "LOBBY_REJECTED" }, ({ payload }) => {
+        .on("broadcast", { event: "LOBBY_REJECTED" }, async ({ payload }) => {
           if (payload?.toPeerId !== localPeerId) return;
           setMeetingStartedAt(null);
+          meetingStartedAtRef.current = null;
+          await trackPresence(false, null);
           setIsWaitingRoom(false);
           setJoinRejected(true);
           notify("Votre demande d'accès à la salle a été refusée.");
+        })
+        .on("broadcast", { event: "ROOM_PEER_ADMITTED" }, ({ payload }) => {
+          if (payload?.participantId) {
+            const admittedParticipantId = String(payload.participantId);
+            approvedPeerIdsRef.current.add(admittedParticipantId);
+            announcedAdmissionsRef.current.add(admittedParticipantId);
+          }
+        })
+        .on("broadcast", { event: "ROOM_PEER_REVOKED" }, ({ payload }) => {
+          const revokedParticipantId = String(payload?.participantId || "");
+          if (!revokedParticipantId) return;
+          revokedParticipantsRef.current.add(revokedParticipantId);
+          approvedPeerIdsRef.current.delete(revokedParticipantId);
+          announcedAdmissionsRef.current.delete(revokedParticipantId);
+          const revokedPeerIds: string[] = [];
+          peerConnectionsRef.current.forEach(({ pc, participantId: peerParticipantId }, peerId) => {
+            if (peerParticipantId === revokedParticipantId) {
+              pc.close();
+              peerConnectionsRef.current.delete(peerId);
+              pendingIceCandidatesRef.current.delete(peerId);
+              revokedPeerIds.push(peerId);
+            }
+          });
+          if (revokedPeerIds.length) setRemotePeers(previous => previous.filter(peer => !revokedPeerIds.includes(peer.id)));
         })
         .on("broadcast", { event: "CHAT_MESSAGE" }, ({ payload }) => {
           if (!payload?.messageId || !payload?.text || !payload?.peerId) return;
@@ -788,18 +971,38 @@ export default function VideoConference({
             peerObj.pc.close();
             peerConnectionsRef.current.delete(payload.peerId);
           }
-          approvedPeerIdsRef.current.delete(payload.peerId);
           setRemotePeers((prev) => prev.filter((p) => p.id !== payload.peerId));
+          if (isHost) setWaitingParticipants(previous => previous.filter(person => person.peerId !== payload.peerId));
         })
-        .subscribe((status) => {
+        .subscribe(async (status) => {
           if (status === "SUBSCRIBED") {
-            setMeetingStartedAt(current => current ?? Date.now());
-            if (isHost) channel.send({ type: "broadcast", event: "ROOM_LOCK", payload: { locked: roomLockedRef.current } });
+            if (isHost) {
+              await Promise.race([presenceReady, new Promise<void>(resolve => window.setTimeout(resolve, 350))]);
+              if (!isSubscribed) return;
+            }
+            const existingPresence = Object.values(channel.presenceState<RoomPresence>()).flat();
+            const previousStart = existingPresence
+              .filter(presence => presence.isHost || presence.isAdmitted)
+              .map(presence => presence.meetingStartedAt)
+              .filter((value): value is number => Number.isFinite(value) && Boolean(value));
+            const startedAt = previousStart.length ? Math.min(...previousStart) : isHost ? Date.now() : null;
+            meetingStartedAtRef.current = startedAt;
+            setMeetingStartedAt(startedAt);
+            try {
+              await channel.track({
+              peerId: localPeerId, participantId, peerName: userName, isHost,
+              isAdmitted: isHost, connectedAt, meetingStartedAt: startedAt,
+              } satisfies RoomPresence);
+            } catch (error) {
+              console.warn("Impossible de publier la présence dans la réunion:", error);
+            }
+            if (!isSubscribed) return;
+            if (isHost) channel.send({ type: "broadcast", event: "ROOM_LOCK", payload: { locked: roomLockedRef.current, meetingStartedAt: startedAt } });
             // Annoncer notre arrivée dans la salle
             channel.send({
               type: "broadcast",
               event: "PEER_JOIN",
-              payload: { peerId: localPeerId, peerName: userName, isHost },
+              payload: { peerId: localPeerId, participantId, peerName: userName, isHost, isAdmitted: isHost, meetingStartedAt: startedAt },
             });
           }
         });
@@ -814,12 +1017,24 @@ export default function VideoConference({
       mediaRequestRef.current += 1;
       // Nettoyage complet
       if (channelRef.current) {
-        channelRef.current.send({
-          type: "broadcast",
-          event: "PEER_LEAVE",
-          payload: { peerId: localPeerId },
-        });
-        channelRef.current.unsubscribe();
+        const leavingChannel = channelRef.current;
+        channelRef.current = null;
+        void (async () => {
+          try {
+            await Promise.race([
+              leavingChannel.send({
+                type: "broadcast",
+                event: "PEER_LEAVE",
+                payload: { peerId: localPeerId, participantId },
+              }),
+              new Promise<void>(resolve => window.setTimeout(resolve, 500)),
+            ]);
+          } catch {
+            // La présence Supabase sera aussi supprimée à la fermeture du canal.
+          } finally {
+            await leavingChannel.unsubscribe();
+          }
+        })();
       }
 
       peerConnections.forEach(({ pc }) => pc.close());
@@ -835,7 +1050,7 @@ export default function VideoConference({
         screenTrackRef.current.stop();
       }
     };
-  }, [roomName, localPeerId, userName, isHost, initLocalMedia, createPeerConnection, flushPendingIceCandidates, notify, showReaction]);
+  }, [roomName, localPeerId, participantId, userName, isHost, initLocalMedia, createPeerConnection, flushPendingIceCandidates, notify, showReaction]);
 
   // Basculer le micro (Mute / Unmute)
   const toggleMic = () => {
@@ -947,23 +1162,30 @@ export default function VideoConference({
     const nextLocked = !roomLocked;
     setRoomLocked(nextLocked);
     roomLockedRef.current = nextLocked;
-    channelRef.current?.send({ type: "broadcast", event: "ROOM_LOCK", payload: { locked: nextLocked } });
+    if (!nextLocked) setWaitingParticipants([]);
+    channelRef.current?.send({ type: "broadcast", event: "ROOM_LOCK", payload: { locked: nextLocked, meetingStartedAt: meetingStartedAtRef.current } });
     notify(nextLocked ? "La salle d'attente est activée pour les invités." : "La salle est ouverte aux invités.");
   };
 
   const respondToWaitingParticipant = async (person: WaitingParticipant, approved: boolean) => {
-    channelRef.current?.send({ type: "broadcast", event: approved ? "LOBBY_APPROVED" : "LOBBY_REJECTED", payload: { toPeerId: person.peerId } });
-    setWaitingParticipants(previous => previous.filter(item => item.peerId !== person.peerId));
-    if (!approved || !localStreamRef.current || !channelRef.current) return;
-    approvedPeerIdsRef.current.add(person.peerId);
-    const pc = createPeerConnection(person.peerId, person.name, localStreamRef.current);
-    try {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      channelRef.current.send({ type: "broadcast", event: "WEBRTC_OFFER", payload: {
-        toPeerId: person.peerId, fromPeerId: localPeerId, fromPeerName: userName, sdp: offer,
-      } });
-    } catch (error) { console.error("Impossible de joindre l'invité approuvé:", error); }
+    const channel = channelRef.current;
+    if (!channel) return;
+    setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId));
+    if (!approved) {
+      rejectedParticipantsRef.current.add(person.participantId);
+      await channel.send({ type: "broadcast", event: "LOBBY_REJECTED", payload: { toPeerId: person.peerId } });
+      return;
+    }
+    rejectedParticipantsRef.current.delete(person.participantId);
+    revokedParticipantsRef.current.delete(person.participantId);
+    approvedPeerIdsRef.current.add(person.participantId);
+    announcedAdmissionsRef.current.add(person.participantId);
+    await channel.send({ type: "broadcast", event: "ROOM_PEER_ADMITTED", payload: { participantId: person.participantId } });
+    await channel.send({
+      type: "broadcast",
+      event: "LOBBY_APPROVED",
+      payload: { toPeerId: person.peerId, participantId: person.participantId, meetingStartedAt: meetingStartedAtRef.current },
+    });
   };
 
   const sendChatMessage = (event: React.FormEvent) => {
@@ -1041,9 +1263,14 @@ export default function VideoConference({
   const moderatePeer = (peerId: string, action: "mute" | "remove") => {
     channelRef.current?.send({ type: "broadcast", event: "MODERATION", payload: { toPeerId: peerId, action } });
     if (action === "remove") {
-      peerConnectionsRef.current.get(peerId)?.pc.close();
+      const participant = peerConnectionsRef.current.get(peerId);
+      participant?.pc.close();
       peerConnectionsRef.current.delete(peerId);
-      approvedPeerIdsRef.current.delete(peerId);
+      if (participant) {
+        approvedPeerIdsRef.current.delete(participant.participantId);
+        revokedParticipantsRef.current.add(participant.participantId);
+        channelRef.current?.send({ type: "broadcast", event: "ROOM_PEER_REVOKED", payload: { participantId: participant.participantId } });
+      }
       setRemotePeers(previous => previous.filter(peer => peer.id !== peerId));
     }
   };
@@ -1212,7 +1439,7 @@ export default function VideoConference({
             <ShieldCheck size={24} />
             <strong>{joinRejected ? "Demande refusée" : "En attente d’admission"}</strong>
             <span>{joinRejected ? "Contactez l’organisateur pour réessayer." : "Votre demande a été envoyée. Vous serez connecté dès qu’un membre de l’équipe vous aura admis."}</span>
-            {joinRejected && <button type="button" onClick={() => { setJoinRejected(false); setIsWaitingRoom(true); channelRef.current?.send({ type: "broadcast", event: "PEER_JOIN", payload: { peerId: localPeerId, peerName: userName, isHost: false } }); }}>Demander à nouveau</button>}
+            {joinRejected && <button type="button" onClick={() => { setJoinRejected(false); setIsWaitingRoom(true); channelRef.current?.send({ type: "broadcast", event: "PEER_JOIN", payload: { peerId: localPeerId, participantId, peerName: userName, isHost: false, isAdmitted: false } }); }}>Demander à nouveau</button>}
           </div>
         )}
 

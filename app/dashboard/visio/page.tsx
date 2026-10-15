@@ -242,6 +242,7 @@ function VisioContent() {
               title={meetingTitle}
               userName={userName}
               userEmail={userEmail}
+              participantId={user?.id}
               guestName={activeTab === "guest" ? guestNameInput : undefined}
               mediaDevices={mediaDevices}
               isHost={true}
