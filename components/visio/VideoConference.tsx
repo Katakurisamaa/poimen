@@ -37,10 +37,24 @@ interface RemotePeer {
   quality?: "good" | "fair" | "poor";
   handRaised?: boolean;
   isSpeaking?: boolean;
+  isScreenSharing?: boolean;
 }
 
 interface ChatMessage { id: string; peerId: string; name: string; text: string; createdAt: number; }
 interface WaitingParticipant { peerId: string; participantId: string; name: string; }
+
+const dedupeWaitingList = (list: WaitingParticipant[]): WaitingParticipant[] => {
+  const seenPeer = new Set<string>();
+  const seenParticipant = new Set<string>();
+  return list.filter((p) => {
+    if (!p.peerId) return false;
+    if (seenPeer.has(p.peerId)) return false;
+    if (p.participantId && seenParticipant.has(p.participantId)) return false;
+    seenPeer.add(p.peerId);
+    if (p.participantId) seenParticipant.add(p.participantId);
+    return true;
+  });
+};
 interface RoomPresence {
   peerId: string;
   participantId: string;
@@ -1087,11 +1101,7 @@ export default function VideoConference({
           }
 
           if (isHost && waitingNow.length) {
-            setWaitingParticipants(previous => {
-              const byParticipant = new Map(previous.map(person => [person.participantId, person]));
-              waitingNow.forEach(person => byParticipant.set(person.participantId, person));
-              return Array.from(byParticipant.values());
-            });
+            setWaitingParticipants(previous => dedupeWaitingList([...previous, ...waitingNow]));
             waitingNow.forEach(person => channel.send({ type: "broadcast", event: "LOBBY_WAITING", payload: { toPeerId: person.peerId } }));
           }
           if (isHost) {
@@ -1121,10 +1131,10 @@ export default function VideoConference({
           if (isHost && !roomLockedRef.current && !payload.isHost) announceAdmission(peerParticipantId);
 
           if (isHost && !payload.isHost && roomLockedRef.current && !approvedPeerIdsRef.current.has(peerParticipantId)) {
-            setWaitingParticipants(previous => {
-              const next = previous.filter(person => person.participantId !== peerParticipantId);
-              return [...next, { peerId, participantId: peerParticipantId, name: peerName || "Invité" }];
-            });
+            setWaitingParticipants(previous => dedupeWaitingList([
+              { peerId, participantId: peerParticipantId, name: peerName || "Invité" },
+              ...previous
+            ]));
             channel.send({ type: "broadcast", event: "LOBBY_WAITING", payload: { toPeerId: peerId } });
             return;
           }
@@ -1213,6 +1223,7 @@ export default function VideoConference({
         })
         .on("broadcast", { event: "TRACK_STATUS" }, ({ payload }) => {
           if (!payload?.peerId) return;
+          const isSharing = typeof payload.isScreenSharing === "boolean" ? payload.isScreenSharing : undefined;
           setRemotePeers((prev) =>
             prev.map((p) =>
               p.id === payload.peerId
@@ -1220,10 +1231,31 @@ export default function VideoConference({
                     ...p,
                     ...(typeof payload.isMuted === "boolean" ? { isMuted: payload.isMuted } : {}),
                     ...(typeof payload.isVideoOff === "boolean" ? { isVideoOff: payload.isVideoOff } : {}),
+                    ...(isSharing !== undefined ? { isScreenSharing: isSharing, isVideoOff: isSharing ? false : p.isVideoOff } : {}),
                   }
                 : p
             )
           );
+          if (isSharing !== undefined) {
+            if (isSharing) setPinnedPeerId(payload.peerId);
+            else setPinnedPeerId(current => current === payload.peerId ? null : current);
+          }
+        })
+        .on("broadcast", { event: "SCREEN_SHARE_STATUS" }, ({ payload }) => {
+          if (!payload?.peerId) return;
+          const isSharing = Boolean(payload.isScreenSharing);
+          setRemotePeers((prev) =>
+            prev.map((p) =>
+              p.id === payload.peerId
+                ? { ...p, isScreenSharing: isSharing, isVideoOff: isSharing ? false : p.isVideoOff }
+                : p
+            )
+          );
+          if (isSharing) {
+            setPinnedPeerId(payload.peerId);
+          } else {
+            setPinnedPeerId((current) => current === payload.peerId ? null : current);
+          }
         })
         .on("broadcast", { event: "ROOM_LOCK" }, async ({ payload }) => {
           const locked = Boolean(payload?.locked);
@@ -1462,23 +1494,35 @@ export default function VideoConference({
 
   // Partage d'écran
   const stopScreenShare = () => {
-      // Arrêt du partage d'écran
-      if (screenTrackRef.current) {
-        screenTrackRef.current.stop();
-        screenTrackRef.current = null;
-      }
+    if (screenTrackRef.current) {
+      screenTrackRef.current.stop();
+      screenTrackRef.current = null;
+    }
 
-      const cameraTrack = localStreamRef.current?.getVideoTracks()[0] ?? null;
-        peerConnectionsRef.current.forEach(({ pc }) => {
-          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-          if (sender) void sender.replaceTrack(cameraTrack).catch(() => {});
-        });
+    const cameraTrack = !isVideoOff ? (localStreamRef.current?.getVideoTracks()[0] ?? null) : null;
+    peerConnectionsRef.current.forEach(({ pc }) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === "video")
+        || pc.getTransceivers().find(t => t.receiver.track?.kind === "video" || t.sender.track?.kind === "video")?.sender;
+      if (sender) void sender.replaceTrack(cameraTrack).catch(() => {});
+    });
 
-      if (localVideoRef.current && localStream) {
-        localVideoRef.current.srcObject = localStream;
-      }
-      setIsScreenSharing(false);
-      notify("Partage d'écran arrêté.");
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+    setIsScreenSharing(false);
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: "broadcast",
+        event: "SCREEN_SHARE_STATUS",
+        payload: { peerId: localPeerId, isScreenSharing: false },
+      });
+      channelRef.current.send({
+        type: "broadcast",
+        event: "TRACK_STATUS",
+        payload: { peerId: localPeerId, isMuted: isMicMuted, isVideoOff, isScreenSharing: false },
+      });
+    }
+    notify("Partage d'écran arrêté.");
   };
 
   const toggleScreenShare = async () => {
@@ -1497,7 +1541,6 @@ export default function VideoConference({
       let screenStream: MediaStream | null = null;
       let transmissionFailed = false;
       try {
-        // Appelé directement depuis le clic pour conserver l’autorisation utilisateur exigée par le navigateur.
         screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: false,
@@ -1507,13 +1550,25 @@ export default function VideoConference({
         screenTrackRef.current = screenTrack;
 
         const videoSenders = Array.from(peerConnectionsRef.current.values())
-          .map(({ pc }) => pc.getSenders().find(sender => sender.track?.kind === "video"))
+          .map(({ pc }) => {
+            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+            if (sender) return sender;
+            const transceiver = pc.getTransceivers().find(t => t.receiver.track?.kind === "video" || t.sender.track?.kind === "video");
+            if (transceiver) {
+              if (transceiver.direction === "recvonly") {
+                transceiver.direction = "sendrecv";
+              }
+              return transceiver.sender;
+            }
+            return null;
+          })
           .filter((sender): sender is RTCRtpSender => Boolean(sender));
+
         try {
           await Promise.all(videoSenders.map(sender => sender.replaceTrack(screenTrack)));
         } catch (error) {
           transmissionFailed = true;
-          const cameraTrack = localStreamRef.current?.getVideoTracks()[0] ?? null;
+          const cameraTrack = !isVideoOff ? (localStreamRef.current?.getVideoTracks()[0] ?? null) : null;
           await Promise.allSettled(videoSenders.map(sender => sender.replaceTrack(cameraTrack)));
           throw error;
         }
@@ -1525,6 +1580,18 @@ export default function VideoConference({
         screenTrack.onended = stopScreenShare;
 
         setIsScreenSharing(true);
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "SCREEN_SHARE_STATUS",
+            payload: { peerId: localPeerId, isScreenSharing: true },
+          });
+          channelRef.current.send({
+            type: "broadcast",
+            event: "TRACK_STATUS",
+            payload: { peerId: localPeerId, isMuted: isMicMuted, isVideoOff: false, isScreenSharing: true },
+          });
+        }
         notify("Partage d'écran actif.");
       } catch (err) {
         screenTrackRef.current = null;
@@ -1571,7 +1638,7 @@ export default function VideoConference({
         notify("Le refus n’a pas pu être transmis. Réessayez.");
         return;
       }
-      setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId));
+      setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId && item.peerId !== person.peerId));
       return;
     }
     rejectedParticipantsRef.current.delete(person.participantId);
@@ -1593,7 +1660,7 @@ export default function VideoConference({
       notify("L’admission n’a pas pu être transmise. La personne reste en attente, réessayez.");
       return;
     }
-    setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId));
+    setWaitingParticipants(previous => previous.filter(item => item.participantId !== person.participantId && item.peerId !== person.peerId));
   };
 
   const sendChatMessage = (event: React.FormEvent) => {
@@ -1807,42 +1874,103 @@ export default function VideoConference({
   const flipCamera = async () => {
     const nextFacing = currentFacingMode === "user" ? "environment" : "user";
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: nextFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-      const newTrack = newStream.getVideoTracks()[0];
-      if (!newTrack) return;
+      // 1. Libérer l'ancienne piste vidéo pour éviter le conflit matériel de caméra sur mobile
       const oldTrack = localStreamRef.current?.getVideoTracks()[0];
-      oldTrack?.stop();
+      if (oldTrack) {
+        oldTrack.stop();
+      }
+
+      // 2. Demander la nouvelle caméra
+      let newStream: MediaStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: nextFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+      } catch {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: nextFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+      }
+
+      const newTrack = newStream.getVideoTracks()[0];
+      if (!newTrack) throw new Error("Piste vidéo introuvable");
+
+      // 3. Mettre à jour le flux local
       if (localStreamRef.current) {
         if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
         localStreamRef.current.addTrack(newTrack);
+      } else {
+        localStreamRef.current = newStream;
       }
-      if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+
+      const updatedStream = new MediaStream(localStreamRef.current.getTracks());
+      localStreamRef.current = updatedStream;
+      setLocalStream(updatedStream);
+
+      // 4. Remplacer la piste chez tous les pairs distants
       if (!screenTrackRef.current) {
         peerConnectionsRef.current.forEach(({ pc }) => {
-          const sender = pc.getSenders().find(s => s.track?.kind === "video");
+          const sender = pc.getSenders().find(s => s.track?.kind === "video")
+            || pc.getTransceivers().find(t => t.receiver.track?.kind === "video" || t.sender.track?.kind === "video")?.sender;
           if (sender) void sender.replaceTrack(newTrack).catch(() => {});
         });
       }
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = updatedStream;
+        localVideoRef.current.play().catch(() => {});
+      }
+
       setCurrentFacingMode(nextFacing);
       setIsVideoOff(false);
       notify(nextFacing === "environment" ? "Caméra arrière activée" : "Caméra avant activée");
     } catch (err) {
       console.warn("Échec inversion caméra:", err);
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const fallbackTrack = fallbackStream.getVideoTracks()[0];
+        if (fallbackTrack && localStreamRef.current) {
+          localStreamRef.current.addTrack(fallbackTrack);
+          const fallbackUpdated = new MediaStream(localStreamRef.current.getTracks());
+          localStreamRef.current = fallbackUpdated;
+          setLocalStream(fallbackUpdated);
+        }
+      } catch {}
       notify("Impossible d'inverser la caméra sur cet appareil.");
     }
   };
 
-  // 6. Gestion du masquage immersif automatique des contrôles
+  // 6. Gestion du masquage immersif des contrôles (Stable, sans clignotement)
   const resetActivityTimer = useCallback(() => {
     setControlsVisible(true);
     if (activityTimerRef.current !== null) window.clearTimeout(activityTimerRef.current);
     activityTimerRef.current = window.setTimeout(() => {
       activityTimerRef.current = null;
       setControlsVisible(false);
-    }, 4500);
+    }, 6000);
+  }, []);
+
+  const handleStageClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("button") || target?.closest("a") || target?.closest("input") || target?.closest("form")) {
+      return;
+    }
+    setControlsVisible((prev) => {
+      const next = !prev;
+      if (activityTimerRef.current !== null) {
+        window.clearTimeout(activityTimerRef.current);
+        activityTimerRef.current = null;
+      }
+      if (next) {
+        activityTimerRef.current = window.setTimeout(() => {
+          activityTimerRef.current = null;
+          setControlsVisible(false);
+        }, 6000);
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -1851,17 +1979,20 @@ export default function VideoConference({
       if (activityTimerRef.current !== null) window.clearTimeout(activityTimerRef.current);
       return;
     }
-    resetActivityTimer();
-    const onUserInteraction = () => resetActivityTimer();
+
     const container = containerRef.current;
     if (!container) return;
-    container.addEventListener("pointermove", onUserInteraction);
-    container.addEventListener("touchstart", onUserInteraction, { passive: true });
-    container.addEventListener("click", onUserInteraction);
+
+    // Sur PC (souris), le déplacement réinitialise le timer d'inactivité
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") {
+        resetActivityTimer();
+      }
+    };
+
+    container.addEventListener("pointermove", onPointerMove);
     return () => {
-      container.removeEventListener("pointermove", onUserInteraction);
-      container.removeEventListener("touchstart", onUserInteraction);
-      container.removeEventListener("click", onUserInteraction);
+      container.removeEventListener("pointermove", onPointerMove);
       if (activityTimerRef.current !== null) window.clearTimeout(activityTimerRef.current);
     };
   }, [moreSheetOpen, reactionsOpen, deviceMenuOpen, chatOpen, pollsOpen, showPermissionModal, showReloadModal, showLeaveModal, resetActivityTimer]);
@@ -1970,7 +2101,10 @@ export default function VideoConference({
       data-visio-fullscreen-mode="true"
       style={{ height: "var(--visio-viewport-height, 100dvh)", maxHeight: "var(--visio-viewport-height, 100dvh)" }}
     >
-      <header className={`${styles.topBar} ${!controlsVisible ? styles.topBarHidden : ""}`}>
+      <header
+        className={`${styles.topBar} ${!controlsVisible ? styles.topBarHidden : ""}`}
+        onClick={(e) => { e.stopPropagation(); resetActivityTimer(); }}
+      >
         <div className={styles.roomInfo}>
           <span className={`${styles.liveBadge} ${mediaMode === "blocked" || networkState === "reconnecting" ? styles.liveBadgeWarning : ""}`}>
             <span className={styles.liveDot} />
@@ -2168,23 +2302,26 @@ export default function VideoConference({
 
         {/* Grille Vidéo ou Modes Spéciaux (Spotlight / Mobile 1-à-1) */}
         {(() => {
-          const isSpotlight = isScreenSharing || pinnedPeerId !== null;
+          const screenSharingRemotePeer = remotePeers.find(p => p.isScreenSharing);
+          const isSpotlight = isScreenSharing || pinnedPeerId !== null || Boolean(screenSharingRemotePeer);
           const isMobile1on1 = isMobileScreen && totalParticipants === 2 && !isSpotlight;
 
           if (isMobile1on1) {
             const remotePeer = remotePeers[0];
             return (
-              <div className={styles.mobile1on1Container}>
-                <div className={styles.mobile1on1Main} onClick={() => setControlsVisible(v => !v)}>
+              <div className={styles.mobile1on1Container} onClick={handleStageClick}>
+                <div className={styles.mobile1on1Main}>
                   {swapPip ? (
                     <LocalVideoTile
                       videoRef={localVideoRef}
+                      stream={localStreamRef.current || localStream}
                       userName={userName}
                       isScreenSharing={isScreenSharing}
                       isVideoOff={isVideoOff}
                       isMicMuted={isMicMuted}
                       isLocalSpeaking={isLocalSpeaking}
                       handRaised={handRaised}
+                      facingMode={currentFacingMode}
                     />
                   ) : (
                     remotePeer && (
@@ -2215,12 +2352,14 @@ export default function VideoConference({
                   ) : (
                     <LocalVideoTile
                       videoRef={localVideoRef}
+                      stream={localStreamRef.current || localStream}
                       userName={userName}
                       isScreenSharing={isScreenSharing}
                       isVideoOff={isVideoOff}
                       isMicMuted={isMicMuted}
                       isLocalSpeaking={isLocalSpeaking}
                       handRaised={handRaised}
+                      facingMode={currentFacingMode}
                       isPip
                     />
                   )}
@@ -2231,13 +2370,13 @@ export default function VideoConference({
 
           if (isSpotlight) {
             const isPollSpotlight = pinnedPeerId === "poll";
-            const isLocalSpotlight = pinnedPeerId === "local" || (isScreenSharing && !pinnedPeerId);
+            const isLocalSpotlight = pinnedPeerId === "local" || (isScreenSharing && !pinnedPeerId && !screenSharingRemotePeer);
             const spotlightPeer = pinnedPeerId && pinnedPeerId !== "local" && pinnedPeerId !== "poll"
               ? remotePeers.find(p => p.id === pinnedPeerId)
-              : null;
+              : screenSharingRemotePeer || null;
 
             return (
-              <div className={styles.spotlightContainer}>
+              <div className={styles.spotlightContainer} onClick={handleStageClick}>
                 <div className={styles.spotlightStage}>
                   {isPollSpotlight && activePoll ? (
                     <div className={styles.pollStageCard}>
@@ -2302,12 +2441,14 @@ export default function VideoConference({
                   ) : isLocalSpotlight || !spotlightPeer ? (
                     <LocalVideoTile
                       videoRef={localVideoRef}
+                      stream={localStreamRef.current || localStream}
                       userName={userName}
                       isScreenSharing={isScreenSharing}
                       isVideoOff={isVideoOff}
                       isMicMuted={isMicMuted}
                       isLocalSpeaking={isLocalSpeaking}
                       handRaised={handRaised}
+                      facingMode={currentFacingMode}
                       isPinned={true}
                       onPin={() => setPinnedPeerId(null)}
                     />
@@ -2327,12 +2468,14 @@ export default function VideoConference({
                     <div className={styles.filmstripTile}>
                       <LocalVideoTile
                         videoRef={localVideoRef}
+                        stream={localStreamRef.current || localStream}
                         userName={userName}
                         isScreenSharing={isScreenSharing}
                         isVideoOff={isVideoOff}
                         isMicMuted={isMicMuted}
                         isLocalSpeaking={isLocalSpeaking}
                         handRaised={handRaised}
+                        facingMode={currentFacingMode}
                         isPinned={false}
                         onPin={() => setPinnedPeerId("local")}
                       />
@@ -2358,15 +2501,17 @@ export default function VideoConference({
 
           // Grille Adaptative Standard
           return (
-            <div className={`${styles.videoGrid} ${gridClass}`}>
+            <div className={`${styles.videoGrid} ${gridClass}`} onClick={handleStageClick}>
               <LocalVideoTile
                 videoRef={localVideoRef}
+                stream={localStreamRef.current || localStream}
                 userName={userName}
                 isScreenSharing={isScreenSharing}
                 isVideoOff={isVideoOff}
                 isMicMuted={isMicMuted}
                 isLocalSpeaking={isLocalSpeaking}
                 handRaised={handRaised}
+                facingMode={currentFacingMode}
                 isPinned={false}
                 onPin={() => setPinnedPeerId("local")}
               />
@@ -2408,7 +2553,10 @@ export default function VideoConference({
       </div>
 
       {/* 1. Barre de contrôle Desktop (Complète et jamais masquée) */}
-      <footer className={`${styles.controlsBar} ${styles.controlsBarDesktop} ${!controlsVisible ? styles.controlsHidden : ""}`}>
+      <footer
+        className={`${styles.controlsBar} ${styles.controlsBarDesktop} ${!controlsVisible ? styles.controlsHidden : ""}`}
+        onClick={(e) => { e.stopPropagation(); resetActivityTimer(); }}
+      >
         {/* Micro avec sélecteur de périphérique */}
         <div className={styles.ctrlBtnGroup}>
           <button
@@ -2616,7 +2764,10 @@ export default function VideoConference({
       </footer>
 
       {/* 2. Barre de contrôle Mobile (5 gros boutons tactiles ergonomiques) */}
-      <footer className={`${styles.controlsBarMobile} ${!controlsVisible ? styles.controlsHidden : ""}`}>
+      <footer
+        className={`${styles.controlsBarMobile} ${!controlsVisible ? styles.controlsHidden : ""}`}
+        onClick={(e) => { e.stopPropagation(); resetActivityTimer(); }}
+      >
         {/* Micro */}
         <button
           type="button"
@@ -3095,6 +3246,7 @@ export default function VideoConference({
 // Composant Tuile pour la vidéo locale (Vous)
 function LocalVideoTile({
   videoRef,
+  stream,
   userName,
   isScreenSharing,
   isVideoOff,
@@ -3104,8 +3256,10 @@ function LocalVideoTile({
   isPinned,
   onPin,
   isPip,
+  facingMode = "user",
 }: {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
+  stream?: MediaStream | null;
   userName: string;
   isScreenSharing: boolean;
   isVideoOff: boolean;
@@ -3115,7 +3269,36 @@ function LocalVideoTile({
   isPinned?: boolean;
   onPin?: () => void;
   isPip?: boolean;
+  facingMode?: "user" | "environment";
 }) {
+  const internalRef = useRef<HTMLVideoElement | null>(null);
+
+  const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
+    internalRef.current = node;
+    if (videoRef) {
+      if (typeof videoRef === "function") {
+        (videoRef as any)(node);
+      } else {
+        (videoRef as any).current = node;
+      }
+    }
+    if (node && stream) {
+      if (node.srcObject !== stream) {
+        node.srcObject = stream;
+      }
+      node.play().catch(() => {});
+    }
+  }, [videoRef, stream]);
+
+  useEffect(() => {
+    const video = internalRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+    video.play().catch(() => {});
+  }, [stream, isVideoOff, isScreenSharing]);
+
   const initials = userName
     .split(" ")
     .map((p) => p[0])
@@ -3124,14 +3307,16 @@ function LocalVideoTile({
     .join("")
     .toUpperCase() || "V";
 
+  const isMirror = !isScreenSharing && facingMode === "user";
+
   return (
     <div className={`${styles.videoTile} ${isLocalSpeaking ? styles.videoTileSpeaking : ""} ${handRaised ? styles.videoTileHandRaised : ""}`}>
       <video
-        ref={videoRef}
+        ref={setVideoRef}
         autoPlay
         playsInline
         muted
-        className={`${styles.videoElement} ${!isScreenSharing ? styles.videoMirror : ""} ${
+        className={`${styles.videoElement} ${isMirror ? styles.videoMirror : ""} ${
           isVideoOff && !isScreenSharing ? styles.videoHidden : ""
         }`}
       />
@@ -3259,9 +3444,16 @@ function RemoteVideoTile({
         ref={videoRef}
         autoPlay
         playsInline
-        style={{ objectFit: fitMode }}
-        className={`${styles.videoElement} ${styles.remoteVideoElement} ${peer.isVideoOff ? styles.videoHidden : ""}`}
+        style={{ objectFit: peer.isScreenSharing ? "contain" : fitMode }}
+        className={`${styles.videoElement} ${styles.remoteVideoElement} ${peer.isVideoOff && !peer.isScreenSharing ? styles.videoHidden : ""}`}
       />
+
+      {peer.isScreenSharing && (
+        <div className={styles.screenShareBadge}>
+          <Monitor size={13} />
+          <span>Écran partagé</span>
+        </div>
+      )}
 
       {playbackBlocked && playbackNoticeVisible && (
         <button type="button" className={styles.resumePlayback} onClick={() => {
@@ -3273,7 +3465,7 @@ function RemoteVideoTile({
         </button>
       )}
 
-      {peer.isVideoOff && (
+      {peer.isVideoOff && !peer.isScreenSharing && (
         <div className={styles.avatarPlaceholder}>
           <div className={styles.avatarCircle}>{initials}</div>
           <span className={styles.avatarName}>{peer.name}</span>
