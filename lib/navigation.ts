@@ -52,7 +52,7 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
     ],
     secondary: [
       { label: "Visio", href: "/dashboard/visio", icon: "video", description: "Conférences et réunions vidéo" },
-      { label: "Compte rendu de culte", href: "/cr-culte", icon: "report", description: "Préparer le compte rendu" },
+      { label: "Compte rendu de culte", href: "/dashboard/cr-culte", icon: "report", description: "Préparer le compte rendu", matches: ["/dashboard/cr-culte", "/cr-culte"] },
       meditationItem,
       profile,
     ],
@@ -92,7 +92,7 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
     secondary.push({ label: "Visio & Entretiens", href: "/dashboard/visio?type=integration", icon: "video", description: "Réunions d’équipe et entretiens de suivi" });
   }
   if (familyLeader || integration || responsible) secondary.push({ label: "Évangélisation", href: "/dashboard/evangelisation", icon: "outreach", description: "Rencontres et sorties" });
-  if (integration) secondary.push({ label: "Compte rendu de culte", href: "/cr-culte", icon: "report", description: "Préparer le compte rendu" });
+  if (integration) secondary.push({ label: "Compte rendu de culte", href: "/dashboard/cr-culte", icon: "report", description: "Préparer le compte rendu", matches: ["/dashboard/cr-culte", "/cr-culte"] });
   secondary.push(profile);
   return { primary, secondary, canSeeMembers: familyLeader, canSeeGuests };
 }

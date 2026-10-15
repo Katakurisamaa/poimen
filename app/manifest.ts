@@ -43,7 +43,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Compte-Rendu Culte",
         short_name: "CR Culte",
         description: "Remplir un compte-rendu de culte",
-        url: "/cr-culte",
+        url: "/dashboard/cr-culte",
         icons: [{ src: "/brand/icon-192.png", sizes: "192x192" }],
       },
     ],

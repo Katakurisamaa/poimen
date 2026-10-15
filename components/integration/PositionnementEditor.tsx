@@ -954,7 +954,7 @@ Bénédictions à tous pour le service ! ✨`;
   if (hasSession) {
     return (
       <div className="app-shell experience-shell">
-        <Sidebar mobileOpen={mobileOpen} onToggleMobile={() => setMobileOpen(!mobileOpen)} />
+        <Sidebar mobileOpen={mobileOpen} onToggleMobile={() => setMobileOpen(false)} />
         <div className="main-area">
           <Header onMenuClick={() => setMobileOpen(!mobileOpen)} />
           <main className="page-content" style={{ padding: "10px 12px" }}>

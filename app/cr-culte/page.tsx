@@ -10,6 +10,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
@@ -46,7 +47,8 @@ interface CRCulteData {
   created_at?: string;
 }
 
-export default function CrCultePage() {
+export default function CrCultePage({ isDashboardChild }: { isDashboardChild?: boolean } = {}) {
+  const router = useRouter();
   const { notify, confirm } = useFeedback();
 
   const [churches, setChurches] = useState<any[]>([]);
@@ -102,12 +104,15 @@ export default function CrCultePage() {
       const userInfo = localStorage.getItem("poimen_user_info");
       if (selectedChurch && (connectedEmail || userInfo)) {
         setHasSession(true);
+        if (!isDashboardChild) {
+          router.replace("/dashboard/cr-culte");
+        }
       } else {
         setHasSession(false);
       }
     };
     checkSession();
-  }, []);
+  }, [isDashboardChild, router]);
 
   // Fetch initial data
   useEffect(() => {
@@ -919,11 +924,20 @@ Bénédictions ✨❤️`;
     </div>
   );
 
+  // If inside Dashboard layout, render directly
+  if (isDashboardChild) {
+    return (
+      <div style={{ maxWidth: 880, margin: "0 auto", paddingBottom: 60 }}>
+        {pageContent}
+      </div>
+    );
+  }
+
   // If inside active dashboard session, render within the app-shell
   if (hasSession) {
     return (
       <div className="app-shell experience-shell">
-        <Sidebar mobileOpen={mobileOpen} onToggleMobile={() => setMobileOpen(!mobileOpen)} />
+        <Sidebar mobileOpen={mobileOpen} onToggleMobile={() => setMobileOpen(false)} />
         <div className="main-area">
           <Header onMenuClick={() => setMobileOpen(!mobileOpen)} />
           <main className="page-content" style={{ padding: "20px 24px" }}>

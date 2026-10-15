@@ -26,7 +26,7 @@ function Navigation({ mobileOpen, onToggleMobile }: Props) {
   const [signingOut, setSigningOut] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const open = moreOpen || !!mobileOpen;
-  const close = () => { setMoreOpen(false); onToggleMobile?.(); };
+  const close = () => { setMoreOpen(false); if (mobileOpen) onToggleMobile?.(); };
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!open || !dialog) return;
