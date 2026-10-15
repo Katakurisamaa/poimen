@@ -7,22 +7,34 @@ function releaseDockAfterItCloses(
   originalTransition: string,
   originalTransitionPriority: string,
 ) {
-  const release = () => {
-    // The owner updates its open state immediately after this helper resolves.
-    // Keep the transition override until React has applied the closed layout,
-    // otherwise the dock starts a second CSS collapse after the WAAPI exit.
-    if (dock.isConnected && dock.getAttribute("aria-hidden") !== "true") {
-      requestAnimationFrame(release);
-      return;
-    }
+  let cleanedUp = false;
+  let attempts = 0;
+  const maxAttempts = 18; // ~300ms at 60fps
 
-    animations.forEach(animation => animation.cancel());
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    animations.forEach(animation => {
+      try { animation.cancel(); } catch { /* ignore */ }
+    });
     if (originalTransition) dock.style.setProperty("transition", originalTransition, originalTransitionPriority);
     else dock.style.removeProperty("transition");
     delete dock.dataset.visioClosing;
   };
 
+  const release = () => {
+    if (cleanedUp) return;
+    attempts++;
+    if (!dock.isConnected || dock.getAttribute("aria-hidden") === "true" || attempts >= maxAttempts) {
+      cleanup();
+      return;
+    }
+
+    requestAnimationFrame(release);
+  };
+
   requestAnimationFrame(release);
+  setTimeout(cleanup, 320);
 }
 
 /** Animate a meeting side panel and its dock before React removes either one. */
@@ -30,7 +42,7 @@ export async function animateVisioPanelExit(panel: HTMLElement | null | undefine
   if (!panel) return true;
 
   const dock = panel.closest<HTMLElement>('[data-visio-interaction-dock="true"]');
-  if (dock?.dataset.visioClosing === "true") return false;
+  if (dock?.dataset.visioClosing === "true") return true;
   const originalTransition = dock?.style.getPropertyValue("transition") ?? "";
   const originalTransitionPriority = dock?.style.getPropertyPriority("transition") ?? "";
   if (dock) {

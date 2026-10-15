@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Award, BarChart3, Check, CheckCircle2, ChevronDown, ChevronLeft, Clock3, Copy, Download, Eye, EyeOff, HelpCircle, History, ListOrdered, Loader2, LockKeyhole, MessageSquare, Pencil, Play, Plus, RefreshCw, Send, Trash2, Users, X } from "lucide-react";
+import { Award, BarChart3, Check, CheckCircle2, ChevronDown, ChevronLeft, Clock3, Cloud, Copy, Crown, Download, Eye, EyeOff, HelpCircle, History, List, ListOrdered, ListPlus, Loader2, LockKeyhole, MessageSquare, Pencil, Play, Plus, RefreshCw, Send, Trash2, Users, X } from "lucide-react";
 import { validateDraft } from "@/lib/poll-engine";
 import type { PollCommand, PollDraft, PollSnapshot, PollType, PollView } from "@/types/visio-poll";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
@@ -14,6 +14,62 @@ const labels: Record<PollType, string> = { poll: "Sondage", quiz: "Quiz", open: 
 const icons = { poll: BarChart3, quiz: HelpCircle, open: MessageSquare };
 function freshDraft(): PollDraft {
   return { type: "poll", question: "", options: [{ id: crypto.randomUUID(), text: "" }, { id: crypto.randomUUID(), text: "" }], explanation: "", durationSeconds: 0 };
+}
+
+const quickPollPresets = [
+  {
+    label: "👍 / 👎 D’accord",
+    question: "Êtes-vous d’accord avec cette proposition ?",
+    options: ["👍 D’accord", "👎 Pas d’accord"]
+  },
+  {
+    label: "✅ / ❌ Oui / Non",
+    question: "Oui ou Non ?",
+    options: ["✅ Oui", "❌ Non", "🤔 Indécis"]
+  },
+  {
+    label: "⭐ 1 à 5 Étoiles",
+    question: "Comment évaluez-vous ce moment partagé ?",
+    options: ["⭐⭐⭐⭐⭐ Excellent", "⭐⭐⭐⭐ Très bien", "⭐⭐⭐ Bien", "⭐⭐ Moyen", "⭐ À améliorer"]
+  },
+  {
+    label: "🅰️ 🅱️ 🅲 🅳 Choix",
+    question: "Quel est votre choix parmi ces options ?",
+    options: ["Option A", "Option B", "Option C", "Option D"]
+  }
+];
+
+const FRENCH_STOPWORDS = new Set([
+  "le", "la", "les", "un", "une", "des", "du", "de", "d", "l",
+  "et", "ou", "mais", "donc", "or", "ni", "car", "que", "qui", "quoi", "dont", "où",
+  "je", "tu", "il", "elle", "on", "nous", "vous", "ils", "elles", "me", "te", "se",
+  "mon", "ton", "son", "ma", "ta", "sa", "mes", "tes", "ses", "notre", "votre", "leur", "nos", "vos", "leurs",
+  "ce", "cet", "cette", "ces", "dans", "en", "sur", "sous", "par", "pour", "avec", "sans", "vers", "chez",
+  "est", "sont", "été", "être", "avoir", "ai", "as", "a", "avons", "avez", "ont", "fait", "faire",
+  "très", "bien", "plus", "moins", "tout", "tous", "toute", "toutes", "aussi", "autre", "autres",
+  "c'est", "j'ai", "qu'il", "qu'elle", "comme", "quand", "si", "alors", "encore", "toujours", "déjà",
+  "merci", "beaucoup", "trop", "rien", "même"
+]);
+
+function extractKeywords(answers: { name: string; text: string }[]): { word: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const item of answers) {
+    const rawTokens = item.text.toLowerCase().split(/[^a-zà-ÿ0-9'-]+/);
+    const seenInAnswer = new Set<string>();
+    for (let token of rawTokens) {
+      token = token.replace(/^['-]+|['-]+$/g, "");
+      if (token.length >= 3 && !FRENCH_STOPWORDS.has(token) && !/^\d+$/.test(token)) {
+        if (!seenInAnswer.has(token)) {
+          seenInAnswer.add(token);
+          counts.set(token, (counts.get(token) || 0) + 1);
+        }
+      }
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([word, count]) => ({ word, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 24);
 }
 
 export default function InteractivePollPanel(props: Props) {
@@ -123,7 +179,7 @@ function PollPanel({ roomName, isHost = false, userName = "Participant", onClose
   const selected = tab === "history" ? history.find(poll => poll.id === historyId) : live;
   const canDesign = isHost && (!data || data.canManage);
   const serverNow = data ? data.serverTime + Math.max(0, tick - receivedAt) : 0;
-  const edit = (poll?: PollView) => { setDraft(poll ? { id: poll.id, type: poll.type, question: poll.question, options: poll.options.map(option => ({ ...option })), correctOptionId: poll.correctOptionId, explanation: poll.explanation, durationSeconds: poll.durationSeconds } : freshDraft()); setPreview(false); };
+  const edit = (poll?: PollView) => { setDraft(poll ? { id: poll.id, type: poll.type, question: poll.question, options: poll.options.map(option => ({ ...option })), correctOptionId: poll.correctOptionId, explanation: poll.explanation, durationSeconds: poll.durationSeconds } : freshDraft()); setPreview(false); setFormError(""); };
   const save = async () => {
     if (!draft) return;
     try { validateDraft(draft); } catch (cause) { setFormError(cause instanceof Error ? cause.message : "Vérifiez la question."); return; }
@@ -148,7 +204,7 @@ function PollPanel({ roomName, isHost = false, userName = "Participant", onClose
       <div><h3>Sondages & quiz</h3><p>{data?.canManage ? "Animez les échanges, une question à la fois." : "Votre avis compte."}</p></div>
       {onClose && <button type="button" className={styles.iconButton} aria-label="Fermer les sondages" onClick={() => void closePanel()}><X size={20} /></button>}
     </header>
-    <div className={styles.connection} role="status"><span className={error ? styles.offlineDot : styles.onlineDot} />{error ? "Synchronisation interrompue" : data ? "Réponses synchronisées automatiquement" : "Connexion aux sondages…"}{busy && <Loader2 size={14} className={styles.spin} />}</div>
+    <div className={styles.connection} role="status"><span className={error ? styles.offlineDot : styles.onlineDot} />{error ? "Synchronisation interrompue" : data ? "Les réponses se mettent à jour automatiquement" : "Connexion aux sondages…"}{busy && <Loader2 size={14} className={styles.spin} />}</div>
     {error && <div className={styles.error} role="alert"><p>{error}</p><button type="button" onClick={() => void load()} disabled={busy}><RefreshCw size={15} /> Réessayer</button></div>}
     {canDesign && !draft && <nav className={styles.tabs} aria-label="Vues des sondages">{([
       ["live", "En direct", BarChart3, undefined], ["drafts", "À préparer", ListOrdered, drafts.length], ["history", "Historique", History, history.length],
@@ -160,7 +216,7 @@ function PollPanel({ roomName, isHost = false, userName = "Participant", onClose
         {formError && <p className={styles.error} role="alert">{formError}</p>}
         <div className={styles.stickyActions}><button type="button" className={styles.primary} disabled={busy || !data?.canManage} onClick={() => void save()}>{busy ? <Loader2 size={17} className={styles.spin} /> : <Check size={17} />} Enregistrer la question</button><p>Enregistrée pour plus tard. Vous choisissez quand la lancer.</p></div>
       </> : <>
-        {canDesign && <div className={styles.listActions}><button type="button" className={styles.primary} onClick={() => edit()}><Plus size={17} /> Préparer une question</button>{tab === "history" && history.length > 0 && <a className={styles.secondary} href={`${endpoint}&format=csv`} download={`sondages-${roomName}.csv`}><Download size={16} /> Exporter CSV</a>}</div>}
+        {canDesign && <div className={styles.listActions}><button type="button" className={selected && tab !== "drafts" ? styles.secondary : styles.primary} onClick={() => edit()}><Plus size={17} /> Préparer une question</button>{tab === "history" && history.length > 0 && <a className={styles.secondary} href={`${endpoint}&format=csv`} download={`sondages-${roomName}.csv`}><Download size={16} /> Exporter CSV</a>}</div>}
         {tab === "drafts" && canDesign ? <>
           <p className={styles.help}>Préparez la série avant votre réunion. Lancer une nouvelle question clôture la précédente, sans effacer ses résultats.</p>
           {!drafts.length && <Empty icon="drafts" title="Votre prochaine question commence ici" text="Disponibilités, quiz biblique ou retour sur le culte : préparez vos questions à votre rythme." />}
@@ -171,14 +227,24 @@ function PollPanel({ roomName, isHost = false, userName = "Participant", onClose
         </> : selected ? <>
           {tab === "history" && <button type="button" className={styles.textButton} onClick={() => setHistoryId(null)}><ChevronLeft size={16} /> Toutes les questions</button>}
           <PollQuestion key={selected.id} poll={selected} canManage={Boolean(data?.canManage)} now={serverNow} busy={busy} userName={userName} send={send} />
-          {data?.canManage && <div className={styles.hostControls}><p className={styles.eyebrow}>COMMANDES DE L’ANIMATEUR</p><div className={styles.actions}>
-            {selected.status === "open" ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => void send({ action: "close", pollId: selected.id }, "Les votes sont clôturés.")}><LockKeyhole size={16} /> Clôturer</button> : <button type="button" className={styles.secondary} disabled={busy} onClick={() => void launch(selected)}><Play size={16} /> Rouvrir les votes</button>}
-            <button type="button" className={styles.secondary} disabled={busy} onClick={() => void send({ action: "results", pollId: selected.id }, selected.revealResults ? "Résultats masqués." : "Résultats publiés.")}>{selected.revealResults ? <EyeOff size={16} /> : <Eye size={16} />}{selected.revealResults ? "Masquer les résultats" : "Publier les résultats"}</button>
-            {selected.type === "quiz" && <button type="button" className={styles.secondary} disabled={busy || selected.status !== "closed"} title={selected.status === "open" ? "Clôturez les votes avant de révéler la réponse" : undefined} onClick={() => void send({ action: "answer", pollId: selected.id }, selected.revealAnswer ? "Correction masquée." : "Correction révélée.")}><Award size={16} />{selected.revealAnswer ? "Masquer la correction" : "Révéler la correction"}</button>}
-            <button type="button" className={styles.secondary} disabled={busy} onClick={() => void send({ action: "duplicate", pollId: selected.id }, "Copie ajoutée à la file.")}><Copy size={16} /> Dupliquer</button>
-            <button type="button" className={`${styles.secondary} ${styles.dangerAction}`} disabled={busy} onClick={() => void removePoll(selected)}><Trash2 size={16} /> Supprimer cette question</button>
-            {drafts[0] && <button type="button" className={styles.primary} disabled={busy} onClick={() => void launch(drafts[0])}><Play size={16} /> Question suivante</button>}
-          </div></div>}
+          {data?.canManage && <div className={styles.hostControls}>
+            <div className={styles.hostHeading}><span className={styles.eyebrow}>ANIMATION</span><span>{selected.status === "open" ? "Les participants peuvent répondre" : "Les votes sont terminés"}</span></div>
+            <div className={styles.hostMainActions}>
+              {selected.status === "open" && <button type="button" className={styles.secondary} disabled={busy} onClick={() => void send({ action: "close", pollId: selected.id }, "Les votes sont clôturés.")}><LockKeyhole size={16} /> Clôturer les votes</button>}
+              <button type="button" className={selected.revealResults ? styles.secondary : styles.primary} disabled={busy} onClick={() => void send({ action: "results", pollId: selected.id }, selected.revealResults ? "Résultats masqués." : "Résultats publiés.")}>{selected.revealResults ? <EyeOff size={16} /> : <Eye size={16} />}{selected.revealResults ? "Masquer les résultats" : "Publier les résultats"}</button>
+              {selected.type === "quiz" && selected.status === "closed" && <button type="button" className={styles.secondary} disabled={busy} onClick={() => void send({ action: "answer", pollId: selected.id }, selected.revealAnswer ? "Correction masquée." : "Correction révélée.")}><Award size={16} />{selected.revealAnswer ? "Masquer la correction" : "Révéler la correction"}</button>}
+            </div>
+            {selected.type === "quiz" && selected.status === "open" && <p className={styles.help}>Clôturez les votes pour révéler la bonne réponse.</p>}
+            <details key={selected.id} className={styles.moreActions}>
+              <summary><span>Plus d’options</span><ChevronDown size={16} /></summary>
+              <div className={styles.actions}>
+                {selected.status === "closed" && <button type="button" className={styles.secondary} disabled={busy} onClick={() => void launch(selected)}><Play size={16} /> Rouvrir les votes</button>}
+                <button type="button" className={styles.secondary} disabled={busy} onClick={() => void send({ action: "duplicate", pollId: selected.id }, "Copie ajoutée à la file.")}><Copy size={16} /> Dupliquer</button>
+                <button type="button" className={`${styles.secondary} ${styles.dangerAction}`} disabled={busy} onClick={() => void removePoll(selected)}><Trash2 size={16} /> Supprimer cette question</button>
+              </div>
+            </details>
+            {drafts[0] && <button type="button" className={styles.nextQuestion} disabled={busy} onClick={() => void launch(drafts[0])}><span><small>QUESTION SUIVANTE</small><span>{drafts[0].question}</span></span><Play size={18} /></button>}
+          </div>}
         </> : <Empty icon="live" title={data ? "En attente de la prochaine question" : "Préparons les échanges"} text={canDesign ? "Préparez une question, puis lancez-la pour permettre aux participants de répondre." : "La question apparaîtra ici dès que l’animateur la lancera."} />}
         {!data?.canManage && data?.score.answered ? <div className={styles.score}><Award size={22} /><div><strong>Votre score : {data.score.correct} / {data.score.answered}</strong><p>Sur les quiz auxquels vous avez répondu et dont la correction a été révélée.</p></div></div> : null}
       </>}
@@ -194,6 +260,34 @@ function Empty({ icon, title, text }: { icon: "drafts" | "history" | "live"; tit
 
 function PollComposer({ draft, onChange, preview, setPreview }: { draft: PollDraft; onChange: (draft: PollDraft) => void; preview: boolean; setPreview: (value: boolean) => void }) {
   return <div className={styles.composer}>
+    {/* Formats rapides 1-Clic */}
+    <div className={styles.quickPresetsSection}>
+      <div className={styles.quickPresetsHeader}>
+        <ListPlus size={14} />
+        <span>Formats rapides (1-clic)</span>
+      </div>
+      <div className={styles.quickPresetsGrid}>
+        {quickPollPresets.map(preset => (
+          <button
+            key={preset.label}
+            type="button"
+            className={styles.quickPresetChip}
+            onClick={() => {
+              onChange({
+                type: "poll",
+                question: preset.question,
+                options: preset.options.map(text => ({ id: crypto.randomUUID(), text })),
+                explanation: "",
+                durationSeconds: 0
+              });
+              setPreview(false);
+            }}
+          >
+            <span>{preset.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
     <div className={styles.typeSelector}>{(["poll", "quiz", "open"] as const).map(type => { const Icon = icons[type]; return <button type="button" key={type} aria-pressed={draft.type === type} onClick={() => onChange({ ...draft, type })}><Icon size={18} /><span>{labels[type]}</span></button>; })}</div>
     <label className={styles.field}>Votre question<textarea maxLength={300} rows={3} value={draft.question} placeholder="Ex. Quel thème souhaitez-vous approfondir ensemble ?" onChange={event => onChange({ ...draft, question: event.target.value })} /><small>{draft.question.length} / 300</small></label>
     {draft.type !== "open" && <fieldset className={styles.optionFields}><legend>Réponses proposées {draft.type === "quiz" && "· cochez la bonne réponse"}</legend>{draft.options.map((option, index) => <div className={styles.optionRow} key={option.id}>
@@ -258,36 +352,175 @@ function DurationPicker({ value, onChange }: { value: number; onChange: (value: 
 function PollQuestion({ poll, canManage, now, busy, userName, send }: { poll: PollView; canManage: boolean; now: number; busy: boolean; userName: string; send: (command: PollCommand, message: string) => Promise<boolean> }) {
   const [optionId, setOptionId] = useState<string | undefined>();
   const [answer, setAnswer] = useState("");
+  const [openViewTab, setOpenViewTab] = useState<"cloud" | "list">("cloud");
+  const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
+
   const remaining = poll.closesAt ? Math.max(0, Math.ceil((poll.closesAt - now) / 1000)) : null;
   const closed = poll.status === "closed" || remaining === 0;
   const canVote = !closed && !poll.myVote;
   const TypeIcon = icons[poll.type];
   const showCorrection = poll.type === "quiz" && poll.revealAnswer && closed;
   const voteWasCorrect = Boolean(poll.myVote?.optionId && poll.myVote.optionId === poll.correctOptionId);
+  const hasVisibleResults = poll.type === "open" ? Boolean(poll.answers) : Boolean(poll.counts);
+  const remainingPercent = remaining !== null && poll.durationSeconds > 0 ? Math.min(100, remaining * 100 / poll.durationSeconds) : 0;
+
+  // Calcul de la réponse en tête pour la couronne dorée 👑
+  const maxCount = poll.totalVotes > 0 && poll.counts
+    ? Math.max(...poll.options.map(option => poll.counts?.[option.id] || 0))
+    : 0;
+
+  // Nuage de mots pour les réponses libres
+  const keywords = useMemo(() => {
+    if (poll.type !== "open" || !poll.answers?.length) return [];
+    return extractKeywords(poll.answers);
+  }, [poll.type, poll.answers]);
+
+  const filteredAnswers = useMemo(() => {
+    if (!poll.answers) return [];
+    if (!selectedKeyword) return poll.answers;
+    const kw = selectedKeyword.toLowerCase();
+    return poll.answers.filter(a => a.text.toLowerCase().includes(kw));
+  }, [poll.answers, selectedKeyword]);
+
   return <div className={styles.question}>
-    <div className={styles.questionMeta}><span><TypeIcon size={16} />{labels[poll.type]}</span><span className={closed ? styles.closed : styles.live}>{closed ? "Clôturé" : "À vous de répondre"}</span></div>
+    <div className={styles.questionMeta}><span><TypeIcon size={16} />{labels[poll.type]}</span><span className={closed ? styles.closed : poll.myVote ? styles.answered : styles.live}>{closed ? "Votes clôturés" : poll.myVote ? "Réponse envoyée" : "À vous de répondre"}</span></div>
     <h4>{poll.question}</h4>
     <div className={styles.statistics}><span><Users size={16} />{poll.totalVotes} réponse{poll.totalVotes !== 1 ? "s" : ""}</span>{remaining !== null && !closed && <span className={remaining <= 10 ? styles.urgent : ""} role="timer" aria-label="Temps restant"><Clock3 size={16} />{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</span>}</div>
-    {showCorrection && poll.myVote?.optionId && <div className={`${styles.quizResult} ${voteWasCorrect ? styles.quizSuccess : styles.quizMiss}`} role="status" aria-live="polite">
-      <span className={styles.quizResultIcon} aria-hidden="true">{voteWasCorrect ? <CheckCircle2 size={22} /> : <X size={22} />}</span>
-      <div><strong>{voteWasCorrect ? "Bonne réponse !" : "Pas cette fois"}</strong><p>{voteWasCorrect ? "Vous avez trouvé la bonne réponse." : "Regardez la correction et retenez la bonne réponse."}</p></div>
-    </div>}
-    {canManage && <p className={styles.help}>{poll.revealResults ? "Les participants voient les résultats." : "Résultats visibles uniquement par vous."}</p>}
-    {poll.type !== "open" ? <div className={styles.votes} role="group" aria-label="Choisir une réponse">{poll.options.map((option, index) => {
+    {remaining !== null && !closed && <div className={`${styles.timeTrack} ${remaining <= 10 ? styles.timeUrgent : ""}`} aria-hidden="true"><span style={{ width: `${remainingPercent}%` }} /></div>}
+    
+    {/* RÉSULTAT QUIZ & CONFETTIS FESTIFS */}
+    {showCorrection && poll.myVote?.optionId && (
+      <>
+        {voteWasCorrect && (
+          <div className={styles.confettiWrapper} aria-hidden="true">
+            {Array.from({ length: 24 }).map((_, i) => (
+              <span
+                key={i}
+                className={styles.confettiDot}
+                style={{
+                  left: `${(i * 13) % 96 + 2}%`,
+                  animationDelay: `${i * 45}ms`,
+                  backgroundColor: ["#f59e0b", "#10b981", "#3b82f6", "#ec4899", "#8b5cf6", "#eab308"][i % 6],
+                  width: `${i % 3 === 0 ? 8 : 6}px`,
+                  height: `${i % 2 === 0 ? 12 : 6}px`,
+                }}
+              />
+            ))}
+          </div>
+        )}
+        <div className={`${styles.quizResult} ${voteWasCorrect ? styles.quizSuccess : styles.quizMiss}`} role="status" aria-live="polite">
+          <span className={styles.quizResultIcon} aria-hidden="true">{voteWasCorrect ? <CheckCircle2 size={22} /> : <X size={22} />}</span>
+          <div>
+            <strong>{voteWasCorrect ? "🎉 Bravo, bonne réponse !" : "Pas cette fois"}</strong>
+            <p>{voteWasCorrect ? "Vous avez trouvé la réponse exacte !" : "Regardez la correction et retenez la bonne réponse."}</p>
+          </div>
+        </div>
+      </>
+    )}
+
+    <div className={styles.answerHeading}><span>{hasVisibleResults ? "Les réponses" : poll.type === "open" ? "À vous la parole" : "Choisissez votre réponse"}</span><small>{hasVisibleResults ? <>{poll.revealResults ? <Eye size={13} /> : <EyeOff size={13} />}{poll.revealResults ? "Partagées avec tous" : "Visibles par vous"}</> : poll.type !== "open" ? "1 choix possible" : ""}</small></div>
+    
+    {poll.type !== "open" ? <div className={styles.votes} role="group" aria-label={canVote ? "Choisir une réponse" : "Réponses à la question"}>{poll.options.map((option, index) => {
       const count = poll.counts?.[option.id] || 0;
       const percent = poll.totalVotes ? Math.round(count * 100 / poll.totalVotes) : 0;
       const chosen = (poll.myVote?.optionId || optionId) === option.id;
       const correct = showCorrection && poll.correctOptionId === option.id;
       const incorrect = showCorrection && poll.myVote?.optionId === option.id && !correct;
-      return <button key={option.id} type="button" className={`${styles.voteOption} ${chosen ? styles.chosen : ""} ${correct ? styles.correct : ""} ${incorrect ? styles.incorrect : ""}`} aria-pressed={chosen} disabled={!canVote || busy} onClick={() => setOptionId(option.id)}>
+      const isWinner = hasVisibleResults && maxCount > 0 && count === maxCount && poll.totalVotes >= 2;
+
+      return <button key={option.id} type="button" className={`${styles.voteOption} ${chosen ? styles.chosen : ""} ${correct ? styles.correct : ""} ${incorrect ? styles.incorrect : ""} ${isWinner ? styles.winnerOption : ""}`} aria-pressed={chosen} disabled={!canVote || busy} onClick={() => setOptionId(option.id)}>
         {poll.counts && <span className={styles.bar} style={{ width: `${percent}%` }} />}
-        <span className={styles.optionLetter}>{correct ? <Check size={17} /> : String.fromCharCode(65 + index)}</span><span className={styles.optionText}>{option.text}{chosen && <small>{poll.myVote ? "Votre réponse" : "Sélectionnée"}</small>}{correct && <small>Bonne réponse</small>}</span>{poll.counts && <span className={styles.count}>{percent}%<small>{count} vote{count !== 1 ? "s" : ""}</small></span>}
+        <span className={styles.optionLetter}>
+          {isWinner ? <Crown size={15} className={styles.crownIcon} /> : (correct || chosen ? <Check size={17} /> : String.fromCharCode(65 + index))}
+        </span>
+        <span className={styles.optionText}>
+          {option.text}
+          {chosen && <small>{poll.myVote ? "Votre réponse" : "Sélectionnée"}</small>}
+          {correct && <small>Bonne réponse</small>}
+          {isWinner && <small className={styles.winnerText}>👑 En tête ({percent}%)</small>}
+        </span>
+        {poll.counts && <span className={styles.count}>{percent}%<small>{count} vote{count !== 1 ? "s" : ""}</small></span>}
       </button>;
     })}</div> : <>
       {canVote && <label className={styles.field}>Votre réponse<textarea rows={3} maxLength={1000} value={answer} onChange={event => setAnswer(event.target.value)} placeholder="Écrivez votre réflexion…" /><small>{answer.length} / 1000 · Votre nom accompagnera votre réponse.</small></label>}
-      {poll.answers && <div className={styles.answers}>{poll.answers.length ? poll.answers.map((item, index) => <blockquote key={index}><p>{item.text}</p><cite>{item.name}</cite></blockquote>) : <p className={styles.help}>Aucune réponse pour le moment.</p>}</div>}
+      {poll.myVote?.text && <div className={styles.myWrittenAnswer}><small>Votre réponse</small><p>{poll.myVote.text}</p></div>}
+      
+      {/* VUE EN NUAGE DE MOTS-CLÉS OU LISTE POUR QUESTIONS LIBRES */}
+      {poll.answers && poll.answers.length > 0 && (
+        <>
+          <div className={styles.openViewToggle}>
+            <button
+              type="button"
+              className={`${styles.openViewBtn} ${openViewTab === "cloud" ? styles.openViewBtnActive : ""}`}
+              onClick={() => setOpenViewTab("cloud")}
+            >
+              <Cloud size={14} />
+              <span>Nuage de mots {keywords.length > 0 ? `(${keywords.length})` : ""}</span>
+            </button>
+            <button
+              type="button"
+              className={`${styles.openViewBtn} ${openViewTab === "list" ? styles.openViewBtnActive : ""}`}
+              onClick={() => {
+                setOpenViewTab("list");
+                setSelectedKeyword(null);
+              }}
+            >
+              <List size={14} />
+              <span>Toutes les réponses ({poll.answers.length})</span>
+            </button>
+          </div>
+
+          {openViewTab === "cloud" && keywords.length > 0 && (
+            <div className={styles.wordCloudContainer}>
+              <div className={styles.wordCloud}>
+                {keywords.map(kw => {
+                  const topCount = keywords[0]?.count || 1;
+                  const ratio = kw.count / topCount;
+                  const fontSize = 12 + Math.round(ratio * 12);
+                  const isSelected = selectedKeyword === kw.word;
+                  return (
+                    <button
+                      key={kw.word}
+                      type="button"
+                      className={`${styles.wordChip} ${isSelected ? styles.wordChipActive : ""}`}
+                      style={{ fontSize: `${fontSize}px` }}
+                      onClick={() => setSelectedKeyword(curr => curr === kw.word ? null : kw.word)}
+                      title={`${kw.count} mention${kw.count > 1 ? "s" : ""} - Cliquer pour filtrer`}
+                    >
+                      <span>{kw.word}</span>
+                      <small>{kw.count}</small>
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedKeyword && (
+                <div className={styles.cloudFilterNotice}>
+                  <span>Filtré par <strong>« {selectedKeyword} »</strong> ({filteredAnswers.length})</span>
+                  <button type="button" onClick={() => setSelectedKeyword(null)}>Effacer le filtre</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className={styles.answers}>
+            {filteredAnswers.length ? filteredAnswers.map((item, index) => (
+              <blockquote key={index}>
+                <p>{item.text}</p>
+                <cite>{item.name}</cite>
+              </blockquote>
+            )) : (
+              <p className={styles.help}>Aucune réponse ne contient ce mot-clé.</p>
+            )}
+          </div>
+        </>
+      )}
+
+      {poll.answers && poll.answers.length === 0 && (
+        <div className={styles.answers}><p className={styles.help}>Aucune réponse pour le moment.</p></div>
+      )}
     </>}
-    {canVote && <button type="button" className={styles.primary} disabled={busy || (poll.type === "open" ? !answer.trim() : !optionId)} onClick={() => void send({ action: "vote", pollId: poll.id, name: userName.slice(0, 80), optionId, text: answer }, "Votre réponse a bien été enregistrée.")}>{busy ? <Loader2 size={17} className={styles.spin} /> : <Send size={17} />} Valider {poll.type === "open" ? "ma réponse" : "mon vote"}</button>}
+
+    {canVote && <div className={styles.voteAction}><button type="button" className={styles.primary} disabled={busy || (poll.type === "open" ? !answer.trim() : !optionId)} onClick={() => void send({ action: "vote", pollId: poll.id, name: userName.slice(0, 80), optionId, text: answer }, "Votre réponse a bien été enregistrée.")}>{busy ? <Loader2 size={17} className={styles.spin} /> : <Send size={17} />} Valider {poll.type === "open" ? "ma réponse" : "mon vote"}</button><small>Votre choix sera définitif après validation.</small></div>}
     {poll.myVote && <p className={styles.receipt} role="status"><CheckCircle2 size={18} />Réponse enregistrée{!poll.revealResults && !canManage ? " · Les résultats seront publiés par l’animateur." : "."}</p>}
     {!canManage && !poll.revealResults && !poll.myVote && <p className={styles.tip}><EyeOff size={16} />Les résultats sont masqués pour laisser chacun répondre librement.</p>}
     {showCorrection && poll.explanation && <div className={styles.explanation}><strong><Award size={18} />Pour aller plus loin</strong><p>{poll.explanation}</p></div>}

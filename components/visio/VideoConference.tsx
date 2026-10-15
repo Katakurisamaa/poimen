@@ -5,7 +5,8 @@ import {
   Copy, Check, Share2, Maximize, Minimize, PhoneOff, 
   Mic, MicOff, Video, VideoOff, Monitor, BarChart2,
   Users, AlertCircle, Wifi, MessageSquare, Send, Hand, ShieldCheck, UserX, Smile, Clock,
-  RotateCcw, AlertTriangle, Lock, Camera, X
+  RotateCcw, AlertTriangle, Lock, Camera, X, Pin, PinOff, SwitchCamera, ChevronDown, ChevronUp,
+  MoreHorizontal, PictureInPicture, Crown, Presentation
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getPublicVisioUrl, getWhatsAppShareUrl, matchesLobbyAdmission, wasLobbyAdmissionDelivered } from "@/lib/visio";
@@ -13,6 +14,7 @@ import { useFeedback } from "@/components/experience/FeedbackProvider";
 import { animateVisioPanelExit } from "./interaction-transition";
 import styles from "./VideoConference.module.css";
 import type { VisioDeviceSelection } from "./VisioPreflight";
+import type { PollView } from "@/types/visio-poll";
 
 const STUN_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
@@ -269,6 +271,24 @@ export default function VideoConference({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const allowPageExitRef = useRef(false);
 
+  // New Video Conference UX states (Responsive, Push-to-Talk, Spotlight, Devices)
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const activityTimerRef = useRef<number | null>(null);
+  const [isMobileScreen, setIsMobileScreen] = useState(false);
+  const [pinnedPeerId, setPinnedPeerId] = useState<string | null>(null);
+  const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
+  const pushToTalkActiveRef = useRef(false);
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
+  const [deviceMenuOpen, setDeviceMenuOpen] = useState<"audio" | "video" | null>(null);
+  const [availableAudioDevices, setAvailableAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [availableVideoDevices, setAvailableVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [activeAudioDeviceId, setActiveAudioDeviceId] = useState<string>(mediaDevices?.audioDeviceId || "");
+  const [activeVideoDeviceId, setActiveVideoDeviceId] = useState<string>(mediaDevices?.videoDeviceId || "");
+  const [currentFacingMode, setCurrentFacingMode] = useState<"user" | "environment">("user");
+  const [swapPip, setSwapPip] = useState(false);
+  const [activePoll, setActivePoll] = useState<PollView | null>(null);
+  const [dismissedPollId, setDismissedPollId] = useState<string | null>(null);
+
   // Modales personnalisées Visio
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showReloadModal, setShowReloadModal] = useState(false);
@@ -458,8 +478,10 @@ export default function VideoConference({
       try {
         const response = await fetch(`/api/visio/polls?room=${encodeURIComponent(roomName)}`, { cache: "no-store", signal: controller.signal });
         if (!response.ok) return;
-        const snapshot: { polls?: { id?: string; status?: string; startedAt?: number; createdAt?: number; question?: string }[] } = await response.json();
+        const snapshot: { polls?: PollView[] } = await response.json();
         const openPoll = snapshot.polls?.find(poll => poll.status === "open");
+        const latestPoll = openPoll || snapshot.polls?.find(poll => poll.status !== "draft");
+        setActivePoll(openPoll || latestPoll || null);
         const signature = openPoll ? `${openPoll.id || ""}:${openPoll.startedAt || openPoll.createdAt || 0}` : "";
         if (hasInitialSnapshot && signature && signature !== previousOpenPoll && !pollsOpen) {
           setUnreadPollCount(count => Math.min(99, count + 1));
@@ -1599,9 +1621,12 @@ export default function VideoConference({
     if (closingChatRef.current) return;
     closingChatRef.current = true;
     try {
+      chatOpenRef.current = false;
       const shouldClose = await animateVisioPanelExit(containerRef.current?.querySelector<HTMLElement>('[aria-label="Chat de la réunion"]'));
-      if (shouldClose) { chatOpenRef.current = false; setChatOpen(false); }
+      if (shouldClose) { setChatOpen(false); }
     } finally {
+      chatOpenRef.current = false;
+      setChatOpen(false);
       closingChatRef.current = false;
     }
   };
@@ -1613,18 +1638,19 @@ export default function VideoConference({
       const shouldClose = await animateVisioPanelExit(containerRef.current?.querySelector<HTMLElement>('[data-visio-poll-panel="true"]'));
       if (shouldClose) (onClosePolls ?? onTogglePolls)?.();
     } finally {
+      (onClosePolls ?? onTogglePolls)?.();
       closingPollsRef.current = false;
     }
   };
 
   const toggleChat = () => {
-    if (closingChatRef.current || closingPollsRef.current || containerRef.current?.querySelector<HTMLElement>('[data-visio-interaction-dock="true"]')?.dataset.visioClosing === "true") return;
     setReactionsOpen(false);
     if (chatOpen) {
       void closeChatPanel();
-    } else if (pollsOpen) {
-      void closePollsPanel().then(() => { chatOpenRef.current = true; setUnreadChatCount(0); setChatOpen(true); });
     } else {
+      if (pollsOpen) {
+        (onClosePolls ?? onTogglePolls)?.();
+      }
       chatOpenRef.current = true;
       setUnreadChatCount(0);
       setChatOpen(true);
@@ -1632,13 +1658,14 @@ export default function VideoConference({
   };
 
   const togglePolls = () => {
-    if (closingChatRef.current || closingPollsRef.current || containerRef.current?.querySelector<HTMLElement>('[data-visio-interaction-dock="true"]')?.dataset.visioClosing === "true") return;
     setReactionsOpen(false);
     if (pollsOpen) {
       void closePollsPanel();
-    } else if (chatOpen) {
-      void closeChatPanel().then(() => { setUnreadPollCount(0); onTogglePolls?.(); });
     } else {
+      if (chatOpen) {
+        chatOpenRef.current = false;
+        setChatOpen(false);
+      }
       setUnreadPollCount(0);
       onTogglePolls?.();
     }
@@ -1691,6 +1718,241 @@ export default function VideoConference({
     return () => document.removeEventListener("fullscreenchange", updateFullscreen);
   }, []);
 
+  // 1. Détection de format mobile
+  useEffect(() => {
+    const checkMobile = () => setIsMobileScreen(window.innerWidth <= 700);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // 2. Énumération des périphériques disponibles (Micros & Caméras)
+  const refreshDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      setAvailableAudioDevices(devs.filter(d => d.kind === "audioinput"));
+      setAvailableVideoDevices(devs.filter(d => d.kind === "videoinput"));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    void refreshDevices();
+    navigator.mediaDevices?.addEventListener?.("devicechange", refreshDevices);
+    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", refreshDevices);
+  }, [refreshDevices]);
+
+  // 3. Changement direct de périphérique audio en cours d'appel
+  const switchAudioDevice = async (deviceId: string) => {
+    setActiveAudioDeviceId(deviceId);
+    setDeviceMenuOpen(null);
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true },
+        video: false,
+      });
+      const newTrack = newStream.getAudioTracks()[0];
+      if (!newTrack) return;
+      const oldTrack = localStreamRef.current?.getAudioTracks()[0];
+      oldTrack?.stop();
+      if (localStreamRef.current) {
+        if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
+        localStreamRef.current.addTrack(newTrack);
+      }
+      peerConnectionsRef.current.forEach(({ pc }) => {
+        const sender = pc.getSenders().find(s => s.track?.kind === "audio");
+        if (sender) void sender.replaceTrack(newTrack).catch(() => {});
+      });
+      setIsMicMuted(false);
+      notify("Microphone actif mis à jour.");
+    } catch (err) {
+      console.warn("Échec changement de micro:", err);
+      notify("Impossible de changer de micro.");
+    }
+  };
+
+  // 4. Changement direct de caméra en cours d'appel
+  const switchVideoDevice = async (deviceId: string) => {
+    setActiveVideoDeviceId(deviceId);
+    setDeviceMenuOpen(null);
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      const newTrack = newStream.getVideoTracks()[0];
+      if (!newTrack) return;
+      const oldTrack = localStreamRef.current?.getVideoTracks()[0];
+      oldTrack?.stop();
+      if (localStreamRef.current) {
+        if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
+        localStreamRef.current.addTrack(newTrack);
+      }
+      if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+      if (!screenTrackRef.current) {
+        peerConnectionsRef.current.forEach(({ pc }) => {
+          const sender = pc.getSenders().find(s => s.track?.kind === "video");
+          if (sender) void sender.replaceTrack(newTrack).catch(() => {});
+        });
+      }
+      setIsVideoOff(false);
+      notify("Caméra mise à jour.");
+    } catch (err) {
+      console.warn("Échec changement de caméra:", err);
+      notify("Impossible de changer de caméra.");
+    }
+  };
+
+  // 5. Inversion caméra mobile (Avant / Arrière)
+  const flipCamera = async () => {
+    const nextFacing = currentFacingMode === "user" ? "environment" : "user";
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: nextFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      const newTrack = newStream.getVideoTracks()[0];
+      if (!newTrack) return;
+      const oldTrack = localStreamRef.current?.getVideoTracks()[0];
+      oldTrack?.stop();
+      if (localStreamRef.current) {
+        if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
+        localStreamRef.current.addTrack(newTrack);
+      }
+      if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+      if (!screenTrackRef.current) {
+        peerConnectionsRef.current.forEach(({ pc }) => {
+          const sender = pc.getSenders().find(s => s.track?.kind === "video");
+          if (sender) void sender.replaceTrack(newTrack).catch(() => {});
+        });
+      }
+      setCurrentFacingMode(nextFacing);
+      setIsVideoOff(false);
+      notify(nextFacing === "environment" ? "Caméra arrière activée" : "Caméra avant activée");
+    } catch (err) {
+      console.warn("Échec inversion caméra:", err);
+      notify("Impossible d'inverser la caméra sur cet appareil.");
+    }
+  };
+
+  // 6. Gestion du masquage immersif automatique des contrôles
+  const resetActivityTimer = useCallback(() => {
+    setControlsVisible(true);
+    if (activityTimerRef.current !== null) window.clearTimeout(activityTimerRef.current);
+    activityTimerRef.current = window.setTimeout(() => {
+      activityTimerRef.current = null;
+      setControlsVisible(false);
+    }, 4500);
+  }, []);
+
+  useEffect(() => {
+    if (moreSheetOpen || reactionsOpen || deviceMenuOpen || chatOpen || pollsOpen || showPermissionModal || showReloadModal || showLeaveModal) {
+      setControlsVisible(true);
+      if (activityTimerRef.current !== null) window.clearTimeout(activityTimerRef.current);
+      return;
+    }
+    resetActivityTimer();
+    const onUserInteraction = () => resetActivityTimer();
+    const container = containerRef.current;
+    if (!container) return;
+    container.addEventListener("pointermove", onUserInteraction);
+    container.addEventListener("touchstart", onUserInteraction, { passive: true });
+    container.addEventListener("click", onUserInteraction);
+    return () => {
+      container.removeEventListener("pointermove", onUserInteraction);
+      container.removeEventListener("touchstart", onUserInteraction);
+      container.removeEventListener("click", onUserInteraction);
+      if (activityTimerRef.current !== null) window.clearTimeout(activityTimerRef.current);
+    };
+  }, [moreSheetOpen, reactionsOpen, deviceMenuOpen, chatOpen, pollsOpen, showPermissionModal, showReloadModal, showLeaveModal, resetActivityTimer]);
+
+  // 7. Raccourcis clavier & Push-to-Talk (Espace maintenu pour parler)
+  useEffect(() => {
+    const isEditingText = (target: EventTarget | null) => {
+      if (!target || !(target instanceof HTMLElement)) return false;
+      return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable;
+    };
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (isEditingText(e.target)) return;
+
+      // Push-to-talk avec la barre d'espace
+      if (e.code === "Space" && !e.repeat) {
+        e.preventDefault();
+        if (isMicMuted && !pushToTalkActiveRef.current) {
+          pushToTalkActiveRef.current = true;
+          setIsPushToTalkActive(true);
+          localStreamRef.current?.getAudioTracks().forEach(t => t.enabled = true);
+          channelRef.current?.send({
+            type: "broadcast",
+            event: "TRACK_STATUS",
+            payload: { peerId: localPeerId, isMuted: false, isVideoOff },
+          });
+        }
+      }
+
+      // Raccourci Mute micro : 'M'
+      if ((e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleMic();
+      }
+
+      // Raccourci Caméra : 'V'
+      if ((e.key === "v" || e.key === "V") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleCam();
+      }
+
+      // Raccourci Chat : 'C'
+      if ((e.key === "c" || e.key === "C") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleChat();
+      }
+
+      // Raccourci Main levée : 'H'
+      if ((e.key === "h" || e.key === "H") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleHand();
+      }
+
+      // Raccourci Plein écran : 'F'
+      if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+
+      // Échap : fermer menus
+      if (e.key === "Escape") {
+        setMoreSheetOpen(false);
+        setDeviceMenuOpen(null);
+        setReactionsOpen(false);
+        if (pinnedPeerId) setPinnedPeerId(null);
+      }
+    };
+
+    const handleGlobalKeyUp = (e: KeyboardEvent) => {
+      if (isEditingText(e.target)) return;
+      if (e.code === "Space" && pushToTalkActiveRef.current) {
+        e.preventDefault();
+        pushToTalkActiveRef.current = false;
+        setIsPushToTalkActive(false);
+        localStreamRef.current?.getAudioTracks().forEach(t => t.enabled = false);
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "TRACK_STATUS",
+          payload: { peerId: localPeerId, isMuted: true, isVideoOff },
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    window.addEventListener("keyup", handleGlobalKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+      window.removeEventListener("keyup", handleGlobalKeyUp);
+    };
+  }, [isMicMuted, isVideoOff, localPeerId, pinnedPeerId]);
+
   const totalParticipants = 1 + remotePeers.length;
   const gridClass =
     totalParticipants === 1
@@ -1708,7 +1970,7 @@ export default function VideoConference({
       data-visio-fullscreen-mode="true"
       style={{ height: "var(--visio-viewport-height, 100dvh)", maxHeight: "var(--visio-viewport-height, 100dvh)" }}
     >
-      <header className={styles.topBar}>
+      <header className={`${styles.topBar} ${!controlsVisible ? styles.topBarHidden : ""}`}>
         <div className={styles.roomInfo}>
           <span className={`${styles.liveBadge} ${mediaMode === "blocked" || networkState === "reconnecting" ? styles.liveBadgeWarning : ""}`}>
             <span className={styles.liveDot} />
@@ -1720,6 +1982,26 @@ export default function VideoConference({
               Salle : {roomName} • {totalParticipants} participant{totalParticipants > 1 ? "s" : ""}
             </span>
           </div>
+
+          <div className={styles.headerStatusPill} title={`État du réseau : ${networkState === "reconnecting" ? "Reconnexion..." : "Actif"}`}>
+            <span className={`${styles.headerQualityDot} ${remotePeers.some(p => p.quality === "poor") ? styles.headerQualityPoor : remotePeers.some(p => p.quality === "fair") ? styles.headerQualityFair : ""}`} />
+            <Wifi size={12} />
+            {meetingStartedAt !== null && !isWaitingRoom && !joinRejected && (
+              <span>{formatMeetingDuration(meetingElapsedSeconds)}</span>
+            )}
+          </div>
+
+          {activePoll && (
+            <button
+              type="button"
+              className={`${styles.headerProjectBtn} ${pinnedPeerId === "poll" ? styles.headerProjectBtnActive : ""}`}
+              onClick={() => setPinnedPeerId(p => p === "poll" ? null : "poll")}
+              title={pinnedPeerId === "poll" ? "Réduire la projection" : "Projeter le sondage au centre de l'appel"}
+            >
+              <Presentation size={13} />
+              <span>{pinnedPeerId === "poll" ? "Quitter scène" : "Projeter"}</span>
+            </button>
+          )}
         </div>
 
         <div className={styles.actions}>
@@ -1742,67 +2024,71 @@ export default function VideoConference({
             <Share2 size={16} />
             <span>Inviter WhatsApp</span>
           </button>
-
-          {onTogglePolls && (
-            <button
-              type="button"
-              className={`${styles.btnAction} ${styles.btnMobileDuplicate} ${pollsOpen ? styles.btnActive : ""}`}
-              onClick={togglePolls}
-              title={pollsOpen ? "Fermer les sondages" : "Ouvrir les sondages et quiz interactifs"}
-              aria-label={`${pollsOpen ? "Fermer" : "Ouvrir"} les sondages${unreadPollCount ? `, ${unreadPollCount} nouveau${unreadPollCount > 1 ? "x" : ""}` : ""}`}
-            >
-              <BarChart2 size={16} />
-              <span>Sondages</span>
-              {unreadPollCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadPollCount > 9 ? "9+" : unreadPollCount}</span>}
-            </button>
-          )}
-
-          <button type="button" className={`${styles.btnAction} ${styles.btnMobileDuplicate} ${chatOpen ? styles.btnActive : ""}`} onClick={toggleChat} aria-pressed={chatOpen} aria-label={`${chatOpen ? "Fermer" : "Ouvrir"} le chat${unreadChatCount ? `, ${unreadChatCount} nouveau${unreadChatCount > 1 ? "x" : ""} message${unreadChatCount > 1 ? "s" : ""}` : ""}`} title={chatOpen ? "Fermer le chat" : "Ouvrir le chat de la réunion"}>
-            <MessageSquare size={16} /><span>Chat ({chatMessages.length})</span>
-            {unreadChatCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadChatCount > 9 ? "9+" : unreadChatCount}</span>}
-          </button>
-
-          {isHost && (
-            <button type="button" className={`${styles.btnAction} ${roomLocked ? styles.btnActive : ""}`} onClick={toggleWaitingRoom} aria-pressed={roomLocked} title={roomLocked ? "Ouvrir la salle aux invités (admission d'interface)" : "Activer l'admission d'interface"}>
-              <ShieldCheck size={16} /><span>{roomLocked ? "Salle d'attente" : "Salle ouverte"}{waitingParticipants.length ? ` · ${waitingParticipants.length}` : ""}</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            className={styles.btnAction}
-            onClick={toggleFullscreen}
-            title={isFullscreen ? "Quitter le plein écran natif" : "Passer en plein écran natif"}
-          >
-            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-            <span>{isFullscreen ? "Réduire" : "Plein écran"}</span>
-          </button>
-
-          {onLeave && (
-            <button
-              type="button"
-              className={`${styles.btnAction} ${styles.btnDanger}`}
-              onClick={leaveMeeting}
-              title="Quitter la réunion"
-            >
-              <PhoneOff size={16} />
-              <span>Quitter</span>
-            </button>
-          )}
         </div>
       </header>
 
-      <div className={styles.networkBar} role="status" aria-live="polite">
-        <Wifi size={14} />
-        <span>{networkState === "reconnecting" ? "Connexion instable · tentative de reconnexion" : remotePeers.some(peer => peer.quality === "poor") ? "Qualité réseau faible" : remotePeers.some(peer => peer.quality === "fair") ? "Qualité réseau moyenne" : "Connexion active"}</span>
-        {meetingStartedAt !== null && !isWaitingRoom && !joinRejected && <span className={styles.meetingDuration} title="Durée de la réunion" aria-live="off">
-          <Clock size={12} aria-hidden="true" />
-          <span>Durée {formatMeetingDuration(meetingElapsedSeconds)}</span>
-        </span>}
-        <span className={hasTurnRelay ? styles.turnReady : styles.turnMissing}>{hasTurnRelay ? "Relais TURN disponible" : "Relais TURN non configuré"}</span>
-      </div>
       <div className={`${styles.stageAndDock} ${chatOpen || pollsOpen ? styles.stageAndDockOpen : ""}`}>
       <div className={styles.stageWrapper}>
+        {/* Toast Flottant de Sondage en direct */}
+        {activePoll && activePoll.status === "open" && !pollsOpen && dismissedPollId !== activePoll.id && !activePoll.myVote && (
+          <div className={styles.pollToastBanner} role="alert">
+            <div className={styles.pollToastHeader}>
+              <span className={styles.pollToastBadge}>
+                <span className={styles.pollToastPulse} />
+                <BarChart2 size={13} />
+                <span>{activePoll.type === "quiz" ? "Quiz en direct" : activePoll.type === "open" ? "Question libre" : "Sondage en direct"}</span>
+              </span>
+              {activePoll.closesAt && (
+                <span className={styles.pollToastTimer}>
+                  <Clock size={12} />
+                  <span>{Math.max(0, Math.ceil((activePoll.closesAt - Date.now()) / 1000))}s</span>
+                </span>
+              )}
+              <button
+                type="button"
+                className={styles.pollToastDismiss}
+                onClick={() => setDismissedPollId(activePoll.id)}
+                aria-label="Ignorer ce sondage"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <p className={styles.pollToastQuestion}>{activePoll.question}</p>
+            <div className={styles.pollToastActions}>
+              <button
+                type="button"
+                className={styles.pollToastBtnPrimary}
+                onClick={() => {
+                  if (chatOpen) {
+                    chatOpenRef.current = false;
+                    setChatOpen(false);
+                  }
+                  if (onTogglePolls && !pollsOpen) onTogglePolls();
+                }}
+              >
+                <span>Participer</span>
+              </button>
+              <button
+                type="button"
+                className={styles.pollToastBtnStage}
+                onClick={() => setPinnedPeerId(p => p === "poll" ? null : "poll")}
+                title="Afficher au centre de la visio"
+              >
+                <Presentation size={14} />
+                <span>{pinnedPeerId === "poll" ? "Réduire" : "Projeter"}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Bannière Push-to-Talk (Barre d'espace) */}
+        {isPushToTalkActive && (
+          <div className={styles.pushToTalkBanner} role="status">
+            <Mic size={15} />
+            <span>Micro ouvert temporairement (Espace maintenu)</span>
+          </div>
+        )}
+
         {callNotice && <div className={styles.callNotice} role="status" aria-live="polite">{callNotice}</div>}
         {isLoading && (
           <div className={styles.noticeBanner}>
@@ -1880,52 +2166,223 @@ export default function VideoConference({
           <span className={styles.srOnly} role="status" aria-live="polite">{reactionAnnouncement}</span>
         </div>
 
-        {/* Grille Vidéo Native */}
-        <div className={`${styles.videoGrid} ${gridClass}`}>
-          {/* Tuile Vidéo Locale (Vous) */}
-      <div className={`${styles.videoTile} ${isLocalSpeaking ? styles.videoTileSpeaking : ""} ${handRaised ? styles.videoTileHandRaised : ""}`}>
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`${styles.videoElement} ${!isScreenSharing ? styles.videoMirror : ""} ${
-                isVideoOff && !isScreenSharing ? styles.videoHidden : ""
-              }`}
-            />
+        {/* Grille Vidéo ou Modes Spéciaux (Spotlight / Mobile 1-à-1) */}
+        {(() => {
+          const isSpotlight = isScreenSharing || pinnedPeerId !== null;
+          const isMobile1on1 = isMobileScreen && totalParticipants === 2 && !isSpotlight;
 
-            {isVideoOff && !isScreenSharing && (
-              <div className={styles.avatarPlaceholder}>
-                <div className={styles.avatarCircle}>
-                  {userName
-                    .split(" ")
-                    .map((p) => p[0])
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .join("")
-                    .toUpperCase() || "V"}
+          if (isMobile1on1) {
+            const remotePeer = remotePeers[0];
+            return (
+              <div className={styles.mobile1on1Container}>
+                <div className={styles.mobile1on1Main} onClick={() => setControlsVisible(v => !v)}>
+                  {swapPip ? (
+                    <LocalVideoTile
+                      videoRef={localVideoRef}
+                      userName={userName}
+                      isScreenSharing={isScreenSharing}
+                      isVideoOff={isVideoOff}
+                      isMicMuted={isMicMuted}
+                      isLocalSpeaking={isLocalSpeaking}
+                      handRaised={handRaised}
+                    />
+                  ) : (
+                    remotePeer && (
+                      <RemoteVideoTile
+                        peer={remotePeer}
+                        isHost={isHost}
+                        onModerate={moderatePeer}
+                        isPinned={false}
+                        onPin={() => setPinnedPeerId(remotePeer.id)}
+                      />
+                    )
+                  )}
                 </div>
-                <span className={styles.avatarName}>{userName}</span>
+                <div
+                  className={styles.mobile1on1Pip}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSwapPip(s => !s);
+                  }}
+                  title="Touchez pour inverser l'affichage"
+                >
+                  {swapPip && remotePeer ? (
+                    <RemoteVideoTile
+                      peer={remotePeer}
+                      isHost={isHost}
+                      onModerate={moderatePeer}
+                    />
+                  ) : (
+                    <LocalVideoTile
+                      videoRef={localVideoRef}
+                      userName={userName}
+                      isScreenSharing={isScreenSharing}
+                      isVideoOff={isVideoOff}
+                      isMicMuted={isMicMuted}
+                      isLocalSpeaking={isLocalSpeaking}
+                      handRaised={handRaised}
+                      isPip
+                    />
+                  )}
+                </div>
               </div>
-            )}
+            );
+          }
 
-            <div className={styles.tileOverlay}>
-              <span className={styles.tileName}>{userName} (Vous)</span>
-              {isMicMuted && (
-                <span className={styles.mutedBadge} title="Micro coupé" aria-label="Micro coupé">
-                  <MicOff size={13} />
-                  <span>Micro coupé</span>
-                </span>
-              )}
+          if (isSpotlight) {
+            const isPollSpotlight = pinnedPeerId === "poll";
+            const isLocalSpotlight = pinnedPeerId === "local" || (isScreenSharing && !pinnedPeerId);
+            const spotlightPeer = pinnedPeerId && pinnedPeerId !== "local" && pinnedPeerId !== "poll"
+              ? remotePeers.find(p => p.id === pinnedPeerId)
+              : null;
+
+            return (
+              <div className={styles.spotlightContainer}>
+                <div className={styles.spotlightStage}>
+                  {isPollSpotlight && activePoll ? (
+                    <div className={styles.pollStageCard}>
+                      <div className={styles.pollStageHeader}>
+                        <span className={styles.pollStageBadge}>
+                          <BarChart2 size={16} />
+                          <span>{activePoll.type === "quiz" ? "Quiz en direct" : activePoll.type === "open" ? "Question libre" : "Sondage en direct"}</span>
+                        </span>
+                        <div className={styles.pollStageStats}>
+                          <span>{activePoll.totalVotes} vote{activePoll.totalVotes !== 1 ? "s" : ""}</span>
+                          <button
+                            type="button"
+                            className={styles.pollStageCloseBtn}
+                            onClick={() => setPinnedPeerId(null)}
+                            title="Quitter la scène"
+                            aria-label="Quitter la scène"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      <h3 className={styles.pollStageQuestion}>{activePoll.question}</h3>
+                      {activePoll.type !== "open" && activePoll.options && (
+                        <div className={styles.pollStageOptions}>
+                          {activePoll.options.map((opt, idx) => {
+                            const count = activePoll.counts?.[opt.id] || 0;
+                            const percent = activePoll.totalVotes ? Math.round(count * 100 / activePoll.totalVotes) : 0;
+                            const maxCount = activePoll.totalVotes > 0 && activePoll.counts ? Math.max(...activePoll.options.map(o => activePoll.counts?.[o.id] || 0)) : 0;
+                            const isWinner = maxCount > 0 && count === maxCount && activePoll.totalVotes >= 2;
+                            return (
+                              <div key={opt.id} className={`${styles.pollStageOption} ${isWinner ? styles.pollStageWinner : ""}`}>
+                                {activePoll.counts && <div className={styles.pollStageBar} style={{ width: `${percent}%` }} />}
+                                <span className={styles.pollStageOptionLetter}>
+                                  {isWinner ? <Crown size={15} /> : String.fromCharCode(65 + idx)}
+                                </span>
+                                <span className={styles.pollStageOptionText}>{opt.text}</span>
+                                {activePoll.counts && (
+                                  <span className={styles.pollStagePercent}>{percent}% ({count})</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className={styles.pollStageFooter}>
+                        <button
+                          type="button"
+                          className={styles.pollStageActionBtn}
+                          onClick={() => {
+                            if (chatOpen) {
+                              chatOpenRef.current = false;
+                              setChatOpen(false);
+                            }
+                            if (onTogglePolls && !pollsOpen) onTogglePolls();
+                          }}
+                        >
+                          <BarChart2 size={16} />
+                          <span>{activePoll.myVote ? "Voir les détails dans le panneau" : "Participer et voter"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : isLocalSpotlight || !spotlightPeer ? (
+                    <LocalVideoTile
+                      videoRef={localVideoRef}
+                      userName={userName}
+                      isScreenSharing={isScreenSharing}
+                      isVideoOff={isVideoOff}
+                      isMicMuted={isMicMuted}
+                      isLocalSpeaking={isLocalSpeaking}
+                      handRaised={handRaised}
+                      isPinned={true}
+                      onPin={() => setPinnedPeerId(null)}
+                    />
+                  ) : (
+                    <RemoteVideoTile
+                      peer={spotlightPeer}
+                      isHost={isHost}
+                      onModerate={moderatePeer}
+                      isPinned={true}
+                      onPin={() => setPinnedPeerId(null)}
+                    />
+                  )}
+                </div>
+
+                <div className={styles.filmstrip}>
+                  {(!isLocalSpotlight || isPollSpotlight) && (
+                    <div className={styles.filmstripTile}>
+                      <LocalVideoTile
+                        videoRef={localVideoRef}
+                        userName={userName}
+                        isScreenSharing={isScreenSharing}
+                        isVideoOff={isVideoOff}
+                        isMicMuted={isMicMuted}
+                        isLocalSpeaking={isLocalSpeaking}
+                        handRaised={handRaised}
+                        isPinned={false}
+                        onPin={() => setPinnedPeerId("local")}
+                      />
+                    </div>
+                  )}
+                  {remotePeers
+                    .filter(p => isPollSpotlight || !spotlightPeer || p.id !== spotlightPeer.id)
+                    .map(peer => (
+                      <div className={styles.filmstripTile} key={peer.id}>
+                        <RemoteVideoTile
+                          peer={peer}
+                          isHost={isHost}
+                          onModerate={moderatePeer}
+                          isPinned={false}
+                          onPin={() => setPinnedPeerId(peer.id)}
+                        />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            );
+          }
+
+          // Grille Adaptative Standard
+          return (
+            <div className={`${styles.videoGrid} ${gridClass}`}>
+              <LocalVideoTile
+                videoRef={localVideoRef}
+                userName={userName}
+                isScreenSharing={isScreenSharing}
+                isVideoOff={isVideoOff}
+                isMicMuted={isMicMuted}
+                isLocalSpeaking={isLocalSpeaking}
+                handRaised={handRaised}
+                isPinned={false}
+                onPin={() => setPinnedPeerId("local")}
+              />
+              {remotePeers.map((peer) => (
+                <RemoteVideoTile
+                  key={peer.id}
+                  peer={peer}
+                  isHost={isHost}
+                  onModerate={moderatePeer}
+                  isPinned={false}
+                  onPin={() => setPinnedPeerId(peer.id)}
+                />
+              ))}
             </div>
-            {handRaised && <div className={styles.handRaisedBanner}><Hand size={16} /><span>MAIN LEVÉE</span></div>}
-          </div>
-
-          {/* Tuiles Vidéos Distantes */}
-          {remotePeers.map((peer) => (
-            <RemoteVideoTile key={peer.id} peer={peer} isHost={isHost} onModerate={moderatePeer} />
-          ))}
-        </div>
+          );
+        })()}
       </div>
 
       <div
@@ -1950,32 +2407,95 @@ export default function VideoConference({
       </div>
       </div>
 
-      {/* Barre de contrôle flottante en bas */}
-      <footer className={`${styles.controlsBar} ${chatOpen || pollsOpen ? styles.controlsBarHidden : ""}`}>
+      {/* 1. Barre de contrôle Desktop (Complète et jamais masquée) */}
+      <footer className={`${styles.controlsBar} ${styles.controlsBarDesktop} ${!controlsVisible ? styles.controlsHidden : ""}`}>
+        {/* Micro avec sélecteur de périphérique */}
+        <div className={styles.ctrlBtnGroup}>
           <button
-          type="button"
-          className={`${styles.ctrlBtn} ${isMicMuted ? styles.ctrlBtnOff : ""}`}
-          onClick={toggleMic}
-          disabled={isLoading}
-          aria-pressed={!isMicMuted}
-          title={!localStream?.getAudioTracks().length ? "Autoriser le micro" : isMicMuted ? "Activer le micro" : "Couper le micro"}
-        >
-          {isMicMuted ? <MicOff size={18} /> : <Mic size={18} />}
-          <span>{!localStream?.getAudioTracks().length ? "Autoriser micro" : isMicMuted ? "Micro coupé" : "Micro actif"}</span>
-        </button>
+            type="button"
+            className={`${styles.ctrlBtn} ${isMicMuted ? styles.ctrlBtnOff : ""}`}
+            onClick={toggleMic}
+            disabled={isLoading}
+            aria-pressed={!isMicMuted}
+            title={!localStream?.getAudioTracks().length ? "Autoriser le micro" : isMicMuted ? "Activer le micro (M ou Espace)" : "Couper le micro (M)"}
+          >
+            {isMicMuted ? <MicOff size={18} /> : <Mic size={18} />}
+            <span>{isMicMuted ? "Micro coupé" : "Micro actif"}</span>
+          </button>
+          {availableAudioDevices.length > 1 && (
+            <button
+              type="button"
+              className={styles.ctrlBtnChevron}
+              onClick={() => setDeviceMenuOpen(d => d === "audio" ? null : "audio")}
+              title="Choisir le microphone"
+              aria-label="Choisir le microphone"
+            >
+              {deviceMenuOpen === "audio" ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          )}
 
-        <button
-          type="button"
-          className={`${styles.ctrlBtn} ${isVideoOff ? styles.ctrlBtnOff : ""}`}
-          onClick={toggleCam}
-          disabled={isLoading}
-          aria-pressed={!isVideoOff}
-          title={!localStream?.getVideoTracks().length ? "Autoriser la caméra" : isVideoOff ? "Activer la caméra" : "Couper la caméra"}
-        >
-          {isVideoOff ? <VideoOff size={18} /> : <Video size={18} />}
-          <span>{!localStream?.getVideoTracks().length ? "Autoriser caméra" : isVideoOff ? "Caméra coupée" : "Caméra"}</span>
-        </button>
+          {deviceMenuOpen === "audio" && (
+            <div className={styles.deviceMenuDropdown}>
+              <span className={styles.deviceMenuTitle}>Microphones disponibles</span>
+              {availableAudioDevices.map(dev => (
+                <button
+                  key={dev.deviceId}
+                  type="button"
+                  className={`${styles.deviceMenuItem} ${dev.deviceId === activeAudioDeviceId ? styles.deviceMenuItemActive : ""}`}
+                  onClick={() => switchAudioDevice(dev.deviceId)}
+                >
+                  <span>{dev.label || `Microphone ${dev.deviceId.slice(0, 5)}`}</span>
+                  {dev.deviceId === activeAudioDeviceId && <Check size={14} />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
+        {/* Caméra avec sélecteur de périphérique */}
+        <div className={styles.ctrlBtnGroup}>
+          <button
+            type="button"
+            className={`${styles.ctrlBtn} ${isVideoOff ? styles.ctrlBtnOff : ""}`}
+            onClick={toggleCam}
+            disabled={isLoading}
+            aria-pressed={!isVideoOff}
+            title={!localStream?.getVideoTracks().length ? "Autoriser la caméra" : isVideoOff ? "Activer la caméra (V)" : "Couper la caméra (V)"}
+          >
+            {isVideoOff ? <VideoOff size={18} /> : <Video size={18} />}
+            <span>{isVideoOff ? "Caméra coupée" : "Caméra"}</span>
+          </button>
+          {availableVideoDevices.length > 1 && (
+            <button
+              type="button"
+              className={styles.ctrlBtnChevron}
+              onClick={() => setDeviceMenuOpen(d => d === "video" ? null : "video")}
+              title="Choisir la caméra"
+              aria-label="Choisir la caméra"
+            >
+              {deviceMenuOpen === "video" ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          )}
+
+          {deviceMenuOpen === "video" && (
+            <div className={styles.deviceMenuDropdown}>
+              <span className={styles.deviceMenuTitle}>Caméras disponibles</span>
+              {availableVideoDevices.map(dev => (
+                <button
+                  key={dev.deviceId}
+                  type="button"
+                  className={`${styles.deviceMenuItem} ${dev.deviceId === activeVideoDeviceId ? styles.deviceMenuItemActive : ""}`}
+                  onClick={() => switchVideoDevice(dev.deviceId)}
+                >
+                  <span>{dev.label || `Caméra ${dev.deviceId.slice(0, 5)}`}</span>
+                  {dev.deviceId === activeVideoDeviceId && <Check size={14} />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Partage d'écran */}
         <button
           type="button"
           className={`${styles.ctrlBtn} ${isScreenSharing ? styles.ctrlBtnActive : ""}`}
@@ -1986,27 +2506,19 @@ export default function VideoConference({
           <span>{isScreenSharing ? "Arrêter partage" : "Partager écran"}</span>
         </button>
 
-        {onTogglePolls && (
-          <button
-            type="button"
-            className={`${styles.ctrlBtn} ${pollsOpen ? styles.ctrlBtnActive : ""}`}
-            onClick={togglePolls}
-            aria-label={`${pollsOpen ? "Fermer" : "Ouvrir"} les sondages${unreadPollCount ? `, ${unreadPollCount} nouveau${unreadPollCount > 1 ? "x" : ""}` : ""}`}
-            title={pollsOpen ? "Fermer les sondages" : "Ouvrir les sondages & quiz"}
-          >
-            <BarChart2 size={18} />
-            <span>Sondages</span>
-            {unreadPollCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadPollCount > 9 ? "9+" : unreadPollCount}</span>}
-          </button>
-        )}
+        {/* Main levée */}
+        <button
+          type="button"
+          className={`${styles.ctrlBtn} ${handRaised ? styles.ctrlBtnActive : ""}`}
+          onClick={toggleHand}
+          aria-pressed={handRaised}
+          title={handRaised ? "Baisser la main (H)" : "Lever la main (H)"}
+        >
+          <Hand size={18} />
+          <span>{handRaised ? "Main levée" : "Lever la main"}</span>
+        </button>
 
-        <button type="button" className={`${styles.ctrlBtn} ${handRaised ? styles.ctrlBtnActive : ""}`} onClick={toggleHand} aria-pressed={handRaised} title={handRaised ? "Baisser la main" : "Lever la main"}>
-          <Hand size={18} /><span>{handRaised ? "Main levée" : "Lever la main"}</span>
-        </button>
-        <button type="button" className={`${styles.ctrlBtn} ${chatOpen ? styles.ctrlBtnActive : ""}`} onClick={toggleChat} aria-pressed={chatOpen} aria-label={`${chatOpen ? "Fermer" : "Ouvrir"} le chat${unreadChatCount ? `, ${unreadChatCount} nouveau${unreadChatCount > 1 ? "x" : ""} message${unreadChatCount > 1 ? "s" : ""}` : ""}`} title={chatOpen ? "Fermer le chat" : "Ouvrir le chat de la réunion"}>
-          <MessageSquare size={18} /><span>Chat</span>
-          {unreadChatCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadChatCount > 9 ? "9+" : unreadChatCount}</span>}
-        </button>
+        {/* Réactions */}
         <div className={styles.reactionPickerWrap} ref={reactionPickerRef}>
           <button
             type="button"
@@ -2018,7 +2530,8 @@ export default function VideoConference({
             aria-expanded={reactionsOpen}
             title="Réactions"
           >
-            <Smile size={19} /><span>Réactions</span>
+            <Smile size={19} />
+            <span>Réactions</span>
           </button>
           {reactionsOpen && <div className={styles.reactionPicker} style={{ bottom: `${reactionPickerBottom}px` }} role="dialog" aria-label="Choisir une réaction">
             {quickReactions.map(reaction => <button
@@ -2033,10 +2546,62 @@ export default function VideoConference({
           </div>}
         </div>
 
-        <button type="button" className={`${styles.ctrlBtn} ${styles.ctrlBtnMobileDuplicate} ${isFullscreen ? styles.ctrlBtnActive : ""}`} onClick={toggleFullscreen} aria-pressed={isFullscreen} title={isFullscreen ? "Quitter le plein écran natif" : "Passer en plein écran natif"}>
-          {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}<span>{isFullscreen ? "Réduire" : "Plein écran"}</span>
+        {/* Chat */}
+        <button
+          type="button"
+          className={`${styles.ctrlBtn} ${chatOpen ? styles.ctrlBtnActive : ""}`}
+          onClick={toggleChat}
+          aria-pressed={chatOpen}
+          aria-label={`${chatOpen ? "Fermer" : "Ouvrir"} le chat`}
+          title="Chat de la réunion (C)"
+        >
+          <MessageSquare size={18} />
+          <span>Chat</span>
+          {unreadChatCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadChatCount > 9 ? "9+" : unreadChatCount}</span>}
         </button>
 
+        {/* Sondages */}
+        {onTogglePolls && (
+          <button
+            type="button"
+            className={`${styles.ctrlBtn} ${pollsOpen ? styles.ctrlBtnActive : ""}`}
+            onClick={togglePolls}
+            aria-label={`${pollsOpen ? "Fermer" : "Ouvrir"} les sondages`}
+            title="Ouvrir les sondages & quiz"
+          >
+            <BarChart2 size={18} />
+            <span>Sondages</span>
+            {unreadPollCount > 0 && <span className={styles.notificationBadge} aria-hidden="true">{unreadPollCount > 9 ? "9+" : unreadPollCount}</span>}
+          </button>
+        )}
+
+        {/* Animateur : Salle d'attente */}
+        {isHost && (
+          <button
+            type="button"
+            className={`${styles.ctrlBtn} ${roomLocked ? styles.ctrlBtnActive : ""}`}
+            onClick={toggleWaitingRoom}
+            aria-pressed={roomLocked}
+            title={roomLocked ? "Salle d'attente activée" : "Salle ouverte"}
+          >
+            <ShieldCheck size={18} />
+            <span>{roomLocked ? "Attente" : "Ouverte"}{waitingParticipants.length ? ` · ${waitingParticipants.length}` : ""}</span>
+          </button>
+        )}
+
+        {/* Plein écran */}
+        <button
+          type="button"
+          className={`${styles.ctrlBtn} ${isFullscreen ? styles.ctrlBtnActive : ""}`}
+          onClick={toggleFullscreen}
+          aria-pressed={isFullscreen}
+          title={isFullscreen ? "Quitter le plein écran (F)" : "Passer en plein écran (F)"}
+        >
+          {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+          <span>{isFullscreen ? "Réduire" : "Plein écran"}</span>
+        </button>
+
+        {/* Quitter */}
         {onLeave && (
           <button
             type="button"
@@ -2049,6 +2614,240 @@ export default function VideoConference({
           </button>
         )}
       </footer>
+
+      {/* 2. Barre de contrôle Mobile (5 gros boutons tactiles ergonomiques) */}
+      <footer className={`${styles.controlsBarMobile} ${!controlsVisible ? styles.controlsHidden : ""}`}>
+        {/* Micro */}
+        <button
+          type="button"
+          className={`${styles.ctrlBtnRound} ${isMicMuted ? styles.ctrlBtnRoundOff : ""}`}
+          onClick={toggleMic}
+          disabled={isLoading}
+          aria-label={isMicMuted ? "Activer le micro" : "Couper le micro"}
+          title={isMicMuted ? "Activer le micro" : "Couper le micro"}
+        >
+          {isMicMuted ? <MicOff size={22} /> : <Mic size={22} />}
+        </button>
+
+        {/* Caméra */}
+        <button
+          type="button"
+          className={`${styles.ctrlBtnRound} ${isVideoOff ? styles.ctrlBtnRoundOff : ""}`}
+          onClick={toggleCam}
+          disabled={isLoading}
+          aria-label={isVideoOff ? "Activer la caméra" : "Couper la caméra"}
+          title={isVideoOff ? "Activer la caméra" : "Couper la caméra"}
+        >
+          {isVideoOff ? <VideoOff size={22} /> : <Video size={22} />}
+        </button>
+
+        {/* Inverser caméra (si caméra active) OU Main levée */}
+        {!isVideoOff ? (
+          <button
+            type="button"
+            className={styles.ctrlBtnRound}
+            onClick={flipCamera}
+            aria-label="Inverser la caméra"
+            title="Inverser la caméra avant/arrière"
+          >
+            <SwitchCamera size={22} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`${styles.ctrlBtnRound} ${handRaised ? styles.ctrlBtnRoundActive : ""}`}
+            onClick={toggleHand}
+            aria-label={handRaised ? "Baisser la main" : "Lever la main"}
+            title={handRaised ? "Baisser la main" : "Lever la main"}
+          >
+            <Hand size={22} />
+          </button>
+        )}
+
+        {/* Plus (...) pour ouvrir le tiroir modal */}
+        <button
+          type="button"
+          className={`${styles.ctrlBtnRound} ${(unreadChatCount > 0 || unreadPollCount > 0) ? styles.ctrlBtnRoundActive : ""}`}
+          onClick={() => setMoreSheetOpen(true)}
+          aria-label="Plus d'options"
+          title="Plus d'options"
+        >
+          <MoreHorizontal size={22} />
+          {(unreadChatCount > 0 || unreadPollCount > 0) && (
+            <span className={styles.notificationBadge} aria-hidden="true">
+              {unreadChatCount + unreadPollCount > 9 ? "9+" : unreadChatCount + unreadPollCount}
+            </span>
+          )}
+        </button>
+
+        {/* Quitter */}
+        {onLeave && (
+          <button
+            type="button"
+            className={`${styles.ctrlBtnRound} ${styles.ctrlBtnRoundLeave}`}
+            onClick={leaveMeeting}
+            aria-label="Quitter la réunion"
+            title="Quitter la réunion"
+          >
+            <PhoneOff size={22} />
+          </button>
+        )}
+      </footer>
+
+      {/* 3. Tiroir tactile inférieur Mobile (Bottom Sheet) */}
+      {moreSheetOpen && (
+        <div
+          className={styles.bottomSheetBackdrop}
+          onClick={() => setMoreSheetOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Options de la réunion"
+        >
+          <div className={styles.bottomSheetCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.bottomSheetHandle} />
+            <div className={styles.bottomSheetHeader}>
+              <span>Options de la réunion</span>
+              <button
+                type="button"
+                className={styles.bottomSheetClose}
+                onClick={() => setMoreSheetOpen(false)}
+                aria-label="Fermer les options"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Réactions rapides en haut du tiroir */}
+            <div className={styles.bottomSheetReactions}>
+              {quickReactions.slice(0, 6).map(r => (
+                <button
+                  key={r.emoji}
+                  type="button"
+                  className={styles.bottomSheetEmojiBtn}
+                  onClick={() => {
+                    sendReaction(r.emoji);
+                    setMoreSheetOpen(false);
+                  }}
+                  aria-label={`Réagir ${r.label}`}
+                >
+                  {r.emoji}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.bottomSheetGrid}>
+              <button
+                type="button"
+                className={`${styles.bottomSheetItem} ${chatOpen ? styles.bottomSheetItemActive : ""}`}
+                onClick={() => {
+                  setMoreSheetOpen(false);
+                  toggleChat();
+                }}
+              >
+                <MessageSquare size={22} />
+                <span>Chat {unreadChatCount > 0 ? `(${unreadChatCount})` : ""}</span>
+              </button>
+
+              {onTogglePolls && (
+                <button
+                  type="button"
+                  className={`${styles.bottomSheetItem} ${pollsOpen ? styles.bottomSheetItemActive : ""}`}
+                  onClick={() => {
+                    setMoreSheetOpen(false);
+                    togglePolls();
+                  }}
+                >
+                  <BarChart2 size={22} />
+                  <span>Sondages {unreadPollCount > 0 ? `(${unreadPollCount})` : ""}</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                className={`${styles.bottomSheetItem} ${handRaised ? styles.bottomSheetItemActive : ""}`}
+                onClick={() => {
+                  toggleHand();
+                }}
+              >
+                <Hand size={22} />
+                <span>{handRaised ? "Baisser main" : "Lever main"}</span>
+              </button>
+
+              <button
+                type="button"
+                className={styles.bottomSheetItem}
+                onClick={() => {
+                  void flipCamera();
+                }}
+              >
+                <SwitchCamera size={22} />
+                <span>Inverser caméra</span>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.bottomSheetItem} ${isScreenSharing ? styles.bottomSheetItemActive : ""}`}
+                onClick={() => {
+                  setMoreSheetOpen(false);
+                  void toggleScreenShare();
+                }}
+              >
+                <Monitor size={22} />
+                <span>{isScreenSharing ? "Arrêter partage" : "Partager écran"}</span>
+              </button>
+
+              <button
+                type="button"
+                className={styles.bottomSheetItem}
+                onClick={() => {
+                  void handleCopyLink();
+                  setMoreSheetOpen(false);
+                }}
+              >
+                {copied ? <Check size={22} color="#10b981" /> : <Copy size={22} />}
+                <span>{copied ? "Lien copié !" : "Copier lien"}</span>
+              </button>
+
+              <button
+                type="button"
+                className={styles.bottomSheetItem}
+                onClick={() => {
+                  window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+                  setMoreSheetOpen(false);
+                }}
+              >
+                <Share2 size={22} color="#25d366" />
+                <span>WhatsApp</span>
+              </button>
+
+              <button
+                type="button"
+                className={styles.bottomSheetItem}
+                onClick={() => {
+                  toggleFullscreen();
+                  setMoreSheetOpen(false);
+                }}
+              >
+                {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
+                <span>{isFullscreen ? "Réduire" : "Plein écran"}</span>
+              </button>
+
+              {isHost && (
+                <button
+                  type="button"
+                  className={`${styles.bottomSheetItem} ${roomLocked ? styles.bottomSheetItemActive : ""}`}
+                  onClick={() => {
+                    toggleWaitingRoom();
+                  }}
+                >
+                  <ShieldCheck size={22} />
+                  <span>{roomLocked ? "Attente ON" : "Salle ouverte"}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 1. Modale d'autorisation caméra et micro */}
       {showPermissionModal && (
@@ -2293,11 +3092,101 @@ export default function VideoConference({
   );
 }
 
+// Composant Tuile pour la vidéo locale (Vous)
+function LocalVideoTile({
+  videoRef,
+  userName,
+  isScreenSharing,
+  isVideoOff,
+  isMicMuted,
+  isLocalSpeaking,
+  handRaised,
+  isPinned,
+  onPin,
+  isPip,
+}: {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  userName: string;
+  isScreenSharing: boolean;
+  isVideoOff: boolean;
+  isMicMuted: boolean;
+  isLocalSpeaking: boolean;
+  handRaised: boolean;
+  isPinned?: boolean;
+  onPin?: () => void;
+  isPip?: boolean;
+}) {
+  const initials = userName
+    .split(" ")
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "V";
+
+  return (
+    <div className={`${styles.videoTile} ${isLocalSpeaking ? styles.videoTileSpeaking : ""} ${handRaised ? styles.videoTileHandRaised : ""}`}>
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className={`${styles.videoElement} ${!isScreenSharing ? styles.videoMirror : ""} ${
+          isVideoOff && !isScreenSharing ? styles.videoHidden : ""
+        }`}
+      />
+
+      {isVideoOff && !isScreenSharing && (
+        <div className={styles.avatarPlaceholder}>
+          <div className={styles.avatarCircle}>{initials}</div>
+          <span className={styles.avatarName}>{userName}</span>
+        </div>
+      )}
+
+      <div className={styles.tileOverlay}>
+        <span className={styles.tileName}>{userName} (Vous)</span>
+        {isMicMuted && (
+          <span className={styles.mutedBadge} title="Micro coupé" aria-label="Micro coupé">
+            <MicOff size={13} />
+            <span>Micro coupé</span>
+          </span>
+        )}
+      </div>
+      {handRaised && <div className={styles.handRaisedBanner}><Hand size={16} /><span>MAIN LEVÉE</span></div>}
+      {!isPip && onPin && (
+        <div className={styles.moderationActions} style={{ opacity: isPinned ? 1 : undefined }}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onPin(); }}
+            title={isPinned ? "Désépingler cette vidéo" : "Épingler ma vidéo"}
+            className={isPinned ? styles.btnTilePinned : ""}
+          >
+            {isPinned ? <PinOff size={14} /> : <Pin size={14} />} <span>{isPinned ? "Désépingler" : "Épingler"}</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Composant Tuile pour les participants distants
-function RemoteVideoTile({ peer, isHost, onModerate }: { peer: RemotePeer; isHost: boolean; onModerate: (peerId: string, action: "mute" | "remove") => void }) {
+function RemoteVideoTile({
+  peer,
+  isHost,
+  onModerate,
+  isPinned,
+  onPin,
+}: {
+  peer: RemotePeer;
+  isHost: boolean;
+  onModerate: (peerId: string, action: "mute" | "remove") => void;
+  isPinned?: boolean;
+  onPin?: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [playbackNoticeVisible, setPlaybackNoticeVisible] = useState(false);
+  const [fitMode, setFitMode] = useState<"contain" | "cover">("contain");
 
   useEffect(() => {
     const video = videoRef.current;
@@ -2346,12 +3235,31 @@ function RemoteVideoTile({ peer, isHost, onModerate }: { peer: RemotePeer; isHos
       .join("")
       .toUpperCase() || "P";
 
+  const handlePiP = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (document.pictureInPictureEnabled) {
+        await video.requestPictureInPicture();
+      }
+    } catch (err) {
+      console.warn("Échec Picture-in-Picture:", err);
+    }
+  };
+
   return (
-    <div className={`${styles.videoTile} ${peer.isSpeaking ? styles.videoTileSpeaking : ""} ${peer.handRaised ? styles.videoTileHandRaised : ""}`}>
+    <div
+      className={`${styles.videoTile} ${peer.isSpeaking ? styles.videoTileSpeaking : ""} ${peer.handRaised ? styles.videoTileHandRaised : ""}`}
+      onDoubleClick={() => setFitMode(f => f === "contain" ? "cover" : "contain")}
+    >
       <video
         ref={videoRef}
         autoPlay
         playsInline
+        style={{ objectFit: fitMode }}
         className={`${styles.videoElement} ${styles.remoteVideoElement} ${peer.isVideoOff ? styles.videoHidden : ""}`}
       />
 
@@ -2384,10 +3292,34 @@ function RemoteVideoTile({ peer, isHost, onModerate }: { peer: RemotePeer; isHos
       {peer.handRaised && <div className={styles.handRaisedBanner}><Hand size={16} /><span>MAIN LEVÉE</span></div>}
       {peer.connection === "reconnecting" && <span className={styles.peerConnectionBadge}>Reconnexion…</span>}
       {peer.quality && <span className={`${styles.qualityBadge} ${peer.quality === "poor" ? styles.qualityPoor : peer.quality === "fair" ? styles.qualityFair : ""}`} aria-label={`Qualité réseau ${peer.quality === "good" ? "bonne" : peer.quality === "fair" ? "moyenne" : "faible"}`}><Wifi size={13} /></span>}
-      {isHost && <div className={styles.moderationActions}>
-        {!peer.isMuted && <button type="button" onClick={() => onModerate(peer.id, "mute")} title={`Couper le son de ${peer.name}`}><MicOff size={14} /> Couper le son</button>}
-        <button type="button" onClick={() => onModerate(peer.id, "remove")} title={`Retirer ${peer.name} de la réunion`}><UserX size={14} /> Retirer</button>
-      </div>}
+      
+      <div className={styles.moderationActions} style={{ opacity: isPinned ? 1 : undefined }}>
+        {onPin && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onPin(); }}
+            title={isPinned ? "Désépingler cette vidéo" : "Épingler cette vidéo en grand"}
+            className={isPinned ? styles.btnTilePinned : ""}
+          >
+            {isPinned ? <PinOff size={14} /> : <Pin size={14} />} <span>{isPinned ? "Désépingler" : "Épingler"}</span>
+          </button>
+        )}
+        {typeof document !== "undefined" && document.pictureInPictureEnabled && (
+          <button type="button" onClick={handlePiP} title="Fenêtre flottante (Picture-in-Picture)">
+            <PictureInPicture size={14} />
+          </button>
+        )}
+        {isHost && !peer.isMuted && (
+          <button type="button" onClick={() => onModerate(peer.id, "mute")} title={`Couper le son de ${peer.name}`}>
+            <MicOff size={14} /> Couper le son
+          </button>
+        )}
+        {isHost && (
+          <button type="button" onClick={() => onModerate(peer.id, "remove")} title={`Retirer ${peer.name} de la réunion`}>
+            <UserX size={14} /> Retirer
+          </button>
+        )}
+      </div>
     </div>
   );
 }
