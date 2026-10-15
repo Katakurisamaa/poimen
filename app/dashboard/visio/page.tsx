@@ -4,7 +4,7 @@ import { Suspense, useState, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Video, Users, Share2, Copy, Check, Monitor,
-  House, UserCheck, MessageSquare, ArrowLeft, Play, Link as LinkIcon, BarChart2, LockKeyhole
+  House, UserCheck, MessageSquare, ArrowLeft, Play, Link as LinkIcon, BarChart2, LockKeyhole, Trash2
 } from "lucide-react";
 import { useWorkspace } from "@/lib/use-workspace";
 import { getActiveUserInfo, getActiveSpaceType } from "@/lib/client-session";
@@ -20,6 +20,12 @@ import VideoConference from "@/components/visio/VideoConference";
 import InteractivePollPanel from "@/components/visio/InteractivePollPanel";
 import VisioPreflight, { type VisioDeviceSelection } from "@/components/visio/VisioPreflight";
 import styles from "./VisioDashboard.module.css";
+
+type CustomVisioRoom = {
+  roomName: string;
+  title: string;
+  createdAt?: string;
+};
 
 export default function VisioPage() {
   return (
@@ -107,8 +113,9 @@ function VisioContent() {
   // Field states
   const [customRoomInput, setCustomRoomInput] = useState("");
   const [customRoomId, setCustomRoomId] = useState("");
+  const [customRooms, setCustomRooms] = useState<CustomVisioRoom[]>([]);
   const [customRoomLoadedForKey, setCustomRoomLoadedForKey] = useState("");
-  const [confirmDeleteCustomRoom, setConfirmDeleteCustomRoom] = useState(false);
+  const [confirmDeleteCustomRoomId, setConfirmDeleteCustomRoomId] = useState("");
   const [customRoomBusy, setCustomRoomBusy] = useState(false);
   const [customRoomError, setCustomRoomError] = useState("");
   const [guestNameInput, setGuestNameInput] = useState(paramGuestName || "");
@@ -116,52 +123,100 @@ function VisioContent() {
   const [showPreflight, setShowPreflight] = useState(false);
   const [mediaDevices, setMediaDevices] = useState<VisioDeviceSelection>({});
   const customRoomStorageKey = `poimen:custom-visio-room:${sanitizeRoomName(`${user?.church_id || workspace.churchName || "icc"}-${user?.id || userEmail || "account"}`)}`;
+  const selectedCustomRoomStorageKey = `${customRoomStorageKey}:selected`;
 
   useEffect(() => {
     if (!mounted || !workspace.ready) return;
 
+    let cancelled = false;
     setCustomRoomLoadedForKey("");
     setCustomRoomId("");
     setCustomRoomInput("");
-    try {
-      const stored = window.localStorage.getItem(customRoomStorageKey);
-      if (stored) {
-        const saved = JSON.parse(stored) as { roomName?: unknown; title?: unknown };
-        if (typeof saved.roomName === "string" && saved.roomName.startsWith("poimen-prive-")) {
-          setCustomRoomBusy(true);
-          setCustomRoomId(saved.roomName);
-          setCustomRoomInput(typeof saved.title === "string" ? saved.title : "");
-          void fetch("/api/visio/custom-rooms", {
+    setCustomRooms([]);
+    setCustomRoomError("");
+    setCustomRoomBusy(true);
+
+    const loadCustomRooms = async () => {
+      let legacyRoom: { roomName: string; title: string } | null = null;
+      let registrationError = "";
+
+      try {
+        const stored = window.localStorage.getItem(customRoomStorageKey);
+        if (stored) {
+          const saved = JSON.parse(stored) as { roomName?: unknown; title?: unknown };
+          if (typeof saved.roomName === "string" && saved.roomName.startsWith("poimen-prive-")) {
+            legacyRoom = {
+              roomName: saved.roomName,
+              title: typeof saved.title === "string" && saved.title.trim() ? saved.title.trim() : "Salle personnalisée",
+            };
+          } else {
+            window.localStorage.removeItem(customRoomStorageKey);
+          }
+        }
+      } catch {
+        window.localStorage.removeItem(customRoomStorageKey);
+      }
+
+      if (legacyRoom) {
+        try {
+          const response = await fetch("/api/visio/custom-rooms", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "register", roomName: saved.roomName, title: saved.title }),
-          }).then(async response => {
-            const result = await response.json().catch(() => ({})) as { error?: string };
-            if (response.ok) return;
-            if (response.status === 410) {
-              window.localStorage.removeItem(customRoomStorageKey);
-              setCustomRoomId(current => current === saved.roomName ? "" : current);
-              setCustomRoomInput(current => current === saved.title ? "" : current);
-              notify("Cette salle a déjà été supprimée. Son lien est désactivé.");
-              return;
-            }
-            setCustomRoomError(result.error || "Impossible de vérifier cette salle.");
-          }).catch(() => setCustomRoomError("Impossible de joindre le service de gestion des salles.")).finally(() => setCustomRoomBusy(false));
+            body: JSON.stringify({ action: "register", roomName: legacyRoom.roomName, title: legacyRoom.title }),
+          });
+          const result = await response.json().catch(() => ({})) as { error?: string };
+          if (response.ok || response.status === 410) {
+            window.localStorage.removeItem(customRoomStorageKey);
+          } else {
+            registrationError = result.error || "Impossible de vérifier une ancienne salle privée.";
+          }
+        } catch {
+          registrationError = "Impossible de joindre le service de gestion des salles.";
         }
       }
-    } catch {
-      window.localStorage.removeItem(customRoomStorageKey);
-    }
-    setCustomRoomLoadedForKey(customRoomStorageKey);
-  }, [mounted, workspace.ready, customRoomStorageKey, notify]);
+
+      try {
+        const response = await fetch("/api/visio/custom-rooms", { cache: "no-store" });
+        const result = await response.json().catch(() => ({})) as { rooms?: CustomVisioRoom[]; error?: string };
+        if (!response.ok) throw new Error(result.error || "Impossible de charger vos salles privées.");
+        const rooms = Array.isArray(result.rooms)
+          ? result.rooms.filter(room => typeof room.roomName === "string" && typeof room.title === "string")
+          : [];
+        if (cancelled) return;
+
+        setCustomRooms(rooms);
+        const savedSelection = window.localStorage.getItem(selectedCustomRoomStorageKey);
+        const selectedRoomName = rooms.some(room => room.roomName === savedSelection)
+          ? savedSelection!
+          : legacyRoom && rooms.some(room => room.roomName === legacyRoom?.roomName)
+            ? legacyRoom.roomName
+            : rooms[0]?.roomName || "";
+        setCustomRoomId(selectedRoomName);
+        setCustomRoomError(registrationError);
+      } catch (error) {
+        if (!cancelled) {
+          setCustomRoomError(error instanceof Error ? error.message : "Impossible de charger vos salles privées.");
+        }
+      } finally {
+        if (!cancelled) {
+          setCustomRoomLoadedForKey(customRoomStorageKey);
+          setCustomRoomBusy(false);
+        }
+      }
+    };
+
+    void loadCustomRooms();
+    return () => { cancelled = true; };
+  }, [mounted, workspace.ready, customRoomStorageKey, selectedCustomRoomStorageKey]);
 
   useEffect(() => {
-    if (!mounted || !workspace.ready || customRoomLoadedForKey !== customRoomStorageKey || !customRoomId) return;
-    window.localStorage.setItem(customRoomStorageKey, JSON.stringify({
-      roomName: customRoomId,
-      title: customRoomInput.trim() || "Salle personnalisée",
-    }));
-  }, [mounted, workspace.ready, customRoomLoadedForKey, customRoomStorageKey, customRoomId, customRoomInput]);
+    if (!mounted || !workspace.ready || customRoomLoadedForKey !== customRoomStorageKey) return;
+    if (customRoomId && customRooms.some(room => room.roomName === customRoomId)) {
+      window.localStorage.setItem(selectedCustomRoomStorageKey, customRoomId);
+    } else {
+      window.localStorage.removeItem(selectedCustomRoomStorageKey);
+    }
+  }, [mounted, workspace.ready, customRoomLoadedForKey, customRoomStorageKey, selectedCustomRoomStorageKey, customRoomId, customRooms]);
 
   // Sync if params change
   useEffect(() => {
@@ -172,6 +227,8 @@ function VisioContent() {
       setGuestNameInput(paramGuestName);
     }
   }, [paramRoom, paramGuestName]);
+
+  const selectedCustomRoom = customRooms.find(room => room.roomName === customRoomId) || null;
 
   // Compute room name and title according to active tab
   const { roomName, meetingTitle, description } = useMemo(() => {
@@ -226,10 +283,9 @@ function VisioContent() {
     }
 
     // custom tab
-    const title = customRoomInput.trim() || "Salle personnalisée";
     return {
       roomName: customRoomId,
-      meetingTitle: title,
+      meetingTitle: selectedCustomRoom?.title || "Salle personnalisée",
       description: "Créez une salle nommée avec un lien d’invitation privé réutilisable.",
     };
   }, [
@@ -238,8 +294,8 @@ function VisioContent() {
     activeTab, 
     workspace, 
     guestNameInput, 
-    customRoomInput, 
     customRoomId,
+    selectedCustomRoom,
     paramGuestId,
     isFamily
   ]);
@@ -272,10 +328,11 @@ function VisioContent() {
       });
       const result = await response.json().catch(() => ({})) as { roomName?: string; error?: string };
       if (!response.ok || !result.roomName) throw new Error(result.error || "La création de la salle a échoué.");
-      window.localStorage.setItem(customRoomStorageKey, JSON.stringify({ roomName: result.roomName, title }));
+      const createdRoom = { roomName: result.roomName, title };
+      setCustomRooms(current => [createdRoom, ...current.filter(room => room.roomName !== createdRoom.roomName)]);
       setCustomRoomId(result.roomName);
-      setCustomRoomLoadedForKey(customRoomStorageKey);
-      setConfirmDeleteCustomRoom(false);
+      setCustomRoomInput("");
+      setConfirmDeleteCustomRoomId("");
       notify("Votre lien privé réutilisable est prêt.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "La création de la salle a échoué.";
@@ -286,20 +343,22 @@ function VisioContent() {
     }
   };
 
-  const handleDeleteCustomRoom = async () => {
-    if (!customRoomId) return;
+  const handleDeleteCustomRoom = async (roomName: string) => {
+    if (!roomName) return;
     setCustomRoomBusy(true);
     setCustomRoomError("");
     try {
-      const response = await fetch(`/api/visio/custom-rooms?room=${encodeURIComponent(customRoomId)}`, { method: "DELETE" });
+      const response = await fetch(`/api/visio/custom-rooms?room=${encodeURIComponent(roomName)}`, { method: "DELETE" });
       const result = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(result.error || "La suppression de la salle a échoué.");
-      window.localStorage.removeItem(customRoomStorageKey);
-      setCustomRoomId("");
-      setCustomRoomInput("");
-      setConfirmDeleteCustomRoom(false);
-      setPollsOpen(false);
-      setCopied(false);
+      const remainingRooms = customRooms.filter(room => room.roomName !== roomName);
+      setCustomRooms(remainingRooms);
+      if (customRoomId === roomName) {
+        setCustomRoomId(remainingRooms[0]?.roomName || "");
+        setPollsOpen(false);
+        setCopied(false);
+      }
+      if (confirmDeleteCustomRoomId === roomName) setConfirmDeleteCustomRoomId("");
       notify("Salle supprimée. Les liens partagés sont maintenant désactivés.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "La suppression de la salle a échoué.";
@@ -463,7 +522,7 @@ function VisioContent() {
             {activeTab === "custom" && (
               <div className={styles.inputsRow}>
                 <div className={styles.inputField}>
-                  <label htmlFor="custom-room-field">Nom de la salle</label>
+                  <label htmlFor="custom-room-field">Nom de la nouvelle salle</label>
                   <input
                     id="custom-room-field"
                     type="text"
@@ -478,39 +537,71 @@ function VisioContent() {
                     type="button"
                     className={styles.btnSecondary}
                     onClick={handleCreateCustomRoom}
-                    disabled={customRoomBusy || !customRoomLoadedForKey || customRoomLoadedForKey !== customRoomStorageKey || !customRoomInput.trim()}
+                    disabled={customRoomBusy || customRoomLoadedForKey !== customRoomStorageKey || !customRoomInput.trim()}
                   >
                     <LockKeyhole size={16} />
-                    {customRoomBusy ? "Enregistrement…" : customRoomId ? "Générer un autre lien privé" : "Créer mon lien privé réutilisable"}
+                    {customRoomBusy ? "Enregistrement…" : "Créer une salle privée"}
                   </button>
-                  {customRoomId && !confirmDeleteCustomRoom && (
-                    <button
-                      type="button"
-                      className={styles.btnDanger}
-                      onClick={() => setConfirmDeleteCustomRoom(true)}
-                    >
-                      Supprimer la salle
-                    </button>
-                  )}
-                  <p>
-                    {customRoomId
-                      ? "Le code privé reste stable quand vous renommez la salle. Recopiez le lien actualisé pour afficher le nouveau nom ; l’ancienne adresse mène toujours à la salle."
-                      : "Un lien aléatoire sera créé et conservé dans ce navigateur pour retrouver la salle."}
-                  </p>
-                  {confirmDeleteCustomRoom && customRoomId && (
-                    <div className={styles.deleteRoomConfirm} role="group" aria-labelledby="delete-room-title" aria-describedby="delete-room-description">
-                      <div>
-                        <strong id="delete-room-title">Supprimer définitivement cette salle ?</strong>
-                        <p id="delete-room-description">Le lien sera désactivé pour tous les participants et ne permettra plus de rejoindre la réunion.</p>
-                      </div>
-                      <div className={styles.deleteRoomActions}>
-                        <button type="button" className={styles.btnDanger} onClick={handleDeleteCustomRoom} disabled={customRoomBusy}>{customRoomBusy ? "Suppression…" : "Confirmer la suppression"}</button>
-                        <button type="button" className={styles.btnSecondary} onClick={() => setConfirmDeleteCustomRoom(false)} disabled={customRoomBusy}>Annuler</button>
-                      </div>
+                  <p>Créez autant de salles que nécessaire. Chacune dispose de son propre lien réutilisable.</p>
+                </div>
+
+                <div className={styles.customRoomList} aria-label="Salles personnalisées enregistrées">
+                  <div className={styles.customRoomListHeader}>
+                    <strong>Mes salles privées</strong>
+                    <span>{customRooms.length}</span>
+                  </div>
+                  {customRoomBusy && customRoomLoadedForKey !== customRoomStorageKey ? (
+                    <p className={styles.customRoomEmpty}>Chargement de vos salles…</p>
+                  ) : customRooms.length === 0 ? (
+                    <p className={styles.customRoomEmpty}>Aucune salle pour le moment. Créez-en une avec son propre lien privé.</p>
+                  ) : (
+                    <div className={styles.customRoomItems}>
+                      {customRooms.map(room => {
+                        const isSelected = room.roomName === customRoomId;
+                        const isConfirmingDelete = room.roomName === confirmDeleteCustomRoomId;
+                        return (
+                          <div key={room.roomName} className={`${styles.customRoomItem} ${isSelected ? styles.customRoomItemSelected : ""}`}>
+                            <button
+                              type="button"
+                              className={styles.customRoomSelect}
+                              onClick={() => {
+                                setCustomRoomId(room.roomName);
+                                setConfirmDeleteCustomRoomId("");
+                                setCopied(false);
+                              }}
+                              aria-pressed={isSelected}
+                            >
+                              <span className={styles.customRoomSelectTitle}>{room.title}</span>
+                              <span className={styles.customRoomSelectState}>{isSelected ? "Sélectionnée pour l’appel" : "Utiliser cette salle"}</span>
+                            </button>
+                            {isConfirmingDelete ? (
+                              <div className={styles.customRoomDeleteConfirm}>
+                                <span>Désactiver ce lien pour tous ?</span>
+                                <button type="button" className={styles.btnDanger} onClick={() => void handleDeleteCustomRoom(room.roomName)} disabled={customRoomBusy}>
+                                  {customRoomBusy ? "Suppression…" : "Confirmer"}
+                                </button>
+                                <button type="button" className={styles.btnSecondary} onClick={() => setConfirmDeleteCustomRoomId("")} disabled={customRoomBusy}>Annuler</button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className={styles.customRoomDeleteButton}
+                                onClick={() => setConfirmDeleteCustomRoomId(room.roomName)}
+                                disabled={customRoomBusy}
+                                aria-label={`Supprimer la salle ${room.title}`}
+                                title={`Supprimer ${room.title}`}
+                              >
+                                <Trash2 size={16} />
+                                <span>Supprimer</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                  {customRoomError && <p className={styles.roomError} role="alert">{customRoomError}</p>}
                 </div>
+                {customRoomError && <p className={styles.roomError} role="alert">{customRoomError}</p>}
               </div>
             )}
 

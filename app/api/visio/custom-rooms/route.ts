@@ -50,6 +50,21 @@ function failure(error: unknown) {
 export async function GET(request: NextRequest) {
   try {
     const roomName = request.nextUrl.searchParams.get("room");
+    if (!roomName) {
+      const user = await authenticatedUser(request);
+      const { data, error } = await serviceClient().from("visio_custom_rooms")
+        .select("room_name,title,created_at")
+        .eq("owner_id", user.id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) databaseError(error);
+      const rooms = (data || []).map(room => ({
+        roomName: room.room_name,
+        title: room.title,
+        createdAt: room.created_at,
+      }));
+      return NextResponse.json({ rooms }, { headers: { "Cache-Control": "no-store" } });
+    }
     if (!isRoomName(roomName)) throw new RoomError("Lien de salle privée invalide.");
     const { data, error } = await serviceClient().from("visio_custom_rooms")
       .select("is_active,title").eq("room_name", roomName).maybeSingle();

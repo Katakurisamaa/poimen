@@ -168,6 +168,184 @@
   line-height: 1.5;
 }
 
+.customRoomList {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.customRoomListHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--cream, #f8fafc);
+  font-size: 13px;
+}
+
+.customRoomListHeader strong {
+  font-weight: 600;
+}
+
+.customRoomListHeader span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--gold-glow, rgba(212, 175, 55, 0.15));
+  color: var(--gold, #d4af37);
+  font-size: 11px;
+}
+
+.customRoomItems {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.customRoomItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--ux-line, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  background: var(--surface, #141824);
+}
+
+.customRoomItemSelected {
+  border-color: rgba(212, 175, 55, 0.5);
+  background: var(--gold-glow, rgba(212, 175, 55, 0.09));
+}
+
+.customRoomSelect {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--cream, #f8fafc);
+  text-align: left;
+  cursor: pointer;
+}
+
+.customRoomSelect:focus-visible,
+.customRoomDeleteButton:focus-visible {
+  outline: 2px solid var(--gold, #d4af37);
+  outline-offset: 3px;
+}
+
+.customRoomSelectTitle {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.customRoomSelectState {
+  color: var(--ux-muted, #94a3b8);
+  font-size: 11px;
+}
+
+.customRoomItemSelected .customRoomSelectState {
+  color: var(--gold, #d4af37);
+}
+
+.customRoomDeleteButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef7777;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.customRoomDeleteButton:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.customRoomDeleteConfirm {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--ux-muted, #94a3b8);
+  font-size: 12px;
+}
+
+.customRoomDeleteConfirm .btnDanger,
+.customRoomDeleteConfirm .btnSecondary {
+  min-height: 38px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.customRoomDeleteConfirm .btnSecondary:disabled,
+.customRoomDeleteButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.customRoomEmpty {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--ux-line, rgba(255, 255, 255, 0.14));
+  border-radius: 12px;
+  color: var(--ux-muted, #94a3b8);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+:global(html[data-theme="light"]) .customRoomListHeader,
+:global(body:not(.dark)) .customRoomListHeader,
+:global(html[data-theme="light"]) .customRoomSelect,
+:global(body:not(.dark)) .customRoomSelect {
+  color: #1f2937;
+}
+
+:global(html[data-theme="light"]) .customRoomItem,
+:global(body:not(.dark)) .customRoomItem {
+  border-color: #d7dde8;
+  background: #fff;
+}
+
+:global(html[data-theme="light"]) .customRoomItemSelected,
+:global(body:not(.dark)) .customRoomItemSelected {
+  border-color: #c49a23;
+  background: #fff9e8;
+}
+
+:global(html[data-theme="light"]) .customRoomDeleteConfirm,
+:global(body:not(.dark)) .customRoomDeleteConfirm {
+  color: #475569;
+}
+
+:global(html[data-theme="light"]) .customRoomEmpty,
+:global(body:not(.dark)) .customRoomEmpty {
+  border-color: #d7dde8;
+  color: #64748b;
+}
+
 .btnDanger {
   display: inline-flex;
   align-items: center;
@@ -187,32 +365,6 @@
 .btnDanger:hover {
   background: rgba(239, 68, 68, 0.16);
   border-color: rgba(239, 68, 68, 0.55);
-}
-
-.deleteRoomConfirm {
-  flex: 1 1 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 14px;
-  background: rgba(239, 68, 68, 0.07);
-}
-
-.deleteRoomConfirm strong {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--cream, #f8fafc);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.deleteRoomActions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
 }
 
 .roomError {
@@ -479,21 +631,18 @@
     min-height: 46px;
   }
 
-  .customRoomCreation .btnDanger {
-    width: 100%;
-    min-height: 46px;
-  }
-
-  .deleteRoomConfirm {
+  .customRoomItem {
+    flex-direction: column;
     align-items: stretch;
+  }
+
+  .customRoomDeleteConfirm {
+    justify-content: stretch;
     flex-direction: column;
   }
 
-  .deleteRoomActions {
-    flex-direction: column;
-  }
-
-  .deleteRoomActions > * {
+  .customRoomDeleteConfirm > button,
+  .customRoomDeleteButton {
     width: 100%;
     min-height: 44px;
   }
