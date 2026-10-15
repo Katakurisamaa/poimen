@@ -4,7 +4,8 @@ import { Suspense, useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Video, Users, Share2, Copy, Check, Monitor,
-  House, UserCheck, MessageSquare, ArrowLeft, DoorOpen, LogIn, Link as LinkIcon, BarChart2, LockKeyhole, Trash2
+  House, UserCheck, MessageSquare, ArrowLeft, ArrowRight, DoorOpen, LogIn,
+  Link as LinkIcon, BarChart2, LockKeyhole, Trash2, Plus, X, ChevronRight, Camera
 } from "lucide-react";
 import { useWorkspace } from "@/lib/use-workspace";
 import { getActiveUserInfo, getActiveSpaceType } from "@/lib/client-session";
@@ -31,6 +32,13 @@ type CustomVisioRoom = {
 type RoomOccupancyPresence = {
   peerId?: string;
   participantId?: string;
+};
+
+const roomOptions: Record<VisioSpaceType, { label: string; hint: string; eyebrow: string }> = {
+  integration: { label: "Équipe", hint: "Se retrouver ensemble", eyebrow: "Votre salle d’équipe" },
+  family: { label: "Famille", hint: "Partager un moment", eyebrow: "Votre salle de famille" },
+  guest: { label: "Entretien", hint: "Échanger à deux", eyebrow: "Un échange individuel" },
+  custom: { label: "Mes salles", hint: "Vos liens réutilisables", eyebrow: "Votre salle personnalisée" },
 };
 
 export default function VisioPage() {
@@ -76,7 +84,7 @@ function VisioContent() {
         { id: "integration", label: "Équipe d'Intégration", icon: Users },
         { id: "guest", label: "Entretien de Suivi / Invité", icon: UserCheck },
         { id: "family", label: "Famille de disciples (Cellule)", icon: House },
-        { id: "custom", label: "Salle Personnalisée", icon: MessageSquare },
+        { id: "custom", label: "Salle Personnalisée", icon: DoorOpen },
       ];
     }
 
@@ -84,7 +92,7 @@ function VisioContent() {
       return [
         { id: "integration", label: "Équipe d'Intégration", icon: Users },
         { id: "guest", label: "Entretien de Suivi / Invité", icon: UserCheck },
-        { id: "custom", label: "Salle Personnalisée", icon: MessageSquare },
+        { id: "custom", label: "Salle Personnalisée", icon: DoorOpen },
       ];
     }
 
@@ -92,7 +100,7 @@ function VisioContent() {
     return [
       { id: "family", label: `Réunion de Famille (${workspace.familyName || "Cellule"})`, icon: House },
       { id: "guest", label: "Entretien individuel", icon: UserCheck },
-      { id: "custom", label: "Salle Personnalisée", icon: MessageSquare },
+      { id: "custom", label: "Salle Personnalisée", icon: DoorOpen },
     ];
   }, [isAdmin, isIntegration, workspace.familyName]);
 
@@ -126,12 +134,24 @@ function VisioContent() {
   const [confirmDeleteCustomRoomId, setConfirmDeleteCustomRoomId] = useState("");
   const [customRoomBusy, setCustomRoomBusy] = useState(false);
   const [customRoomError, setCustomRoomError] = useState("");
+  const [showCustomRoomForm, setShowCustomRoomForm] = useState(false);
   const [guestNameInput, setGuestNameInput] = useState(paramGuestName || "");
   const [copied, setCopied] = useState(false);
   const [showPreflight, setShowPreflight] = useState(false);
   const [mediaDevices, setMediaDevices] = useState<VisioDeviceSelection>({});
+  const pollPreparationRef = useRef<HTMLElement>(null);
+  const pollShortcutRef = useRef<HTMLButtonElement>(null);
   const customRoomStorageKey = `poimen:custom-visio-room:${sanitizeRoomName(`${user?.church_id || workspace.churchName || "icc"}-${user?.id || userEmail || "account"}`)}`;
   const selectedCustomRoomStorageKey = `${customRoomStorageKey}:selected`;
+
+  useEffect(() => {
+    if (pollsOpen && !inMeeting && !showPreflight) {
+      pollPreparationRef.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start",
+      });
+    }
+  }, [pollsOpen, inMeeting, showPreflight]);
 
   useEffect(() => {
     if (!mounted || !workspace.ready) return;
@@ -395,6 +415,7 @@ function VisioContent() {
       setCustomRoomId(result.roomName);
       setCustomRoomInput("");
       setConfirmDeleteCustomRoomId("");
+      setShowCustomRoomForm(false);
       notify("Votre lien privé réutilisable est prêt.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "La création de la salle a échoué.";
@@ -509,279 +530,148 @@ function VisioContent() {
         />
       ) : (
         <>
-          <header className={styles.header}>
-            <div className={styles.headerInfo}>
-              <h1>
-                <Video size={26} color="#d4af37" />
-                {isIntegration 
-                  ? "Visioconférence · Intégration" 
-                  : isFamily 
-                    ? `Visioconférence · ${workspace.familyName || "Famille de disciples"}`
-                    : "Visioconférence & Partage d'écran"
-                }
-              </h1>
-              <p>
-                {isIntegration
-                  ? "Organisez vos points d'équipe d'intégration et vos entretiens de suivi avec partage d'écran."
-                  : isFamily
-                    ? `Organisez vos réunions de cellule de maison et échanges pour ${workspace.familyName || "votre famille de disciples"}.`
-                    : "Organisez vos réunions d'équipe et entretiens pastoraux avec partage d'écran."
-                }
-              </p>
-            </div>
-          </header>
+          <div className={styles.lobby}>
+            <header className={styles.header}>
+              <div className={styles.eyebrow}><Video size={16} aria-hidden="true" /> Visio <span aria-hidden="true">/</span> {isIntegration ? "Intégration" : isFamily ? workspace.familyName || "Famille" : "Votre espace"}</div>
+              <h1>Un moment pour se retrouver.</h1>
+              <p>Choisissez votre salle et lancez la conversation.</p>
+            </header>
 
-          <nav className={styles.tabsBar} aria-label="Mode de visioconférence">
-            {allowedTabs.map(tab => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`${styles.tabBtn} ${activeTab === tab.id ? styles.active : ""}`}
-                  onClick={() => setActiveTab(tab.id)}
-                  aria-pressed={activeTab === tab.id}
-                >
-                  <Icon size={16} /> {tab.label}
-                </button>
-              );
-            })}
-          </nav>
-
-          <section className={styles.cardSetup}>
-            <div className={styles.cardHeader}>
-              <div className={styles.cardTitleGroup}>
-                <div className={styles.cardIcon}>
-                  {activeTab === "family" && <House size={24} />}
-                  {activeTab === "integration" && <Users size={24} />}
-                  {activeTab === "guest" && <UserCheck size={24} />}
-                  {activeTab === "custom" && <MessageSquare size={24} />}
-                </div>
-                <div>
-                  <h3 className={styles.cardTitle}>{meetingTitle}</h3>
-                  <p className={styles.cardDesc}>{description}</p>
-                </div>
-              </div>
-            </div>
-
-            {activeTab === "guest" && (
-              <div className={styles.inputsRow}>
-                <div className={styles.inputField}>
-                  <label htmlFor="guest-name-field">
-                    {isFamily ? "Nom de la personne" : "Prénom et Nom de l'invité(e)"}
-                  </label>
-                  <input
-                    id="guest-name-field"
-                    type="text"
-                    placeholder={isFamily ? "Ex: Frère Marc, Sœur Marie..." : "Ex: Frère Thomas, Sœur Grâce..."}
-                    value={guestNameInput}
-                    onChange={(e) => setGuestNameInput(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
+            <nav className={`${styles.roomTypes} ${allowedTabs.length === 4 ? styles.fourRoomTypes : ""}`} aria-label="Type de salle">
+              {allowedTabs.map(tab => {
+                const Icon = tab.icon;
+                const option = roomOptions[tab.id];
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`${styles.roomType} ${activeTab === tab.id ? styles.roomTypeActive : ""}`}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setPollsOpen(false);
+                      setCopied(false);
+                      setConfirmDeleteCustomRoomId("");
+                    }}
+                    aria-pressed={activeTab === tab.id}
+                    aria-label={option.label}
+                  >
+                    <span className={styles.typeIcon}><Icon size={21} aria-hidden="true" /></span>
+                    <span className={styles.typeText}><span>{option.label}</span><small>{option.hint}</small></span>
+                    <span className={styles.typeIndicator} aria-hidden="true">{activeTab === tab.id && <Check size={12} />}</span>
+                  </button>
+                );
+              })}
+            </nav>
 
             {activeTab === "custom" && (
-              <div className={styles.inputsRow}>
-                <div className={styles.inputField}>
-                  <label htmlFor="custom-room-field">Nom de la nouvelle salle</label>
-                  <input
-                    id="custom-room-field"
-                    type="text"
-                    placeholder="Ex. Point hebdomadaire, prière du matin…"
-                    maxLength={80}
-                    value={customRoomInput}
-                    onChange={(e) => setCustomRoomInput(e.target.value)}
-                  />
+              <section className={styles.savedRooms} aria-labelledby="saved-rooms-title" aria-busy={customRoomBusy}>
+                <div className={styles.sectionHeading}>
+                  <div><h2 id="saved-rooms-title">Mes salles privées <span className={styles.roomCount}>{customRooms.length}</span></h2><p>Un nom, un lien à retrouver à chaque rencontre.</p></div>
+                  {customRooms.length > 0 && <button type="button" className={styles.newRoomButton} onClick={() => setShowCustomRoomForm(!showCustomRoomForm)} aria-expanded={showCustomRoomForm} aria-controls={showCustomRoomForm ? "new-room-form" : undefined} disabled={customRoomBusy}>
+                    {showCustomRoomForm ? <X size={17} /> : <Plus size={17} />}<span>{showCustomRoomForm ? "Fermer" : "Nouvelle salle"}</span>
+                  </button>}
                 </div>
-                <div className={styles.customRoomCreation}>
-                  <button
-                    type="button"
-                    className={styles.btnSecondary}
-                    onClick={handleCreateCustomRoom}
-                    disabled={customRoomBusy || customRoomLoadedForKey !== customRoomStorageKey || !customRoomInput.trim()}
-                  >
-                    <LockKeyhole size={16} />
-                    {customRoomBusy ? "Enregistrement…" : "Créer une salle privée"}
-                  </button>
-                  <p>Créez autant de salles que nécessaire. Chacune dispose de son propre lien réutilisable.</p>
-                </div>
-
-                <div className={styles.customRoomList} aria-label="Salles personnalisées enregistrées">
-                  <div className={styles.customRoomListHeader}>
-                    <strong>Mes salles privées</strong>
-                    <span>{customRooms.length}</span>
-                  </div>
-                  {customRoomBusy && customRoomLoadedForKey !== customRoomStorageKey ? (
-                    <p className={styles.customRoomEmpty}>Chargement de vos salles…</p>
-                  ) : customRooms.length === 0 ? (
-                    <p className={styles.customRoomEmpty}>Aucune salle pour le moment. Créez-en une avec son propre lien privé.</p>
-                  ) : (
-                    <div className={styles.customRoomItems}>
+                {customRoomLoadedForKey !== customRoomStorageKey ? (
+                  <p className={styles.emptyRooms} role="status">Chargement de vos salles…</p>
+                ) : (
+                  <>
+                    {customRooms.length === 0 && <div className={styles.emptyRooms}><span className={styles.emptyRoomIcon}><DoorOpen size={26} /></span><p>Votre première salle vous attend.</p><span>Pour vos temps de prière, vos réunions ou vos échanges réguliers.</span></div>}
+                    {(showCustomRoomForm || customRooms.length === 0) && (
+                      <form id="new-room-form" className={styles.createRoomForm} onSubmit={event => { event.preventDefault(); if (!customRoomBusy && customRoomInput.trim()) void handleCreateCustomRoom(); }}>
+                        <div className={styles.field}>
+                          <label htmlFor="custom-room-field">Comment s’appelle votre salle ?</label>
+                          <input id="custom-room-field" type="text" placeholder="Ex. Prière du matin" maxLength={80} value={customRoomInput} onChange={event => setCustomRoomInput(event.target.value)} autoFocus={showCustomRoomForm} disabled={customRoomBusy} required />
+                        </div>
+                        <button type="submit" className={styles.btnPrimary} disabled={customRoomBusy || !customRoomInput.trim()}><Plus size={18} />{customRoomBusy ? "Création…" : "Créer la salle"}</button>
+                        <p className={styles.formHint}><LinkIcon size={14} />Chaque salle garde son propre lien d’invitation.</p>
+                      </form>
+                    )}
+                    {customRooms.length > 0 && <div className={styles.customRoomItems}>
                       {customRooms.map(room => {
                         const isSelected = room.roomName === customRoomId;
                         const isConfirmingDelete = room.roomName === confirmDeleteCustomRoomId;
                         return (
                           <div key={room.roomName} className={`${styles.customRoomItem} ${isSelected ? styles.customRoomItemSelected : ""}`}>
-                            <button
-                              type="button"
-                              className={styles.customRoomSelect}
-                              onClick={() => {
-                                setCustomRoomId(room.roomName);
-                                setConfirmDeleteCustomRoomId("");
-                                setCopied(false);
-                              }}
-                              aria-pressed={isSelected}
-                            >
-                              <span className={styles.customRoomSelectTitle}>{room.title}</span>
-                              <span className={styles.customRoomSelectState}>{isSelected ? "Sélectionnée pour l’appel" : "Utiliser cette salle"}</span>
-                            </button>
-                            {isConfirmingDelete ? (
-                              <div className={styles.customRoomDeleteConfirm}>
-                                <span>Désactiver ce lien pour tous ?</span>
-                                <button type="button" className={styles.btnDanger} onClick={() => void handleDeleteCustomRoom(room.roomName)} disabled={customRoomBusy}>
-                                  {customRoomBusy ? "Suppression…" : "Confirmer"}
-                                </button>
-                                <button type="button" className={styles.btnSecondary} onClick={() => setConfirmDeleteCustomRoomId("")} disabled={customRoomBusy}>Annuler</button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className={styles.customRoomDeleteButton}
-                                onClick={() => setConfirmDeleteCustomRoomId(room.roomName)}
-                                disabled={customRoomBusy}
-                                aria-label={`Supprimer la salle ${room.title}`}
-                                title={`Supprimer ${room.title}`}
-                              >
-                                <Trash2 size={16} />
-                                <span>Supprimer</span>
+                            <div className={styles.customRoomRow}>
+                              <button type="button" className={styles.customRoomSelect} onClick={() => { setCustomRoomId(room.roomName); setConfirmDeleteCustomRoomId(""); setCopied(false); setPollsOpen(false); }} aria-pressed={isSelected} disabled={customRoomBusy}>
+                                <span className={styles.savedRoomIcon}><LockKeyhole size={18} /></span>
+                                <span className={styles.savedRoomText}><span>{room.title}</span><small>{isSelected ? "Salle sélectionnée" : "Sélectionner cette salle"}</small></span>
+                                {isSelected ? <Check size={17} className={styles.selectionCheck} /> : <ChevronRight size={17} className={styles.selectionCheck} />}
                               </button>
-                            )}
+                              <button type="button" className={styles.deleteRoomButton} onClick={() => setConfirmDeleteCustomRoomId(isConfirmingDelete ? "" : room.roomName)} disabled={customRoomBusy} aria-label={`Supprimer la salle ${room.title}`} aria-expanded={isConfirmingDelete} title={`Supprimer ${room.title}`}><Trash2 size={17} /></button>
+                            </div>
+                            {isConfirmingDelete && <div className={styles.deleteConfirmation}>
+                              <p>Supprimer « {room.title} » ? Son lien ne permettra plus de rejoindre la salle.</p>
+                              <div><button type="button" className={styles.btnSecondary} onClick={() => setConfirmDeleteCustomRoomId("")} disabled={customRoomBusy}>Annuler</button><button type="button" className={styles.btnDanger} onClick={() => void handleDeleteCustomRoom(room.roomName)} disabled={customRoomBusy}>{customRoomBusy ? "Suppression…" : "Supprimer"}</button></div>
+                            </div>}
                           </div>
                         );
                       })}
-                    </div>
-                  )}
-                </div>
+                    </div>}
+                  </>
+                )}
                 {customRoomError && <p className={styles.roomError} role="alert">{customRoomError}</p>}
-              </div>
+              </section>
             )}
 
-            {activeTab === "custom" && customRoomId ? (
-              <div className={styles.roomPreviewBox}>
-                <span className={styles.roomLabel}>Lien privé réutilisable</span>
-                <strong className={styles.roomValue}>{meetingTitle}</strong>
-                <div className={styles.privateLinkRow}>
-                  <input aria-label="Lien privé de la salle" readOnly value={publicUrl} onFocus={event => event.currentTarget.select()} />
-                  <button type="button" className={styles.btnSecondary} onClick={handleCopyLink} title="Copier le lien privé">
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                    <span>{copied ? "Copié" : "Copier"}</span>
+            {(activeTab !== "custom" || customRoomId) && (
+              <div className={styles.roomLayout}>
+                <section className={styles.sessionCard} aria-labelledby="selected-room-title">
+                  <div className={styles.roomIntro}>
+                    <div className={styles.sessionTopline}>
+                      <span className={styles.eyebrow}>{roomOptions[activeTab].eyebrow}</span>
+                      {roomIsOccupied && <span className={styles.liveBadge} role="status"><span />En cours · {roomOccupancy.participantCount}</span>}
+                    </div>
+                    <div className={styles.roomEmblem} aria-hidden="true">{activeTab === "integration" ? <Users size={32} /> : activeTab === "family" ? <House size={32} /> : activeTab === "guest" ? <UserCheck size={32} /> : <Video size={32} />}</div>
+                    <h2 id="selected-room-title">{activeTab === "integration" ? "Équipe d’Intégration" : activeTab === "family" ? workspace.familyName || "Famille de disciples" : activeTab === "guest" ? "Entretien individuel" : meetingTitle}</h2>
+                    {activeTab !== "custom" && <span className={styles.churchName}>{workspace.churchName || "ICC"}</span>}
+                    <p className={styles.roomDescription}>{activeTab === "custom" ? "Votre espace pour vous retrouver, aujourd’hui et la prochaine fois." : description}</p>
+                  </div>
+                  {activeTab === "guest" && <div className={`${styles.field} ${styles.guestField}`}>
+                    <label htmlFor="guest-name-field">Avec qui souhaitez-vous échanger ?</label>
+                    <input id="guest-name-field" type="text" placeholder="Prénom et nom" value={guestNameInput} onChange={event => { setGuestNameInput(event.target.value); setCopied(false); setPollsOpen(false); }} autoComplete="off" />
+                    <p className={styles.formHint}>Le lien de l’entretien est associé à ce nom.</p>
+                  </div>}
+                  <div className={styles.joinArea}>
+                    <button type="button" className={styles.btnPrimary} onClick={() => { setPollsOpen(false); setShowPreflight(true); }} disabled={activeTab === "custom" && customRoomBusy}>
+                      {roomIsOccupied ? <LogIn size={20} /> : <DoorOpen size={20} />}<span>{roomIsOccupied ? "Rejoindre la salle" : "Ouvrir la salle"}</span><ArrowRight size={18} />
+                    </button>
+                    <p><Camera size={14} /><span>Réglez votre caméra et votre micro avant d’entrer.</span></p>
+                  </div>
+                </section>
+
+                <aside className={styles.roomAside} aria-label="Invitations et outils de la salle">
+                  <section className={styles.inviteCard} aria-labelledby="invite-title">
+                    <span className={styles.asideIcon}><LinkIcon size={20} aria-hidden="true" /></span>
+                    <h2 id="invite-title">Invitez à la conversation</h2>
+                    <p>Un lien suffit pour vous retrouver.</p>
+                    <div className={styles.linkActions}>
+                      <button type="button" className={`${styles.btnSecondary} ${copied ? styles.copiedButton : ""}`} onClick={handleCopyLink}>
+                        {copied ? <Check size={18} /> : <Copy size={18} />}<span>{copied ? "Lien copié !" : "Copier le lien"}</span>
+                      </button>
+                      <button type="button" className={`${styles.btnSecondary} ${styles.whatsappButton}`} onClick={handleShareWhatsApp} aria-label="Inviter sur WhatsApp"><Share2 size={18} /><span>WhatsApp</span></button>
+                    </div>
+                    <details className={styles.linkDetails} key={roomName}>
+                      <summary>Voir le lien {activeTab === "custom" ? "réutilisable" : "d’invitation"}<ChevronRight size={14} /></summary>
+                      <input aria-label="Lien d’invitation de la salle" readOnly value={publicUrl} onFocus={event => event.currentTarget.select()} />
+                    </details>
+                    <p className={styles.linkNote}><LockKeyhole size={14} /><span>Partagez ce lien uniquement avec les personnes invitées.</span></p>
+                  </section>
+                  <button ref={pollShortcutRef} type="button" className={`${styles.pollShortcut} ${pollsOpen ? styles.pollShortcutActive : ""}`} onClick={() => setPollsOpen(!pollsOpen)} aria-expanded={pollsOpen} aria-controls={pollsOpen ? "visio-poll-preparation" : undefined}>
+                    <span className={styles.pollIcon}><BarChart2 size={22} /></span>
+                    <span><span>Sondages & quiz</span><small>{pollsOpen ? "Fermer les sondages" : "Préparez un échange qui fait participer."}</small></span>
+                    <ChevronRight size={18} />
                   </button>
-                </div>
-                <p className={styles.privateLinkNote}>Toute personne qui possède ce lien peut rejoindre la salle. Gardez-le privé.</p>
-              </div>
-            ) : (
-              <div className={styles.roomPreviewBox}>
-                <span className={styles.roomLabel}>{activeTab === "custom" ? "Salle personnalisée" : "Identifiant de la salle"}</span>
-                <span className={styles.roomValue}>{roomName || "Créez d’abord un lien privé pour cette salle"}</span>
+                </aside>
               </div>
             )}
 
-            <div className={styles.actionsBar}>
-              <button
-                type="button"
-                className={styles.btnPrimary}
-                onClick={() => setShowPreflight(true)}
-                disabled={activeTab === "custom" && !customRoomId}
-              >
-                {activeTab === "custom" && !customRoomId ? <LinkIcon size={18} /> : roomIsOccupied ? <LogIn size={18} /> : <DoorOpen size={18} />}
-                {activeTab === "custom" && !customRoomId ? "Créez d’abord le lien de la salle" : roomIsOccupied ? "Rejoindre la salle" : "Ouvrir la salle"}
-              </button>
+            {pollsOpen && roomName && <section ref={pollPreparationRef} id="visio-poll-preparation" className={styles.pollPreparation} aria-label="Préparation des sondages"><InteractivePollPanel roomName={roomName} isHost={true} userName={userName} onClose={() => { setPollsOpen(false); pollShortcutRef.current?.focus(); }} /></section>}
 
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                onClick={handleCopyLink}
-                disabled={activeTab === "custom" && !customRoomId}
-                title="Copier le lien d'invitation"
-              >
-                {copied ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
-                {copied ? "Lien copié !" : "Copier le lien d'invitation"}
-              </button>
-
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                onClick={handleShareWhatsApp}
-                disabled={activeTab === "custom" && !customRoomId}
-                title="Partager l'invitation sur WhatsApp"
-              >
-                <Share2 size={16} color="#25d366" /> Inviter sur WhatsApp
-              </button>
-
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                onClick={() => setPollsOpen(!pollsOpen)}
-                disabled={activeTab === "custom" && !customRoomId}
-              >
-                <BarChart2 size={16} color="#d4af37" />
-                {pollsOpen ? "Masquer les interactions" : "Sondages & Quizz"}
-              </button>
-            </div>
-          </section>
-
-          {pollsOpen && (
-            <div style={{ marginTop: 8 }}>
-              <InteractivePollPanel
-                roomName={roomName}
-                isHost={true}
-                userName={userName}
-                onClose={() => setPollsOpen(false)}
-              />
-            </div>
-          )}
-
-          <div className={styles.featuresGrid}>
-            <div className={styles.featureCard}>
-              <div className={styles.featureIcon}>
-                <Monitor size={20} />
-              </div>
-              <div className={styles.featureText}>
-                <h4>Partage d'écran HD</h4>
-                <p>Projetez vos supports, passages bibliques et documents pendant la réunion.</p>
-              </div>
-            </div>
-
-            <div className={styles.featureCard}>
-              <div className={styles.featureIcon}>
-                <Users size={20} />
-              </div>
-              <div className={styles.featureText}>
-                <h4>Multi-participants</h4>
-                <p>Réunissez votre équipe ou votre cellule avec micro, vidéo et messagerie instantanée.</p>
-              </div>
-            </div>
-
-            <div className={styles.featureCard}>
-              <div className={styles.featureIcon}>
-                <LinkIcon size={20} />
-              </div>
-              <div className={styles.featureText}>
-                <h4>Accès direct sans installation</h4>
-                <p>Vos participants rejoignent l'appel en un clic depuis leur navigateur web.</p>
-              </div>
-            </div>
-
-            <div className={styles.featureCard}>
-              <div className={styles.featureIcon}>
-                <LinkIcon size={20} />
-              </div>
-              <div className={styles.featureText}>
-                <h4>Accès par lien</h4>
-                <p>Toute personne disposant du lien peut tenter de rejoindre la salle. Partagez-le uniquement avec les participants concernés.</p>
-              </div>
-            </div>
+            <footer className={styles.lobbyFooter}>
+              <span><Video size={15} />Vidéo</span><span><MessageSquare size={15} />Messages</span><span><Monitor size={15} />Partage d’écran</span>
+              <p>Tout se passe ici, dans votre navigateur.</p>
+            </footer>
           </div>
         </>
       )}
