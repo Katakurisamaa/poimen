@@ -34,6 +34,7 @@ interface RemotePeer {
   connection?: "connected" | "reconnecting" | "failed";
   quality?: "good" | "fair" | "poor";
   handRaised?: boolean;
+  isSpeaking?: boolean;
 }
 
 interface ChatMessage { id: string; peerId: string; name: string; text: string; createdAt: number; }
@@ -206,6 +207,7 @@ export default function VideoConference({
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remotePeers, setRemotePeers] = useState<RemotePeer[]>([]);
   const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [mediaMode, setMediaMode] = useState<"loading" | "ready" | "audio-only" | "video-only" | "blocked">("loading");
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -247,6 +249,7 @@ export default function VideoConference({
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef<Map<string, { pc: RTCPeerConnection; name: string; participantId: string }>>(new Map());
+  const localSpeakingPeersRef = useRef<Set<string>>(new Set());
   const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const mediaRequestRef = useRef(0);
@@ -352,6 +355,22 @@ export default function VideoConference({
       container.style.removeProperty("--visio-viewport-height");
     };
   }, []);
+
+  useEffect(() => {
+    const dock = containerRef.current?.querySelector<HTMLElement>('[data-visio-interaction-dock="true"]');
+    if (!dock || (!chatOpen && !pollsOpen)) return;
+    dock.removeAttribute("data-visio-input-active");
+    const keepDockExpanded = (event: FocusEvent) => {
+      if ((event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) && event.target.closest('[aria-label="Chat de la réunion"]')) {
+        dock.setAttribute("data-visio-input-active", "true");
+      }
+    };
+    dock.addEventListener("focusin", keepDockExpanded);
+    return () => {
+      dock.removeEventListener("focusin", keepDockExpanded);
+      dock.removeAttribute("data-visio-input-active");
+    };
+  }, [chatOpen, pollsOpen]);
 
   useEffect(() => {
     if (meetingStartedAt === null || isWaitingRoom || joinRejected) return;
@@ -705,8 +724,36 @@ export default function VideoConference({
     // Allow a brief network interruption, then release departed peers.
     let disconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let statsTimer: ReturnType<typeof setInterval> | undefined;
-    const updatePeerStatus = (connection: RemotePeer["connection"], quality?: RemotePeer["quality"]) => {
-      setRemotePeers(prev => prev.map(peer => peer.id === peerId ? { ...peer, connection, quality: quality ?? peer.quality } : peer));
+    let statsRequestInFlight = false;
+    let lastRemoteVoiceAt = 0;
+    let lastLocalVoiceAt = 0;
+    const audioEnergySnapshots = new Map<string, { energy: number; duration: number }>();
+    const updatePeerStatus = (connection: RemotePeer["connection"], quality?: RemotePeer["quality"], isSpeaking?: boolean) => {
+      setRemotePeers(prev => {
+        let changed = false;
+        const next = prev.map(peer => {
+          if (peer.id !== peerId) return peer;
+          const nextQuality = quality ?? peer.quality;
+          const nextSpeaking = isSpeaking ?? peer.isSpeaking;
+          if (peer.connection === connection && peer.quality === nextQuality && peer.isSpeaking === nextSpeaking) return peer;
+          changed = true;
+          return { ...peer, connection, quality: nextQuality, isSpeaking: nextSpeaking };
+        });
+        return changed ? next : prev;
+      });
+    };
+    const audioLevelFromStat = (stat: RTCStats & { audioLevel?: number; totalAudioEnergy?: number; totalSamplesDuration?: number }) => {
+      if (typeof stat.audioLevel === "number") return stat.audioLevel;
+      if (typeof stat.totalAudioEnergy !== "number" || typeof stat.totalSamplesDuration !== "number") return 0;
+      const previous = audioEnergySnapshots.get(stat.id);
+      audioEnergySnapshots.set(stat.id, { energy: stat.totalAudioEnergy, duration: stat.totalSamplesDuration });
+      if (!previous || stat.totalSamplesDuration <= previous.duration) return 0;
+      return Math.sqrt(Math.max(0, stat.totalAudioEnergy - previous.energy) / (stat.totalSamplesDuration - previous.duration));
+    };
+    const updateLocalSpeaking = (speaking: boolean) => {
+      if (speaking) localSpeakingPeersRef.current.add(peerId);
+      else localSpeakingPeersRef.current.delete(peerId);
+      setIsLocalSpeaking(localSpeakingPeersRef.current.size > 0);
     };
     const restartIce = async () => {
       if (localPeerId < peerId || !channelRef.current || pc.signalingState !== "stable") return;
@@ -724,29 +771,52 @@ export default function VideoConference({
         updatePeerStatus("connected", "good");
         setNetworkState("connected");
         if (!statsTimer) statsTimer = setInterval(() => {
+          if (statsRequestInFlight) return;
+          statsRequestInFlight = true;
           void pc.getStats().then(report => {
             let received = 0; let lost = 0; let jitter = 0;
+            let remoteAudioLevel = 0; let localAudioLevel = 0;
             report.forEach(stat => {
-              if (stat.type === "inbound-rtp" && !stat.isRemote && (stat.kind === "audio" || stat.kind === "video")) {
-                received += Number(stat.packetsReceived || 0);
-                lost += Number(stat.packetsLost || 0);
-                jitter = Math.max(jitter, Number(stat.jitter || 0));
+              const mediaStat = stat as RTCStats & { kind?: string; mediaType?: string; audioLevel?: number; totalAudioEnergy?: number; totalSamplesDuration?: number; packetsReceived?: number; packetsLost?: number; jitter?: number };
+              const mediaKind = mediaStat.kind || mediaStat.mediaType;
+              if (stat.type === "inbound-rtp" && !stat.isRemote && (mediaKind === "audio" || mediaKind === "video")) {
+                received += Number(mediaStat.packetsReceived || 0);
+                lost += Number(mediaStat.packetsLost || 0);
+                jitter = Math.max(jitter, Number(mediaStat.jitter || 0));
+                if (mediaKind === "audio") remoteAudioLevel = Math.max(remoteAudioLevel, audioLevelFromStat(mediaStat));
+              }
+              if (stat.type === "outbound-rtp" && mediaKind === "audio") {
+                localAudioLevel = Math.max(localAudioLevel, audioLevelFromStat(mediaStat));
+              }
+              if (stat.type === "media-source" && mediaKind === "audio") {
+                localAudioLevel = Math.max(localAudioLevel, audioLevelFromStat(mediaStat));
               }
             });
+            if (!(pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed")) return;
             const lossRate = received + lost ? lost / (received + lost) : 0;
             const quality = lossRate > 0.08 || jitter > 0.05 ? "poor" : lossRate > 0.025 || jitter > 0.03 ? "fair" : "good";
-            updatePeerStatus("connected", quality);
-          }).catch(() => {});
-        }, 5000);
+            const now = Date.now();
+            if (remoteAudioLevel >= 0.035) lastRemoteVoiceAt = now;
+            if (localAudioLevel >= 0.035) lastLocalVoiceAt = now;
+            updatePeerStatus("connected", quality, now - lastRemoteVoiceAt < 950);
+            updateLocalSpeaking(now - lastLocalVoiceAt < 950);
+          }).catch(() => {}).finally(() => { statsRequestInFlight = false; });
+        }, 700);
       } else if (pc.iceConnectionState === "disconnected") {
-        updatePeerStatus("reconnecting", "fair");
+        clearInterval(statsTimer);
+        statsTimer = undefined;
+        updatePeerStatus("reconnecting", "fair", false);
+        updateLocalSpeaking(false);
         setNetworkState("reconnecting");
         void restartIce();
         disconnectTimer = setTimeout(() => {
           if (pc.iceConnectionState === "disconnected") void restartIce();
         }, 4000);
       } else if (pc.iceConnectionState === "failed") {
-        updatePeerStatus("reconnecting", "poor");
+        clearInterval(statsTimer);
+        statsTimer = undefined;
+        updatePeerStatus("reconnecting", "poor", false);
+        updateLocalSpeaking(false);
         setNetworkState("reconnecting");
         void restartIce();
       }
@@ -759,6 +829,8 @@ export default function VideoConference({
         }, 10000);
       }
       if (["failed", "closed"].includes(pc.connectionState) && peerConnectionsRef.current.get(peerId)?.pc === pc) {
+        clearInterval(statsTimer);
+        updateLocalSpeaking(false);
         setRemotePeers((prev) => prev.filter((p) => p.id !== peerId));
         peerConnectionsRef.current.delete(peerId);
         pendingIceCandidatesRef.current.delete(peerId);
@@ -766,7 +838,7 @@ export default function VideoConference({
     };
 
     pc.addEventListener("signalingstatechange", () => {
-      if (pc.signalingState === "closed") { clearInterval(statsTimer); clearTimeout(disconnectTimer); }
+      if (pc.signalingState === "closed") { clearInterval(statsTimer); clearTimeout(disconnectTimer); updateLocalSpeaking(false); }
     });
 
     peerConnectionsRef.current.set(peerId, { pc, name: peerName, participantId: peerParticipantId });
@@ -1026,7 +1098,11 @@ export default function VideoConference({
           setRemotePeers((prev) =>
             prev.map((p) =>
               p.id === payload.peerId
-                ? { ...p, isMuted: payload.isMuted, isVideoOff: payload.isVideoOff }
+                ? {
+                    ...p,
+                    ...(typeof payload.isMuted === "boolean" ? { isMuted: payload.isMuted } : {}),
+                    ...(typeof payload.isVideoOff === "boolean" ? { isVideoOff: payload.isVideoOff } : {}),
+                  }
                 : p
             )
           );
@@ -1121,7 +1197,10 @@ export default function VideoConference({
           if (payload.action === "mute") {
             localStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = false; });
             setIsMicMuted(true);
-            notify("L'animateur a demandé la coupure de votre micro.");
+            setIsLocalSpeaking(false);
+            localSpeakingPeersRef.current.clear();
+            channelRef.current?.send({ type: "broadcast", event: "TRACK_STATUS", payload: { peerId: localPeerId, isMuted: true, isVideoOff } });
+            notify("Votre micro a été coupé par l’animateur.");
           } else if (payload.action === "remove") {
             notify("Vous avez été retiré de la réunion.");
             onLeaveRef.current?.();
@@ -1223,6 +1302,10 @@ export default function VideoConference({
       audioTrack.enabled = !audioTrack.enabled;
       const nextMuted = !audioTrack.enabled;
       setIsMicMuted(nextMuted);
+      if (nextMuted) {
+        localSpeakingPeersRef.current.clear();
+        setIsLocalSpeaking(false);
+      }
 
       if (channelRef.current) {
         channelRef.current.send({
@@ -1445,6 +1528,17 @@ export default function VideoConference({
 
   const moderatePeer = (peerId: string, action: "mute" | "remove") => {
     channelRef.current?.send({ type: "broadcast", event: "MODERATION", payload: { toPeerId: peerId, action } });
+    if (action === "mute") {
+      // Publish immediately so every participant sees the muted state even
+      // before the targeted client echoes its updated track status.
+      const target = remotePeers.find(peer => peer.id === peerId);
+      setRemotePeers(previous => previous.map(peer => peer.id === peerId ? { ...peer, isMuted: true } : peer));
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "TRACK_STATUS",
+        payload: { peerId, isMuted: true, isVideoOff: target?.isVideoOff ?? false },
+      });
+    }
     if (action === "remove") {
       const participant = peerConnectionsRef.current.get(peerId);
       participant?.pc.close();
@@ -1654,7 +1748,7 @@ export default function VideoConference({
         {/* Grille Vidéo Native */}
         <div className={`${styles.videoGrid} ${gridClass}`}>
           {/* Tuile Vidéo Locale (Vous) */}
-          <div className={styles.videoTile}>
+      <div className={`${styles.videoTile} ${isLocalSpeaking ? styles.videoTileSpeaking : ""} ${handRaised ? styles.videoTileHandRaised : ""}`}>
             <video
               ref={localVideoRef}
               autoPlay
@@ -1683,11 +1777,13 @@ export default function VideoConference({
             <div className={styles.tileOverlay}>
               <span className={styles.tileName}>{userName} (Vous)</span>
               {isMicMuted && (
-                <span className={styles.mutedBadge} title="Micro coupé">
-                  <MicOff size={13} color="#ef4444" />
+                <span className={styles.mutedBadge} title="Micro coupé" aria-label="Micro coupé">
+                  <MicOff size={13} />
+                  <span>Micro coupé</span>
                 </span>
               )}
             </div>
+            {handRaised && <div className={styles.handRaisedBanner}><Hand size={16} /><span>MAIN LEVÉE</span></div>}
           </div>
 
           {/* Tuiles Vidéos Distantes */}
@@ -2066,15 +2162,44 @@ export default function VideoConference({
 function RemoteVideoTile({ peer, isHost, onModerate }: { peer: RemotePeer; isHost: boolean; onModerate: (peerId: string, action: "mute" | "remove") => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
+  const [playbackNoticeVisible, setPlaybackNoticeVisible] = useState(false);
 
   useEffect(() => {
-    if (videoRef.current && peer.stream) {
-      videoRef.current.srcObject = peer.stream;
-      videoRef.current.play().catch((err) => {
+    const video = videoRef.current;
+    if (!video || !peer.stream) return;
+    let active = true;
+    let dismissNoticeTimer: number | undefined;
+    video.srcObject = peer.stream;
+
+    const attemptPlayback = (showNotice = false) => {
+      void video.play().then(() => {
+        if (!active) return;
+        setPlaybackBlocked(false);
+        setPlaybackNoticeVisible(false);
+        if (dismissNoticeTimer !== undefined) window.clearTimeout(dismissNoticeTimer);
+      }).catch(() => {
+        if (!active) return;
         setPlaybackBlocked(true);
-        console.warn("Lecture du flux distant en attente d'interaction:", err);
+        if (showNotice) {
+          setPlaybackNoticeVisible(true);
+          dismissNoticeTimer = window.setTimeout(() => setPlaybackNoticeVisible(false), 5200);
+        }
       });
-    }
+    };
+
+    const retryAfterInteraction = () => {
+      if (video.paused) attemptPlayback();
+    };
+
+    setPlaybackBlocked(false);
+    setPlaybackNoticeVisible(false);
+    attemptPlayback(true);
+    document.addEventListener("pointerdown", retryAfterInteraction, true);
+    return () => {
+      active = false;
+      document.removeEventListener("pointerdown", retryAfterInteraction, true);
+      if (dismissNoticeTimer !== undefined) window.clearTimeout(dismissNoticeTimer);
+    };
   }, [peer.stream]);
 
   const initials =
@@ -2087,19 +2212,21 @@ function RemoteVideoTile({ peer, isHost, onModerate }: { peer: RemotePeer; isHos
       .toUpperCase() || "P";
 
   return (
-    <div className={styles.videoTile}>
+    <div className={`${styles.videoTile} ${peer.isSpeaking ? styles.videoTileSpeaking : ""} ${peer.handRaised ? styles.videoTileHandRaised : ""}`}>
       <video
         ref={videoRef}
         autoPlay
         playsInline
-        className={`${styles.videoElement} ${peer.isVideoOff ? styles.videoHidden : ""}`}
+        className={`${styles.videoElement} ${styles.remoteVideoElement} ${peer.isVideoOff ? styles.videoHidden : ""}`}
       />
 
-      {playbackBlocked && (
+      {playbackBlocked && playbackNoticeVisible && (
         <button type="button" className={styles.resumePlayback} onClick={() => {
-          videoRef.current?.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
-        }}>
-          <Mic size={18} /> Écouter {peer.name}
+          const video = videoRef.current;
+          if (!video) return;
+          video.play().then(() => { setPlaybackBlocked(false); setPlaybackNoticeVisible(false); }).catch(() => setPlaybackBlocked(true));
+        }} aria-label={`Le navigateur bloque le son de ${peer.name}. Touchez pour l’activer.`}>
+          <Mic size={16} /> Le navigateur bloque le son. Touchez pour écouter {peer.name}.
         </button>
       )}
 
@@ -2112,17 +2239,18 @@ function RemoteVideoTile({ peer, isHost, onModerate }: { peer: RemotePeer; isHos
 
       <div className={styles.tileOverlay}>
         <span className={styles.tileName}>{peer.name}</span>
-        {peer.handRaised && <span className={styles.handBadge} title="Main levée"><Hand size={14} /></span>}
         {peer.isMuted && (
-          <span className={styles.mutedBadge} title="Micro coupé">
-            <MicOff size={13} color="#ef4444" />
+          <span className={styles.mutedBadge} title="Micro coupé" aria-label="Micro coupé">
+            <MicOff size={13} />
+            <span>Micro coupé</span>
           </span>
         )}
       </div>
+      {peer.handRaised && <div className={styles.handRaisedBanner}><Hand size={16} /><span>MAIN LEVÉE</span></div>}
       {peer.connection === "reconnecting" && <span className={styles.peerConnectionBadge}>Reconnexion…</span>}
       {peer.quality && <span className={`${styles.qualityBadge} ${peer.quality === "poor" ? styles.qualityPoor : peer.quality === "fair" ? styles.qualityFair : ""}`} aria-label={`Qualité réseau ${peer.quality === "good" ? "bonne" : peer.quality === "fair" ? "moyenne" : "faible"}`}><Wifi size={13} /></span>}
       {isHost && <div className={styles.moderationActions}>
-        <button type="button" onClick={() => onModerate(peer.id, "mute")} title={`Demander à ${peer.name} de couper son micro`}><MicOff size={14} /> Demander coupure</button>
+        {!peer.isMuted && <button type="button" onClick={() => onModerate(peer.id, "mute")} title={`Couper le son de ${peer.name}`}><MicOff size={14} /> Couper le son</button>}
         <button type="button" onClick={() => onModerate(peer.id, "remove")} title={`Retirer ${peer.name} de la réunion`}><UserX size={14} /> Retirer</button>
       </div>}
     </div>

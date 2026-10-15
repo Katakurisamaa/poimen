@@ -265,6 +265,11 @@
   min-height: 200px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
+.videoTileSpeaking { border-color: #34d399; box-shadow: 0 0 0 2px #34d399aa, 0 0 28px #34d39966, 0 10px 30px rgba(0,0,0,.35); animation: speakerGlow 1.6s ease-in-out infinite; }
+.videoTileHandRaised { border-color: #facc15; box-shadow: 0 0 0 3px #facc1577, 0 0 32px #facc1566, 0 10px 30px rgba(0,0,0,.35); animation: raisedHandGlow 1.35s ease-in-out infinite; }
+.videoTileHandRaised.videoTileSpeaking { border-color: #facc15; box-shadow: 0 0 0 3px #facc1599, 0 0 34px #facc1577, 0 10px 30px rgba(0,0,0,.35); }
+@keyframes speakerGlow { 0%,100% { box-shadow: 0 0 0 1px #34d39977, 0 0 16px #34d39933, 0 10px 30px rgba(0,0,0,.35); } 50% { box-shadow: 0 0 0 3px #34d399cc, 0 0 30px #34d39977, 0 10px 30px rgba(0,0,0,.35); } }
+@keyframes raisedHandGlow { 0%,100% { box-shadow: 0 0 0 2px #facc1577, 0 0 19px #facc1544, 0 10px 30px rgba(0,0,0,.35); } 50% { box-shadow: 0 0 0 4px #facc15cc, 0 0 36px #facc1588, 0 10px 30px rgba(0,0,0,.35); } }
 
 .videoElement {
   width: 100%;
@@ -272,6 +277,7 @@
   object-fit: cover;
   display: block;
 }
+.remoteVideoElement { object-fit: contain; object-position: center; background: #070910; }
 
 .videoMirror {
   transform: scaleX(-1);
@@ -281,7 +287,7 @@
   display: none !important;
 }
 
-.resumePlayback { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 12; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px; border: 1px solid #ffffff40; border-radius: 10px; background: #f8fafc; color: #0f172a; font: inherit; cursor: pointer; }
+.resumePlayback { position: absolute; top: 12px; left: 50%; z-index: 12; display: flex; align-items: center; justify-content: center; gap: 8px; width: max-content; max-width: calc(100% - 24px); min-height: 40px; padding: 8px 12px; transform: translateX(-50%); border: 1px solid var(--ux-line, #ffffff40); border-radius: 10px; background: var(--surface-solid, #f8fafc); color: var(--cream, #0f172a); box-shadow: 0 5px 18px #0005; font-family: inherit; font-size: 12px; line-height: 1.35; text-align: center; cursor: pointer; }
 
 /* Avatar placeholder when camera is off */
 .avatarPlaceholder {
@@ -337,17 +343,24 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(239, 68, 68, 0.2);
-  border-radius: 4px;
-  padding: 2px 4px;
+  gap: 5px;
+  background: rgba(239, 68, 68, 0.24);
+  border: 1px solid rgba(248, 113, 113, 0.7);
+  border-radius: 6px;
+  padding: 3px 7px;
+  color: #fecaca;
+  font-size: 10px;
+  font-weight: 650;
 }
-.handBadge { display: inline-flex; color: #fde68a; }
+.handRaisedBanner { position: absolute; top: 12px; left: 50%; z-index: 10; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 7px 12px; transform: translateX(-50%); border: 1px solid #fef08a; border-radius: 999px; color: #211900; background: #facc15; box-shadow: 0 5px 18px #0008; font-size: 11px; font-weight: 750; letter-spacing: .055em; white-space: nowrap; animation: raisedHandBannerIn 220ms cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes raisedHandBannerIn { from { opacity: 0; transform: translate(-50%,-8px) scale(.84); } to { opacity: 1; transform: translate(-50%,0) scale(1); } }
 .qualityBadge, .peerConnectionBadge { position: absolute; top: 10px; right: 10px; z-index: 8; display: flex; align-items: center; justify-content: center; min-width: 28px; height: 27px; padding: 0 7px; border: 1px solid #ffffff25; border-radius: 8px; color: #6ee7b7; background: #070910bb; }
 .qualityFair { color: #fbbf24; }.qualityPoor, .peerConnectionBadge { color: #f87171; }
 .peerConnectionBadge { right: 46px; width: auto; font-size: 10px; }
 .moderationActions { position: absolute; top: 10px; left: 10px; z-index: 9; display: flex; gap: 5px; opacity: 0; transition: opacity .15s ease; }
 .videoTile:hover .moderationActions, .videoTile:focus-within .moderationActions { opacity: 1; }
 .moderationActions button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 7px; border: 1px solid #ffffff30; border-radius: 7px; color: #fff; background: #070910cc; font: inherit; font-size: 10px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .videoTileSpeaking, .videoTileHandRaised, .handRaisedBanner { animation: none; } }
 
 /* Waiting call hint */
 .waitingHint {
@@ -625,8 +638,9 @@
   .fullscreen .reactionPicker { gap: 4px; width: min(292px, calc(100vw - 24px)); padding: 7px; }
   .fullscreen .interactionDock { flex-basis: 0; width: 100%; height: 0; max-width: 100%; padding-inline: 8px; border-left: 0; }
   .fullscreen .interactionDockOpen { flex-basis: 56dvh; width: 100%; height: 56dvh; min-height: 42dvh; max-height: 60dvh; max-width: 100%; padding-inline: 0; border-left: 0; }
-  .fullscreen .stageAndDockOpen:has(.interactionDockOpen :is(input:focus, textarea:focus)) .stageWrapper { flex: 0 0 clamp(84px, 15dvh, 128px); min-height: 84px; }
-  .fullscreen .interactionDockOpen:has(:is(input:focus, textarea:focus)) { flex: 1 1 0; height: auto; min-height: 0; max-height: none; }
+  .fullscreen .stageAndDockOpen:has([data-visio-poll-panel="true"]) .interactionDockOpen { flex: 0 0 0; width: 0; height: 0; min-height: 0; max-height: 0; max-width: 0; padding: 0; border: 0; }
+  .fullscreen .stageAndDockOpen:has(.interactionDockOpen[data-visio-input-active="true"]) .stageWrapper { flex: 0 0 clamp(84px, 15dvh, 128px); min-height: 84px; }
+  .fullscreen .interactionDockOpen[data-visio-input-active="true"] { flex: 1 1 0; height: auto; min-height: 0; max-height: none; }
   .fullscreen .dockPanel { flex-basis: 100%; width: 100%; max-width: 100%; animation-name: dockPanelRise; }
 }
 

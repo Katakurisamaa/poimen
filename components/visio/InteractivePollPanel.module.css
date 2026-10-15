@@ -148,13 +148,10 @@
   .actions > .secondary { flex: 1 1 auto; }
   .footer { padding: 12px; }
 }
-@media (max-width: 640px) {
-  .fullscreenPortal { inset: 0; flex-basis: 100%; width: 100vw; max-width: 100vw; height: var(--visio-viewport-height, 100dvh); }
-  .fullscreenPortal .panel { height: 100%; }
-  .fullscreenPortal .content { min-height: 0; overflow: auto; }
-}
 @media (max-width: 700px) {
-  .fullscreenPortal { inset: 0; width: 100vw; max-width: 100vw; height: var(--visio-viewport-height, 100dvh); animation-name: pollPanelRise; }
-  .fullscreenPortal .panel { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); box-shadow: none; }
+  .fullscreenPortal { inset: auto 0 0; width: 100vw; max-width: 100vw; height: min(68dvh, 600px); max-height: calc(var(--visio-viewport-height, 100dvh) - 136px); animation-name: pollPanelRise; }
+  .fullscreenPortal[data-poll-input-active="true"] { height: min(78dvh, 660px); max-height: calc(var(--visio-viewport-height, 100dvh) - 108px); }
+  .fullscreenPortal .panel { height: 100%; padding-top: 8px; padding-bottom: 0; border-radius: 20px 20px 0 0; border: 1px solid var(--line); border-bottom: 0; box-shadow: 0 -18px 48px rgba(0,0,0,.32); }
+  .fullscreenPortal .content { flex: 1 1 0; min-height: 0; overflow: auto; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) { .panel *, .panel *::before { animation: none; transition: none; } }

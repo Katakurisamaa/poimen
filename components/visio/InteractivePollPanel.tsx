@@ -19,6 +19,7 @@ function freshDraft(): PollDraft {
 export default function InteractivePollPanel(props: Props) {
   // Room changes reset requests, draft and selection as one unit.
   const [fullscreenTarget, setFullscreenTarget] = useState<HTMLElement | null>(null);
+  const [pollInputActive, setPollInputActive] = useState(false);
 
   useEffect(() => {
     const syncFullscreenTarget = () => {
@@ -39,7 +40,9 @@ export default function InteractivePollPanel(props: Props) {
 
   const panel = <PollPanel key={`${props.roomName}:${props.isHost}`} {...props} />;
   return fullscreenTarget
-    ? createPortal(<div className={styles.fullscreenPortal} data-visio-poll-panel="true">{panel}</div>, fullscreenTarget)
+    ? createPortal(<div className={styles.fullscreenPortal} data-visio-poll-panel="true" data-poll-input-active={pollInputActive ? "true" : undefined} onFocusCapture={(event) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) setPollInputActive(true);
+    }}>{panel}</div>, fullscreenTarget)
     : panel;
 }
 
