@@ -1,13 +1,14 @@
 "use client";
 
-import { Suspense, useState, useMemo, useEffect } from "react";
+import { Suspense, useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Video, Users, Share2, Copy, Check, Monitor,
-  House, UserCheck, MessageSquare, ArrowLeft, Play, Link as LinkIcon, BarChart2, LockKeyhole, Trash2
+  House, UserCheck, MessageSquare, ArrowLeft, DoorOpen, LogIn, Link as LinkIcon, BarChart2, LockKeyhole, Trash2
 } from "lucide-react";
 import { useWorkspace } from "@/lib/use-workspace";
 import { getActiveUserInfo, getActiveSpaceType } from "@/lib/client-session";
+import { supabase } from "@/lib/supabase";
 import { 
   buildRoomName, 
   getPublicVisioUrl, 
@@ -25,6 +26,11 @@ type CustomVisioRoom = {
   roomName: string;
   title: string;
   createdAt?: string;
+};
+
+type RoomOccupancyPresence = {
+  peerId?: string;
+  participantId?: string;
 };
 
 export default function VisioPage() {
@@ -102,6 +108,8 @@ function VisioContent() {
   const [activeTab, setActiveTab] = useState<VisioSpaceType>(initialTab);
   const [inMeeting, setInMeeting] = useState<boolean>(Boolean(paramRoom));
   const [pollsOpen, setPollsOpen] = useState(false);
+  const [roomOccupancy, setRoomOccupancy] = useState({ roomName: "", participantCount: 0 });
+  const roomChannelCleanupRef = useRef<Promise<unknown> | null>(null);
 
   // If activeTab is not in allowedTabs (e.g. following a state change), reset it
   useEffect(() => {
@@ -299,6 +307,60 @@ function VisioContent() {
     paramGuestId,
     isFamily
   ]);
+
+  useEffect(() => {
+    if (!mounted || !roomName || inMeeting || showPreflight) {
+      setRoomOccupancy({ roomName: "", participantCount: 0 });
+      return;
+    }
+
+    let active = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const topic = `poimen-webrtc-${roomName}`;
+
+    const subscribeToRoom = async () => {
+      await roomChannelCleanupRef.current;
+      if (!active) return;
+
+      const existingChannel = supabase.getChannels().find(candidate => candidate.topic === `realtime:${topic}`);
+      if (existingChannel) {
+        const cleanup = supabase.removeChannel(existingChannel);
+        roomChannelCleanupRef.current = cleanup;
+        await cleanup;
+        if (roomChannelCleanupRef.current === cleanup) roomChannelCleanupRef.current = null;
+      }
+      if (!active) return;
+
+      channel = supabase
+        .channel(topic, { config: { presence: { key: `dashboard-${user?.id || "visitor"}` } } })
+        .on("presence", { event: "sync" }, () => {
+          if (!active) return;
+          const participantIds = new Set(
+            Object.values(channel!.presenceState<RoomOccupancyPresence>())
+              .flat()
+              .map(presence => presence.participantId || presence.peerId)
+              .filter((id): id is string => Boolean(id)),
+          );
+          setRoomOccupancy({ roomName, participantCount: participantIds.size });
+        })
+        .subscribe();
+    };
+
+    void subscribeToRoom();
+
+    return () => {
+      active = false;
+      if (channel) {
+        const cleanup = supabase.removeChannel(channel);
+        roomChannelCleanupRef.current = cleanup;
+        void cleanup.finally(() => {
+          if (roomChannelCleanupRef.current === cleanup) roomChannelCleanupRef.current = null;
+        });
+      }
+    };
+  }, [mounted, roomName, inMeeting, showPreflight, user?.id]);
+
+  const roomIsOccupied = roomOccupancy.roomName === roomName && roomOccupancy.participantCount > 0;
 
   const publicUrl = getPublicVisioUrl(
     roomName,
@@ -632,7 +694,8 @@ function VisioContent() {
                 onClick={() => setShowPreflight(true)}
                 disabled={activeTab === "custom" && !customRoomId}
               >
-                <Play size={18} /> {activeTab === "custom" && !customRoomId ? "Créez d’abord le lien de la salle" : "Vérifier le matériel et démarrer"}
+                {activeTab === "custom" && !customRoomId ? <LinkIcon size={18} /> : roomIsOccupied ? <LogIn size={18} /> : <DoorOpen size={18} />}
+                {activeTab === "custom" && !customRoomId ? "Créez d’abord le lien de la salle" : roomIsOccupied ? "Rejoindre la salle" : "Ouvrir la salle"}
               </button>
 
               <button

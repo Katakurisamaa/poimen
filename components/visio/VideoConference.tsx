@@ -165,6 +165,33 @@ function mediaErrorMessage(error: unknown) {
   return "Impossible d'accéder au micro et à la caméra. Vérifiez les périphériques et les permissions du navigateur.";
 }
 
+function screenShareErrorMessage(error: unknown) {
+  if (typeof window !== "undefined" && !window.isSecureContext) {
+    return "Le partage d’écran nécessite une connexion HTTPS sécurisée. Ouvrez la réunion depuis son adresse HTTPS.";
+  }
+
+  const name = typeof error === "object" && error && "name" in error
+    ? String((error as { name?: string }).name || "")
+    : "";
+
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "Le navigateur ou l’appareil a refusé le partage. Autorisez la capture d’écran ou ouvrez la réunion dans Safari ou Chrome plutôt que dans un navigateur intégré.";
+  }
+  if (name === "InvalidStateError") {
+    return "Le navigateur n’a pas ouvert le sélecteur d’écran. Revenez à l’onglet de la réunion et réessayez depuis le bouton de partage.";
+  }
+  if (name === "NotFoundError") {
+    return "Aucun écran à partager n’a été proposé par le navigateur.";
+  }
+  if (name === "NotReadableError") {
+    return "Le système n’a pas pu capturer l’écran. Arrêtez un autre partage en cours, puis réessayez.";
+  }
+  if (name === "AbortError") {
+    return "Le partage d’écran a été annulé.";
+  }
+  return "Le navigateur n’a pas pu démarrer le partage d’écran. Certains navigateurs mobiles ne proposent pas cette fonction; essayez dans le navigateur principal ou sur ordinateur.";
+}
+
 export default function VideoConference({
   roomName,
   title,
@@ -725,14 +752,18 @@ export default function VideoConference({
 
     const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
 
-    // Ajouter toutes les pistes locales disponibles
-    streamToShare.getTracks().forEach((track) => {
-      pc.addTrack(track, streamToShare);
+    // Un nouveau participant doit recevoir l’écran partagé, même si le partage a commencé avant son arrivée.
+    const activeScreenTrack = screenTrackRef.current?.readyState === "live" ? screenTrackRef.current : null;
+    const outgoingStream = activeScreenTrack
+      ? new MediaStream([...streamToShare.getAudioTracks(), activeScreenTrack])
+      : streamToShare;
+    outgoingStream.getTracks().forEach((track) => {
+      pc.addTrack(track, outgoingStream);
     });
 
     // En mode écoute seule (sans pistes locales), ajouter des récepteurs pour recevoir les flux distants
-    const hasVideo = streamToShare.getVideoTracks().length > 0;
-    const hasAudio = streamToShare.getAudioTracks().length > 0;
+    const hasVideo = outgoingStream.getVideoTracks().length > 0;
+    const hasAudio = outgoingStream.getAudioTracks().length > 0;
     if (!hasVideo) {
       try { pc.addTransceiver("video", { direction: "recvonly" }); } catch {}
     }
@@ -1432,19 +1463,38 @@ export default function VideoConference({
     if (screenTrackRef.current) {
       stopScreenShare();
     } else {
-      // Démarrage du partage d'écran
+      if (!window.isSecureContext) {
+        notify("Le partage d’écran nécessite une connexion HTTPS sécurisée. Ouvrez la réunion depuis son adresse HTTPS.");
+        return;
+      }
+      if (typeof navigator.mediaDevices?.getDisplayMedia !== "function") {
+        notify("Ce navigateur ne permet pas le partage d’écran. Ouvrez la réunion dans Safari ou Chrome, ou rejoignez-la depuis un ordinateur.");
+        return;
+      }
+
+      let screenStream: MediaStream | null = null;
+      let transmissionFailed = false;
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        // Appelé directement depuis le clic pour conserver l’autorisation utilisateur exigée par le navigateur.
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: false,
         });
         const screenTrack = screenStream.getVideoTracks()[0];
+        if (!screenTrack) throw new Error("Aucune piste vidéo d’écran n’a été fournie.");
         screenTrackRef.current = screenTrack;
 
-        peerConnectionsRef.current.forEach(({ pc }) => {
-          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-          if (sender) sender.replaceTrack(screenTrack);
-        });
+        const videoSenders = Array.from(peerConnectionsRef.current.values())
+          .map(({ pc }) => pc.getSenders().find(sender => sender.track?.kind === "video"))
+          .filter((sender): sender is RTCRtpSender => Boolean(sender));
+        try {
+          await Promise.all(videoSenders.map(sender => sender.replaceTrack(screenTrack)));
+        } catch (error) {
+          transmissionFailed = true;
+          const cameraTrack = localStreamRef.current?.getVideoTracks()[0] ?? null;
+          await Promise.allSettled(videoSenders.map(sender => sender.replaceTrack(cameraTrack)));
+          throw error;
+        }
 
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = screenStream;
@@ -1455,7 +1505,15 @@ export default function VideoConference({
         setIsScreenSharing(true);
         notify("Partage d'écran actif.");
       } catch (err) {
+        screenTrackRef.current = null;
+        screenStream?.getTracks().forEach(track => {
+          track.onended = null;
+          track.stop();
+        });
         console.warn("Partage d'écran annulé ou refusé:", err);
+        notify(transmissionFailed
+          ? "L’écran a été sélectionné, mais la réunion n’a pas pu transmettre le partage. Vérifiez la connexion et réessayez."
+          : screenShareErrorMessage(err));
       }
     }
   };
