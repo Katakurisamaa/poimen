@@ -1,7 +1,7 @@
 "use client";
 
-import CrCultePage from "@/app/cr-culte/page";
+import CrCulteView from "@/components/integration/CrCulteView";
 
 export default function DashboardCrCultePage() {
-  return <CrCultePage isDashboardChild={true} />;
+  return <CrCulteView isDashboardChild={true} />;
 }
