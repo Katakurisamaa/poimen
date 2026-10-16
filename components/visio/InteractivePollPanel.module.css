@@ -1,9 +1,38 @@
 .panel { --line: var(--border); --muted-text: var(--muted); width: 100%; min-width: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface-solid); color: var(--cream); font: 14px/1.55 var(--font-body), sans-serif; box-shadow: var(--shadow-soft); }
-.fullscreenPortal { position: fixed; z-index: 100001; inset: 0 0 0 auto; display: flex; flex: 0 0 auto; align-self: stretch; width: clamp(340px, 34vw, 460px); max-width: 100vw; height: var(--visio-viewport-height, 100dvh); min-width: 0; min-height: 0; margin-inline: 0; animation: pollPanelSlideIn 260ms cubic-bezier(.2,.75,.25,1) both; }
+.fullscreenPortal {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  display: flex !important;
+  flex: 1 1 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  animation: pollPanelSlideIn 260ms cubic-bezier(.2,.75,.25,1) both;
+}
 @keyframes pollPanelSlideIn { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes pollPanelRise { from { opacity: 0; transform: translate3d(0, 100%, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-.fullscreenPortal .panel { height: 100%; min-height: 0; max-height: 100%; border-radius: 0; border-inline: 0; box-shadow: -20px 0 52px rgba(0,0,0,.24); }
-.fullscreenPortal .content { flex: 1 1 0; min-height: 0; max-height: none; overflow: auto; }
+.fullscreenPortal .panel {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.fullscreenPortal .content { flex: 1 1 0 !important; min-height: 0 !important; max-height: none !important; overflow-y: auto !important; overscroll-behavior: contain; }
 :global(html[data-theme="light"]) .panel, :global(body[data-theme="light"]) .panel { --muted-text: #5b514a; --gold: #765500; --green: #176b42; --red: #a31620; --line: #d1c8bb; }
 .panel *, .panel *::before { box-sizing: border-box; }
 .panel :is(h3,h4,p) { margin: 0; }
@@ -197,7 +226,6 @@
   .header { padding: 16px 12px; gap: 10px; }
   .header h3 { font-size: 16px; }
   .headerIcon { width: 36px; height: 36px; }
-  .content { padding: 8px 12px 18px; max-height: none; overflow: visible; }
   .tabs { margin-inline: 10px; }
   .tabs svg { display: none; }
   .connection { padding-inline: 14px; }
@@ -210,30 +238,96 @@
   .footer { padding: 12px; }
   .quickPresetsGrid { grid-template-columns: 1fr; }
 }
-@media (max-width: 700px) {
+
+@media (max-width: 900px) {
   .fullscreenPortal {
-    inset: 0 0 calc(72px + env(safe-area-inset-bottom, 0px)) 0;
-    width: 100vw;
-    max-width: 100vw;
-    height: calc(var(--visio-viewport-height, 100dvh) - 72px - env(safe-area-inset-bottom, 0px));
-    max-height: calc(var(--visio-viewport-height, 100dvh) - 72px - env(safe-area-inset-bottom, 0px));
-    animation: pollPanelRise 320ms cubic-bezier(.22,.8,.25,1) both;
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    height: var(--visio-viewport-height, 100dvh) !important;
+    max-width: 100vw !important;
+    max-height: var(--visio-viewport-height, 100dvh) !important;
+    z-index: 600 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--surface-solid, #0f121d) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    animation: pollPanelRise 280ms cubic-bezier(.22,.8,.25,1) both !important;
   }
   .fullscreenPortal .panel {
-    box-sizing: border-box;
-    height: 100%;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: 0;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    background: inherit !important;
+  }
+  .fullscreenPortal .header {
+    padding-top: max(16px, env(safe-area-inset-top, 16px)) !important;
+    padding-inline: 18px !important;
+    padding-bottom: 14px !important;
+    flex-shrink: 0 !important;
+    border-bottom: 1px solid var(--line) !important;
+    background: var(--surface-solid, #0f121d) !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+  }
+  .fullscreenPortal .header h3 {
+    font-size: 18px !important;
+    font-weight: 700 !important;
+  }
+  .fullscreenPortal .header p {
+    font-size: 12px !important;
+  }
+  .fullscreenPortal .iconButton {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 12px !important;
+  }
+  .fullscreenPortal .connection {
+    flex-shrink: 0 !important;
+    padding: 6px 18px !important;
+  }
+  .fullscreenPortal .tabs {
+    flex-shrink: 0 !important;
+    margin: 8px 16px 10px !important;
   }
   .fullscreenPortal .content {
-    flex: 1 1 0;
-    min-height: 0;
-    overflow: auto;
-    padding-bottom: 24px;
-    -webkit-overflow-scrolling: touch;
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 12px 18px 24px !important;
+    scrollbar-width: thin !important;
+  }
+  .fullscreenPortal .footer {
+    flex-shrink: 0 !important;
+    border-top: 1px solid var(--line) !important;
+    padding-top: 10px !important;
+    padding-inline: 18px !important;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 14px)) !important;
+    background: var(--surface-solid, #0f121d) !important;
+  }
+  .fullscreenPortal :is(input:not([type="radio"]), textarea, select) {
+    font-size: 16px !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
   }
 }
 @media (prefers-reduced-motion: reduce) { .panel *, .panel *::before { animation: none; transition: none; } }

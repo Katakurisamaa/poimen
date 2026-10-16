@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { 
   Copy, Check, Share2, Maximize, Minimize, PhoneOff, 
   Mic, MicOff, Video, VideoOff, Monitor, BarChart2,
   Users, AlertCircle, Wifi, MessageSquare, Send, Hand, ShieldCheck, UserX, Smile, Clock,
   RotateCcw, AlertTriangle, Lock, Camera, X, Pin, PinOff, SwitchCamera, ChevronDown, ChevronUp,
-  MoreHorizontal, PictureInPicture, Crown, Presentation
+  MoreHorizontal, PictureInPicture, Crown, Presentation, LayoutGrid, Columns, User,
+  ChevronLeft, ChevronRight, Sun, Moon
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getPublicVisioUrl, getWhatsAppShareUrl, matchesLobbyAdmission, wasLobbyAdmissionDelivered } from "@/lib/visio";
@@ -236,7 +237,9 @@ export default function VideoConference({
   const closingPollsRef = useRef(false);
   const chatOpenRef = useRef(false);
   const lastChatNotificationAtRef = useRef(0);
-  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const followChatRef = useRef(true);
   const callNoticeTimerRef = useRef<number | null>(null);
 
   // Unique client peer ID
@@ -254,9 +257,82 @@ export default function VideoConference({
     } catch {}
   }, [participantIdProp, roomName, fallbackParticipantId]);
 
+  // Theme state synchronized with Poimen global theme system
+  const [currentTheme, setCurrentTheme] = useState<"light" | "dark">("dark");
+
+  useEffect(() => {
+    const readCurrentTheme = (): "light" | "dark" => {
+      if (typeof document !== "undefined") {
+        const docTheme = document.documentElement.dataset.theme;
+        if (docTheme === "light" || docTheme === "dark") return docTheme;
+        if (document.documentElement.classList.contains("dark")) return "dark";
+      }
+      try {
+        const saved = localStorage.getItem("poimen_theme");
+        if (saved === "light" || saved === "dark") return saved;
+      } catch {}
+      if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        return "dark";
+      }
+      return "light";
+    };
+
+    setCurrentTheme(readCurrentTheme());
+
+    const handleThemeChange = (e: Event) => {
+      const customEvent = e as CustomEvent<"light" | "dark">;
+      if (customEvent.detail) {
+        setCurrentTheme(customEvent.detail);
+      } else {
+        setCurrentTheme(readCurrentTheme());
+      }
+    };
+
+    window.addEventListener("poimen-theme-change", handleThemeChange);
+
+    const observer = new MutationObserver(() => {
+      const docTheme = document.documentElement.dataset.theme;
+      if (docTheme === "light" || docTheme === "dark") {
+        setCurrentTheme(docTheme);
+      }
+    });
+    if (typeof document !== "undefined") {
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
+    }
+
+    return () => {
+      window.removeEventListener("poimen-theme-change", handleThemeChange);
+      observer.disconnect();
+    };
+  }, []);
+
+  const toggleThemeMode = useCallback((e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const nextTheme: "light" | "dark" = currentTheme === "dark" ? "light" : "dark";
+    setCurrentTheme(nextTheme);
+
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.theme = nextTheme;
+      document.documentElement.style.colorScheme = nextTheme;
+      document.documentElement.classList.toggle("dark", nextTheme === "dark");
+      document.body.dataset.theme = nextTheme;
+      document.body.style.colorScheme = nextTheme;
+      document.body.classList.toggle("dark", nextTheme === "dark");
+    }
+
+    try {
+      localStorage.setItem("poimen_theme", nextTheme);
+    } catch {}
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("poimen-theme-change", { detail: nextTheme }));
+    }
+  }, [currentTheme]);
+
   // Media states
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remotePeers, setRemotePeers] = useState<RemotePeer[]>([]);
+  const totalParticipants = 1 + remotePeers.length;
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
@@ -276,9 +352,11 @@ export default function VideoConference({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
+  const [hasNewChatMessages, setHasNewChatMessages] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [unreadPollCount, setUnreadPollCount] = useState(0);
   const [callNotice, setCallNotice] = useState("");
+  const [callNoticeTarget, setCallNoticeTarget] = useState<"chat" | "poll" | null>(null);
   const [reactionsOpen, setReactionsOpen] = useState(false);
   const [reactionPickerBottom, setReactionPickerBottom] = useState(96);
   const [handRaised, setHandRaised] = useState(false);
@@ -308,6 +386,17 @@ export default function VideoConference({
   const [swapPip, setSwapPip] = useState(false);
   const [activePoll, setActivePoll] = useState<PollView | null>(null);
   const [dismissedPollId, setDismissedPollId] = useState<string | null>(null);
+
+  // Dispositions d'affichage type Zoom (Galerie, Intervenant, Côte à côte)
+  type VisioViewMode = "gallery" | "speaker" | "side-by-side";
+  const [viewMode, setViewMode] = useState<VisioViewMode>("gallery");
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
+
+  // Carrousel Mobile (quand chat ou sondages sont ouverts)
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const carouselGridRef = useRef<HTMLDivElement>(null);
 
   // Modales personnalisées Visio
   const [showPermissionModal, setShowPermissionModal] = useState(false);
@@ -383,14 +472,45 @@ export default function VideoConference({
     return () => { active = false; window.clearInterval(interval); };
   }, [roomName, privateRoomUnavailable, stopForUnavailablePrivateRoom]);
 
-  const showCallNotice = useCallback((message: string) => {
+  const showCallNotice = useCallback((message: string, target: "chat" | "poll" | null = null) => {
     setCallNotice(message);
+    setCallNoticeTarget(target);
     if (callNoticeTimerRef.current !== null) window.clearTimeout(callNoticeTimerRef.current);
     callNoticeTimerRef.current = window.setTimeout(() => {
       callNoticeTimerRef.current = null;
       setCallNotice("");
+      setCallNoticeTarget(null);
     }, 4200);
   }, []);
+
+  useEffect(() => {
+    if (!viewMenuOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (viewMenuRef.current && !viewMenuRef.current.contains(e.target as Node)) {
+        setViewMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsideClick);
+    return () => document.removeEventListener("pointerdown", handleOutsideClick);
+  }, [viewMenuOpen]);
+
+  const speakingCandidateId = remotePeers.find(peer => peer.id === activeSpeakerId && peer.isSpeaking && !peer.isMuted)?.id
+    ?? remotePeers.find(peer => peer.isSpeaking && !peer.isMuted)?.id;
+  useEffect(() => {
+    if (!speakingCandidateId || speakingCandidateId === activeSpeakerId) return;
+    // Brief noises should not move the main video away from the current speaker.
+    const timer = window.setTimeout(() => setActiveSpeakerId(speakingCandidateId), 650);
+    return () => window.clearTimeout(timer);
+  }, [speakingCandidateId, activeSpeakerId]);
+
+  useEffect(() => {
+    const hasScreenShare = isScreenSharing || remotePeers.some(p => p.isScreenSharing);
+    if (hasScreenShare && viewMode === "gallery") {
+      setViewMode(isMobileScreen ? "speaker" : "side-by-side");
+    }
+  }, [isScreenSharing, remotePeers, isMobileScreen, viewMode]);
+
+
 
   useEffect(() => () => {
     if (callNoticeTimerRef.current !== null) window.clearTimeout(callNoticeTimerRef.current);
@@ -509,7 +629,7 @@ export default function VideoConference({
         const signature = openPoll ? `${openPoll.id || ""}:${openPoll.startedAt || openPoll.createdAt || 0}` : "";
         if (hasInitialSnapshot && signature && signature !== previousOpenPoll && !pollsOpen) {
           setUnreadPollCount(count => Math.min(99, count + 1));
-          showCallNotice(`Nouveau sondage : ${(openPoll?.question || "une nouvelle question").slice(0, 110)}`);
+          showCallNotice(`Nouveau sondage : ${(openPoll?.question || "une nouvelle question").slice(0, 110)}`, "poll");
         }
         previousOpenPoll = signature;
         hasInitialSnapshot = true;
@@ -534,8 +654,27 @@ export default function VideoConference({
   }, [meetingStartedAt, roomName, isWaitingRoom, joinRejected, pollsOpen, showCallNotice]);
 
   useEffect(() => {
-    if (chatOpen) chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (!chatOpen) return;
+    if (!followChatRef.current) {
+      setHasNewChatMessages(true);
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      const list = chatScrollRef.current;
+      if (list) list.scrollTop = list.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [chatMessages, chatOpen]);
+
+  useEffect(() => {
+    const input = chatInputRef.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 112)}px`;
+    if (followChatRef.current && chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatDraft, chatOpen]);
 
   const showReaction = useCallback((peerId: string, name: string, reaction: string) => {
     const option = quickReactions.find(item => item.emoji === reaction);
@@ -794,7 +933,11 @@ export default function VideoConference({
         pendingIceCandidatesRef.current.delete(existingPeerId);
       }
     });
-    setRemotePeers(previous => previous.filter(peer => peer.participantId !== peerParticipantId));
+    // Enregistrer immédiatement le pair dans remotePeers pour affichage instantané sans participant fantôme
+    setRemotePeers(previous => {
+      const filtered = previous.filter(peer => peer.participantId !== peerParticipantId && peer.id !== peerId);
+      return [...filtered, { id: peerId, participantId: peerParticipantId, name: peerName, stream: new MediaStream() }];
+    });
 
     const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
 
@@ -836,9 +979,9 @@ export default function VideoConference({
     pc.ontrack = (event) => {
       const incomingStream = event.streams[0] ?? new MediaStream([event.track]);
       setRemotePeers((prev) => {
-        const existing = prev.find((p) => p.participantId === peerParticipantId);
+        const existing = prev.find((p) => p.participantId === peerParticipantId || p.id === peerId);
         if (existing) {
-          return prev.map((p) => (p.participantId === peerParticipantId ? { ...p, id: peerId, stream: incomingStream, name: peerName } : p));
+          return prev.map((p) => (p.participantId === peerParticipantId || p.id === peerId ? { ...p, id: peerId, stream: incomingStream, name: peerName } : p));
         }
         return [...prev, { id: peerId, participantId: peerParticipantId, name: peerName, stream: incomingStream }];
       });
@@ -1043,10 +1186,38 @@ export default function VideoConference({
           console.warn("Impossible de publier la présence dans la réunion:", error);
         }
       };
+      const connectToPeer = async (peerId: string, peerName: string, peerParticipantId: string) => {
+        if (!localStreamRef.current || !channelRef.current) return;
+        const currentPeer = peerConnectionsRef.current.get(peerId);
+        if (currentPeer && currentPeer.pc.signalingState !== "closed" && currentPeer.pc.connectionState !== "failed") {
+          return;
+        }
+        const pc = createPeerConnection(peerId, peerName, localStreamRef.current, peerParticipantId);
+        try {
+          const offer = await pc.createOffer();
+          if (pc.signalingState !== "stable") return;
+          await pc.setLocalDescription(offer);
+          channelRef.current.send({
+            type: "broadcast",
+            event: "WEBRTC_OFFER",
+            payload: {
+              toPeerId: peerId,
+              fromPeerId: localPeerId,
+              fromParticipantId: participantId,
+              fromPeerName: userName,
+              sdp: offer,
+            },
+          });
+        } catch (err) {
+          console.error("Erreur création d'offre WebRTC vers", peerName, err);
+        }
+      };
+
       let localAdmissionHandled = false;
       const admitLocalParticipant = async (proposedStart?: unknown) => {
         if (isHost || localAdmissionHandled) return;
         localAdmissionHandled = true;
+        isAdmittedRef.current = true;
         const candidateStart = Number(proposedStart);
         const startedAt = Number.isFinite(candidateStart) && candidateStart > 0
           ? candidateStart
@@ -1064,6 +1235,18 @@ export default function VideoConference({
           type: "broadcast",
           event: "PEER_JOIN",
           payload: { peerId: localPeerId, participantId, peerName: userName, isHost: false, isAdmitted: true, meetingStartedAt: startedAt },
+        });
+
+        // Connexion aux autres pairs déjà admis dans la salle
+        const presences = Object.values(channel.presenceState<RoomPresence>()).flat();
+        presences.forEach(presence => {
+          if (presence.peerId && presence.peerId !== localPeerId && (presence.isHost || presence.isAdmitted)) {
+            approvedPeerIdsRef.current.add(presence.participantId);
+            approvedPeerIdsRef.current.add(presence.peerId);
+            if (localPeerId < presence.peerId) {
+              void connectToPeer(presence.peerId, presence.peerName || "Participant", presence.participantId);
+            }
+          }
         });
       };
       const announceAdmission = (admittedParticipantId: string, admittedPeerId?: string) => {
@@ -1089,11 +1272,24 @@ export default function VideoConference({
           const activePeerIds = new Set<string>();
           const startTimes: number[] = [];
           const waitingNow: WaitingParticipant[] = [];
+          const admittedPeerEntries: { peerId: string; participantId: string; peerName: string; isHost: boolean }[] = [];
 
           for (const presences of Object.values(state)) {
             for (const presence of presences) {
               if (!presence.peerId || !presence.participantId) continue;
               activePeerIds.add(presence.peerId);
+              if (presence.isHost || presence.isAdmitted) {
+                approvedPeerIdsRef.current.add(presence.participantId);
+                approvedPeerIdsRef.current.add(presence.peerId);
+                if (presence.peerId !== localPeerId) {
+                  admittedPeerEntries.push({
+                    peerId: presence.peerId,
+                    participantId: presence.participantId,
+                    peerName: presence.peerName || "Participant",
+                    isHost: Boolean(presence.isHost),
+                  });
+                }
+              }
               if ((presence.isHost || presence.isAdmitted) && Number.isFinite(presence.meetingStartedAt) && presence.meetingStartedAt) {
                 startTimes.push(presence.meetingStartedAt);
               }
@@ -1152,6 +1348,20 @@ export default function VideoConference({
             }
           }
 
+          // Réconciliation Full-Mesh : tous les participants admis connectent leurs flux
+          if (isAdmittedRef.current || isHost) {
+            admittedPeerEntries.forEach(peer => {
+              const existing = peerConnectionsRef.current.get(peer.peerId);
+              const isConnected = existing && existing.pc.signalingState !== "closed" && existing.pc.connectionState !== "failed";
+              if (!isConnected && localStreamRef.current) {
+                // Règle déterministe pour éviter les conflits d'offres simultanées (glare)
+                if (localPeerId < peer.peerId) {
+                  void connectToPeer(peer.peerId, peer.peerName, peer.participantId);
+                }
+              }
+            });
+          }
+
           const stalePeerIds: string[] = [];
           peerConnectionsRef.current.forEach(({ pc }, peerId) => {
             if (!activePeerIds.has(peerId)) {
@@ -1169,6 +1379,12 @@ export default function VideoConference({
           const peerParticipantId = String(payload.participantId || peerId);
           rejectedParticipantsRef.current.delete(peerParticipantId);
           rejectedParticipantsRef.current.delete(peerId);
+
+          if (payload.isAdmitted || payload.isHost) {
+            approvedPeerIdsRef.current.add(peerParticipantId);
+            approvedPeerIdsRef.current.add(peerId);
+          }
+
           const isAlreadyAdmitted = approvedPeerIdsRef.current.has(peerParticipantId) || approvedPeerIdsRef.current.has(peerId) || Object.values(channel.presenceState<RoomPresence>()).flat().some(
             presence => (presence.peerId === peerId || presence.participantId === peerParticipantId) && (presence.isAdmitted || approvedPeerIdsRef.current.has(presence.participantId))
           );
@@ -1186,41 +1402,51 @@ export default function VideoConference({
             }
             return;
           }
-          if (!isHost && roomLockedRef.current && !payload.isHost && !approvedPeerIdsRef.current.has(peerParticipantId) && !approvedPeerIdsRef.current.has(peerId)) return;
+          if (!isHost && roomLockedRef.current && !payload.isHost && !payload.isAdmitted && !approvedPeerIdsRef.current.has(peerParticipantId) && !approvedPeerIdsRef.current.has(peerId)) return;
+          if (!isHost && !isAdmittedRef.current) return;
+
           if (peerConnectionsRef.current.get(peerId)?.pc.signalingState !== undefined
             && peerConnectionsRef.current.get(peerId)?.pc.signalingState !== "closed") return;
 
-          // L'ancien pair prend l'initiative d'envoyer l'offre SDP
-          const pc = createPeerConnection(peerId, peerName, localStreamRef.current!, peerParticipantId);
-          try {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            channel.send({
-              type: "broadcast",
-              event: "WEBRTC_OFFER",
-              payload: {
-                toPeerId: peerId,
-                fromPeerId: localPeerId,
-                fromParticipantId: participantId,
-                fromPeerName: userName,
-                sdp: offer,
-              },
-            });
-          } catch (err) {
-            console.error("Erreur création d'offre WebRTC:", err);
+          // Règle déterministe pour éviter les offres simultanées (glare)
+          if (localPeerId < peerId) {
+            void connectToPeer(peerId, peerName, peerParticipantId);
           }
         })
         .on("broadcast", { event: "WEBRTC_OFFER" }, async ({ payload }) => {
           if (payload?.toPeerId !== localPeerId) return;
           const { fromPeerId, fromPeerName, sdp } = payload;
 
+          const isPolite = localPeerId > fromPeerId;
           const currentPeer = peerConnectionsRef.current.get(fromPeerId);
-          const pc = currentPeer?.pc || createPeerConnection(fromPeerId, fromPeerName, localStreamRef.current!, String(payload.fromParticipantId || fromPeerId));
+          let pc = currentPeer?.pc;
+
+          if (!pc || pc.signalingState === "closed") {
+            pc = createPeerConnection(fromPeerId, fromPeerName, localStreamRef.current!, String(payload.fromParticipantId || fromPeerId));
+          }
+
+          // Gestion du Glare WebRTC (W3C Perfect Negotiation)
+          if (pc.signalingState !== "stable") {
+            if (!isPolite) {
+              return; // Le pair impoli ignore l'offre concurrente
+            }
+            try {
+              await pc.setLocalDescription({ type: "rollback" });
+            } catch (err) {
+              console.warn("Rollback WebRTC non applicable:", err);
+            }
+          }
+
           try {
             await pc.setRemoteDescription(new RTCSessionDescription(sdp));
             flushPendingIceCandidates(fromPeerId, pc);
+
+            // Vérifier que l'état attend bien une réponse locale
+            if (pc.signalingState !== "have-remote-offer") return;
+
             const answer = await pc.createAnswer();
+            if (pc.signalingState !== "have-remote-offer") return;
+
             await pc.setLocalDescription(answer);
 
             channel.send({
@@ -1241,7 +1467,7 @@ export default function VideoConference({
           const { fromPeerId, sdp } = payload;
 
           const peerObj = peerConnectionsRef.current.get(fromPeerId);
-          if (peerObj) {
+          if (peerObj && peerObj.pc.signalingState === "have-local-offer") {
             try {
               await peerObj.pc.setRemoteDescription(new RTCSessionDescription(sdp));
               flushPendingIceCandidates(fromPeerId, peerObj.pc);
@@ -1361,6 +1587,11 @@ export default function VideoConference({
             }
             if (admittedParticipantId === participantId || admittedPeerId === localPeerId) {
               void admitLocalParticipant(payload.meetingStartedAt);
+            } else if ((isAdmittedRef.current || isHost) && admittedPeerId && admittedPeerId !== localPeerId) {
+              if (localPeerId < admittedPeerId) {
+                const presence = Object.values(channel.presenceState<RoomPresence>()).flat().find(p => p.peerId === admittedPeerId);
+                void connectToPeer(admittedPeerId, presence?.peerName || "Participant", admittedParticipantId);
+              }
             }
           }
         })
@@ -1393,7 +1624,7 @@ export default function VideoConference({
             const now = Date.now();
             if (now - lastChatNotificationAtRef.current > 4000) {
               lastChatNotificationAtRef.current = now;
-              showCallNotice(`Nouveau message de ${String(payload.name || "un participant").slice(0, 48)}.`);
+              showCallNotice(`Nouveau message de ${String(payload.name || "un participant").slice(0, 48)}.`, "chat");
             }
           }
         })
@@ -1756,6 +1987,8 @@ export default function VideoConference({
     event.preventDefault();
     const text = chatDraft.trim().slice(0, 500);
     if (!text || !channelRef.current) return;
+    followChatRef.current = true;
+    setHasNewChatMessages(false);
     const message: ChatMessage = { id: `${localPeerId}-${Date.now()}`, peerId: localPeerId, name: userName, text, createdAt: Date.now() };
     setChatMessages(previous => [...previous.slice(-99), message]);
     channelRef.current.send({ type: "broadcast", event: "CHAT_MESSAGE", payload: { messageId: message.id, peerId: localPeerId, name: userName, text, createdAt: message.createdAt } });
@@ -1790,13 +2023,15 @@ export default function VideoConference({
   const closePollsPanel = async () => {
     if (closingPollsRef.current) return;
     closingPollsRef.current = true;
+    let shouldClose = true;
     try {
-      const shouldClose = await animateVisioPanelExit(containerRef.current?.querySelector<HTMLElement>('[data-visio-poll-panel="true"]'));
-      if (shouldClose) (onClosePolls ?? onTogglePolls)?.();
+      shouldClose = await animateVisioPanelExit(containerRef.current?.querySelector<HTMLElement>('[data-visio-poll-panel="true"]'));
+    } catch {
+      // An unavailable animation must not prevent the panel from closing.
     } finally {
-      (onClosePolls ?? onTogglePolls)?.();
       closingPollsRef.current = false;
     }
+    if (shouldClose) (onClosePolls ?? onTogglePolls)?.();
   };
 
   const toggleChat = () => {
@@ -1808,6 +2043,8 @@ export default function VideoConference({
         (onClosePolls ?? onTogglePolls)?.();
       }
       chatOpenRef.current = true;
+      followChatRef.current = true;
+      setHasNewChatMessages(false);
       setUnreadChatCount(0);
       setChatOpen(true);
     }
@@ -2072,16 +2309,18 @@ export default function VideoConference({
     const container = containerRef.current;
     if (!container) return;
 
-    // Sur PC (souris), le déplacement réinitialise le timer d'inactivité
-    const onPointerMove = (e: PointerEvent) => {
-      if (e.pointerType === "mouse") {
-        resetActivityTimer();
-      }
+    // Le déplacement ou le clic réinitialise le timer d'inactivité
+    const onActivity = () => {
+      resetActivityTimer();
     };
 
-    container.addEventListener("pointermove", onPointerMove);
+    container.addEventListener("pointermove", onActivity);
+    container.addEventListener("mousemove", onActivity);
+    container.addEventListener("click", onActivity);
     return () => {
-      container.removeEventListener("pointermove", onPointerMove);
+      container.removeEventListener("pointermove", onActivity);
+      container.removeEventListener("mousemove", onActivity);
+      container.removeEventListener("click", onActivity);
       if (activityTimerRef.current !== null) window.clearTimeout(activityTimerRef.current);
     };
   }, [moreSheetOpen, reactionsOpen, deviceMenuOpen, chatOpen, pollsOpen, showPermissionModal, showReloadModal, showLeaveModal, resetActivityTimer]);
@@ -2173,7 +2412,6 @@ export default function VideoConference({
     };
   }, [isMicMuted, isVideoOff, localPeerId, pinnedPeerId]);
 
-  const totalParticipants = 1 + remotePeers.length;
   const gridClass =
     totalParticipants === 1
       ? styles.grid1
@@ -2181,7 +2419,43 @@ export default function VideoConference({
       ? styles.grid2
       : totalParticipants <= 4
       ? styles.grid4
+      : totalParticipants <= 6
+      ? styles.grid6
       : styles.gridMany;
+
+  // Liste ordonnée de tous les participants dans le carrousel mobile
+  const allCarouselParticipants = useMemo(() => {
+    return [
+      { id: "local", name: userName ? `${userName} (Vous)` : "Vous", isLocal: true },
+      ...remotePeers.map(p => ({ id: p.id, name: p.name, isLocal: false }))
+    ];
+  }, [userName, remotePeers]);
+
+  // Détection du défilement tactile / swipe pour actualiser l'indicateur de carrousel
+  const handleCarouselScroll = useCallback(() => {
+    const el = carouselGridRef.current;
+    if (!el) return;
+    const firstChild = el.firstElementChild as HTMLElement | null;
+    const cardWidth = firstChild ? firstChild.offsetWidth + 16 : el.clientWidth;
+    if (cardWidth <= 0) return;
+    const newIndex = Math.round(el.scrollLeft / cardWidth);
+    setCarouselIndex(Math.max(0, Math.min(newIndex, totalParticipants - 1)));
+  }, [totalParticipants]);
+
+  // Défilement ciblé et fluide vers un volet participant
+  const scrollToParticipant = useCallback((index: number) => {
+    const el = carouselGridRef.current;
+    if (!el) return;
+    const targetCard = el.children[index] as HTMLElement | undefined;
+    if (targetCard) {
+      targetCard.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    } else {
+      const firstChild = el.firstElementChild as HTMLElement | null;
+      const cardWidth = firstChild ? firstChild.offsetWidth + 16 : el.clientWidth;
+      el.scrollTo({ left: index * cardWidth, behavior: "smooth" });
+    }
+    setCarouselIndex(index);
+  }, []);
 
   return (
     <div
@@ -2189,6 +2463,8 @@ export default function VideoConference({
       className={`${styles.container} ${styles.fullscreen} ${chatOpen || pollsOpen ? styles.interactionsOpen : ""}`}
       data-visio-fullscreen-mode="true"
       style={{ height: "var(--visio-viewport-height, 100dvh)", maxHeight: "var(--visio-viewport-height, 100dvh)" }}
+      onClick={() => resetActivityTimer()}
+      onPointerMove={() => resetActivityTimer()}
     >
       <header
         className={`${styles.topBar} ${!controlsVisible ? styles.topBarHidden : ""}`}
@@ -2228,6 +2504,83 @@ export default function VideoConference({
         </div>
 
         <div className={styles.actions}>
+          <div className={styles.viewModeDropdownWrap} ref={viewMenuRef}>
+            <button
+              type="button"
+              className={`${styles.btnAction} ${viewMenuOpen ? styles.btnActionActive : ""}`}
+              onClick={() => setViewMenuOpen(v => !v)}
+              title="Changer la disposition de l'affichage"
+              aria-haspopup="menu"
+              aria-expanded={viewMenuOpen}
+            >
+              {viewMode === "gallery" ? <LayoutGrid size={16} /> : viewMode === "speaker" ? <User size={16} /> : <Columns size={16} />}
+              <span>Affichage</span>
+            </button>
+            {viewMenuOpen && (
+              <div className={styles.viewModeDropdown} role="menu">
+                <span className={styles.viewMenuHeader}>Disposition d'affichage</span>
+                <button
+                  type="button"
+                  className={`${styles.viewMenuItem} ${viewMode === "gallery" ? styles.viewMenuItemActive : ""}`}
+                  onClick={() => { setViewMode("gallery"); setViewMenuOpen(false); }}
+                >
+                  <LayoutGrid size={16} />
+                  <div className={styles.viewMenuItemText}>
+                    <strong>Galerie</strong>
+                    <small>Tous les participants en mosaïque</small>
+                  </div>
+                  {viewMode === "gallery" && <Check size={14} className={styles.viewMenuCheck} />}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.viewMenuItem} ${viewMode === "speaker" ? styles.viewMenuItemActive : ""}`}
+                  onClick={() => { setViewMode("speaker"); setViewMenuOpen(false); }}
+                >
+                  <User size={16} />
+                  <div className={styles.viewMenuItemText}>
+                    <strong>Intervenant</strong>
+                    <small>L'orateur actif en grand écran</small>
+                  </div>
+                  {viewMode === "speaker" && <Check size={14} className={styles.viewMenuCheck} />}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.viewMenuItem} ${viewMode === "side-by-side" ? styles.viewMenuItemActive : ""}`}
+                  onClick={() => { setViewMode("side-by-side"); setViewMenuOpen(false); }}
+                >
+                  <Columns size={16} />
+                  <div className={styles.viewMenuItemText}>
+                    <strong>Côte à côte</strong>
+                    <small>Présentation à gauche, participants à droite</small>
+                  </div>
+                  {viewMode === "side-by-side" && <Check size={14} className={styles.viewMenuCheck} />}
+                </button>
+                <div className={styles.viewMenuDivider} />
+                <button
+                  type="button"
+                  className={styles.viewMenuItem}
+                  onClick={() => { toggleFullscreen(); setViewMenuOpen(false); }}
+                >
+                  {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                  <div className={styles.viewMenuItemText}>
+                    <strong>{isFullscreen ? "Quitter le plein écran" : "Plein écran"}</strong>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className={styles.btnAction}
+            onClick={toggleThemeMode}
+            title={currentTheme === "dark" ? "Passer en mode clair" : "Passer en mode sombre"}
+            aria-label={currentTheme === "dark" ? "Passer en mode clair" : "Passer en mode sombre"}
+          >
+            {currentTheme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            <span>{currentTheme === "dark" ? "Clair" : "Sombre"}</span>
+          </button>
+
           <button
             type="button"
             className={styles.btnAction}
@@ -2312,7 +2665,15 @@ export default function VideoConference({
           </div>
         )}
 
-        {callNotice && <div className={styles.callNotice} role="status" aria-live="polite">{callNotice}</div>}
+        {callNotice && <div className={styles.callNotice} role="status" aria-live="polite" onClick={event => event.stopPropagation()}>
+          <span>{callNotice}</span>
+          {callNoticeTarget && (callNoticeTarget === "chat" || onTogglePolls) && <button type="button" onClick={() => {
+            if (callNoticeTarget === "chat" && !chatOpen) toggleChat();
+            if (callNoticeTarget === "poll" && !pollsOpen) togglePolls();
+            setCallNotice("");
+          }}>{callNoticeTarget === "chat" ? "Lire" : "Répondre"}</button>}
+          <button type="button" aria-label="Masquer la notification" onClick={() => setCallNotice("")}><X size={16} /></button>
+        </div>}
         {isLoading && (
           <div className={styles.noticeBanner}>
             <div className={styles.spinner} />
@@ -2398,144 +2759,134 @@ export default function VideoConference({
           <span className={styles.srOnly} role="status" aria-live="polite">{reactionAnnouncement}</span>
         </div>
 
-        {/* Grille Vidéo ou Modes Spéciaux (Spotlight / Mobile 1-à-1) */}
+        {/* Carrousel Mobile : Barre de navigation élégante quand le chat ou les sondages sont ouverts */}
+        {isMobileScreen && (chatOpen || pollsOpen) && totalParticipants > 1 && (
+          <div className={styles.carouselNavBar} role="region" aria-label="Navigation des participants">
+            <button
+              type="button"
+              className={styles.carouselNavArrow}
+              onClick={() => scrollToParticipant(Math.max(0, carouselIndex - 1))}
+              disabled={carouselIndex === 0}
+              aria-label="Participant précédent"
+            >
+              <ChevronLeft size={14} />
+            </button>
+
+            <div className={styles.carouselNavCenter}>
+              <span className={styles.carouselNavLabel}>
+                {carouselIndex + 1}/{totalParticipants} • {allCarouselParticipants[carouselIndex]?.name || ""}
+              </span>
+              <div className={styles.carouselDots}>
+                {allCarouselParticipants.map((p, idx) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`${styles.carouselDot} ${idx === carouselIndex ? styles.carouselDotActive : ""}`}
+                    onClick={() => scrollToParticipant(idx)}
+                    aria-label={`Afficher ${p.name}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={styles.carouselNavArrow}
+              onClick={() => scrollToParticipant(Math.min(totalParticipants - 1, carouselIndex + 1))}
+              disabled={carouselIndex >= totalParticipants - 1}
+              aria-label="Participant suivant"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* Grille Vidéo et Dispositions Dynamiques (Galerie, Intervenant, Côte à côte type Zoom) */}
         {(() => {
           const screenSharingRemotePeer = remotePeers.find(p => p.isScreenSharing);
-          const isSpotlight = isScreenSharing || pinnedPeerId !== null || Boolean(screenSharingRemotePeer);
-          const isMobile1on1 = isMobileScreen && totalParticipants === 2 && !isSpotlight;
+          const isPollSpotlight = pinnedPeerId === "poll";
+          const isLocalSpotlight = pinnedPeerId === "local" || (isScreenSharing && !pinnedPeerId && !screenSharingRemotePeer);
+          const spotlightPeer = pinnedPeerId && pinnedPeerId !== "local" && pinnedPeerId !== "poll"
+            ? remotePeers.find(p => p.id === pinnedPeerId)
+            : screenSharingRemotePeer || remotePeers.find(p => p.id === activeSpeakerId) || remotePeers[0] || null;
 
-          if (isMobile1on1) {
-            const remotePeer = remotePeers[0];
-            return (
-              <div className={styles.mobile1on1Container} onClick={handleStageClick}>
-                <div className={styles.mobile1on1Main}>
-                  {swapPip ? (
-                    <LocalVideoTile
-                      videoRef={localVideoRef}
-                      stream={localStreamRef.current || localStream}
-                      userName={userName}
-                      isScreenSharing={isScreenSharing}
-                      isVideoOff={isVideoOff}
-                      isMicMuted={isMicMuted}
-                      isLocalSpeaking={isLocalSpeaking}
-                      handRaised={handRaised}
-                      facingMode={currentFacingMode}
-                    />
-                  ) : (
-                    remotePeer && (
-                      <RemoteVideoTile
-                        peer={remotePeer}
-                        isHost={isHost}
-                        onModerate={moderatePeer}
-                        isPinned={false}
-                        onPin={() => setPinnedPeerId(remotePeer.id)}
-                      />
-                    )
-                  )}
-                </div>
-                <div
-                  className={styles.mobile1on1Pip}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSwapPip(s => !s);
-                  }}
-                  title="Touchez pour inverser l'affichage"
-                >
-                  {swapPip && remotePeer ? (
-                    <RemoteVideoTile
-                      peer={remotePeer}
-                      isHost={isHost}
-                      onModerate={moderatePeer}
-                    />
-                  ) : (
-                    <LocalVideoTile
-                      videoRef={localVideoRef}
-                      stream={localStreamRef.current || localStream}
-                      userName={userName}
-                      isScreenSharing={isScreenSharing}
-                      isVideoOff={isVideoOff}
-                      isMicMuted={isMicMuted}
-                      isLocalSpeaking={isLocalSpeaking}
-                      handRaised={handRaised}
-                      facingMode={currentFacingMode}
-                      isPip
-                    />
-                  )}
+          // En mode mobile avec chat/sondages ouverts, forcer le carrousel galerie horizontal
+          const isMobileInteractions = isMobileScreen && (chatOpen || pollsOpen);
+          const effectiveMode = isMobileInteractions
+            ? "gallery"
+            : (isScreenSharing || screenSharingRemotePeer) && viewMode === "gallery" && totalParticipants > 1
+              ? (isMobileScreen ? "speaker" : "side-by-side")
+              : viewMode;
+
+          const renderPollCard = () => activePoll && (
+            <div className={styles.pollStageCard}>
+              <div className={styles.pollStageHeader}>
+                <span className={styles.pollStageBadge}>
+                  <BarChart2 size={16} />
+                  <span>{activePoll.type === "quiz" ? "Quiz en direct" : activePoll.type === "open" ? "Question libre" : "Sondage en direct"}</span>
+                </span>
+                <div className={styles.pollStageStats}>
+                  <span>{activePoll.totalVotes} vote{activePoll.totalVotes !== 1 ? "s" : ""}</span>
+                  <button
+                    type="button"
+                    className={styles.pollStageCloseBtn}
+                    onClick={() => setPinnedPeerId(null)}
+                    title="Quitter la scène"
+                    aria-label="Quitter la scène"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
               </div>
-            );
-          }
-
-          if (isSpotlight) {
-            const isPollSpotlight = pinnedPeerId === "poll";
-            const isLocalSpotlight = pinnedPeerId === "local" || (isScreenSharing && !pinnedPeerId && !screenSharingRemotePeer);
-            const spotlightPeer = pinnedPeerId && pinnedPeerId !== "local" && pinnedPeerId !== "poll"
-              ? remotePeers.find(p => p.id === pinnedPeerId)
-              : screenSharingRemotePeer || null;
-
-            return (
-              <div className={styles.spotlightContainer} onClick={handleStageClick}>
-                <div className={styles.spotlightStage}>
-                  {isPollSpotlight && activePoll ? (
-                    <div className={styles.pollStageCard}>
-                      <div className={styles.pollStageHeader}>
-                        <span className={styles.pollStageBadge}>
-                          <BarChart2 size={16} />
-                          <span>{activePoll.type === "quiz" ? "Quiz en direct" : activePoll.type === "open" ? "Question libre" : "Sondage en direct"}</span>
+              <h3 className={styles.pollStageQuestion}>{activePoll.question}</h3>
+              {activePoll.type !== "open" && activePoll.options && (
+                <div className={styles.pollStageOptions}>
+                  {activePoll.options.map((opt, idx) => {
+                    const count = activePoll.counts?.[opt.id] || 0;
+                    const percent = activePoll.totalVotes ? Math.round(count * 100 / activePoll.totalVotes) : 0;
+                    const maxCount = activePoll.totalVotes > 0 && activePoll.counts ? Math.max(...activePoll.options.map(o => activePoll.counts?.[o.id] || 0)) : 0;
+                    const isWinner = maxCount > 0 && count === maxCount && activePoll.totalVotes >= 2;
+                    return (
+                      <div key={opt.id} className={`${styles.pollStageOption} ${isWinner ? styles.pollStageWinner : ""}`}>
+                        {activePoll.counts && <div className={styles.pollStageBar} style={{ width: `${percent}%` }} />}
+                        <span className={styles.pollStageOptionLetter}>
+                          {isWinner ? <Crown size={15} /> : String.fromCharCode(65 + idx)}
                         </span>
-                        <div className={styles.pollStageStats}>
-                          <span>{activePoll.totalVotes} vote{activePoll.totalVotes !== 1 ? "s" : ""}</span>
-                          <button
-                            type="button"
-                            className={styles.pollStageCloseBtn}
-                            onClick={() => setPinnedPeerId(null)}
-                            title="Quitter la scène"
-                            aria-label="Quitter la scène"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
+                        <span className={styles.pollStageOptionText}>{opt.text}</span>
+                        {activePoll.counts && (
+                          <span className={styles.pollStagePercent}>{percent}% ({count})</span>
+                        )}
                       </div>
-                      <h3 className={styles.pollStageQuestion}>{activePoll.question}</h3>
-                      {activePoll.type !== "open" && activePoll.options && (
-                        <div className={styles.pollStageOptions}>
-                          {activePoll.options.map((opt, idx) => {
-                            const count = activePoll.counts?.[opt.id] || 0;
-                            const percent = activePoll.totalVotes ? Math.round(count * 100 / activePoll.totalVotes) : 0;
-                            const maxCount = activePoll.totalVotes > 0 && activePoll.counts ? Math.max(...activePoll.options.map(o => activePoll.counts?.[o.id] || 0)) : 0;
-                            const isWinner = maxCount > 0 && count === maxCount && activePoll.totalVotes >= 2;
-                            return (
-                              <div key={opt.id} className={`${styles.pollStageOption} ${isWinner ? styles.pollStageWinner : ""}`}>
-                                {activePoll.counts && <div className={styles.pollStageBar} style={{ width: `${percent}%` }} />}
-                                <span className={styles.pollStageOptionLetter}>
-                                  {isWinner ? <Crown size={15} /> : String.fromCharCode(65 + idx)}
-                                </span>
-                                <span className={styles.pollStageOptionText}>{opt.text}</span>
-                                {activePoll.counts && (
-                                  <span className={styles.pollStagePercent}>{percent}% ({count})</span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                      <div className={styles.pollStageFooter}>
-                        <button
-                          type="button"
-                          className={styles.pollStageActionBtn}
-                          onClick={() => {
-                            if (chatOpen) {
-                              chatOpenRef.current = false;
-                              setChatOpen(false);
-                            }
-                            if (onTogglePolls && !pollsOpen) onTogglePolls();
-                          }}
-                        >
-                          <BarChart2 size={16} />
-                          <span>{activePoll.myVote ? "Voir les détails dans le panneau" : "Participer et voter"}</span>
-                        </button>
-                      </div>
-                    </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className={styles.pollStageFooter}>
+                <button
+                  type="button"
+                  className={styles.pollStageActionBtn}
+                  onClick={() => {
+                    if (chatOpen) {
+                      chatOpenRef.current = false;
+                      setChatOpen(false);
+                    }
+                    if (onTogglePolls && !pollsOpen) onTogglePolls();
+                  }}
+                >
+                  <BarChart2 size={16} />
+                  <span>{activePoll.myVote ? "Voir les détails dans le panneau" : "Participer et voter"}</span>
+                </button>
+              </div>
+            </div>
+          );
+
+          // 1. DISPOSITION CÔTE À CÔTE (Style Zoom Side-by-Side)
+          if (effectiveMode === "side-by-side" && totalParticipants > 1) {
+            return (
+              <div className={styles.sideBySideContainer} onClick={handleStageClick}>
+                <div className={styles.sideBySideStage}>
+                  {isPollSpotlight && activePoll ? (
+                    renderPollCard()
                   ) : isLocalSpotlight || !spotlightPeer ? (
                     <LocalVideoTile
                       videoRef={localVideoRef}
@@ -2547,16 +2898,84 @@ export default function VideoConference({
                       isLocalSpeaking={isLocalSpeaking}
                       handRaised={handRaised}
                       facingMode={currentFacingMode}
-                      isPinned={true}
-                      onPin={() => setPinnedPeerId(null)}
+                      isPinned={Boolean(pinnedPeerId === "local")}
+                      onPin={() => setPinnedPeerId(pinnedPeerId === "local" ? null : "local")}
                     />
                   ) : (
                     <RemoteVideoTile
                       peer={spotlightPeer}
                       isHost={isHost}
                       onModerate={moderatePeer}
-                      isPinned={true}
-                      onPin={() => setPinnedPeerId(null)}
+                      isPinned={Boolean(pinnedPeerId === spotlightPeer.id)}
+                      onPin={() => setPinnedPeerId(pinnedPeerId === spotlightPeer.id ? null : spotlightPeer.id)}
+                    />
+                  )}
+                </div>
+
+                <div className={styles.sideBySideSidebar}>
+                  {(!isLocalSpotlight || isPollSpotlight) && (
+                    <div className={styles.sideBySideTile}>
+                      <LocalVideoTile
+                        videoRef={localVideoRef}
+                        stream={localStreamRef.current || localStream}
+                        userName={userName}
+                        isScreenSharing={isScreenSharing}
+                        isVideoOff={isVideoOff}
+                        isMicMuted={isMicMuted}
+                        isLocalSpeaking={isLocalSpeaking}
+                        handRaised={handRaised}
+                        facingMode={currentFacingMode}
+                        isPinned={pinnedPeerId === "local"}
+                        onPin={() => setPinnedPeerId(pinnedPeerId === "local" ? null : "local")}
+                      />
+                    </div>
+                  )}
+                  {remotePeers
+                    .filter(p => isPollSpotlight || !spotlightPeer || p.id !== spotlightPeer.id)
+                    .map(peer => (
+                      <div className={styles.sideBySideTile} key={peer.id}>
+                        <RemoteVideoTile
+                          peer={peer}
+                          isHost={isHost}
+                          onModerate={moderatePeer}
+                          isPinned={pinnedPeerId === peer.id}
+                          onPin={() => setPinnedPeerId(pinnedPeerId === peer.id ? null : peer.id)}
+                        />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            );
+          }
+
+          // 2. DISPOSITION INTERVENANT (Speaker)
+          if ((effectiveMode === "speaker" || pinnedPeerId !== null) && totalParticipants > 1 && effectiveMode !== "gallery") {
+            return (
+              <div className={styles.spotlightContainer} onClick={handleStageClick}>
+                <div className={styles.spotlightStage}>
+                  {isPollSpotlight && activePoll ? (
+                    renderPollCard()
+                  ) : isLocalSpotlight || !spotlightPeer ? (
+                    <LocalVideoTile
+                      videoRef={localVideoRef}
+                      stream={localStreamRef.current || localStream}
+                      userName={userName}
+                      isScreenSharing={isScreenSharing}
+                      isVideoOff={isVideoOff}
+                      isMicMuted={isMicMuted}
+                      isLocalSpeaking={isLocalSpeaking}
+                      handRaised={handRaised}
+                      facingMode={currentFacingMode}
+                      isPinned={Boolean(pinnedPeerId === "local")}
+                      onPin={() => setPinnedPeerId(pinnedPeerId === "local" ? null : "local")}
+                    />
+                  ) : (
+                    <RemoteVideoTile
+                      peer={spotlightPeer}
+                      isHost={isHost}
+                      onModerate={moderatePeer}
+                      isPinned={Boolean(pinnedPeerId === spotlightPeer.id)}
+                      onPin={() => setPinnedPeerId(pinnedPeerId === spotlightPeer.id ? null : spotlightPeer.id)}
                     />
                   )}
                 </div>
@@ -2574,8 +2993,8 @@ export default function VideoConference({
                         isLocalSpeaking={isLocalSpeaking}
                         handRaised={handRaised}
                         facingMode={currentFacingMode}
-                        isPinned={false}
-                        onPin={() => setPinnedPeerId("local")}
+                        isPinned={pinnedPeerId === "local"}
+                        onPin={() => setPinnedPeerId(pinnedPeerId === "local" ? null : "local")}
                       />
                     </div>
                   )}
@@ -2587,8 +3006,8 @@ export default function VideoConference({
                           peer={peer}
                           isHost={isHost}
                           onModerate={moderatePeer}
-                          isPinned={false}
-                          onPin={() => setPinnedPeerId(peer.id)}
+                          isPinned={pinnedPeerId === peer.id}
+                          onPin={() => setPinnedPeerId(pinnedPeerId === peer.id ? null : peer.id)}
                         />
                       </div>
                     ))}
@@ -2597,9 +3016,14 @@ export default function VideoConference({
             );
           }
 
-          // Grille Adaptative Standard
+          // 3. DISPOSITION GALERIE (Par défaut : Mosaïque équilibrée ou Carrousel mobile)
           return (
-            <div className={`${styles.videoGrid} ${gridClass}`} onClick={handleStageClick}>
+            <div
+              ref={carouselGridRef}
+              onScroll={isMobileScreen && (chatOpen || pollsOpen) ? handleCarouselScroll : undefined}
+              className={`${styles.videoGrid} ${gridClass}`}
+              onClick={handleStageClick}
+            >
               <LocalVideoTile
                 videoRef={localVideoRef}
                 stream={localStreamRef.current || localStream}
@@ -2610,8 +3034,8 @@ export default function VideoConference({
                 isLocalSpeaking={isLocalSpeaking}
                 handRaised={handRaised}
                 facingMode={currentFacingMode}
-                isPinned={false}
-                onPin={() => setPinnedPeerId("local")}
+                isPinned={pinnedPeerId === "local"}
+                onPin={() => setPinnedPeerId(pinnedPeerId === "local" ? null : "local")}
               />
               {remotePeers.map((peer) => (
                 <RemoteVideoTile
@@ -2619,8 +3043,8 @@ export default function VideoConference({
                   peer={peer}
                   isHost={isHost}
                   onModerate={moderatePeer}
-                  isPinned={false}
-                  onPin={() => setPinnedPeerId(peer.id)}
+                  isPinned={pinnedPeerId === peer.id}
+                  onPin={() => setPinnedPeerId(pinnedPeerId === peer.id ? null : peer.id)}
                 />
               ))}
             </div>
@@ -2635,7 +3059,12 @@ export default function VideoConference({
       >
         {chatOpen && <aside className={`${styles.chatPanel} ${styles.dockPanel}`} aria-label="Chat de la réunion">
           <div className={styles.chatHeader}><strong>Messages de la réunion</strong><button type="button" onClick={() => void closeChatPanel()} aria-label="Fermer le chat">×</button></div>
-          <div className={styles.chatMessages} aria-live="polite">
+          <div ref={chatScrollRef} className={styles.chatMessages} role="log" aria-label="Messages de la réunion" aria-live="polite" aria-relevant="additions" onScroll={event => {
+            const list = event.currentTarget;
+            const isNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 48;
+            followChatRef.current = isNearBottom;
+            if (isNearBottom) setHasNewChatMessages(false);
+          }}>
             {chatMessages.length === 0 ? <div className={styles.chatEmptyState}>
               <span className={styles.chatEmptyIcon} aria-hidden="true"><MessageSquare size={20} /></span>
               <strong>Aucun message pour l’instant</strong>
@@ -2643,9 +3072,24 @@ export default function VideoConference({
             </div> : chatMessages.map(message => <article className={`${styles.chatMessage} ${message.peerId === localPeerId ? styles.chatMessageOwn : ""}`} key={message.id}>
               <div className={styles.chatMessageMeta}><strong>{message.peerId === localPeerId ? "Vous" : message.name}</strong><time>{new Date(message.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</time></div><p>{message.text}</p>
             </article>)}
-            <div ref={chatMessagesEndRef} aria-hidden="true" />
           </div>
-          <form className={styles.chatForm} onSubmit={sendChatMessage}><input aria-label="Votre message" maxLength={500} value={chatDraft} onChange={event => setChatDraft(event.target.value)} placeholder="Écrire un message…" /><button type="submit" disabled={!chatDraft.trim()} aria-label="Envoyer"><Send size={16} /></button></form>
+          {hasNewChatMessages && <button type="button" className={styles.newChatMessages} onClick={() => {
+            followChatRef.current = true;
+            setHasNewChatMessages(false);
+            const list = chatScrollRef.current;
+            if (list) list.scrollTop = list.scrollHeight;
+          }}><ChevronDown size={16} /> Nouveaux messages</button>}
+          <form className={styles.chatForm} onSubmit={sendChatMessage}>
+            <textarea ref={chatInputRef} aria-label="Votre message" rows={1} maxLength={500} value={chatDraft}
+              onChange={event => setChatDraft(event.target.value)} placeholder="Écrire un message…"
+              onKeyDown={event => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !isMobileScreen) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }} />
+            <button type="submit" disabled={!chatDraft.trim()} aria-label="Envoyer"><Send size={16} /></button>
+          </form>
         </aside>}
       </div>
       </div>
@@ -2966,22 +3410,57 @@ export default function VideoConference({
               </button>
             </div>
 
-            {/* Réactions rapides en haut du tiroir */}
-            <div className={styles.bottomSheetReactions}>
-              {quickReactions.slice(0, 6).map(r => (
+            {/* Réactions rapides en haut du tiroir (au premier plan) */}
+            <div className={styles.bottomSheetReactionsSection}>
+              <span className={styles.bottomSheetSectionTitle}>Réactions rapides</span>
+              <div className={styles.bottomSheetReactions}>
+                {quickReactions.slice(0, 6).map(r => (
+                  <button
+                    key={r.emoji}
+                    type="button"
+                    className={styles.bottomSheetEmojiBtn}
+                    onClick={() => {
+                      sendReaction(r.emoji);
+                      setMoreSheetOpen(false);
+                    }}
+                    aria-label={`Réagir ${r.label}`}
+                    title={r.label}
+                  >
+                    {r.emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sélecteur de disposition façon Zoom */}
+            <div className={styles.bottomSheetViewSection}>
+              <span className={styles.bottomSheetViewTitle}>Disposition d'affichage</span>
+              <div className={styles.bottomSheetViewSegment}>
                 <button
-                  key={r.emoji}
                   type="button"
-                  className={styles.bottomSheetEmojiBtn}
-                  onClick={() => {
-                    sendReaction(r.emoji);
-                    setMoreSheetOpen(false);
-                  }}
-                  aria-label={`Réagir ${r.label}`}
+                  className={`${styles.bottomSheetViewBtn} ${viewMode === "gallery" ? styles.bottomSheetViewBtnActive : ""}`}
+                  onClick={() => setViewMode("gallery")}
                 >
-                  {r.emoji}
+                  <LayoutGrid size={18} />
+                  <span>Galerie</span>
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className={`${styles.bottomSheetViewBtn} ${viewMode === "speaker" ? styles.bottomSheetViewBtnActive : ""}`}
+                  onClick={() => setViewMode("speaker")}
+                >
+                  <User size={18} />
+                  <span>Intervenant</span>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.bottomSheetViewBtn} ${viewMode === "side-by-side" ? styles.bottomSheetViewBtnActive : ""}`}
+                  onClick={() => setViewMode("side-by-side")}
+                >
+                  <Columns size={18} />
+                  <span>Côte à côte</span>
+                </button>
+              </div>
             </div>
 
             <div className={styles.bottomSheetGrid}>
@@ -3079,6 +3558,15 @@ export default function VideoConference({
               >
                 {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
                 <span>{isFullscreen ? "Réduire" : "Plein écran"}</span>
+              </button>
+
+              <button
+                type="button"
+                className={styles.bottomSheetItem}
+                onClick={toggleThemeMode}
+              >
+                {currentTheme === "dark" ? <Sun size={22} /> : <Moon size={22} />}
+                <span>{currentTheme === "dark" ? "Mode clair" : "Mode sombre"}</span>
               </button>
 
               {isHost && (
@@ -3370,6 +3858,20 @@ function LocalVideoTile({
   facingMode?: "user" | "environment";
 }) {
   const internalRef = useRef<HTMLVideoElement | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [fitMode, setFitMode] = useState<"contain" | "cover">("cover");
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [menuOpen]);
 
   const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
     internalRef.current = node;
@@ -3414,6 +3916,7 @@ function LocalVideoTile({
         autoPlay
         playsInline
         muted
+        style={{ objectFit: fitMode }}
         className={`${styles.videoElement} ${isMirror ? styles.videoMirror : ""} ${
           isVideoOff && !isScreenSharing ? styles.videoHidden : ""
         }`}
@@ -3422,32 +3925,95 @@ function LocalVideoTile({
       {isVideoOff && !isScreenSharing && (
         <div className={styles.avatarPlaceholder}>
           <div className={styles.avatarCircle}>{initials}</div>
-          <span className={styles.avatarName}>{userName}</span>
         </div>
       )}
 
+      {/* Badges d'état discrets en haut à gauche */}
+      <div className={styles.tileTopBadges}>
+        {isPinned && (
+          <button
+            type="button"
+            className={`${styles.tileBadgePill} ${styles.tileBadgePinned}`}
+            onClick={(e) => { e.stopPropagation(); onPin?.(); }}
+            title="Désépingler ma vidéo"
+          >
+            <Pin size={11} />
+            <span>Épinglé</span>
+          </button>
+        )}
+        {handRaised && (
+          <div className={`${styles.tileBadgePill} ${styles.tileBadgeHand}`}>
+            <Hand size={11} />
+            <span>Main levée</span>
+          </div>
+        )}
+        {isScreenSharing && (
+          <div className={`${styles.tileBadgePill} ${styles.tileBadgeScreen}`}>
+            <Monitor size={11} />
+            <span>Écran partagé</span>
+          </div>
+        )}
+      </div>
+
+      {/* Actions discrètes en haut à droite (bouton 3-petits-points + épingle rapide) */}
+      {!isPip && (
+        <div className={styles.tileTopActions} ref={menuRef}>
+          {onPin && (
+            <button
+              type="button"
+              className={styles.tileQuickPin}
+              onClick={(e) => { e.stopPropagation(); onPin(); }}
+              title={isPinned ? "Désépingler ma vidéo" : "Épingler ma vidéo"}
+              aria-label={isPinned ? "Désépingler ma vidéo" : "Épingler ma vidéo"}
+            >
+              {isPinned ? <PinOff size={13} /> : <Pin size={13} />}
+            </button>
+          )}
+
+          <button
+            type="button"
+            className={styles.tileMenuTrigger}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(prev => !prev); }}
+            title="Options de ma vidéo"
+            aria-label="Options de ma vidéo"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+
+          {menuOpen && (
+            <div className={styles.tileMenuDropdown} onClick={(e) => e.stopPropagation()}>
+              {onPin && (
+                <button
+                  type="button"
+                  className={styles.tileMenuItem}
+                  onClick={() => { onPin(); setMenuOpen(false); }}
+                >
+                  {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                  <span>{isPinned ? "Désépingler ma vidéo" : "Épingler ma vidéo"}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className={styles.tileMenuItem}
+                onClick={() => { setFitMode(f => f === "cover" ? "contain" : "cover"); setMenuOpen(false); }}
+              >
+                <Maximize size={14} />
+                <span>{fitMode === "cover" ? "Ajuster à la tuile" : "Remplir la tuile"}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Nom et micro épurés en bas à gauche */}
       <div className={styles.tileOverlay}>
         <span className={styles.tileName}>{userName} (Vous)</span>
         {isMicMuted && (
           <span className={styles.mutedBadge} title="Micro coupé" aria-label="Micro coupé">
-            <MicOff size={13} />
-            <span>Micro coupé</span>
+            <MicOff size={12} color="#f87171" />
           </span>
         )}
       </div>
-      {handRaised && <div className={styles.handRaisedBanner}><Hand size={16} /><span>MAIN LEVÉE</span></div>}
-      {!isPip && onPin && (
-        <div className={styles.moderationActions} style={{ opacity: isPinned ? 1 : undefined }}>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onPin(); }}
-            title={isPinned ? "Désépingler cette vidéo" : "Épingler ma vidéo"}
-            className={isPinned ? styles.btnTilePinned : ""}
-          >
-            {isPinned ? <PinOff size={14} /> : <Pin size={14} />} <span>{isPinned ? "Désépingler" : "Épingler"}</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -3470,6 +4036,19 @@ function RemoteVideoTile({
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const [playbackNoticeVisible, setPlaybackNoticeVisible] = useState(false);
   const [fitMode, setFitMode] = useState<"contain" | "cover">("contain");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [menuOpen]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -3518,8 +4097,8 @@ function RemoteVideoTile({
       .join("")
       .toUpperCase() || "P";
 
-  const handlePiP = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handlePiP = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
     try {
@@ -3546,68 +4125,148 @@ function RemoteVideoTile({
         className={`${styles.videoElement} ${styles.remoteVideoElement} ${peer.isVideoOff && !peer.isScreenSharing ? styles.videoHidden : ""}`}
       />
 
-      {peer.isScreenSharing && (
-        <div className={styles.screenShareBadge}>
-          <Monitor size={13} />
-          <span>Écran partagé</span>
-        </div>
-      )}
-
       {playbackBlocked && playbackNoticeVisible && (
         <button type="button" className={styles.resumePlayback} onClick={() => {
           const video = videoRef.current;
           if (!video) return;
           video.play().then(() => { setPlaybackBlocked(false); setPlaybackNoticeVisible(false); }).catch(() => setPlaybackBlocked(true));
         }} aria-label={`Le navigateur bloque le son de ${peer.name}. Touchez pour l’activer.`}>
-          <Mic size={16} /> Le navigateur bloque le son. Touchez pour écouter {peer.name}.
+          <Mic size={16} /> Activer le son
         </button>
       )}
 
       {peer.isVideoOff && !peer.isScreenSharing && (
         <div className={styles.avatarPlaceholder}>
           <div className={styles.avatarCircle}>{initials}</div>
-          <span className={styles.avatarName}>{peer.name}</span>
         </div>
       )}
 
+      {/* Badges d'état discrets en haut à gauche */}
+      <div className={styles.tileTopBadges}>
+        {isPinned && (
+          <button
+            type="button"
+            className={`${styles.tileBadgePill} ${styles.tileBadgePinned}`}
+            onClick={(e) => { e.stopPropagation(); onPin?.(); }}
+            title="Désépingler cette vidéo"
+          >
+            <Pin size={11} />
+            <span>Épinglé</span>
+          </button>
+        )}
+        {peer.handRaised && (
+          <div className={`${styles.tileBadgePill} ${styles.tileBadgeHand}`}>
+            <Hand size={11} />
+            <span>Main levée</span>
+          </div>
+        )}
+        {peer.isScreenSharing && (
+          <div className={`${styles.tileBadgePill} ${styles.tileBadgeScreen}`}>
+            <Monitor size={11} />
+            <span>Écran partagé</span>
+          </div>
+        )}
+        {peer.connection === "reconnecting" && (
+          <div className={styles.peerConnectionBadge}>
+            Reconnexion…
+          </div>
+        )}
+      </div>
+
+      {/* Actions discrètes en haut à droite (bouton 3-petits-points + qualité + épingle rapide) */}
+      <div className={styles.tileTopActions} ref={menuRef}>
+        {peer.quality && (
+          <span
+            className={`${styles.qualityBadge} ${peer.quality === "poor" ? styles.qualityPoor : peer.quality === "fair" ? styles.qualityFair : ""}`}
+            aria-label={`Qualité réseau ${peer.quality === "good" ? "bonne" : peer.quality === "fair" ? "moyenne" : "faible"}`}
+          >
+            <Wifi size={12} />
+          </span>
+        )}
+
+        {onPin && (
+          <button
+            type="button"
+            className={styles.tileQuickPin}
+            onClick={(e) => { e.stopPropagation(); onPin(); }}
+            title={isPinned ? "Désépingler cette vidéo" : "Épingler cette vidéo"}
+            aria-label={isPinned ? "Désépingler cette vidéo" : "Épingler cette vidéo"}
+          >
+            {isPinned ? <PinOff size={13} /> : <Pin size={13} />}
+          </button>
+        )}
+
+        <button
+          type="button"
+          className={styles.tileMenuTrigger}
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(prev => !prev); }}
+          title={`Options pour ${peer.name}`}
+          aria-label={`Options pour ${peer.name}`}
+        >
+          <MoreHorizontal size={14} />
+        </button>
+
+        {menuOpen && (
+          <div className={styles.tileMenuDropdown} onClick={(e) => e.stopPropagation()}>
+            {onPin && (
+              <button
+                type="button"
+                className={styles.tileMenuItem}
+                onClick={() => { onPin(); setMenuOpen(false); }}
+              >
+                {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                <span>{isPinned ? "Désépingler la vidéo" : "Épingler la vidéo"}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className={styles.tileMenuItem}
+              onClick={() => { setFitMode(f => f === "contain" ? "cover" : "contain"); setMenuOpen(false); }}
+            >
+              <Maximize size={14} />
+              <span>{fitMode === "cover" ? "Adapter à la tuile" : "Remplir la tuile"}</span>
+            </button>
+            {typeof document !== "undefined" && document.pictureInPictureEnabled && (
+              <button
+                type="button"
+                className={styles.tileMenuItem}
+                onClick={(e) => { void handlePiP(e); setMenuOpen(false); }}
+              >
+                <PictureInPicture size={14} />
+                <span>Fenêtre flottante (PiP)</span>
+              </button>
+            )}
+            {isHost && !peer.isMuted && (
+              <button
+                type="button"
+                className={styles.tileMenuItem}
+                onClick={() => { onModerate(peer.id, "mute"); setMenuOpen(false); }}
+              >
+                <MicOff size={14} />
+                <span>Couper le micro</span>
+              </button>
+            )}
+            {isHost && (
+              <button
+                type="button"
+                className={`${styles.tileMenuItem} ${styles.tileMenuItemDanger}`}
+                onClick={() => { onModerate(peer.id, "remove"); setMenuOpen(false); }}
+              >
+                <UserX size={14} />
+                <span>Retirer de la réunion</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Nom et micro épurés en bas à gauche */}
       <div className={styles.tileOverlay}>
         <span className={styles.tileName}>{peer.name}</span>
         {peer.isMuted && (
           <span className={styles.mutedBadge} title="Micro coupé" aria-label="Micro coupé">
-            <MicOff size={13} />
-            <span>Micro coupé</span>
+            <MicOff size={12} color="#f87171" />
           </span>
-        )}
-      </div>
-      {peer.handRaised && <div className={styles.handRaisedBanner}><Hand size={16} /><span>MAIN LEVÉE</span></div>}
-      {peer.connection === "reconnecting" && <span className={styles.peerConnectionBadge}>Reconnexion…</span>}
-      {peer.quality && <span className={`${styles.qualityBadge} ${peer.quality === "poor" ? styles.qualityPoor : peer.quality === "fair" ? styles.qualityFair : ""}`} aria-label={`Qualité réseau ${peer.quality === "good" ? "bonne" : peer.quality === "fair" ? "moyenne" : "faible"}`}><Wifi size={13} /></span>}
-      
-      <div className={styles.moderationActions} style={{ opacity: isPinned ? 1 : undefined }}>
-        {onPin && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onPin(); }}
-            title={isPinned ? "Désépingler cette vidéo" : "Épingler cette vidéo en grand"}
-            className={isPinned ? styles.btnTilePinned : ""}
-          >
-            {isPinned ? <PinOff size={14} /> : <Pin size={14} />} <span>{isPinned ? "Désépingler" : "Épingler"}</span>
-          </button>
-        )}
-        {typeof document !== "undefined" && document.pictureInPictureEnabled && (
-          <button type="button" onClick={handlePiP} title="Fenêtre flottante (Picture-in-Picture)">
-            <PictureInPicture size={14} />
-          </button>
-        )}
-        {isHost && !peer.isMuted && (
-          <button type="button" onClick={() => onModerate(peer.id, "mute")} title={`Couper le son de ${peer.name}`}>
-            <MicOff size={14} /> Couper le son
-          </button>
-        )}
-        {isHost && (
-          <button type="button" onClick={() => onModerate(peer.id, "remove")} title={`Retirer ${peer.name} de la réunion`}>
-            <UserX size={14} /> Retirer
-          </button>
         )}
       </div>
     </div>

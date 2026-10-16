@@ -79,25 +79,46 @@ export default function InteractivePollPanel(props: Props) {
 
   useEffect(() => {
     const syncFullscreenTarget = () => {
-      const interactionDock = document.querySelector<HTMLElement>('[data-visio-interaction-dock="true"]');
+      const isMobile = window.matchMedia("(max-width: 900px)").matches;
       const nativeTarget = document.fullscreenElement instanceof HTMLElement ? document.fullscreenElement : null;
       const immersiveTarget = document.querySelector<HTMLElement>('[data-visio-fullscreen-mode="true"]');
-      setFullscreenTarget(interactionDock ?? nativeTarget ?? immersiveTarget);
+      const interactionDock = document.querySelector<HTMLElement>('[data-visio-interaction-dock="true"]');
+
+      if (isMobile) {
+        // Sur mobile : portail direct dans le conteneur immersif de la visio afin d'occuper tout l'écran,
+        // garantissant un espace généreux qui n'est pas masqué par le clavier tactile lors de la saisie.
+        setFullscreenTarget(nativeTarget ?? immersiveTarget ?? document.body);
+      } else {
+        // Sur desktop : portail dans le dock latéral dédié
+        setFullscreenTarget(interactionDock ?? nativeTarget ?? immersiveTarget ?? document.body);
+      }
     };
     syncFullscreenTarget();
     const observer = new MutationObserver(syncFullscreenTarget);
     observer.observe(document.body, { attributes: true, childList: true, subtree: true, attributeFilter: ["data-visio-fullscreen-mode"] });
     document.addEventListener("fullscreenchange", syncFullscreenTarget);
+    window.addEventListener("resize", syncFullscreenTarget);
     return () => {
       observer.disconnect();
       document.removeEventListener("fullscreenchange", syncFullscreenTarget);
+      window.removeEventListener("resize", syncFullscreenTarget);
     };
   }, []);
 
   const panel = <PollPanel key={`${props.roomName}:${props.isHost}`} {...props} />;
   return fullscreenTarget
     ? createPortal(<div className={styles.fullscreenPortal} data-visio-poll-panel="true" data-poll-input-active={pollInputActive ? "true" : undefined} onFocusCapture={(event) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) setPollInputActive(true);
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) {
+        setPollInputActive(true);
+        const target = event.target;
+        setTimeout(() => {
+          try {
+            target.scrollIntoView({ block: "center", behavior: "smooth" });
+          } catch {
+            // Ignore if scroll is not supported
+          }
+        }, 180);
+      }
     }}>{panel}</div>, fullscreenTarget)
     : panel;
 }
