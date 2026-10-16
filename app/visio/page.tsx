@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Video, Play } from "lucide-react";
+import { Video, Play, AlertTriangle } from "lucide-react";
 import PoimenLogo from "@/components/brand/PoimenLogo";
 import VideoConference from "@/components/visio/VideoConference";
 import InteractivePollPanel from "@/components/visio/InteractivePollPanel";
@@ -33,10 +33,22 @@ function PublicVisioContent() {
   const [privateRoomChecking, setPrivateRoomChecking] = useState(false);
   const [pollsOpen, setPollsOpen] = useState(false);
   const [mediaDevices, setMediaDevices] = useState<VisioDeviceSelection>({});
+  const [reloadedAlert, setReloadedAlert] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // Vérifier si la page vient d'être actualisée pendant un appel actif
+    try {
+      const activeData = sessionStorage.getItem("visio_active_session");
+      if (activeData) {
+        const parsed = JSON.parse(activeData);
+        if (parsed?.room === roomParam && (Date.now() - (parsed?.timestamp || 0) < 180000)) {
+          if (parsed.userName) setDisplayName(parsed.userName);
+          setReloadedAlert(true);
+        }
+      }
+    } catch { /* ignore */ }
+  }, [roomParam]);
 
   useEffect(() => {
     if (!roomParam.startsWith("poimen-prive-")) {
@@ -110,8 +122,13 @@ function PublicVisioContent() {
             isHost={false}
             onTogglePolls={() => setPollsOpen(!pollsOpen)}
             pollsOpen={pollsOpen}
-            onLeave={() => { setHasJoined(false); setShowPreflight(false); }}
+            onLeave={() => {
+              try { sessionStorage.removeItem("visio_active_session"); } catch {}
+              setHasJoined(false);
+              setShowPreflight(false);
+            }}
             onRoomUnavailable={message => {
+              try { sessionStorage.removeItem("visio_active_session"); } catch {}
               setHasJoined(false);
               setShowPreflight(false);
               setPrivateRoomIssue(message);
@@ -144,10 +161,26 @@ function PublicVisioContent() {
           <div className={styles.prejoinCard}>
             <div className={styles.brandRow}><PoimenLogo /><p className={styles.brandSubtitle}>Espace de Visioconférence & Partage d'Écran</p></div>
             <div className={styles.roomBadge}><Video size={16} /><span>{roomTitle}</span></div>
+
+            {reloadedAlert && (
+              <div className={styles.reloadedAlert} role="alert">
+                <AlertTriangle size={20} className={styles.reloadedAlertIcon} />
+                <div>
+                  <span className={styles.reloadedAlertTitle}>Page actualisée pendant l’appel</span>
+                  <p className={styles.reloadedAlertText}>
+                    L’actualisation de votre navigateur vous a déconnecté(e) de la visioconférence. Cliquez ci-dessous pour vous reconnecter immédiatement.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <form className={styles.formBox} onSubmit={event => { event.preventDefault(); if (displayName.trim()) handleJoin(); }}>
               <label htmlFor="participant-name">Votre prénom et nom pour la réunion :</label>
               <input id="participant-name" className={styles.inputName} type="text" placeholder="Ex. Jean Dupont" value={displayName} onChange={event => setDisplayName(event.target.value)} autoFocus required />
-              <button type="submit" className={styles.btnJoin} disabled={!displayName.trim()}><Play size={18} /> Continuer vers le contrôle des appareils</button>
+              <button type="submit" className={styles.btnJoin} disabled={!displayName.trim()}>
+                <Play size={18} />
+                <span>{reloadedAlert ? "Rejoindre à nouveau l’appel" : "Continuer vers le contrôle des appareils"}</span>
+              </button>
             </form>
             <p className={styles.infoFootnote}>Vous pourrez choisir votre micro et votre caméra avant de rejoindre.</p>
           </div>

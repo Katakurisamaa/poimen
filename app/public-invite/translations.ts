@@ -1,0 +1,53 @@
+export type InviteLocale = "fr" | "en" | "nl";
+export const languageNames: Record<InviteLocale, string> = { fr: "Français", en: "English", nl: "Nederlands" };
+
+const fr = {
+  title: "Bienvenue parmi nous", subtitle: "Nous sommes heureux de vous accueillir. Prenons un moment pour faire connaissance.",
+  department: "Équipe Intégration", formTitle: "Fiche d’arrivée", language: "Langue du formulaire", required: "Les champs marqués d’un * sont obligatoires.",
+  visit: "Votre visite", visitHint: "Où et quand nous vous avons accueilli.", details: "Faisons connaissance", detailsHint: "Quelques informations pour garder le contact.", journey: "Votre parcours", journeyHint: "Ces réponses nous aideront à vous accompagner.",
+  church: "Église locale", churchPlaceholder: "Choisissez votre église", date: "Date d’arrivée", datePlaceholder: "Choisissez une date", event: "Événement",
+  civility: "Civilité", firstName: "Prénom", lastName: "Nom", age: "Tranche d’âge", phone: "Téléphone", email: "E-mail", country: "Pays de résidence", address: "Adresse / lieu de résidence", addressPlaceholder: "Rue, numéro et ville",
+  invited: "Un membre vous a-t-il invité(e) ?", inviter: "Qui vous a invité(e) ?", inviterPlaceholder: "Prénom et nom du membre",
+  aps: "Avez-vous fait la prière du salut lors du culte ?", localChurch: "Fréquentez-vous déjà une autre église ?", otherChurch: "Nom de votre église d’origine", otherChurchPlaceholder: "Nom de l’église et ville",
+  baptized: "Êtes-vous déjà baptisé(e) par immersion ?", training: "Souhaitez-vous suivre les formations (PCNC) ?", cells: "Souhaitez-vous découvrir les cellules de maison (C.D.M) ?", baptismInterest: "Je souhaite me faire baptiser",
+  comment: "Un commentaire ou un sujet de prière ?", commentPlaceholder: "Vous pouvez partager un besoin, un sujet de prière ou une remarque…", optional: "Facultatif", yes: "Oui", no: "Non",
+  submit: "Enregistrer ma fiche", addAnother: "Enregistrer et ajouter un proche", saving: "Enregistrement…", loading: "Chargement du formulaire…", retry: "Réessayer",
+  successTitle: "Merci, votre fiche est enregistrée !", successText: "Vos informations ont été transmises à l’équipe Intégration. Nous sommes heureux de faire votre connaissance.",
+  anotherTitle: "Vous êtes venu(e) avec un proche ?", family: "Ajouter un proche", familyHint: "Conserver le nom, l’adresse et les informations de visite.", newGuest: "Ajouter une autre personne", newGuestHint: "Repartir d’une fiche vide pour cette visite.", finish: "J’ai terminé", finished: "Tout est prêt, merci !", finishedText: "Les fiches ont bien été transmises à l’équipe Intégration. À très bientôt !", newForm: "Remplir une nouvelle fiche", saved: "Fiche enregistrée", familyBanner: "Les informations communes ont été conservées. Vous pouvez compléter la fiche de votre proche.", dismiss: "Fermer le message",
+  select: "Choisir…", search: "Rechercher…", clearSearch: "Effacer la recherche", noResults: "Aucun résultat",
+  errorTitle: "Encore un petit détail", requiredError: "Veuillez compléter ce champ.", answerError: "Veuillez choisir Oui ou Non.", emailError: "Veuillez saisir une adresse e-mail valide.", saveError: "L’enregistrement a échoué. Vos réponses sont conservées, veuillez réessayer.", loadError: "Impossible de charger la liste des églises. Veuillez réessayer.", noChurches: "Aucune église n’est disponible pour le moment.",
+  events: ["Culte du dimanche", "Baptême", "Évangélisation", "Séminaire", "Autre"],
+  civilities: ["M.", "Mme."], ages: ["Moins de 18 ans", "18–25 ans", "26–30 ans", "31–35 ans", "36–40 ans", "41–45 ans", "46–50 ans", "Plus de 50 ans"],
+};
+export type InviteCopy = { [K in keyof typeof fr]: typeof fr[K] };
+export const inviteCopy: Record<InviteLocale, InviteCopy> = {
+  fr,
+  en: {
+    title: "It’s lovely to welcome you", subtitle: "We’re glad you’re here. Let’s take a moment to get to know each other.", department: "Welcome team", formTitle: "Welcome form", language: "Form language", required: "Fields marked with an * are required.",
+    visit: "Your visit", visitHint: "Where and when we welcomed you.", details: "Let’s get acquainted", detailsHint: "A few details to help us stay in touch.", journey: "Your journey", journeyHint: "Your answers will help us support you.",
+    church: "Local church", churchPlaceholder: "Choose your church", date: "Date of visit", datePlaceholder: "Choose a date", event: "Event", civility: "Title", firstName: "First name", lastName: "Last name", age: "Age group", phone: "Phone number", email: "Email", country: "Country of residence", address: "Address / place of residence", addressPlaceholder: "Street, house number and city",
+    invited: "Were you invited by a member?", inviter: "Who invited you?", inviterPlaceholder: "The member’s first and last name", aps: "Did you say the prayer of salvation during the service?", localChurch: "Do you already attend another church?", otherChurch: "Name of your home church", otherChurchPlaceholder: "Church name and city", baptized: "Have you already been baptized by immersion?", training: "Would you like to attend the training courses (PCNC)?", cells: "Would you like to learn about the home groups (C.D.M)?", baptismInterest: "I would like to be baptized",
+    comment: "Any comments or prayer requests?", commentPlaceholder: "Share a need, a prayer request or anything you would like us to know…", optional: "Optional", yes: "Yes", no: "No", submit: "Save my form", addAnother: "Save and add a family member", saving: "Saving…", loading: "Loading the form…", retry: "Try again",
+    successTitle: "Thank you, your form has been saved!", successText: "Your details have been sent to the welcome team. We’re happy to get to know you.", anotherTitle: "Did you come with someone?", family: "Add a family member", familyHint: "Keep the last name, address and visit details.", newGuest: "Add another person", newGuestHint: "Start a blank form for this visit.", finish: "I’m finished", finished: "All done, thank you!", finishedText: "The forms have been sent to the welcome team. See you soon!", newForm: "Fill in a new form", saved: "Form saved", familyBanner: "The shared details have been kept. You can now fill in your family member’s form.", dismiss: "Dismiss message",
+    select: "Choose…", search: "Search…", clearSearch: "Clear search", noResults: "No results", errorTitle: "Just one more detail", requiredError: "Please fill in this field.", answerError: "Please choose Yes or No.", emailError: "Please enter a valid email address.", saveError: "We couldn’t save your form. Your answers are still here; please try again.", loadError: "We couldn’t load the church list. Please try again.", noChurches: "No churches are available at the moment.",
+    events: ["Sunday service", "Baptism", "Evangelism", "Seminar", "Other"], civilities: ["Mr", "Ms"], ages: ["Under 18", "18–25", "26–30", "31–35", "36–40", "41–45", "46–50", "Over 50"],
+  },
+  nl: {
+    title: "Van harte welkom", subtitle: "Fijn dat u er bent. Laten we even de tijd nemen om elkaar te leren kennen.", department: "Welkomstteam", formTitle: "Welkomstformulier", language: "Taal van het formulier", required: "Velden met een * zijn verplicht.",
+    visit: "Uw bezoek", visitHint: "Waar en wanneer we u hebben verwelkomd.", details: "Even kennismaken", detailsHint: "Enkele gegevens om contact te houden.", journey: "Uw geloofsweg", journeyHint: "Uw antwoorden helpen ons om u te begeleiden.",
+    church: "Lokale kerk", churchPlaceholder: "Kies uw kerk", date: "Datum van uw bezoek", datePlaceholder: "Kies een datum", event: "Bijeenkomst", civility: "Aanspreektitel", firstName: "Voornaam", lastName: "Achternaam", age: "Leeftijdsgroep", phone: "Telefoonnummer", email: "E-mail", country: "Woonland", address: "Adres / woonplaats", addressPlaceholder: "Straat, huisnummer en gemeente",
+    invited: "Bent u door een lid uitgenodigd?", inviter: "Wie heeft u uitgenodigd?", inviterPlaceholder: "Voornaam en achternaam van het lid", aps: "Hebt u tijdens de dienst het gebed tot redding gebeden?", localChurch: "Gaat u al naar een andere kerk?", otherChurch: "Naam van uw huidige kerk", otherChurchPlaceholder: "Naam van de kerk en gemeente", baptized: "Bent u al gedoopt door onderdompeling?", training: "Wilt u de opleidingen (PCNC) volgen?", cells: "Wilt u kennismaken met de huiskringen (C.D.M)?", baptismInterest: "Ik wil graag gedoopt worden",
+    comment: "Een opmerking of gebedsverzoek?", commentPlaceholder: "Deel een behoefte, een gebedsverzoek of een opmerking…", optional: "Optioneel", yes: "Ja", no: "Nee", submit: "Mijn formulier opslaan", addAnother: "Opslaan en een familielid toevoegen", saving: "Opslaan…", loading: "Formulier laden…", retry: "Opnieuw proberen",
+    successTitle: "Bedankt, uw formulier is opgeslagen!", successText: "Uw gegevens zijn doorgestuurd naar het welkomstteam. We maken graag kennis met u.", anotherTitle: "Bent u samen met iemand gekomen?", family: "Een familielid toevoegen", familyHint: "Achternaam, adres en bezoekgegevens behouden.", newGuest: "Een andere persoon toevoegen", newGuestHint: "Begin met een leeg formulier voor dit bezoek.", finish: "Ik ben klaar", finished: "Alles is klaar, bedankt!", finishedText: "De formulieren zijn doorgestuurd naar het welkomstteam. Tot binnenkort!", newForm: "Een nieuw formulier invullen", saved: "Formulier opgeslagen", familyBanner: "De gemeenschappelijke gegevens zijn bewaard. U kunt nu het formulier van uw familielid invullen.", dismiss: "Bericht sluiten",
+    select: "Kiezen…", search: "Zoeken…", clearSearch: "Zoekopdracht wissen", noResults: "Geen resultaten", errorTitle: "Nog één klein detail", requiredError: "Vul dit veld in.", answerError: "Kies Ja of Nee.", emailError: "Vul een geldig e-mailadres in.", saveError: "Opslaan is niet gelukt. Uw antwoorden zijn bewaard. Probeer het opnieuw.", loadError: "De lijst met kerken kon niet worden geladen. Probeer het opnieuw.", noChurches: "Er zijn momenteel geen kerken beschikbaar.",
+    events: ["Zondagsdienst", "Doop", "Evangelisatie", "Seminar", "Anders"], civilities: ["Dhr.", "Mevr."], ages: ["Jonger dan 18", "18–25", "26–30", "31–35", "36–40", "41–45", "46–50", "Ouder dan 50"],
+  },
+};
+
+// Labels vary with the form language; persisted values remain the integration schema's French values.
+export const eventValues = ["Culte", "Baptême", "Évangélisation", "Séminaire", "Autre"];
+export const civilityValues = ["M.", "Mme."];
+export const ageValues = ["Moins de 18 ans", "18-25 ans", "26-30 ans", "31-35 ans", "36-40 ans", "41-45 ans", "46-50 ans", "Plus de 50 ans"];
+export function localizedOptions(values: string[], labels: string[]) {
+  return values.map((value, index) => ({ value, label: labels[index] ?? value }));
+}

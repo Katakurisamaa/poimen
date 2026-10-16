@@ -1922,7 +1922,7 @@ function InvitesPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <input type="checkbox" id="modal-aps" checked={newGuest.aps} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
                   <label htmlFor="modal-aps" style={{ fontSize: 13, color: "var(--cream)", cursor: "pointer", fontWeight: 500 }}>
-                    Avez-vous déjà accepté Jésus-Christ comme votre Sauveur et Seigneur de votre vie ?
+                    Avez-vous fait la prière du salut lors du culte ?
                   </label>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

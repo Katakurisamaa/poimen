@@ -517,6 +517,16 @@ export default function VideoConference({
   }, []);
 
   useEffect(() => {
+    // Enregistrer la session active dans sessionStorage pour détecter les déconnexions suite à actualisation
+    try {
+      sessionStorage.setItem("visio_active_session", JSON.stringify({
+        room: roomName,
+        userName,
+        title,
+        timestamp: Date.now()
+      }));
+    } catch { /* ignore */ }
+
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (allowPageExitRef.current) return;
       event.preventDefault();
@@ -542,11 +552,24 @@ export default function VideoConference({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Interception des raccourcis d'actualisation de la page (F5, Ctrl+R, Cmd+R)
-      if (event.key === "F5" || ((event.ctrlKey || event.metaKey) && (event.key === "r" || event.key === "R"))) {
+      // Interception absolue de toutes les combinaisons d'actualisation (F5, Ctrl+R, Cmd+R, Ctrl+F5, Ctrl+Shift+R, Cmd+Shift+R)
+      const isReloadShortcut =
+        event.key === "F5" ||
+        event.code === "F5" ||
+        ((event.ctrlKey || event.metaKey) && (
+          event.key === "r" ||
+          event.key === "R" ||
+          event.code === "KeyR"
+        ));
+
+      if (isReloadShortcut) {
         event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
         setShowReloadModal(true);
+        return;
       }
+
       // Fermeture des modales avec la touche Échap
       if (event.key === "Escape") {
         setShowPermissionModal(false);
@@ -555,15 +578,29 @@ export default function VideoConference({
       }
     };
 
+    const handlePopState = () => {
+      if (allowPageExitRef.current) return;
+      try {
+        window.history.pushState({ inVisioCall: true }, "", window.location.href);
+      } catch { /* ignore */ }
+      setShowLeaveModal(true);
+    };
+
+    try {
+      window.history.pushState({ inVisioCall: true }, "", window.location.href);
+    } catch { /* ignore */ }
+
     window.addEventListener("beforeunload", beforeUnload);
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("popstate", handlePopState);
     document.addEventListener("click", confirmLinkNavigation, true);
     return () => {
       window.removeEventListener("beforeunload", beforeUnload);
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("popstate", handlePopState);
       document.removeEventListener("click", confirmLinkNavigation, true);
     };
-  }, []);
+  }, [roomName, userName, title]);
 
   useEffect(() => {
     if (meetingStartedAt === null) {
@@ -3806,6 +3843,9 @@ export default function VideoConference({
                 onClick={() => {
                   setShowLeaveModal(false);
                   allowPageExitRef.current = true;
+                  try {
+                    sessionStorage.removeItem("visio_active_session");
+                  } catch {}
                   if (document.fullscreenElement && document.exitFullscreen) {
                     void document.exitFullscreen().catch(() => {});
                   }

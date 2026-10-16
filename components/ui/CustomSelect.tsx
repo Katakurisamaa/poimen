@@ -23,6 +23,7 @@ export interface CustomSelectProps {
   className?: string;
   style?: React.CSSProperties;
   ariaLabel?: string;
+  messages?: { search: string; clearSearch: string; noResults: string };
   size?: "sm" | "md";
 }
 
@@ -37,6 +38,7 @@ export default function CustomSelect({
   className,
   style,
   ariaLabel,
+  messages = { search: "Rechercher…", clearSearch: "Effacer la recherche", noResults: "Aucun résultat" },
   size = "md",
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
@@ -195,7 +197,8 @@ export default function CustomSelect({
                   <input
                     ref={searchInputRef}
                     type="text"
-                    placeholder="Rechercher…"
+                    placeholder={messages.search}
+                    aria-label={messages.search}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className={styles.searchInput}
@@ -205,7 +208,7 @@ export default function CustomSelect({
                       type="button"
                       onClick={() => setSearch("")}
                       className={styles.clearSearch}
-                      aria-label="Effacer la recherche"
+                      aria-label={messages.clearSearch}
                     >
                       <X size={14} />
                     </button>
@@ -217,7 +220,7 @@ export default function CustomSelect({
             {/* List of Options */}
             <div className={styles.optionsList}>
               {filteredOptions.length === 0 ? (
-                <div className={styles.noResults}>Aucun résultat</div>
+                <div className={styles.noResults}>{messages.noResults}</div>
               ) : (
                 filteredOptions.map((opt) => {
                   const isSelected = opt.value === value;

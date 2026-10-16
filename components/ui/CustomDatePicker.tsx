@@ -5,12 +5,11 @@ import { createPortal } from "react-dom";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Check } from "lucide-react";
 import styles from "./CustomDatePicker.module.css";
 
-const MONTH_NAMES_FR = [
-  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
-];
-
-const WEEKDAY_NAMES_FR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const calendarCopy = {
+  fr: { placeholder: "Sélectionner une date", clear: "Effacer la sélection", previous: "Mois précédent", next: "Mois suivant", month: "Sélectionner le mois", year: "Sélectionner l’année", multiple: "Sélection multiple", selected: "dates sélectionnées", sundays: "Dimanches", today: "Aujourd’hui", erase: "Effacer", apply: "Valider", sunday: "Dimanche prochain", all: "Toutes les dates" },
+  en: { placeholder: "Choose a date", clear: "Clear selection", previous: "Previous month", next: "Next month", month: "Choose month", year: "Choose year", multiple: "Multiple selection", selected: "selected dates", sundays: "Sundays", today: "Today", erase: "Clear", apply: "Apply", sunday: "Next Sunday", all: "All dates" },
+  nl: { placeholder: "Kies een datum", clear: "Selectie wissen", previous: "Vorige maand", next: "Volgende maand", month: "Kies een maand", year: "Kies een jaar", multiple: "Meerdere datums", selected: "geselecteerde datums", sundays: "Zondagen", today: "Vandaag", erase: "Wissen", apply: "Bevestigen", sunday: "Volgende zondag", all: "Alle datums" },
+};
 
 export interface CustomDatePickerProps {
   value?: string | string[]; // Format: "YYYY-MM-DD" or comma-separated or array
@@ -24,6 +23,8 @@ export interface CustomDatePickerProps {
   disabled?: boolean;
   clearable?: boolean;
   size?: "sm" | "md";
+  locale?: "fr" | "en" | "nl";
+  ariaLabel?: string;
 }
 
 export default function CustomDatePicker({
@@ -32,13 +33,19 @@ export default function CustomDatePicker({
   values,
   onChangeMultiple,
   multiple = false,
-  placeholder = "Sélectionner une date",
+  placeholder,
   className,
   style,
   disabled = false,
   clearable = false,
   size = "md",
+  locale = "fr",
+  ariaLabel,
 }: CustomDatePickerProps) {
+  const copy = calendarCopy[locale];
+  const resolvedPlaceholder = placeholder ?? copy.placeholder;
+  const months = useMemo(() => Array.from({ length: 12 }, (_, index) => new Intl.DateTimeFormat(locale, { month: "long" }).format(new Date(2024, index, 1))), [locale]);
+  const weekdays = useMemo(() => Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, index + 1))), [locale]);
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -247,16 +254,12 @@ export default function CustomDatePicker({
 
   // Formatted trigger label
   const formattedDisplay = useMemo(() => {
-    if (selectedDates.length === 0) return placeholder;
+    if (selectedDates.length === 0) return resolvedPlaceholder;
     if (selectedDates.length === 1) {
       const parts = selectedDates[0].split("-").map(Number);
       if (parts.length === 3 && !isNaN(parts[0])) {
         const d = new Date(parts[0], parts[1] - 1, parts[2]);
-        const dayName = ["Dim.", "Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam."][d.getDay()];
-        const dayNum = String(d.getDate()).padStart(2, "0");
-        const monthName = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."][d.getMonth()];
-        const year = d.getFullYear();
-        return `${dayName} ${dayNum} ${monthName} ${year}`;
+        return new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(d);
       }
       return selectedDates[0];
     }
@@ -267,7 +270,7 @@ export default function CustomDatePicker({
       }).join(", ");
     }
     return `${selectedDates.length} dates`;
-  }, [selectedDates, placeholder]);
+  }, [selectedDates, resolvedPlaceholder, locale]);
 
   return (
     <div className={`${styles.wrapper} ${className || ""}`} style={style} ref={wrapperRef}>
@@ -277,6 +280,7 @@ export default function CustomDatePicker({
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
         className={`${styles.trigger} ${size === "sm" ? styles.triggerSm : ""} ${open ? styles.triggerActive : ""}`}
+        aria-label={ariaLabel ? `${ariaLabel}: ${formattedDisplay}` : undefined}
         aria-haspopup="dialog"
         aria-expanded={open}
       >
@@ -296,8 +300,8 @@ export default function CustomDatePicker({
               handleClear();
             }}
             className={styles.clearBtn}
-            title="Effacer la sélection"
-            aria-label="Effacer la sélection"
+            title={copy.clear}
+            aria-label={copy.clear}
           >
             <X size={12} />
           </span>
@@ -330,7 +334,7 @@ export default function CustomDatePicker({
                   type="button"
                   onClick={handlePrevMonth}
                   className={styles.navButton}
-                  aria-label="Mois précédent"
+                  aria-label={copy.previous}
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -339,9 +343,9 @@ export default function CustomDatePicker({
                     value={viewMonth}
                     onChange={(e) => setViewMonth(Number(e.target.value))}
                     className={styles.headerSelect}
-                    aria-label="Sélectionner le mois"
+                    aria-label={copy.month}
                   >
-                    {MONTH_NAMES_FR.map((name, i) => (
+                    {months.map((name, i) => (
                       <option key={name} value={i}>{name}</option>
                     ))}
                   </select>
@@ -349,7 +353,7 @@ export default function CustomDatePicker({
                     value={viewYear}
                     onChange={(e) => setViewYear(Number(e.target.value))}
                     className={styles.headerSelect}
-                    aria-label="Sélectionner l'année"
+                    aria-label={copy.year}
                   >
                     {Array.from({ length: 15 }, (_, i) => today.getFullYear() - 8 + i).map((y) => (
                       <option key={y} value={y}>{y}</option>
@@ -360,7 +364,7 @@ export default function CustomDatePicker({
                   type="button"
                   onClick={handleNextMonth}
                   className={styles.navButton}
-                  aria-label="Mois suivant"
+                  aria-label={copy.next}
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -368,15 +372,15 @@ export default function CustomDatePicker({
               {multiple && (
                 <div className={styles.multipleHint}>
                   {selectedDates.length > 0 
-                    ? `${selectedDates.length} date${selectedDates.length > 1 ? "s" : ""} sélectionnée${selectedDates.length > 1 ? "s" : ""}` 
-                    : "Sélection multiple"}
+                    ? `${selectedDates.length} ${copy.selected}` 
+                    : copy.multiple}
                 </div>
               )}
             </div>
 
             {/* Days of week header */}
             <div className={styles.weekdaysGrid}>
-              {WEEKDAY_NAMES_FR.map((wd, i) => (
+              {weekdays.map((wd, i) => (
                 <div key={wd} className={`${styles.weekdayHeader} ${i === 6 ? styles.sundayHeader : ""}`}>
                   {wd}
                 </div>
@@ -409,14 +413,14 @@ export default function CustomDatePicker({
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button type="button" onClick={selectAllSundaysInMonth} className={styles.shortcutBtn}>
-                    Dimanches
+                    {copy.sundays}
                   </button>
                   <button type="button" onClick={selectToday} className={styles.shortcutBtn}>
-                    Aujourd'hui
+                    {copy.today}
                   </button>
                   {clearable && selectedDates.length > 0 && (
                     <button type="button" onClick={handleClear} className={`${styles.shortcutBtn} ${styles.shortcutBtnClear}`}>
-                      Effacer
+                      {copy.erase}
                     </button>
                   )}
                 </div>
@@ -426,16 +430,16 @@ export default function CustomDatePicker({
                   className={styles.applyBtn}
                 >
                   <Check size={14} style={{ marginRight: 5 }} />
-                  Valider {selectedDates.length > 0 ? `(${selectedDates.length})` : ""}
+                  {copy.apply} {selectedDates.length > 0 ? `(${selectedDates.length})` : ""}
                 </button>
               </div>
             ) : (
               <div className={styles.shortcuts}>
                 <button type="button" onClick={selectToday} className={styles.shortcutBtn}>
-                  Aujourd'hui
+                  {copy.today}
                 </button>
                 <button type="button" onClick={selectNextSunday} className={styles.shortcutBtn}>
-                  Dimanche prochain
+                  {copy.sunday}
                 </button>
                 {clearable && (
                   <button
@@ -446,7 +450,7 @@ export default function CustomDatePicker({
                     }}
                     className={`${styles.shortcutBtn} ${styles.shortcutBtnClear}`}
                   >
-                    Toutes les dates
+                    {copy.all}
                   </button>
                 )}
               </div>
@@ -458,3 +462,4 @@ export default function CustomDatePicker({
     </div>
   );
 }
+

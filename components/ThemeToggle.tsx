@@ -19,7 +19,22 @@ function applyTheme(theme: ThemeMode) {
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [mounted, setMounted] = useState(false);
+  const [language, setLanguage] = useState("fr");
   const isTransitioning = useRef(false);
+
+  useEffect(() => {
+    const syncLanguage = () => setLanguage(document.documentElement.lang.split("-")[0]);
+    syncLanguage();
+    const observer = new MutationObserver(syncLanguage);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
+    return () => observer.disconnect();
+  }, []);
+
+  const labels = language === "en"
+    ? { light: "Light", dark: "Dark", toLight: "Switch to light mode", toDark: "Switch to dark mode" }
+    : language === "nl"
+      ? { light: "Licht", dark: "Donker", toLight: "Lichte modus inschakelen", toDark: "Donkere modus inschakelen" }
+      : { light: "Clair", dark: "Sombre", toLight: "Activer le mode clair", toDark: "Activer le mode sombre" };
 
   useEffect(() => {
     let saved: string | null = null;
@@ -153,8 +168,8 @@ export default function ThemeToggle() {
       type="button"
       className="theme-toggle"
       onClick={toggleTheme}
-      aria-label={theme === "dark" ? "Activer le mode clair" : "Activer le mode sombre"}
-      title={theme === "dark" ? "Passer en mode clair" : "Passer en mode sombre"}
+      aria-label={theme === "dark" ? labels.toLight : labels.toDark}
+      title={theme === "dark" ? labels.toLight : labels.toDark}
       data-ready={mounted ? "true" : "false"}
       data-mode={theme}
     >
@@ -162,7 +177,7 @@ export default function ThemeToggle() {
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
       </span>
       <span className="theme-toggle__label">
-        {theme === "dark" ? "Clair" : "Sombre"}
+        {theme === "dark" ? labels.light : labels.dark}
       </span>
     </button>
   );
