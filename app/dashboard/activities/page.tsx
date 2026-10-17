@@ -999,7 +999,7 @@ export default function ActivitiesPage() {
       {/* Page Header */}
       <div style={{ borderBottom: "1px solid rgba(212, 175, 55, 0.12)", paddingBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 }}>
         <div>
-          <h2 className="page-title" style={{ display: "flex", alignItems: "center", gap: 12, background: "linear-gradient(135deg, #FFF, var(--gold-light) 60%, var(--gold) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <h2 className="page-title" style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Calendar size={28} className="text-[var(--gold)]" />
             Centre des Activités
           </h2>
@@ -1142,9 +1142,9 @@ export default function ActivitiesPage() {
                 borderRadius: 12,
                 fontWeight: 700,
                 fontSize: 13,
-                background: "linear-gradient(135deg, var(--gold), #b89738)",
-                color: "var(--bg)",
-                boxShadow: "0 6px 20px rgba(212, 175, 55, 0.25)",
+                background: "var(--action-bg)",
+                color: "var(--action-ink)",
+                boxShadow: "0 4px 14px rgba(212, 175, 55, 0.2)",
                 border: "none",
                 cursor: "pointer",
               }}
@@ -1158,7 +1158,7 @@ export default function ActivitiesPage() {
             activeActivitiesForPeriod.length === 0 ? (
               <div className="glass" style={{ padding: 60, textAlign: "center", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
                 <Calendar size={48} className="text-[var(--gold)]" style={{ opacity: 0.2, margin: "0 auto 20px" }} />
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10 }}>
                   {activities.length === 0 ? "Aucune activité configurée" : "Aucune activité active"}
                 </h3>
                 <p style={{ color: "var(--muted)", marginBottom: 20 }}>
@@ -1596,7 +1596,7 @@ export default function ActivitiesPage() {
               {/* Warning on Mobile */}
               <div className="annual-table-mobile-warning glass" style={{ padding: 40, textAlign: "center", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
                 <AlertTriangle size={48} className="text-[var(--gold)]" style={{ margin: "0 auto 20px" }} />
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10 }}>
                   Écran trop étroit
                 </h3>
                 <p style={{ color: "var(--muted)", maxWidth: 460, margin: "0 auto" }}>
@@ -1669,14 +1669,14 @@ export default function ActivitiesPage() {
                 {!selectedActivityId || !activeActivity ? (
                   <div className="glass" style={{ padding: 60, textAlign: "center", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
                     <Calendar size={48} className="text-[var(--gold)]" style={{ opacity: 0.2, margin: "0 auto 20px" }} />
-                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10 }}>
                       Aucune activité sélectionnée
                     </h3>
                   </div>
                 ) : allYearDates.length === 0 ? (
                   <div className="glass" style={{ padding: 60, textAlign: "center", border: "1px solid rgba(212, 175, 55, 0.15)" }}>
                     <Calendar size={48} className="text-[var(--gold)]" style={{ opacity: 0.2, margin: "0 auto 20px" }} />
-                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10, fontFamily: "var(--font-display)" }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cream)", marginBottom: 10 }}>
                       Aucune séance planifiée pour {selectedYear}
                     </h3>
                     <p style={{ color: "var(--muted)", maxWidth: 460, margin: "0 auto" }}>

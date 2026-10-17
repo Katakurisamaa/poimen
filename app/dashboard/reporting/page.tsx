@@ -9,7 +9,8 @@ import { getAttendanceStatus, usesExplicitAttendance } from "@/lib/attendance";
 import {
   Download, RefreshCw, Save, Check, AlertCircle, FileText,
   Calendar, Upload, Eye, Edit3, Church, Users,
-  ChevronLeft, ChevronRight, Bookmark, Image as ImageIcon
+  ChevronLeft, ChevronRight, Bookmark, Image as ImageIcon,
+  Home, Network, TrendingUp
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -98,9 +99,9 @@ export default function ReportingPage() {
   const [formData, setFormData] = useState<FddReportingData>({
     bergerie_id: "",
     church_id: "",
-    nom_famille: "Famille de Disciples",
+    nom_famille: "Famille de Noé",
     nom_berger: "",
-    slogan: "Suivi • Participation • Engagement • Croissance",
+    slogan: "BÂTIR • SAUVER • PEUPLER",
     date_rapport: getInitialSundayDate(),
     date_libelle: formatFrenchDate(getInitialSundayDate()),
     logo_url: "",
@@ -112,6 +113,7 @@ export default function ReportingPage() {
     culte_1: 0,
     culte_2: 0,
     culte_en_ligne: 0,
+    taux_participation_globale: undefined,
 
     absences_justifiees: 0,
     absences_non_justifiees: 0,
@@ -121,14 +123,25 @@ export default function ReportingPage() {
     nouveaux_membres: 0,
 
     nombre_disciples: 0,
+    disciples_culte_1: 0,
+    disciples_culte_2: 0,
+    disciples_culte_en_ligne: 0,
+    disciples_presents_total: 0,
     taux_participation_disciples: 85,
+
+    // 1/4 H des Familles (Agapé post-culte)
+    quart_heure_tenue: false,
+    quart_heure_presents: 0,
+
+    // Faiseurs de disciples
+    faiseurs_de_disciples: 0,
 
     points_cles: [],
     action_1: "",
     action_2: "",
     action_3: "",
-    verset_texte: "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi chacun travaillait d'une main, et de l'autre tenait son arme. Chacun bâtit à son endroit, et bâtit le mur.",
-    verset_ref: "Néhémie 4:11-12 (BDS)",
+    verset_texte: "Ce qui arriva du temps de Noé arrivera de même à l'avènement du Fils de l'homme. Car, aux jours qui précédèrent le déluge, les hommes mangeaient et buvaient, jusqu'au jour où Noé entra dans l'arche.",
+    verset_ref: "Matthieu 24:37-38",
   });
 
   // Load family and auto-populate stats from members
@@ -162,11 +175,17 @@ export default function ReportingPage() {
       let femmes = 0;
       let totalStar = 0;
       let disciplesCount = 0;
+      let faiseursCount = 0;
       let nouveaux = 0;
 
       let countC1 = 0;
       let countC2 = 0;
       let countEnLigne = 0;
+
+      let disciplesC1 = 0;
+      let disciplesC2 = 0;
+      let disciplesEnLigne = 0;
+
       let absJustifiees = 0;
       let absNonJustifiees = 0;
       let starInService = 0;
@@ -300,9 +319,18 @@ export default function ReportingPage() {
               normStatus === "fdd" ||
               normStatus === "responsable" ||
               normStatus === "second" ||
-              normStatus === "berger" ||
-              normStatus === "disciple";
+              normStatus === "berger";
+
+            const isDisciple = 
+              isFdd ||
+              normStatus === "disciple" ||
+              Boolean(m.est_baptise) ||
+              (Array.isArray(m.formations) && m.formations.length > 0);
+
             if (isFdd) {
+              faiseursCount++;
+            }
+            if (isDisciple) {
               disciplesCount++;
             }
 
@@ -328,12 +356,16 @@ export default function ReportingPage() {
 
             if (attendedCulte === "culte_1") {
               countC1++;
+              if (isDisciple) disciplesC1++;
             } else if (attendedCulte === "culte_2") {
               countC2++;
+              if (isDisciple) disciplesC2++;
             } else if (attendedCulte === "culte_en_ligne" || attendedCulte === "en_ligne" || attendedCulte === "online") {
               countEnLigne++;
+              if (isDisciple) disciplesEnLigne++;
             } else if (attendedCulte) {
               countC1++;
+              if (isDisciple) disciplesC1++;
             } else {
               // Absences
               let hasComment = false;
@@ -354,7 +386,7 @@ export default function ReportingPage() {
 
             if (attendedCulte) {
               if (isStar) starInService++;
-              if (isFdd) disciplesPresent++;
+              if (isDisciple) disciplesPresent++;
             }
 
             // Participation aux sorties d'évangélisation (calcul hebdomadaire du lundi au dimanche)
@@ -475,20 +507,27 @@ export default function ReportingPage() {
       const savedVerseText = localStorage.getItem(`fdd_custom_verse_text_${familyId}`);
       const savedVerseRef = localStorage.getItem(`fdd_custom_verse_ref_${familyId}`);
 
-      const defaultVerseText = "Nous qui bâtissons le mur, nous avions tous notre épée à la main ; ainsi chacun travaillait d'une main, et de l'autre tenait son arme. Chacun bâtit à son endroit, et bâtit le mur.";
-      const defaultVerseRef = "Néhémie 4:11-12 (BDS)";
+      // Check saved 1/4h des familles (Agapé) for this family & date
+      const savedQuartTenue = localStorage.getItem(`fdd_quart_heure_tenue_${familyId}_${currentDate}`);
+      const savedQuartPresents = localStorage.getItem(`fdd_quart_heure_presents_${familyId}_${currentDate}`);
+      const parsedTenue = savedQuartTenue !== null ? JSON.parse(savedQuartTenue) : false;
+      const parsedPresents = savedQuartPresents !== null ? parseInt(savedQuartPresents, 10) : 0;
 
-      const effectiveSlogan = (savedSlogan !== null && savedSlogan !== undefined)
+      const defaultVerseText = "Ce qui arriva du temps de Noé arrivera de même à l'avènement du Fils de l'homme. Car, aux jours qui précédèrent le déluge, les hommes mangeaient et buvaient, jusqu'au jour où Noé entra dans l'arche.";
+      const defaultVerseRef = "Matthieu 24:37-38";
+      const defaultSlogan = "BÂTIR • SAUVER • PEUPLER";
+
+      const effectiveSlogan = (savedSlogan !== null && savedSlogan !== undefined && savedSlogan.trim() !== "" && savedSlogan !== "Suivi • Participation • Engagement • Croissance")
         ? savedSlogan
-        : (existingReport?.slogan || "Suivi • Participation • Engagement • Croissance");
+        : (existingReport?.slogan && existingReport.slogan !== "Suivi • Participation • Engagement • Croissance" ? existingReport.slogan : defaultSlogan);
 
-      const effectiveVerseText = (savedVerseText !== null && savedVerseText !== undefined)
+      const effectiveVerseText = (savedVerseText !== null && savedVerseText !== undefined && savedVerseText.trim() !== "" && !savedVerseText.includes("bon cœur") && !savedVerseText.includes("Colossiens"))
         ? savedVerseText
-        : (existingReport?.verset_texte || defaultVerseText);
+        : (existingReport?.verset_texte && !existingReport.verset_texte.includes("bon cœur") && !existingReport.verset_texte.includes("Colossiens") ? existingReport.verset_texte : defaultVerseText);
 
-      const effectiveVerseRef = (savedVerseRef !== null && savedVerseRef !== undefined)
+      const effectiveVerseRef = (savedVerseRef !== null && savedVerseRef !== undefined && savedVerseRef.trim() !== "" && !savedVerseRef.includes("Colossiens") && !savedVerseRef.includes("Néhémie"))
         ? savedVerseRef
-        : (existingReport?.verset_ref || defaultVerseRef);
+        : (existingReport?.verset_ref && !existingReport.verset_ref.includes("Colossiens") && !existingReport.verset_ref.includes("Néhémie") ? existingReport.verset_ref : defaultVerseRef);
 
       if (existingReport && !forceRecalculate) {
         setFormData((prev) => ({
@@ -498,7 +537,7 @@ export default function ReportingPage() {
           nom_famille: familyName || existingReport.nom_famille || prev.nom_famille,
           nom_berger: (existingReport.nom_berger && existingReport.nom_berger !== "Berger")
             ? existingReport.nom_berger
-            : (bergerName !== "Prénom Nom" ? bergerName : prev.nom_berger || "Prénom Nom"),
+            : (bergerName !== "Prénom Nom" ? bergerName : prev.nom_berger || "Christy Mponda"),
           slogan: effectiveSlogan,
           verset_texte: effectiveVerseText,
           verset_ref: effectiveVerseRef,
@@ -508,10 +547,18 @@ export default function ReportingPage() {
           date_rapport: currentDate,
           date_libelle: formatFrenchDate(existingReport.date_rapport || currentDate),
           logo_url: existingReport.logo_url || savedLogo || prev.logo_url,
+          quart_heure_tenue: existingReport.quart_heure_tenue !== undefined ? existingReport.quart_heure_tenue : parsedTenue,
+          quart_heure_presents: existingReport.quart_heure_presents !== undefined ? existingReport.quart_heure_presents : parsedPresents,
+          faiseurs_de_disciples: existingReport.faiseurs_de_disciples !== undefined ? existingReport.faiseurs_de_disciples : (faiseursCount || prev.faiseurs_de_disciples || 0),
+          disciples_culte_1: existingReport.disciples_culte_1 !== undefined ? existingReport.disciples_culte_1 : disciplesC1,
+          disciples_culte_2: existingReport.disciples_culte_2 !== undefined ? existingReport.disciples_culte_2 : disciplesC2,
+          disciples_culte_en_ligne: existingReport.disciples_culte_en_ligne !== undefined ? existingReport.disciples_culte_en_ligne : disciplesEnLigne,
+          disciples_presents_total: existingReport.disciples_presents_total !== undefined ? existingReport.disciples_presents_total : (disciplesC1 + disciplesC2 + disciplesEnLigne),
         }));
       } else {
+        const disciplesPartTotal = disciplesC1 + disciplesC2 + disciplesEnLigne;
         const disciplesPct = disciplesCount > 0 
-          ? Math.round((disciplesPresent / disciplesCount) * 100) 
+          ? Math.round((disciplesPartTotal / disciplesCount) * 1000) / 10 
           : 0;
 
         // Pre-fill with database numbers and auto-calculated attendance
@@ -520,7 +567,7 @@ export default function ReportingPage() {
           bergerie_id: familyId,
           church_id: churchId,
           nom_famille: familyName || prev.nom_famille,
-          nom_berger: bergerName !== "Prénom Nom" ? bergerName : (prev.nom_berger && prev.nom_berger !== "Berger" ? prev.nom_berger : "Prénom Nom"),
+          nom_berger: bergerName !== "Prénom Nom" ? bergerName : (prev.nom_berger && prev.nom_berger !== "Berger" ? prev.nom_berger : "Christy Mponda"),
           slogan: effectiveSlogan,
           verset_texte: effectiveVerseText,
           verset_ref: effectiveVerseRef,
@@ -540,7 +587,14 @@ export default function ReportingPage() {
           star_en_service: starInService,
           nombre_total_star: totalStar || prev.nombre_total_star,
           nombre_disciples: disciplesCount,
+          disciples_culte_1: disciplesC1,
+          disciples_culte_2: disciplesC2,
+          disciples_culte_en_ligne: disciplesEnLigne,
+          disciples_presents_total: disciplesPartTotal,
           taux_participation_disciples: disciplesPct,
+          quart_heure_tenue: parsedTenue,
+          quart_heure_presents: parsedPresents,
+          faiseurs_de_disciples: faiseursCount,
           reunion_hebdomadaire: reunionHebdo,
           nouveaux_membres: nouveaux || prev.nouveaux_membres,
           logo_url: savedLogo || prev.logo_url,
@@ -561,8 +615,8 @@ export default function ReportingPage() {
     if (activeTab !== "preview") return;
 
     const updatePreviewSize = () => {
-      const viewportWidth = previewViewportRef.current?.clientWidth || 880;
-      const nextScale = Math.min(1, Math.max(0.25, (viewportWidth - 4) / 880));
+      const viewportWidth = previewViewportRef.current?.clientWidth || 820;
+      const nextScale = Math.min(1, Math.max(0.25, (viewportWidth - 4) / 820));
       setPreviewScale(nextScale);
       setPreviewHeight((reportRef.current?.offsetHeight || 0) * nextScale);
     };
@@ -612,6 +666,14 @@ export default function ReportingPage() {
           `fdd_report_${formData.bergerie_id}_${formData.date_rapport}`,
           JSON.stringify(formData)
         );
+        localStorage.setItem(
+          `fdd_quart_heure_tenue_${formData.bergerie_id}_${formData.date_rapport}`,
+          JSON.stringify(formData.quart_heure_tenue ?? true)
+        );
+        localStorage.setItem(
+          `fdd_quart_heure_presents_${formData.bergerie_id}_${formData.date_rapport}`,
+          String(formData.quart_heure_presents ?? 0)
+        );
         if (formData.slogan !== undefined) {
           localStorage.setItem(`fdd_custom_slogan_${formData.bergerie_id}`, formData.slogan);
         }
@@ -624,7 +686,7 @@ export default function ReportingPage() {
       }
 
       // 2. Save to Supabase (if table exists)
-      const payload = {
+      const payload: any = {
         bergerie_id: formData.bergerie_id,
         church_id: formData.church_id || null,
         date_rapport: formData.date_rapport,
@@ -645,7 +707,14 @@ export default function ReportingPage() {
         reunion_hebdomadaire: Number(formData.reunion_hebdomadaire) || 0,
         nouveaux_membres: Number(formData.nouveaux_membres) || 0,
         nombre_disciples: Number(formData.nombre_disciples) || 0,
+        disciples_culte_1: Number(formData.disciples_culte_1) || 0,
+        disciples_culte_2: Number(formData.disciples_culte_2) || 0,
+        disciples_culte_en_ligne: Number(formData.disciples_culte_en_ligne) || 0,
+        disciples_presents_total: Number(formData.disciples_presents_total) || 0,
         taux_participation_disciples: Number(formData.taux_participation_disciples) || 0,
+        quart_heure_tenue: formData.quart_heure_tenue ?? false,
+        quart_heure_presents: Number(formData.quart_heure_presents) || 0,
+        faiseurs_de_disciples: Number(formData.faiseurs_de_disciples) || 0,
         action_1: formData.action_1,
         action_2: formData.action_2,
         action_3: formData.action_3,
@@ -699,16 +768,16 @@ export default function ReportingPage() {
         img.onerror = reject;
       });
 
-      // Snug Full-Frame Landscape: 297mm base width (A4 landscape)
-      // Height is calculated proportionally to match the exact report aspect ratio
-      const targetW = 297;
+      // Adapt orientation to content dimensions (Portrait for poster A4, Landscape for wide cards)
+      const isPortrait = img.height > img.width;
+      const targetW = isPortrait ? 210 : 297;
       const margin = 4;
       const printW = targetW - margin * 2;
       const printH = (img.height * printW) / img.width;
       const targetH = Math.round(printH + margin * 2);
 
       const pdf = new jsPDF({
-        orientation: "landscape",
+        orientation: isPortrait ? "portrait" : "landscape",
         unit: "mm",
         format: [targetW, targetH],
       });
@@ -792,7 +861,7 @@ export default function ReportingPage() {
               <FileText size={20} />
             </div>
             <div>
-              <h1 className="reporting-page-title" style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "var(--cream)" }}>
+              <h1 className="reporting-page-title" style={{ fontSize: 22, fontWeight: 650, margin: 0, color: "var(--cream)", textShadow: "none", letterSpacing: "-0.015em" }}>
                 Reporting Culte & Engagement
               </h1>
               <p style={{ fontSize: 13, color: "var(--muted)", margin: "2px 0 0" }}>
@@ -1039,7 +1108,7 @@ export default function ReportingPage() {
                   type="text"
                   className="input"
                   value={formData.slogan ?? ""}
-                  placeholder="Ex: Suivi • Participation • Engagement • Croissance"
+                  placeholder="Ex: BÂTIR • SAUVER • PEUPLER"
                   onChange={(e) => {
                     const val = e.target.value;
                     setFormData(prev => ({ ...prev, slogan: val }));
@@ -1051,66 +1120,278 @@ export default function ReportingPage() {
               </div>
             </section>
 
-            {/* Card: Participation par Culte (Sans EJP) */}
-            <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-                <Church size={18} style={{ color: "var(--gold)" }} />
-                Présences par Culte (Ce Dimanche)
-              </h3>
+            {/* Card: 1/4 H DES FAMILLES (Agapé post-culte) — Saisie Manuelle */}
+            <section
+              className="glass-card reporting-form-card"
+              style={{
+                padding: 20,
+                border: "2px solid rgba(139, 92, 246, 0.4)",
+                backgroundColor: "rgba(139, 92, 246, 0.05)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <h3
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 800,
+                    color: "var(--cream)",
+                    margin: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Home size={20} style={{ color: "#a78bfa" }} />
+                  1/4 H des Familles (Agapé post-culte)
+                </h3>
+                <span
+                  style={{
+                    fontSize: 11,
+                    backgroundColor: "rgba(139, 92, 246, 0.2)",
+                    color: "#c4b5fd",
+                    padding: "3px 9px",
+                    borderRadius: 6,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Saisie Manuelle
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>
+                Temps d&apos;Agapé fraternel et de communion partagé par les membres de la famille de disciples à la sortie du culte :
+              </p>
 
-              <div className="reporting-fields-grid reporting-fields-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+              <div className="reporting-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "center" }}>
+                {/* Tenue Switch */}
                 <div>
-                  <label className="form-label" style={{ color: "var(--sky)", fontWeight: 700 }}>Culte 1 (Matin)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="input"
-                    value={formData.culte_1 || ""}
-                    onChange={(e) => setFormData({ ...formData, culte_1: parseInt(e.target.value) || 0 })}
-                  />
+                  <label className="form-label" style={{ fontWeight: 700, color: "var(--cream)" }}>
+                    Tenue de l&apos;Agapé
+                  </label>
+                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{
+                        flex: 1,
+                        height: 38,
+                        backgroundColor: formData.quart_heure_tenue ? "#16a34a" : "rgba(255,255,255,0.06)",
+                        border: formData.quart_heure_tenue ? "1px solid #22c55e" : "1px solid rgba(255,255,255,0.15)",
+                        color: formData.quart_heure_tenue ? "#ffffff" : "var(--muted)",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                      onClick={() => setFormData((prev) => ({ ...prev, quart_heure_tenue: true }))}
+                    >
+                      ✓ Oui
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{
+                        flex: 1,
+                        height: 38,
+                        backgroundColor: !formData.quart_heure_tenue ? "#dc2626" : "rgba(255,255,255,0.06)",
+                        border: !formData.quart_heure_tenue ? "1px solid #ef4444" : "1px solid rgba(255,255,255,0.15)",
+                        color: !formData.quart_heure_tenue ? "#ffffff" : "var(--muted)",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                      onClick={() => setFormData((prev) => ({ ...prev, quart_heure_tenue: false }))}
+                    >
+                      ✕ Non
+                    </button>
+                  </div>
                 </div>
 
+                {/* Membres présents */}
                 <div>
-                  <label className="form-label" style={{ color: "var(--orange)", fontWeight: 700 }}>Culte 2 (Midi)</label>
+                  <label className="form-label" style={{ fontWeight: 700, color: "var(--cream)" }}>
+                    Membres présents à l&apos;Agapé
+                  </label>
                   <input
                     type="number"
                     min="0"
                     className="input"
-                    value={formData.culte_2 || ""}
-                    onChange={(e) => setFormData({ ...formData, culte_2: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label" style={{ color: "var(--violet)", fontWeight: 700 }}>Culte en Ligne</label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="input"
-                    value={formData.culte_en_ligne || ""}
-                    onChange={(e) => setFormData({ ...formData, culte_en_ligne: parseInt(e.target.value) || 0 })}
+                    value={formData.quart_heure_presents ?? ""}
+                    placeholder="Ex: 38"
+                    style={{ fontSize: 16, fontWeight: 700 }}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        quart_heure_presents: parseInt(e.target.value) || 0,
+                      }))
+                    }
                   />
                 </div>
               </div>
+            </section>
 
-              {/* Total Summary */}
+            {/* Card: Participation par Culte (Membres & Disciples - Culte 1 & 2) */}
+            <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                <Church size={18} style={{ color: "var(--gold)" }} />
+                Présences aux Cultes — Distinction Culte 1 &amp; Culte 2
+              </h3>
+
+              {/* Sous-section MEMBRES */}
               <div
-                className="reporting-total-banner"
                 style={{
-                  marginTop: 16,
+                  marginBottom: 16,
                   padding: "12px 14px",
-                  borderRadius: "8px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
+                  backgroundColor: "rgba(34, 197, 94, 0.06)",
+                  border: "1px solid rgba(34, 197, 94, 0.22)",
+                  borderRadius: 10,
                 }}
               >
-                <span className="reporting-total-label" style={{ fontSize: 13, fontWeight: 700 }}>
-                  TOTAL PARTICIPATION AU CULTE :
-                </span>
-                <span className="reporting-total-val" style={{ fontSize: 18, fontWeight: 900 }}>
-                  {metrics.totalParticipation} participants ({metrics.tauxParticipationGlobale}%)
-                </span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: "#4ade80", textTransform: "uppercase" }}>
+                    Présences Membres
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#86efac" }}>
+                    Total : <strong>{metrics.totalParticipation}</strong> ({metrics.tauxParticipationGlobale}%)
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
+                  <div>
+                    <label className="form-label" style={{ color: "var(--sky)", fontWeight: 700 }}>Culte 1</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input"
+                      value={formData.culte_1 || ""}
+                      onChange={(e) => setFormData({ ...formData, culte_1: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ color: "var(--orange)", fontWeight: 700 }}>Culte 2</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input"
+                      value={formData.culte_2 || ""}
+                      onChange={(e) => setFormData({ ...formData, culte_2: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ color: "var(--violet)", fontWeight: 700 }}>En Ligne</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input"
+                      value={formData.culte_en_ligne || ""}
+                      onChange={(e) => setFormData({ ...formData, culte_en_ligne: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ color: "var(--gold-light)", fontWeight: 700 }}>Taux Participation (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      className="input"
+                      value={formData.taux_participation_globale ?? ""}
+                      placeholder={`Auto (${metrics.tauxParticipationGlobale}%)`}
+                      onChange={(e) => setFormData({ ...formData, taux_participation_globale: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sous-section DISCIPLES */}
+              <div
+                style={{
+                  padding: "12px 14px",
+                  backgroundColor: "rgba(2, 132, 199, 0.06)",
+                  border: "1px solid rgba(2, 132, 199, 0.22)",
+                  borderRadius: 10,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: "#38bdf8", textTransform: "uppercase" }}>
+                    Présences Disciples
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#7dd3fc" }}>
+                    Total : <strong>{metrics.disciplesPresents}</strong> ({metrics.tauxParticipationDisciples}%)
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
+                  <div>
+                    <label className="form-label" style={{ color: "var(--sky)", fontWeight: 700 }}>Disciples Culte 1</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input"
+                      value={formData.disciples_culte_1 ?? ""}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setFormData((prev) => ({
+                          ...prev,
+                          disciples_culte_1: val,
+                          disciples_presents_total: val + (prev.disciples_culte_2 || 0) + (prev.disciples_culte_en_ligne || 0),
+                        }));
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ color: "var(--orange)", fontWeight: 700 }}>Disciples Culte 2</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input"
+                      value={formData.disciples_culte_2 ?? ""}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setFormData((prev) => ({
+                          ...prev,
+                          disciples_culte_2: val,
+                          disciples_presents_total: (prev.disciples_culte_1 || 0) + val + (prev.disciples_culte_en_ligne || 0),
+                        }));
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ color: "var(--violet)", fontWeight: 700 }}>Disciples En Ligne</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input"
+                      value={formData.disciples_culte_en_ligne ?? ""}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setFormData((prev) => ({
+                          ...prev,
+                          disciples_culte_en_ligne: val,
+                          disciples_presents_total: (prev.disciples_culte_1 || 0) + (prev.disciples_culte_2 || 0) + val,
+                        }));
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ color: "var(--gold-light)", fontWeight: 700 }}>Taux Disciples (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      className="input"
+                      value={formData.taux_participation_disciples ?? ""}
+                      placeholder={`Auto (${metrics.tauxParticipationDisciples}%)`}
+                      onChange={(e) => setFormData({ ...formData, taux_participation_disciples: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -1170,19 +1451,74 @@ export default function ReportingPage() {
 
           {/* ── RIGHT COLUMN: MEMBRES, ACTIONS & VERSET ── */}
           <div className="reporting-form-column" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {/* Card: Effectifs des Membres (Auto-sync) */}
+            {/* Card: Effectifs Spirituels & Membres (Affiche FDD) */}
             <section className="glass-card reporting-form-card" style={{ padding: 20 }}>
               <div className="reporting-card-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cream)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                  <Users size={18} style={{ color: "var(--gold)" }} />
-                  Effectif de la Famille
+                  <Network size={18} style={{ color: "var(--gold)" }} />
+                  Effectifs &amp; Rôles Spirituels
                 </h3>
                 <span style={{ fontSize: 11, color: "var(--muted)" }}>Issu de la base de données</span>
               </div>
 
               <div className="reporting-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                {/* 1. Faiseurs de Disciples (Section 4 de l'Affiche) */}
+                <div
+                  style={{
+                    gridColumn: "span 2",
+                    padding: "12px 14px",
+                    backgroundColor: "rgba(139, 92, 246, 0.12)",
+                    border: "1.5px solid rgba(139, 92, 246, 0.35)",
+                    borderRadius: 10,
+                  }}
+                >
+                  <label className="form-label" style={{ color: "#c4b5fd", fontWeight: 800, fontSize: 13 }}>
+                    Faiseurs de Disciples (Bandeau de l&apos;Affiche)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    style={{ fontSize: 20, fontWeight: 900 }}
+                    value={formData.faiseurs_de_disciples ?? ""}
+                    placeholder="Ex: 9"
+                    onChange={(e) => setFormData({ ...formData, faiseurs_de_disciples: parseInt(e.target.value) || 0 })}
+                  />
+                  <span style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "block" }}>
+                    Effectif de statut Berger, Second, Responsable ou Faiseur de Disciples dans la famille.
+                  </span>
+                </div>
+
+                {/* 2. Effectif Total Disciples (Section 2 de l'Affiche) */}
+                <div
+                  style={{
+                    gridColumn: "span 2",
+                    padding: "12px 14px",
+                    backgroundColor: "rgba(2, 132, 199, 0.08)",
+                    border: "1.5px solid rgba(2, 132, 199, 0.28)",
+                    borderRadius: 10,
+                  }}
+                >
+                  <label className="form-label" style={{ color: "var(--sky)", fontWeight: 800, fontSize: 13 }}>
+                    Effectif Total Disciples (Colonne DISCIPLES)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    style={{ fontSize: 18, fontWeight: 900 }}
+                    value={formData.nombre_disciples ?? ""}
+                    placeholder="Ex: 41"
+                    onChange={(e) => setFormData({ ...formData, nombre_disciples: parseInt(e.target.value) || 0 })}
+                  />
+                  <span style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "block" }}>
+                    Total des âmes engagées dans la marche de disciple (baptisées, formations ou disciples).
+                  </span>
+                </div>
+
+                {/* 3. Total membres */}
                 <div>
-                  <label className="form-label">Total membres</label>
+                  <label className="form-label" style={{ fontWeight: 700 }}>Total Membres Famille</label>
                   <input
                     type="number"
                     min="0"
@@ -1225,7 +1561,7 @@ export default function ReportingPage() {
                   />
                 </div>
 
-                <div>
+                <div style={{ gridColumn: "span 2" }}>
                   <label className="form-label">Total S.T.A.R dans la famille</label>
                   <input
                     type="number"
@@ -1233,29 +1569,6 @@ export default function ReportingPage() {
                     className="input"
                     value={formData.nombre_total_star || ""}
                     onChange={(e) => setFormData({ ...formData, nombre_total_star: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label">Faiseurs de Disciples (FDD)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="input"
-                    value={formData.nombre_disciples ?? ""}
-                    onChange={(e) => setFormData({ ...formData, nombre_disciples: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label">Taux Participation FDD (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    className="input"
-                    value={formData.taux_participation_disciples ?? ""}
-                    onChange={(e) => setFormData({ ...formData, taux_participation_disciples: parseInt(e.target.value) || 0 })}
                   />
                 </div>
               </div>
@@ -1469,7 +1782,7 @@ export default function ReportingPage() {
                     type="text"
                     className="input"
                     value={formData.verset_ref}
-                    placeholder="Ex: Néhémie 4:11-12 (BDS)"
+                    placeholder="Ex: Matthieu 24:37-38"
                     onChange={(e) => {
                       const val = e.target.value;
                       setFormData(prev => ({ ...prev, verset_ref: val }));
@@ -1530,7 +1843,7 @@ export default function ReportingPage() {
                 position: "fixed",
                 left: "-9999px",
                 top: 0,
-                width: 880,
+                width: 820,
                 opacity: 0,
                 pointerEvents: "none",
                 zIndex: -100,
@@ -1540,8 +1853,8 @@ export default function ReportingPage() {
         <div
           className="reporting-preview-stage"
           style={{
-            width: 880,
-            flex: "0 0 880px",
+            width: 820,
+            flex: "0 0 820px",
             transform: activeTab === "preview" ? `scale(${previewScale})` : undefined,
             transformOrigin: "top center",
           }}

@@ -20,7 +20,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.5px;
-  color: #b45309;
+  color: var(--gold);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -28,15 +28,16 @@
 }
 
 :global(html[data-theme="dark"]) .kicker {
-  color: #d4af37;
+  color: var(--gold);
 }
 
 .pageTitle {
-  font-size: clamp(22px, 4vw, 28px);
-  font-weight: 800;
+  font-size: clamp(20px, 3.5vw, 25px);
+  font-weight: 650;
   color: var(--cream);
   margin: 0 0 6px 0;
   letter-spacing: -0.02em;
+  text-shadow: none !important;
 }
 
 .pageSubtitle {
@@ -118,10 +119,7 @@
   }
 }
 
-:global(html[data-theme="light"]) .formCard {
-  background: #ffffff;
-  border-color: #e2d9cc;
-}
+:global(html[data-theme="light"]) .formCard { background: var(--surface-solid); border-color: var(--border); }
 
 /* ── Section Dividers & Headings ── */
 .formSectionTitle {
@@ -129,7 +127,7 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  color: #b45309;
+  color: var(--gold);
   border-bottom: 1.5px solid rgba(180, 83, 9, 0.15);
   padding-bottom: 8px;
   margin: 0 0 16px 0;
@@ -139,7 +137,7 @@
 }
 
 :global(html[data-theme="dark"]) .formSectionTitle {
-  color: #d4af37;
+  color: var(--gold);
   border-bottom-color: rgba(212, 175, 55, 0.2);
 }
 
@@ -154,15 +152,9 @@
   gap: 12px;
 }
 
-:global(html[data-theme="light"]) .subSectionBox {
-  background: #fbf9f6;
-  border-color: #ebe3d7;
-}
+:global(html[data-theme="light"]) .subSectionBox { background: var(--surface-soft); border-color: var(--border); }
 
-:global(html[data-theme="dark"]) .subSectionBox {
-  background: rgba(255, 255, 255, 0.02);
-  border-color: rgba(212, 175, 55, 0.12);
-}
+:global(html[data-theme="dark"]) .subSectionBox { background: var(--surface-soft); border-color: var(--border); }
 
 .subSectionHeader {
   font-size: 11px;
@@ -198,13 +190,13 @@
 .inputIcon {
   position: absolute;
   left: 12px;
-  color: #b45309;
+  color: var(--gold);
   pointer-events: none;
   flex-shrink: 0;
 }
 
 :global(html[data-theme="dark"]) .inputIcon {
-  color: #d4af37;
+  color: var(--gold);
 }
 
 .textInput {
@@ -223,21 +215,17 @@
 }
 
 .textInput:focus {
-  border-color: #b45309;
+  border-color: var(--gold);
 }
 
 :global(html[data-theme="dark"]) .textInput:focus {
-  border-color: #d4af37;
+  border-color: var(--gold);
 }
 
-:global(html[data-theme="light"]) .textInput {
-  background: #ffffff;
-  color: #1a1207;
-  border-color: #d1c7b8;
-}
+:global(html[data-theme="light"]) .textInput { background: var(--surface-solid); color: var(--cream); border-color: var(--border); }
 
 :global(html[data-theme="light"]) .textInput:focus {
-  border-color: #b45309;
+  border-color: var(--gold);
   background: #fffdfa;
 }
 
@@ -258,17 +246,13 @@
 }
 
 .selectInput:focus {
-  border-color: #b45309;
+  border-color: var(--gold);
 }
 
-:global(html[data-theme="light"]) .selectInput {
-  background: #ffffff;
-  color: #1a1207;
-  border-color: #d1c7b8;
-}
+:global(html[data-theme="light"]) .selectInput { background: var(--surface-solid); color: var(--cream); border-color: var(--border); }
 
 :global(html[data-theme="dark"]) .selectInput:focus {
-  border-color: #d4af37;
+  border-color: var(--gold);
 }
 
 /* ── Touch-Friendly Stepper / Number Input ── */
@@ -290,17 +274,14 @@
 }
 
 .numberInputWrapper:focus-within {
-  border-color: #b45309;
+  border-color: var(--gold);
 }
 
 :global(html[data-theme="dark"]) .numberInputWrapper:focus-within {
-  border-color: #d4af37;
+  border-color: var(--gold);
 }
 
-:global(html[data-theme="light"]) .numberInputWrapper {
-  background: #ffffff;
-  border-color: #d1c7b8;
-}
+:global(html[data-theme="light"]) .numberInputWrapper { background: var(--surface-solid); border-color: var(--border); }
 
 .numberInput {
   width: 100%;
@@ -344,12 +325,12 @@
 
 .numberBtn:hover {
   background: rgba(180, 83, 9, 0.12);
-  color: #b45309;
+  color: var(--gold);
 }
 
 :global(html[data-theme="dark"]) .numberBtn:hover {
   background: rgba(212, 175, 55, 0.18);
-  color: #d4af37;
+  color: var(--gold);
 }
 
 /* ── Grids ── */
@@ -458,10 +439,7 @@
   margin-bottom: 18px;
 }
 
-:global(html[data-theme="light"]) .historyFilterBar {
-  background: #ffffff;
-  border-color: #e2d9cc;
-}
+:global(html[data-theme="light"]) .historyFilterBar { background: var(--surface-solid); border-color: var(--border); }
 
 .historyCard {
   background: var(--surface-solid);
@@ -474,10 +452,7 @@
   transition: border-color 0.15s;
 }
 
-:global(html[data-theme="light"]) .historyCard {
-  background: #ffffff;
-  border-color: #e2d9cc;
-}
+:global(html[data-theme="light"]) .historyCard { background: var(--surface-solid); border-color: var(--border); }
 
 .historyCardHeader {
   display: flex;
@@ -519,13 +494,13 @@
 }
 
 .btnHistoryAction:hover {
-  border-color: #b45309;
-  color: #b45309;
+  border-color: var(--gold);
+  color: var(--gold);
 }
 
 :global(html[data-theme="dark"]) .btnHistoryAction:hover {
-  border-color: #d4af37;
-  color: #d4af37;
+  border-color: var(--gold);
+  color: var(--gold);
 }
 
 .btnHistoryDelete {
@@ -567,7 +542,7 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: #b45309;
+  color: var(--gold);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -575,7 +550,7 @@
 }
 
 :global(html[data-theme="dark"]) .metricColTitle {
-  color: #d4af37;
+  color: var(--gold);
 }
 
 .metricRow {

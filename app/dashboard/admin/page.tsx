@@ -9,7 +9,7 @@ import { useFeedback } from "@/components/experience/FeedbackProvider";
 
 export default function SuperAdminDashboard() {
   return (
-    <Suspense fallback={<div className="loading-state" style={{ padding: 40, textAlign: "center", color: "var(--gold-light)", fontFamily: "var(--font-display)", fontSize: 18 }}>Chargement de la console d'administration...</div>}>
+    <Suspense fallback={<div className="loading-state" style={{ padding: 40, textAlign: "center", color: "var(--gold-light)", fontSize: 18 }}>Chargement de la console d'administration...</div>}>
       <AdminContent />
     </Suspense>
   );
@@ -270,7 +270,7 @@ function AdminContent() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
         <div className="spinner" style={{ width: 40, height: 40 }} />
-        <div style={{ color: "var(--gold-light)", fontFamily: "var(--font-display)", fontSize: 16, letterSpacing: "0.05em" }}>
+        <div style={{ color: "var(--gold-light)", fontSize: 16, letterSpacing: "0.05em" }}>
           Chargement des données...
         </div>
       </div>
@@ -307,7 +307,7 @@ function AdminContent() {
             <div className="stat-card" style={{ cursor: "pointer", transition: "all 0.3s ease" }} onClick={() => router.push("/dashboard/admin?tab=churches")}>
               <Church size={24} className="stat-icon" style={{ color: "var(--sky)" }} />
               <span className="stat-label">Églises Partenaires</span>
-              <div className="stat-value" style={{ background: "linear-gradient(135deg, #FFF, var(--sky) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              <div className="stat-value" style={{ color: "var(--sky)" }}>
                 {churches.length}
               </div>
               <div className="stat-sub">Réseau d'édification actif</div>
@@ -323,7 +323,7 @@ function AdminContent() {
             <div className="stat-card" style={{ cursor: "pointer", border: pendingBergeries.length > 0 ? "1px solid rgba(245, 158, 11, 0.4)" : "1px solid var(--border)", boxShadow: pendingBergeries.length > 0 ? "0 0 20px rgba(245, 158, 11, 0.1)" : "", transition: "all 0.3s ease" }} onClick={() => router.push("/dashboard/admin?tab=approvals")}>
               <Globe size={24} className="stat-icon" style={{ color: "var(--orange)" }} />
               <span className="stat-label">En attente</span>
-              <div className="stat-value" style={{ background: "linear-gradient(135deg, #FFF, var(--orange) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              <div className="stat-value" style={{ color: "var(--orange)" }}>
                 {pendingBergeries.length}
               </div>
               <div className="stat-sub">Demandes d'approbations de bergeries</div>
@@ -331,7 +331,7 @@ function AdminContent() {
           </div>
 
           <div className="glass">
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20, fontFamily: "var(--font-display)", letterSpacing: "0.03em" }}>Actions Administratives Rapides</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20, letterSpacing: "0.03em" }}>Actions Administratives Rapides</h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
               <div className="glass arch-card" style={{ padding: "32px 24px", textAlign: "center", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, transition: "all 0.35s ease" }} onClick={generateInvite}>
                 <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--gold-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)" }}>
@@ -356,7 +356,7 @@ function AdminContent() {
         <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {churches.map((church) => (
             <div key={church.id} className="glass" style={{ overflow: "hidden", padding: 0 }}>
-              <div style={{ padding: "20px 24px", background: "linear-gradient(90deg, rgba(212, 175, 55, 0.05) 0%, rgba(139, 92, 246, 0.02) 100%)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, borderBottom: "1px solid var(--border)" }}>
+              <div style={{ padding: "20px 24px", background: "var(--surface-soft)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, borderBottom: "1px solid var(--border)" }}>
                 <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 16, minWidth: 0, flex: 1 }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--gold-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", border: "1px solid rgba(212,175,55,0.25)", flexShrink: 0 }}>
                     <Church size={22} />
@@ -417,7 +417,7 @@ function AdminContent() {
           {churches.length === 0 && (
             <div className="glass" style={{ padding: 60, textAlign: "center", color: "var(--muted)" }}>
               <Church size={48} style={{ margin: "0 auto 16px", color: "var(--gold)", opacity: 0.3 }} />
-              <p style={{ fontFamily: "var(--font-display)", fontSize: 18, color: "var(--cream)" }}>Aucune église configurée dans l'écosystème.</p>
+              <p style={{ fontSize: 18, color: "var(--cream)" }}>Aucune église configurée dans l'écosystème.</p>
               <button className="btn btn-primary" onClick={() => setIsAdding(true)} style={{ margin: "16px auto 0" }}>Déployer la première église</button>
             </div>
           )}
@@ -428,7 +428,7 @@ function AdminContent() {
         <div className="fade-in">
           <div className="glass" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)", background: "linear-gradient(90deg, rgba(212, 175, 55, 0.03) 0%, transparent 100%)" }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)" }}>Demandes d'Approbation de Nouvelles Bergeries</h3>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Demandes d'Approbation de Nouvelles Bergeries</h3>
             </div>
             {pendingBergeries.length === 0 ? (
               <div style={{ padding: 60, textAlign: "center", color: "var(--muted)", fontSize: 14 }}>
@@ -495,7 +495,7 @@ function AdminContent() {
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--gold-glow)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)", margin: "0 auto 20px", border: "1px solid rgba(212, 175, 55, 0.3)" }}>
               <LinkIcon size={26} />
             </div>
-            <h3 style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 700, marginBottom: 12, fontFamily: "var(--font-display)" }}>Invitation Prête</h3>
+            <h3 style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 700, marginBottom: 12 }}>Invitation Prête</h3>
             <p style={{ color: "var(--muted)", fontSize: "clamp(12px, 1.5vw, 14px)", marginBottom: 20 }}>Partagez ce lien avec le pasteur responsable.</p>
             
             <div style={{ background: "rgba(0,0,0,0.4)", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
@@ -515,7 +515,7 @@ function AdminContent() {
         <div className="modal-overlay" onClick={() => setIsAdding(false)}>
           <div className="custom-modal fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Déployer une Église</h3>
+              <h3 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", fontWeight: 700, margin: 0, color: "var(--gold-light)" }}>Déployer une Église</h3>
               <button onClick={() => setIsAdding(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={20} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -582,7 +582,7 @@ function AdminContent() {
         <div className="modal-overlay" onClick={() => { setIsEditing(false); setEditingChurch(null); }}>
           <div className="custom-modal fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--gold-light)" }}>Modifier l'Église</h3>
+              <h3 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", fontWeight: 700, margin: 0, color: "var(--gold-light)" }}>Modifier l'Église</h3>
               <button onClick={() => { setIsEditing(false); setEditingChurch(null); }} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={20} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>

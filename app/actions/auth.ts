@@ -242,16 +242,26 @@ export async function listIntegrationTeam(churchId: string) {
   }
 
   const userIds = [...new Set((contexts || []).map((c: any) => c.user_id).filter(Boolean))];
-  let profiles: any[] = [];
-  if (userIds.length) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, email, display_name, created_at")
-      .in("id", userIds);
-    profiles = data || [];
-  }
+  const userEmails = new Set((contexts || []).map((c: any) => c.email?.toLowerCase().trim()).filter(Boolean));
 
-  const profileMap = new Map(profiles.map((p: any) => [p.id, p]));
+  // Query inactive contexts to never show deactivated members
+  const { data: inactiveContexts } = await supabase
+    .from("user_contexts")
+    .select("user_id, email")
+    .eq("church_id", churchId)
+    .eq("context_type", "integration")
+    .eq("active", false);
+
+  const inactiveUserIds = new Set((inactiveContexts || []).map(c => c.user_id).filter(Boolean));
+  const inactiveEmails = new Set((inactiveContexts || []).map(c => c.email?.toLowerCase().trim()).filter(Boolean));
+
+  const { data: allProfiles } = await supabase
+    .from("profiles")
+    .select("id, email, display_name, created_at, role")
+    .eq("church_id", churchId)
+    .eq("active", true);
+
+  const profileMap = new Map((allProfiles || []).map((p: any) => [p.id, p]));
 
   const { data: invites } = await supabase
     .from("invites")
@@ -326,6 +336,30 @@ export async function listIntegrationTeam(churchId: string) {
     };
   });
 
+  // Include legacy integration accounts from profiles that are not in user_contexts
+  for (const prof of allProfiles || []) {
+    if (userIds.includes(prof.id)) continue;
+    const email = prof.email?.toLowerCase().trim();
+    if (email && userEmails.has(email)) continue;
+    if (inactiveUserIds.has(prof.id) || (email && inactiveEmails.has(email))) continue;
+    const role = (prof.role || "").toLowerCase();
+    if (role.startsWith("integration_") || role === "conseiller") {
+      regularTeam.push({
+        id: prof.id,
+        contextId: prof.id,
+        email: prof.email || "",
+        name: prof.display_name || prof.email || "Conseiller",
+        role: role === "integration_responsable" ? "Responsable" : role === "integration_second" ? "Second" : "Conseiller",
+        roleKey: role === "conseiller" ? "integration_conseiller" : role,
+        canDispatchAll: false,
+        status: "active",
+        workload: workloadMap[prof.id] || 0,
+        createdAt: prof.created_at,
+        isObservation: false
+      });
+    }
+  }
+
   const observationTeam = obsMembers.map((obs: any) => ({
     id: obs.id,
     contextId: obs.id,
@@ -372,6 +406,17 @@ export async function listIntegrationPresenceMembers(churchId: string) {
     });
   }
 
+  // Get inactive integration contexts to avoid pulling revoked accounts via profiles
+  const { data: inactiveContexts } = await supabase
+    .from("user_contexts")
+    .select("user_id, email")
+    .eq("church_id", churchId)
+    .eq("context_type", "integration")
+    .eq("active", false);
+
+  const inactiveUserIds = new Set((inactiveContexts || []).map(c => c.user_id).filter(Boolean));
+  const inactiveEmails = new Set((inactiveContexts || []).map(c => c.email?.toLowerCase().trim()).filter(Boolean));
+
   // Include legacy integration accounts that predate user_contexts.
   const { data: profiles } = await supabase
     .from("profiles")
@@ -381,6 +426,9 @@ export async function listIntegrationPresenceMembers(churchId: string) {
 
   for (const profile of profiles || []) {
     if (!profile.id || memberMap.has(profile.id) || !profile.role?.toLowerCase().startsWith("integration_")) continue;
+    const email = profile.email?.toLowerCase().trim();
+    if (inactiveUserIds.has(profile.id) || (email && inactiveEmails.has(email))) continue;
+
     memberMap.set(profile.id, {
       id: profile.id,
       name: profile.display_name?.trim() || profile.email?.split("@")[0] || "Membre de l’équipe",
@@ -564,31 +612,94 @@ export async function deactivateIntegrationTeamMember(params: { churchId: string
     // Ignore error
   }
 
+  // 3. Find target in user_contexts or legacy profile
   const { data: targets, error: targetsError } = await supabase.from("user_contexts")
-    .select("id, role, email").eq("user_id", params.userId).eq("church_id", params.churchId).eq("context_type", "integration");
-  if (targetsError || !targets?.length) return { success: false, error: "Membre introuvable." };
-  if (params.contextId && !targets.some(t => t.id === params.contextId)) return { success: false, error: "Accès introuvable dans cette église." };
-  if (targets.some(t => t.role === "integration_responsable" || t.email.toLowerCase().trim() === SUPER_ADMIN_EMAIL)
-    && permission.user?.email?.toLowerCase().trim() !== SUPER_ADMIN_EMAIL) {
+    .select("id, role, email, user_id").eq("user_id", params.userId).eq("church_id", params.churchId).eq("context_type", "integration");
+
+  const { data: targetProfile } = await supabase.from("profiles")
+    .select("id, role, email, church_id, display_name")
+    .eq("id", params.userId)
+    .eq("church_id", params.churchId)
+    .maybeSingle();
+
+  if ((!targets || targets.length === 0) && !targetProfile) {
+    return { success: false, error: "Membre introuvable." };
+  }
+
+  if (params.contextId && targets?.length && !targets.some(t => t.id === params.contextId) && targetProfile?.id !== params.contextId) {
+    return { success: false, error: "Accès introuvable dans cette église." };
+  }
+
+  const isResponsable = (targets || []).some(t => t.role === "integration_responsable") || targetProfile?.role === "integration_responsable";
+  const targetEmail = (targets?.[0]?.email || targetProfile?.email || "").toLowerCase().trim();
+  const isSuperAdminEmail = targetEmail === SUPER_ADMIN_EMAIL;
+
+  if ((isResponsable || isSuperAdminEmail) && permission.user?.email?.toLowerCase().trim() !== SUPER_ADMIN_EMAIL) {
     return { success: false, error: "Seul l'administrateur central peut désactiver ce responsable." };
   }
-  let query = supabase
+
+  // 4. Delete integration context from user_contexts
+  let delQuery = supabase
     .from("user_contexts")
-    .update({ active: false })
+    .delete()
     .eq("user_id", params.userId)
     .eq("church_id", params.churchId)
     .eq("context_type", "integration");
 
-  if (params.contextId) query = query.eq("id", params.contextId);
+  if (params.contextId && targets?.some(t => t.id === params.contextId)) {
+    delQuery = delQuery.eq("id", params.contextId);
+  }
 
-  const { error } = await query;
-  if (error) return { success: false, error: error.message };
+  const { error: contextDelError } = await delQuery;
+  if (contextDelError) return { success: false, error: contextDelError.message };
 
+  // 5. Unassign ONLY integration invites (preserve all family invites where bergerie_id is not null)
   await supabase
     .from("invites")
     .update({ assigned_to: null })
     .eq("church_id", params.churchId)
-    .eq("assigned_to", params.userId);
+    .eq("assigned_to", params.userId)
+    .is("bergerie_id", null);
+
+  // 6. Clean up pending_counselors for this user
+  if (targetEmail) {
+    await supabase
+      .from("pending_counselors")
+      .delete()
+      .eq("church_id", params.churchId)
+      .eq("email", targetEmail);
+  }
+
+  // 7. Strictly preserve discipleship family roles and members:
+  // Check if this user has any other active context (e.g. family leader: berger, second du berger, responsable de brebi)
+  const { data: otherContexts } = await supabase
+    .from("user_contexts")
+    .select("role, context_type, active, bergerie_id")
+    .eq("user_id", params.userId)
+    .eq("active", true);
+
+  const familyContext = otherContexts?.find(c => c.context_type === "family");
+
+  if (familyContext) {
+    // If user is a leader in a discipleship family, restore their profile role to that family role
+    await supabase
+      .from("profiles")
+      .update({
+        role: familyContext.role,
+        bergerie_id: familyContext.bergerie_id || null,
+        active: true
+      })
+      .eq("id", params.userId);
+  } else {
+    // If user has no other leadership/staff context, mark profile inactive
+    // Discipleship family membership lives in the members table and is 100% preserved
+    await supabase
+      .from("profiles")
+      .update({
+        active: false
+      })
+      .eq("id", params.userId);
+  }
 
   return { success: true };
 }
@@ -846,19 +957,23 @@ export async function getIntegrationDropdownList(churchId: string) {
     }
 
     const list: any[] = [];
+    const addedIds = new Set<string>();
+    const addedEmails = new Set<string>();
 
     // 2. Add department head from church
     if (church.integration_first_name) {
       const headName = `${church.integration_first_name} ${church.integration_last_name || ""}`.trim();
+      const headEmail = church.integration_email ? church.integration_email.toLowerCase().trim() : "";
       list.push({
         id: "church_head",
-        email: church.integration_email ? church.integration_email.toLowerCase().trim() : "",
+        email: headEmail,
         name: headName,
         displayName: headName,
         role: "integration_responsable",
         isHead: true,
         code: church.integration_access_code
       });
+      if (headEmail) addedEmails.add(headEmail);
     }
 
     // 3. Fetch active integration contexts
@@ -887,20 +1002,35 @@ export async function getIntegrationDropdownList(churchId: string) {
         const email = (c.email || prof?.email)?.toLowerCase().trim() || "";
         const profileName = prof?.display_name || (prof?.first_name ? `${prof.first_name} ${prof.last_name || ""}`.trim() : "");
         const name = (c.display_name || profileName || email).trim();
+        const id = c.id || c.user_id;
         if (name || email) {
           list.push({
-            id: c.id || c.user_id,
+            id,
             email,
             name: name || email,
             displayName: name || email,
             role: c.role === "conseiller" ? "integration_conseiller" : c.role,
             isContext: true
           });
+          if (c.user_id) addedIds.add(c.user_id);
+          if (c.id) addedIds.add(c.id);
+          if (email) addedEmails.add(email);
         }
       });
     }
 
-    // 4. Fetch active integration profiles
+    // Query inactive integration contexts to ensure revoked members are never pulled via profiles
+    const { data: inactiveContexts } = await supabase
+      .from("user_contexts")
+      .select("user_id, email")
+      .eq("church_id", churchId)
+      .eq("context_type", "integration")
+      .eq("active", false);
+
+    const inactiveUserIds = new Set((inactiveContexts || []).map(c => c.user_id).filter(Boolean));
+    const inactiveEmails = new Set((inactiveContexts || []).map(c => c.email?.toLowerCase().trim()).filter(Boolean));
+
+    // 4. Fetch active integration profiles (legacy accounts not in user_contexts)
     const { data: profiles, error: profilesErr } = await supabase
       .from("profiles")
       .select("id, email, display_name, first_name, last_name, role")
@@ -910,8 +1040,11 @@ export async function getIntegrationDropdownList(churchId: string) {
     if (!profilesErr && profiles) {
       profiles.forEach((p: any) => {
         const role = (p.role || "").toLowerCase();
+        const email = p.email?.toLowerCase().trim() || "";
+        if (addedIds.has(p.id) || (email && addedEmails.has(email))) return;
+        if (inactiveUserIds.has(p.id) || (email && inactiveEmails.has(email))) return;
+
         if (role.startsWith("integration_") || role === "conseiller") {
-          const email = p.email?.toLowerCase().trim() || "";
           const name = (p.display_name || (p.first_name ? `${p.first_name} ${p.last_name || ""}`.trim() : "") || email).trim();
           if (name || email) {
             list.push({
@@ -922,6 +1055,8 @@ export async function getIntegrationDropdownList(churchId: string) {
               role: role === "conseiller" ? "integration_conseiller" : p.role,
               isProfile: true
             });
+            addedIds.add(p.id);
+            if (email) addedEmails.add(email);
           }
         }
       });
@@ -1296,6 +1431,157 @@ export async function getFamilyLeadersList(familyId: string) {
   } catch (err: any) {
     return { success: false, error: err.message };
   }
+}
+
+export async function authenticateFamilyLeader(params: {
+  email: string;
+  accessCode: string;
+  familyId?: string;
+}) {
+  if (!params || typeof params.email !== "string" || typeof params.accessCode !== "string" || !params.email.trim() || !params.accessCode.trim()) {
+    return { success: false, error: "Informations d'identification invalides." };
+  }
+
+  const cleanEmail = params.email.toLowerCase().trim();
+  const cleanCode = params.accessCode.trim();
+  const supabase = await getServiceSupabase();
+
+  let targetFamily: any = null;
+  let targetMember: any = null;
+
+  if (params.familyId) {
+    if (!isUuid(params.familyId)) {
+      return { success: false, error: "Identifiant de famille invalide." };
+    }
+    const { data: family, error: famErr } = await supabase
+      .from("bergeries")
+      .select("*, churches(*)")
+      .eq("id", params.familyId)
+      .maybeSingle();
+
+    if (famErr || !family || family.archived || family.status !== "active") {
+      return { success: false, error: "Famille introuvable ou inactive." };
+    }
+
+    if (family.access_code?.trim() !== cleanCode) {
+      return { success: false, error: "Code d'accès de la famille invalide." };
+    }
+
+    targetFamily = family;
+
+    const { data: member } = await supabase
+      .from("members")
+      .select("*")
+      .eq("email", cleanEmail)
+      .eq("bergerie_id", params.familyId)
+      .eq("archived", false)
+      .maybeSingle();
+
+    targetMember = member;
+  } else {
+    // FamilyId not provided (e.g. from /login)
+    const { data: members } = await supabase
+      .from("members")
+      .select("*, bergeries(*, churches(*))")
+      .eq("email", cleanEmail)
+      .eq("archived", false);
+
+    const matchingMember = (members || []).find((m: any) =>
+      m.bergeries &&
+      !m.bergeries.archived &&
+      m.bergeries.status === "active" &&
+      m.bergeries.access_code?.trim() === cleanCode
+    );
+
+    if (matchingMember) {
+      targetMember = matchingMember;
+      targetFamily = matchingMember.bergeries;
+    } else {
+      const { data: creatorFamilies } = await supabase
+        .from("bergeries")
+        .select("*, churches(*)")
+        .eq("creator_email", cleanEmail)
+        .eq("access_code", cleanCode)
+        .eq("archived", false)
+        .eq("status", "active");
+
+      if (creatorFamilies && creatorFamilies.length > 0) {
+        targetFamily = creatorFamilies[0];
+      }
+    }
+  }
+
+  if (!targetFamily) {
+    return { success: false, error: "Aucune famille active ne correspond à ces identifiants." };
+  }
+
+  const isBergerCreator = targetFamily.creator_email?.toLowerCase().trim() === cleanEmail;
+  const isMemberLeader = targetMember && isFamilyLeader(targetMember.status);
+
+  if (!isBergerCreator && !isMemberLeader) {
+    return { success: false, error: "Vous n'êtes pas enregistré comme responsable dans cette famille." };
+  }
+
+  const resolvedRole = normalizeFamilyRole(targetMember?.status || targetFamily.creator_role || "Berger");
+  const displayName = targetMember
+    ? `${targetMember.first_name} ${targetMember.last_name}`.trim()
+    : `${targetFamily.creator_first_name || ""} ${targetFamily.creator_last_name || ""}`.trim();
+
+  // Ensure Auth User exists and sync password to cleanCode
+  const existingUser = await findAuthUserByEmail(supabase, cleanEmail);
+  let targetUserId = existingUser?.id;
+
+  if (existingUser) {
+    const { error: updateErr } = await supabase.auth.admin.updateUserById(existingUser.id, {
+      password: cleanCode
+    });
+    if (updateErr) {
+      console.error("Error updating user password for family access:", updateErr);
+    }
+  } else {
+    const { data: newAuth, error: createErr } = await supabase.auth.admin.createUser({
+      email: cleanEmail,
+      password: cleanCode,
+      email_confirm: true
+    });
+    if (createErr) {
+      return { success: false, error: `Création du compte impossible: ${createErr.message}` };
+    }
+    targetUserId = newAuth.user.id;
+  }
+
+  if (!targetUserId) {
+    return { success: false, error: "Impossible de résoudre le compte utilisateur." };
+  }
+
+  const resolvedAccess = {
+    role: resolvedRole,
+    churchId: targetFamily.church_id,
+    bergerieId: targetFamily.id,
+    displayName,
+    churchData: targetFamily.churches || null,
+    familyData: targetFamily
+  };
+
+  // Upsert user_contexts for this family
+  const { data: context, error: contextErr } = await upsertUserContext(supabase, targetUserId, cleanEmail, resolvedAccess);
+  if (contextErr) {
+    console.error("Context creation error:", contextErr);
+  }
+
+  // Create or preserve profile
+  await createOrPreserveProfile(supabase, targetUserId, cleanEmail, resolvedAccess);
+
+  return {
+    success: true,
+    user: { id: targetUserId },
+    role: resolvedRole,
+    displayName,
+    churchId: targetFamily.church_id,
+    bergerieId: targetFamily.id,
+    family: targetFamily,
+    context
+  };
 }
 
 export async function createFamilyUserContext(params: {

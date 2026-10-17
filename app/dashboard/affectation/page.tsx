@@ -1844,7 +1844,8 @@ const selectedCounselorObj = useMemo(() => {
             <span className="invite-view-icon"><UserPlus size={18} /></span>
             <span className="invite-view-copy">
               <span className="invite-view-title">
-                À affecter {unassignedGuests.length > 0 && <span className="invite-view-count-badge warning">{unassignedGuests.length}</span>}
+                <span className="invite-view-label">À affecter</span>
+                {unassignedGuests.length > 0 && <span className="invite-view-count-badge warning">{unassignedGuests.length}</span>}
               </span>
               <span className="invite-view-subtitle">Non encore attribués</span>
             </span>
@@ -1861,7 +1862,8 @@ const selectedCounselorObj = useMemo(() => {
           <span className="invite-view-icon"><UserCheck size={18} /></span>
           <span className="invite-view-copy">
             <span className="invite-view-title">
-              À contacter {myPendingGuests.length > 0 && <span className="invite-view-count-badge danger">{myPendingGuests.length}</span>}
+              <span className="invite-view-label">À contacter</span>
+              {myPendingGuests.length > 0 && <span className="invite-view-count-badge danger">{myPendingGuests.length}</span>}
             </span>
             <span className="invite-view-subtitle">En attente de 1er contact</span>
           </span>
@@ -1882,7 +1884,8 @@ const selectedCounselorObj = useMemo(() => {
           <span className="invite-view-icon"><ListChecks size={18} /></span>
           <span className="invite-view-copy">
             <span className="invite-view-title">
-              Mes âmes {mySoulsCount > 0 && <span className="invite-view-count-badge gold">{mySoulsCount}</span>}
+              <span className="invite-view-label">Mes âmes</span>
+              {mySoulsCount > 0 && <span className="invite-view-count-badge gold">{mySoulsCount}</span>}
             </span>
             <span className="invite-view-subtitle">Mon suivi spirituel actif</span>
           </span>
@@ -1904,7 +1907,8 @@ const selectedCounselorObj = useMemo(() => {
             <span className="invite-view-icon"><Users size={18} /></span>
             <span className="invite-view-copy">
               <span className="invite-view-title">
-                Suivi de l’équipe {allSoulsCount > 0 && <span className="invite-view-count-badge gold">{allSoulsCount}</span>}
+                <span className="invite-view-label">Suivi de l’équipe</span>
+                {allSoulsCount > 0 && <span className="invite-view-count-badge gold">{allSoulsCount}</span>}
               </span>
               <span className="invite-view-subtitle">Vue globale de l&apos;équipe</span>
             </span>
@@ -1921,7 +1925,8 @@ const selectedCounselorObj = useMemo(() => {
           <span className="invite-view-icon"><Clock size={18} /></span>
           <span className="invite-view-copy">
             <span className="invite-view-title">
-              Sans suite {retiredGuests.length > 0 && <span className="invite-view-count-badge neutral">{retiredGuests.length}</span>}
+              <span className="invite-view-label">Sans suite</span>
+              {retiredGuests.length > 0 && <span className="invite-view-count-badge neutral">{retiredGuests.length}</span>}
             </span>
             <span className="invite-view-subtitle">Dossiers clôturés</span>
           </span>
@@ -1936,7 +1941,9 @@ const selectedCounselorObj = useMemo(() => {
         >
           <span className="invite-view-icon"><BarChart3 size={18} /></span>
           <span className="invite-view-copy">
-            <span className="invite-view-title">Statistiques</span>
+            <span className="invite-view-title">
+              <span className="invite-view-label">Statistiques</span>
+            </span>
             <span className="invite-view-subtitle">Suivi et progression</span>
           </span>
         </button>

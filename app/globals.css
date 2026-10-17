@@ -10,13 +10,14 @@
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'Cormorant Garamond', Georgia, serif;
 
-  /* ─── Obsidian Amethyst & Velvet Midnight (Deep liturgic base) ─── */
-  --bg: #040209;
-  --bg-deep: #020104;
-  --surface: rgba(10, 6, 22, 0.82);
-  --surface-solid: #0B0718;
-  --card: rgba(18, 12, 38, 0.45);
-  --card-hover: rgba(28, 19, 58, 0.6);
+  /* ─── Quiet Luxury Slate-Navy Base (Benchmark aligned) ─── */
+  --bg: #10131b;
+  --bg-deep: #0c0f16;
+  --surface: #191f2b;
+  --surface-solid: #191f2b;
+  --surface-soft: #252b36;
+  --card: #191f2b;
+  --card-hover: #202735;
   --card-border: rgba(212, 160, 60, 0.16);
   --border: rgba(212, 160, 60, 0.18);
   --border-light: rgba(155, 126, 216, 0.16);
@@ -315,12 +316,12 @@ body {
   overscroll-behavior: none !important;
 }
 
-/* Cormorant Garamond - Prestigieuse Typographie d'Église */
+/* Typographie moderne et nette — Sans ombres baveuses */
 h1,h2,h3,h4,h5,h6 {
-  font-family: var(--font-display), 'Cormorant Garamond', Georgia, serif;
-  letter-spacing: 0.02em;
-  font-weight: 700;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  font-family: var(--font-body), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  text-shadow: none !important;
 }
 
 /* ─── Scrollbar ─── */
@@ -1030,15 +1031,15 @@ select.input option { background: var(--bg-deep); color: var(--cream); }
   filter: blur(40px);
 }
 .profile-title {
-  font-family: var(--font-display), 'Cormorant Garamond', serif;
-  font-size: 28px;
-  font-weight: 800;
+  font-family: var(--font-body), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 24px;
+  font-weight: 650;
   display: flex;
   align-items: center;
   gap: 12px;
-  background: linear-gradient(135deg, #FFF 0%, var(--gold-light) 50%, var(--gold) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--cream);
+  text-shadow: none !important;
+  letter-spacing: -0.015em;
   margin: 0;
 }
 .profile-title-icon {
@@ -4108,12 +4109,13 @@ h3 {
 .page-title,
 .profile-title,
 body h1 {
-  color: #171412 !important;
+  color: var(--cream) !important;
   background: none !important;
   -webkit-text-fill-color: currentColor !important;
   filter: none !important;
-  font-weight: 900 !important;
-  line-height: 0.98 !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+  text-shadow: none !important;
 }
 
 .section-title,
@@ -4182,7 +4184,6 @@ body h1 {
 
 .btn-primary,
 .pill-active,
-.invite-view-option.active,
 .activity-view-option.active,
 .evang-mode-option.active,
 .evang-scope-option.active {
@@ -4195,7 +4196,6 @@ body h1 {
 .btn-primary svg,
 .nav-item.active svg,
 .bottom-nav .tab.active svg,
-.invite-view-option.active svg,
 .activity-view-option.active svg,
 .evang-mode-option.active svg {
   color: currentColor !important;
@@ -4228,7 +4228,6 @@ body h1 {
 
 .evang-modal-icon-action.confirm,
 .evang-modal-icon,
-.invite-view-option.active .invite-view-icon,
 .activity-view-option.active .activity-view-icon,
 .evang-mode-option.active .evang-mode-step,
 .profile-avatar-camera {
@@ -4799,8 +4798,6 @@ body .modal-overlay .arch-card .btn-subtle {
 .nav-item.active *,
 .bottom-nav .tab.active,
 .bottom-nav .tab.active *,
-.invite-view-option.active,
-.invite-view-option.active *,
 .activity-view-option.active,
 .activity-view-option.active *,
 .evang-mode-option.active,
@@ -4825,7 +4822,6 @@ body .modal-overlay .arch-card .btn-subtle {
 .pill-active [style*="color:"],
 .nav-item.active [style*="color:"],
 .bottom-nav .tab.active [style*="color:"],
-.invite-view-option.active [style*="color:"],
 .activity-view-option.active [style*="color:"],
 .evang-mode-option.active [style*="color:"],
 .evang-scope-option.active [style*="color:"] {
@@ -4836,7 +4832,6 @@ body .modal-overlay .arch-card .btn-subtle {
 .btn-ghost,
 .btn-subtle,
 .pill-inactive,
-.invite-view-option:not(.active),
 .activity-view-option:not(.active),
 .evang-mode-option:not(.active),
 .evang-scope-option:not(.active) {
@@ -5608,28 +5603,47 @@ body .modal-overlay .arch-card .btn-subtle {
 }
 
 /* ==========================================================================
-   Theme switcher + transition animation (Circular wave reveal + smooth blend).
+   Theme switcher: Silky-smooth 60fps fade transition without jank or color ghosting
    ========================================================================== */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
+::view-transition-group(root) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-old(root) {
+  animation: 200ms cubic-bezier(0.16, 1, 0.3, 1) both poimen-theme-fade-out;
   mix-blend-mode: normal;
 }
-::view-transition-old(root) {
-  z-index: 1;
-}
+
 ::view-transition-new(root) {
-  z-index: 999999;
+  animation: 220ms cubic-bezier(0.16, 1, 0.3, 1) both poimen-theme-fade-in;
+  mix-blend-mode: normal;
+}
+
+@keyframes poimen-theme-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes poimen-theme-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 html.theme-transitioning,
-html.theme-transitioning *,
-html.theme-transitioning *::before,
-html.theme-transitioning *::after {
-  transition: background-color 0.35s cubic-bezier(0.2, 0, 0, 1),
-              border-color 0.35s cubic-bezier(0.2, 0, 0, 1),
-              color 0.25s ease,
-              box-shadow 0.35s ease !important;
+html.theme-transitioning body,
+html.theme-transitioning .app-shell,
+html.theme-transitioning .main-area,
+html.theme-transitioning .page-content,
+html.theme-transitioning header,
+html.theme-transitioning nav,
+html.theme-transitioning aside,
+html.theme-transitioning :is(.glass, .glass-card, .stat-card, .profile-card, .member-card-item, .card),
+html.theme-transitioning .theme-toggle {
+  transition: background-color 0.22s ease-out,
+              border-color 0.22s ease-out,
+              color 0.18s ease-out,
+              box-shadow 0.22s ease-out !important;
   transition-delay: 0s !important;
 }
 
@@ -5711,25 +5725,26 @@ html.theme-transitioning *::after {
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #111722;
-  --bg-deep: #0c121c;
-  --surface: #192230ed;
-  --surface-solid: #192230;
-  --card: #192230;
-  --card-hover: #202c3d;
-  --card-border: #334154;
-  --border: #334154;
-  --border-light: #293548;
-  --gold: #e7c77e;
-  --gold-light: #f2dca6;
-  --gold-glow: #e7c77e14;
-  --gold-glow-strong: #e7c77e26;
+  --bg: #10131b;
+  --bg-deep: #0b0e15;
+  --surface: #191f2b;
+  --surface-solid: #191f2b;
+  --surface-soft: #252b36;
+  --card: #191f2b;
+  --card-hover: #202737;
+  --card-border: #3f485a;
+  --border: #3f485a;
+  --border-light: #2c3547;
+  --gold: #e7c876;
+  --gold-light: #f1dfb2;
+  --gold-glow: #e7c87618;
+  --gold-glow-strong: #e7c8762e;
   --green: #71d5ac;
   --green-glow: #71d5ac1a;
   --orange: #edbc75;
   --orange-glow: #edbc751a;
-  --red: #ff96a0;
-  --red-glow: #ff96a01a;
+  --red: #ffa9b4;
+  --red-glow: #ffa9b41a;
   --sky: #8cc8fa;
   --sky-glow: #8cc8fa1a;
   --violet: #c4adff;
@@ -5737,23 +5752,23 @@ html[data-theme="dark"] {
   --pink: #ff96c8;
   --pink-glow: #ff96c81a;
   --purple-light: #c4adff;
-  --cream: #eef2f8;
-  --cream-dim: #bec9da;
-  --muted: #a0afc4;
-  --ink: #eef2f8;
-  --ink-soft: #bec9da;
-  --paper: #192230;
-  --paper-soft: #192230ed;
-  --on-dark: #111722;
-  --on-light: #eef2f8;
-  --on-light-muted: #bec9da;
-  --action-bg: #e7c77e;
-  --action-ink: #202938;
+  --cream: #f1f2f5;
+  --cream-dim: #c5cedb;
+  --muted: #b3bdcc;
+  --ink: #f1f2f5;
+  --ink-soft: #c5cedb;
+  --paper: #191f2b;
+  --paper-soft: #191f2b;
+  --on-dark: #10131b;
+  --on-light: #f1f2f5;
+  --on-light-muted: #c5cedb;
+  --action-bg: #e7c876;
+  --action-ink: #252b26;
 }
 
 html[data-theme="dark"] body {
-  background: #111722 !important;
-  color: #eef2f8 !important;
+  background: radial-gradient(ellipse at 10% 0%, #79632916, transparent 45%), #10131b !important;
+  color: #f1f2f5 !important;
 }
 
 body[data-theme="dark"],
@@ -5802,6 +5817,19 @@ html[data-theme="dark"] .bottom-nav {
 
 html[data-theme="dark"] .sidebar {
   background: linear-gradient(180deg, rgba(8, 12, 13, 0.96), rgba(3, 6, 7, 0.98)) !important;
+}
+
+html[data-theme="light"] .top-header,
+html[data-theme="light"] .sidebar,
+html[data-theme="light"] .bottom-nav {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: var(--border) !important;
+  color: var(--cream) !important;
+  box-shadow: 0 4px 20px rgba(36, 49, 66, 0.06) !important;
+}
+
+html[data-theme="light"] .sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #f6f7fa 100%) !important;
 }
 
 html[data-theme="dark"] .top-header h1,
@@ -5921,7 +5949,6 @@ html[data-theme="dark"] .evang-scope-option {
 
 html[data-theme="dark"] .btn-primary,
 html[data-theme="dark"] .pill-active,
-html[data-theme="dark"] .invite-view-option.active,
 html[data-theme="dark"] .activity-view-option.active,
 html[data-theme="dark"] .evang-mode-option.active,
 html[data-theme="dark"] .evang-scope-option.active {
@@ -5932,7 +5959,6 @@ html[data-theme="dark"] .evang-scope-option.active {
 
 html[data-theme="dark"] .btn-primary *,
 html[data-theme="dark"] .pill-active *,
-html[data-theme="dark"] .invite-view-option.active *,
 html[data-theme="dark"] .activity-view-option.active *,
 html[data-theme="dark"] .evang-mode-option.active *,
 html[data-theme="dark"] .evang-scope-option.active * {
@@ -8399,7 +8425,7 @@ body[data-theme="dark"] #positionnement-integration-print-container [data-docume
 }
 
 .filter-chip-select option {
-  background: #0B0718 !important;
+  background: var(--surface-solid) !important;
   color: #fff !important;
 }
 
@@ -8506,7 +8532,7 @@ body:not(.dark) .filter-chip-select option {
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--gold-light);
-  background: var(--surface-solid, #0B0718);
+  background: var(--surface-solid);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
   position: sticky;
@@ -8534,7 +8560,7 @@ body:not(.dark) .filter-chip-select option {
   width: 90px !important;
   min-width: 90px !important;
   max-width: 90px !important;
-  background: var(--surface-solid, #0B0718) !important;
+  background: var(--surface-solid) !important;
   z-index: 3 !important;
 }
 
@@ -8544,7 +8570,7 @@ body:not(.dark) .filter-chip-select option {
   width: 110px !important;
   min-width: 110px !important;
   max-width: 110px !important;
-  background: var(--surface-solid, #0B0718) !important;
+  background: var(--surface-solid) !important;
   z-index: 3 !important;
   font-weight: 700 !important;
   color: var(--cream) !important;
@@ -8558,7 +8584,7 @@ body:not(.dark) .filter-chip-select option {
   width: 110px !important;
   min-width: 110px !important;
   max-width: 110px !important;
-  background: var(--surface-solid, #0B0718) !important;
+  background: var(--surface-solid) !important;
   z-index: 3 !important;
   font-weight: 600 !important;
   border-right: 2px solid rgba(212, 175, 55, 0.3) !important;

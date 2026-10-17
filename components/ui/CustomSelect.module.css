@@ -117,7 +117,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(212, 175, 55, 0.15);
-  z-index: 9999;
+  z-index: 100000;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -142,7 +142,7 @@
     max-height: 75vh;
     border-radius: 20px 20px 0 0;
     border-bottom: none;
-    z-index: 9999;
+    z-index: 100000;
     animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 

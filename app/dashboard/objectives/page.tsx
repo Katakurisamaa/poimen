@@ -32,7 +32,7 @@ export default function ObjectivesPage() {
                   <div style={{ fontSize:14, fontWeight:700, color:"var(--cream)", marginBottom:4 }}>{o.title}</div>
                   <span className="badge" style={{ background:`color-mix(in srgb, ${cc.color} 15%, transparent)`, color:cc.color }}>{cc.label}</span>
                 </div>
-                <div style={{ fontFamily:"var(--font-display)", fontSize:28, fontWeight:800, color:cc.color }}>{pct}%</div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: cc.color }}>{pct}%</div>
               </div>
               <div className="progress progress-thick" style={{ marginBottom:8 }}><div className="progress-fill" style={{ width:`${pct}%`, background:cc.color }} /></div>
               <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"var(--muted)" }}>

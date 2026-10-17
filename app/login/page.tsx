@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Eye, EyeOff, LogIn, MapPin, AlertCircle, ShieldCheck, Users, UserRoundCheck } from "lucide-react";
 import { supabase, getSafeUser } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { adminSignUp } from "@/app/actions/auth";
+import { adminSignUp, authenticateFamilyLeader } from "@/app/actions/auth";
 import { contextLabel, contextToUserInfo, inferContextType, type UserContextRecord } from "@/lib/auth-contexts";
 import Link from "next/link";
 
@@ -311,6 +311,22 @@ export default function LoginPage() {
       // Intercept credentials error to see if they are a first-time integration user
       if (err.message === "Invalid login credentials") {
         try {
+          // Check if this user is a family leader connecting with their family code
+          const famRes = await authenticateFamilyLeader({ email: cleanEmail, accessCode: password });
+          if (famRes.success && famRes.user) {
+            const { error: famSignInErr } = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password,
+            });
+            if (famSignInErr) throw famSignInErr;
+
+            const contexts = famRes.context
+              ? [famRes.context as UserContextRecord]
+              : await loadContexts(famRes.user.id, cleanEmail);
+            await continueWithContexts(contexts);
+            return;
+          }
+
           const res = await adminSignUp(cleanEmail, password);
           if (!res.success) {
             throw new Error(res.error);
@@ -362,8 +378,8 @@ export default function LoginPage() {
           <p style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 3, textTransform: "uppercase", marginTop: 6 }}>Famille de Disciple</p>
         </div>
 
-        <div className="glass" style={{ padding: "32px 28px" }}>
-          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 700, textAlign: "center", marginBottom: 4 }}>Connexion</h2>
+        <div className="glass" style={{ padding: "36px 32px", borderRadius: 24, border: "1px solid var(--border)", background: "var(--surface-solid)", boxShadow: "var(--shadow-soft)" }}>
+          <h2 style={{ fontSize: 22, fontWeight: 550, letterSpacing: "-.03em", textAlign: "center", marginBottom: 4, color: "var(--cream)" }}>Connexion</h2>
           
           {error && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20, padding: "10px 12px", background: "rgba(239,68,68,0.1)", borderRadius: 8, border: "1px solid rgba(239,68,68,0.2)", color: "#f87171", fontSize: 12 }}>

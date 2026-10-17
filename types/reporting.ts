@@ -18,6 +18,7 @@ export interface FddReportingData {
   culte_1: number;
   culte_2: number;
   culte_en_ligne: number;
+  taux_participation_globale?: number; // % Optionnel pour ajuster le taux de participation des membres
 
   // Absences et engagements
   absences_justifiees: number;
@@ -29,7 +30,18 @@ export interface FddReportingData {
 
   // Disciples
   nombre_disciples: number;
+  disciples_culte_1?: number;
+  disciples_culte_2?: number;
+  disciples_culte_en_ligne?: number;
+  disciples_presents_total?: number;
   taux_participation_disciples: number; // %
+
+  // 1/4 H des familles (Agapé) - saisie manuelle
+  quart_heure_tenue?: boolean;
+  quart_heure_presents?: number;
+
+  // Faiseurs de disciples
+  faiseurs_de_disciples?: number;
 
   // Synthèse & Actions
   points_cles: string[];
@@ -47,6 +59,24 @@ export interface CalculatedMetrics {
   totalParticipation: number;
   tauxParticipationGlobale: number; // %
   
+  // Disciples metrics
+  disciplesTotal: number;
+  disciplesCulte1: number;
+  disciplesCulte2: number;
+  disciplesCulteEnLigne: number;
+  disciplesPresents: number;
+  tauxParticipationDisciples: number; // %
+  pctDisciplesCulte1: number;
+  pctDisciplesCulte2: number;
+  pctDisciplesCulteEnLigne: number;
+
+  // Faiseurs de disciples
+  faiseursDeDisciples: number;
+
+  // 1/4h des familles (Agapé)
+  quartHeureTenue: boolean;
+  quartHeurePresents: number;
+
   // % sur le total des membres
   pctTotalCulte1: number;
   pctTotalCulte2: number;
@@ -87,11 +117,53 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
     ? data.absences_non_justifiees
     : Math.max(0, totalAbs - absJust);
 
-  const pct = (val: number, base: number) => base > 0 ? parseFloat(((val / base) * 100).toFixed(2)) : 0;
+  const pct = (val: number, base: number) => base > 0 ? parseFloat(Math.min(100, (val / base) * 100).toFixed(1)) : 0;
+
+  const partGlobale = (data.taux_participation_globale !== undefined && data.taux_participation_globale > 0)
+    ? data.taux_participation_globale
+    : pct(totalPart, total);
+
+  // Disciples metrics
+  const discTotal = Math.max(0, data.nombre_disciples || 0);
+  const discC1 = Math.max(0, data.disciples_culte_1 || 0);
+  const discC2 = Math.max(0, data.disciples_culte_2 || 0);
+  const discLigne = Math.max(0, data.disciples_culte_en_ligne || 0);
+  const discPart = (data.disciples_presents_total !== undefined && data.disciples_presents_total > 0)
+    ? data.disciples_presents_total
+    : (discC1 + discC2 + discLigne > 0
+        ? discC1 + discC2 + discLigne
+        : Math.round((discTotal * (data.taux_participation_disciples || 0)) / 100));
+
+  const discPct = discTotal > 0
+    ? pct(discPart, discTotal)
+    : (data.taux_participation_disciples || 0);
+
+  const faiseurs = data.faiseurs_de_disciples !== undefined
+    ? Math.max(0, data.faiseurs_de_disciples)
+    : 0;
+
+  const quartTenue = data.quart_heure_tenue !== undefined ? Boolean(data.quart_heure_tenue) : false;
+  const quartPresents = Math.max(0, data.quart_heure_presents || 0);
 
   return {
     totalParticipation: totalPart,
-    tauxParticipationGlobale: pct(totalPart, total),
+    tauxParticipationGlobale: partGlobale,
+
+    // Disciples
+    disciplesTotal: discTotal,
+    disciplesCulte1: discC1,
+    disciplesCulte2: discC2,
+    disciplesCulteEnLigne: discLigne,
+    disciplesPresents: discPart,
+    tauxParticipationDisciples: discPct,
+    pctDisciplesCulte1: pct(discC1, discTotal),
+    pctDisciplesCulte2: pct(discC2, discTotal),
+    pctDisciplesCulteEnLigne: pct(discLigne, discTotal),
+
+    // Faiseurs & 1/4h
+    faiseursDeDisciples: faiseurs,
+    quartHeureTenue: quartTenue,
+    quartHeurePresents: quartPresents,
 
     // % sur total membres
     pctTotalCulte1: pct(c1, total),

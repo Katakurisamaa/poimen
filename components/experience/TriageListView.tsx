@@ -192,7 +192,7 @@ export default function TriageListView({
   }
 
   return (
-    <div className={styles.container}>
+    <div className={`${styles.container} ${mode === "all_guests" ? styles.guestDirectory : ""}`}>
       {mode !== "all_guests" && (
         <div className={styles.searchToolbar}>
           <label className={styles.searchField}>
@@ -272,8 +272,9 @@ export default function TriageListView({
                         <AlertTriangle size={12} /> {motifLabel}
                       </span>
                     )}
+                  </div>
                     {mode === "all_guests" && (
-                      <>
+                      <div className={styles.directoryBadges}>
                         {g.famille_disciple && g.famille_disciple !== "AUCUNE" ? (
                           <span className={styles.badgeFamily}>
                             <Home size={12} /> {g.famille_disciple}
@@ -289,8 +290,8 @@ export default function TriageListView({
                             : (g.responsible && g.responsible !== "Non assigné" ? g.responsible : "");
                           const counselorFirstName = counselorName ? counselorName.trim().split(" ")[0] : "";
                           return counselorFirstName ? (
-                            <span className={styles.badgeCounselor}>
-                              <UserCheck size={12} /> {counselorFirstName}
+                            <span className={styles.badgeCounselor} title={`Conseiller : ${counselorName}`}>
+                              <UserCheck size={12} /> <span>Conseiller · {counselorFirstName}</span>
                             </span>
                           ) : (
                             <span className={styles.badgeUnassigned}>
@@ -298,9 +299,8 @@ export default function TriageListView({
                             </span>
                           );
                         })()}
-                      </>
+                      </div>
                     )}
-                  </div>
 
                   <div className={styles.metaRow}>
                     <span className={styles.metaItem}>

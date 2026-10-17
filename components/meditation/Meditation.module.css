@@ -24,7 +24,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: var(--surface-solid, #0B0718);
+  background: var(--surface-solid);
   border: 1px solid var(--border, rgba(212, 160, 60, 0.25));
   border-radius: 16px;
   padding: 16px 20px;
@@ -32,9 +32,9 @@
 }
 
 :global(html:not([data-theme="dark"])) .headerCard {
-  background: #FFFFFF;
-  border-color: #E2E8F0;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  background: var(--surface-solid);
+  border-color: var(--border);
+  box-shadow: var(--shadow-soft);
 }
 
 .brandLeft {
@@ -50,7 +50,7 @@
   border-radius: 50%;
   overflow: hidden;
   border: 2px solid var(--gold, #D4AF37);
-  background: #0B0718;
+  background: var(--surface-solid);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -122,7 +122,7 @@
   align-items: center;
   gap: 8px;
   background: var(--gold, #D4AF37);
-  color: #0B0718;
+  color: var(--action-ink);
   border: 1px solid rgba(212, 175, 55, 0.4);
   border-radius: 10px;
   padding: 9px 16px;
@@ -205,7 +205,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: var(--surface-solid, #0B0718);
+  background: var(--surface-solid);
   border: 1px solid var(--border, rgba(212, 160, 60, 0.18));
   border-radius: 14px;
   padding: 10px 14px;
@@ -301,7 +301,7 @@
 
 .tabBtnActive {
   background: var(--gold, #D4AF37);
-  color: #0B0718 !important;
+  color: var(--action-ink) !important;
   font-weight: 700;
 }
 
@@ -312,7 +312,7 @@
 
 /* ── Content Card ── */
 .panelCard {
-  background: var(--surface-solid, #0B0718);
+  background: var(--surface-solid);
   border: 1px solid var(--border, rgba(212, 160, 60, 0.18));
   border-radius: 16px;
   padding: 20px;
@@ -425,7 +425,7 @@
 
 .btnChooseMember:hover {
   background: var(--gold, #D4AF37);
-  color: #0B0718;
+  color: var(--action-ink);
 }
 
 :global(html:not([data-theme="dark"])) .btnChooseMember {
@@ -469,7 +469,7 @@
 
 .dayChipActive {
   background: var(--gold, #D4AF37) !important;
-  color: #0B0718 !important;
+  color: var(--action-ink) !important;
   font-weight: 700 !important;
   border-color: var(--gold, #D4AF37) !important;
 }
@@ -653,7 +653,7 @@
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  background: var(--surface-solid, #0B0718);
+  background: var(--surface-solid);
   border: 1.5px solid var(--border, rgba(212, 160, 60, 0.35));
   border-radius: 18px;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);

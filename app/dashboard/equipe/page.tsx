@@ -317,13 +317,13 @@ export default function IntegrationTeamPage() {
           .integration-team-table tbody td:last-child { justify-content: flex-end; border-bottom: 0; }
         }
       `}</style>
-      <header style={{ borderBottom: "1px solid rgba(212, 175, 55, 0.12)", paddingBottom: "clamp(12px, 2vw, 20px)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+      <header style={{ borderBottom: "1px solid var(--border)", paddingBottom: "clamp(12px, 2vw, 20px)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--gold-light)", marginBottom: 4 }}>
             <Users size={16} />
             <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700 }}>Intégration & Suivi</span>
           </div>
-          <h2 className="page-title" style={{ margin: 0 }}>Gestion de l'Équipe</h2>
+          <h1 className="page-title" style={{ margin: 0 }}>Gestion de l'Équipe</h1>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setIsAdding(true)}>
           <Plus size={16} /> <span>Ajouter un Conseiller</span>
@@ -337,10 +337,10 @@ export default function IntegrationTeamPage() {
         const pendingCount = team.filter(t => t.status === "pending").length;
         const totalActiveWorkload = team.reduce((acc, t) => acc + (t.workload || 0), 0);
         return (
-          <div className="glass" style={{ border: "1px solid rgba(212, 175, 55, 0.15)", padding: 24 }}>
-            <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 700, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 0.5 }}>Charge de Suivi de l'Équipe</h4>
+          <div style={{ background: "var(--surface-solid)", border: "1px solid var(--border)", borderRadius: 20, padding: 24, boxShadow: "var(--shadow-soft)" }}>
+            <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 700, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1 }}>Charge de Suivi de l'Équipe</h4>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(180px, 100%), 1fr))", gap: "clamp(10px, 2vw, 18px)" }}>
-              <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+              <div style={{ padding: 18, background: "var(--surface-soft)", borderRadius: 14, border: "1px solid var(--border-light)" }}>
                 <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total Conseillers</div>
                 <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--cream)", marginTop: 6 }}>{team.length}</div>
                 <div style={{ fontSize: 10, color: "var(--gold-light)", marginTop: 4 }}>
@@ -349,14 +349,14 @@ export default function IntegrationTeamPage() {
                   {pendingCount > 0 ? ` · ${pendingCount} en attente` : ""}
                 </div>
               </div>
-              <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+              <div style={{ padding: 18, background: "var(--surface-soft)", borderRadius: 14, border: "1px solid var(--border-light)" }}>
                 <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total affectations actives</div>
                 <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--sky)", marginTop: 6 }}>
                   {totalActiveWorkload}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Invités pris en charge</div>
               </div>
-              <div style={{ padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid rgba(212,175,55,0.08)" }}>
+              <div style={{ padding: 18, background: "var(--surface-soft)", borderRadius: 14, border: "1px solid var(--border-light)" }}>
                 <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Charge Moyenne</div>
                 <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color: "var(--purple-light)", marginTop: 6 }}>
                   {regularActive.length > 0 ? (totalActiveWorkload / regularActive.length).toFixed(1) : "0.0"}
@@ -369,9 +369,9 @@ export default function IntegrationTeamPage() {
       })()}
 
       {/* Grid listing */}
-      <div className="glass glass-flush" style={{ border: "1px solid rgba(212, 175, 55, 0.15)" }}>
-        <div style={{ padding: "clamp(12px, 2vw, 18px) clamp(14px, 2.5vw, 24px)", borderBottom: "1px solid rgba(212, 175, 55, 0.15)", background: "var(--surface)" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-light)" }}>Membres de l'Équipe</span>
+      <div style={{ background: "var(--surface-solid)", border: "1px solid var(--border)", borderRadius: 20, overflow: "hidden", boxShadow: "var(--shadow-soft)" }}>
+        <div style={{ padding: "clamp(12px, 2vw, 18px) clamp(14px, 2.5vw, 24px)", borderBottom: "1px solid var(--border)", background: "var(--surface-soft)" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--gold)" }}>Membres de l'Équipe</span>
         </div>
         <div>
           {team.length === 0 ? (
@@ -384,19 +384,19 @@ export default function IntegrationTeamPage() {
             <div className="integration-team-table-wrap" role="region" aria-label="Membres de l’équipe — faites défiler horizontalement pour voir toutes les colonnes" tabIndex={0} style={{ overflowX: "auto" }}>
               <table className="integration-team-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(212,175,55,0.1)", textAlign: "left" }}>
-                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Nom & Prénom</th>
-                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Rôle</th>
-                    <th style={{ padding: "14px 20px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1, textAlign: "center" }}>Délégation d'affectation</th>
-                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Statut</th>
-                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1, textAlign: "center" }}>Charge active</th>
-                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: 1 }}>Enregistré le</th>
+                  <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left", background: "var(--surface-soft)" }}>
+                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--gold)", letterSpacing: 0.6 }}>Nom & Prénom</th>
+                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--gold)", letterSpacing: 0.6 }}>Rôle</th>
+                    <th style={{ padding: "14px 20px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--gold)", letterSpacing: 0.6, textAlign: "center" }}>Délégation d'affectation</th>
+                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--gold)", letterSpacing: 0.6 }}>Statut</th>
+                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--gold)", letterSpacing: 0.6, textAlign: "center" }}>Charge active</th>
+                    <th style={{ padding: "14px 24px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--gold)", letterSpacing: 0.6 }}>Enregistré le</th>
                     <th style={{ padding: "14px 24px", textAlign: "right" }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {team.map((member, i) => (
-                    <tr key={member.id} style={{ borderBottom: i < team.length - 1 ? "1px solid rgba(212,175,55,0.06)" : "none", background: member.isObservation ? "rgba(245,158,11,0.02)" : member.status === "pending" ? "rgba(245,158,11,0.02)" : "transparent" }}>
+                    <tr key={member.id} style={{ borderBottom: i < team.length - 1 ? "1px solid var(--border-light)" : "none", background: member.isObservation ? "rgba(245,158,11,0.02)" : member.status === "pending" ? "rgba(245,158,11,0.02)" : "transparent" }}>
                       <td data-label="Membre" style={{ padding: "16px 24px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <div 

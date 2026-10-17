@@ -117,39 +117,16 @@ export default function ThemeToggle() {
 
     if (doc?.startViewTransition && !prefersReducedMotion) {
       isTransitioning.current = true;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      const endRadius = Math.hypot(
-        Math.max(x, window.innerWidth - x),
-        Math.max(y, window.innerHeight - y)
-      );
+      document.documentElement.classList.add("theme-transitioning");
 
       const transition = doc.startViewTransition(() => {
         updateDomAndState();
       });
 
-      transition.ready
-        .then(() => {
-          document.documentElement.animate(
-            {
-              clipPath: [
-                `circle(0px at ${x}px ${y}px)`,
-                `circle(${endRadius}px at ${x}px ${y}px)`,
-              ],
-            },
-            {
-              duration: 480,
-              easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-              pseudoElement: "::view-transition-new(root)",
-            }
-          );
-        })
-        .catch(() => {});
-
       transition.finished
         .catch(() => {})
         .finally(() => {
+          document.documentElement.classList.remove("theme-transitioning");
           isTransitioning.current = false;
         });
     } else {
@@ -159,7 +136,7 @@ export default function ThemeToggle() {
       setTimeout(() => {
         document.documentElement.classList.remove("theme-transitioning");
         isTransitioning.current = false;
-      }, 400);
+      }, 250);
     }
   };
 

@@ -1,4 +1,4 @@
-.ui { --ux-line: color-mix(in srgb, var(--cream) 13%, var(--bg)); --ux-muted: color-mix(in srgb, var(--cream) 66%, var(--bg)); color: var(--cream); font-family: var(--font-body), sans-serif; font-size: 14px; line-height: 1.5; }
+.ui { --ux-line: var(--border); --ux-muted: var(--muted); color: var(--cream); font-family: var(--font-body), sans-serif; font-size: 14px; line-height: 1.5; }
 .ui *, .ui *::before, .ui *::after { box-sizing: border-box; }
 .ui h2, .ui h3, .ui p { margin: 0; text-shadow: none; }
 .ui h2 { font-family: inherit; font-size: 26px; font-weight: 600 !important; letter-spacing: -.04em !important; line-height: 1.2; }
@@ -51,8 +51,8 @@
 .contextButton strong { display: block; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50vw; }
 .contextIcon { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--ux-line); border-radius: 12px; color: var(--gold); }
 .mobileMenu { display: none; }
-.dialog, .menuDialog, .personPanel { position: fixed; inset: 0; padding: 28px; margin: auto; width: min(460px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 40px); overflow-y: auto; background: var(--surface-solid); border: 1px solid var(--ux-line); border-radius: 22px; box-shadow: 0 30px 100px #0005; }
-.dialog::backdrop, .menuDialog::backdrop, .personPanel::backdrop { background: #07091080; backdrop-filter: blur(5px); }
+.dialog, .menuDialog, .personPanel { position: fixed; inset: 0; padding: 28px; margin: auto; width: min(460px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 40px); overflow-y: auto; background: var(--surface-solid); border: 1px solid var(--ux-line); border-radius: 24px; box-shadow: var(--shadow-dialog); border: 1px solid var(--border); }
+.dialog::backdrop, .menuDialog::backdrop, .personPanel::backdrop { background: var(--overlay); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .dialog > p { color: var(--ux-muted); margin: 16px 0 24px; font-size: 14px; }
 .dialog h2 { font-size: 23px; }
 .dialog .primary { margin-top: 4px; }
@@ -65,10 +65,10 @@
 .notice > svg { color: var(--gold); }
 .notice[role="alert"] { border-color: var(--red); }
 .notice[role="alert"] > svg { color: var(--red); }
-.today { padding: 28px; border: 1px solid var(--ux-line); border-radius: 22px; background: var(--surface-solid); }
+.today { padding: 28px; border: 1px solid var(--border); border-radius: 22px; background: var(--surface-solid); box-shadow: var(--shadow-soft); }
 .todayMark { display: grid; place-items: center; height: 52px; width: 52px; border: 1px solid var(--ux-line); background: var(--bg); color: var(--gold); border-radius: 16px; }
 .priorityGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 14px; }
-.priorityCard { display: flex; flex-direction: column; gap: 7px; min-height: 192px; border: 1px solid var(--ux-line); background: var(--bg); padding: 20px; border-radius: 15px; color: var(--cream); transition: border-color .18s, transform .18s; }
+.priorityCard { display: flex; flex-direction: column; gap: 8px; min-height: 192px; border: 1px solid var(--border); background: var(--surface-solid); padding: 22px; border-radius: 20px; color: var(--cream); box-shadow: var(--shadow-soft); transition: border-color .18s, transform .18s; }
 .priorityCard:hover { border-color: var(--gold); transform: translateY(-2px); }
 .priorityCard > span { display: flex; align-items: center; gap: 9px; color: var(--ux-muted); font-size: 9px; font-weight: 650; letter-spacing: .07em; }
 .priorityCard > strong { margin-top: 8px; font-size: 36px; font-weight: 550; line-height: 1.1; font-variant-numeric: tabular-nums; }

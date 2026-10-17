@@ -399,7 +399,7 @@ export default function ProfilePage() {
     return (
       <div className="p-8 text-center glass rounded-2xl border border-[rgba(212,175,55,0.15)] max-w-lg mx-auto mt-12">
         <AlertCircle className="mx-auto mb-4 text-[var(--red)]" size={48} />
-        <h2 className="text-2xl font-bold text-white mb-2" style={{ fontFamily: "var(--font-display)" }}>Profil introuvable</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">Profil introuvable</h2>
         <p className="text-[var(--muted)]">Nous n'avons pas pu charger vos informations personnelles.</p>
       </div>
     );

@@ -896,84 +896,56 @@ function BergeriePage() {
 
         if (profile) {
           const profileId = profile.id;
-          const role = (profile.role || "").toLowerCase().trim();
-          const churchId = profile.church_id;
           let superiorId = null;
 
-          // 3. Identify the superior ID
-          if (role.startsWith("integration_")) {
-            // Integration role: superior is 'integration_responsable' in the same church
-            const { data: head } = await supabase
+          // 3. Superior is strictly the Berger of this discipleship family
+          const { data: family } = await supabase
+            .from("bergeries")
+            .select("berger_id, church_id")
+            .eq("id", memberToDelete.bergerie_id)
+            .maybeSingle();
+
+          if (family?.berger_id) {
+            superiorId = family.berger_id;
+          } else {
+            // Fallback to any profile with 'berger' role in this family
+            const { data: bProfile } = await supabase
               .from("profiles")
               .select("id")
-              .eq("church_id", churchId)
-              .eq("role", "integration_responsable")
+              .eq("bergerie_id", memberToDelete.bergerie_id)
+              .ilike("role", "%berger%")
               .limit(1)
               .maybeSingle();
-              
-            if (head) {
-              superiorId = head.id;
-            } else {
-              // Fallback to any admin
-              const { data: admin } = await supabase
-                .from("profiles")
-                .select("id")
-                .eq("church_id", churchId)
-                .in("role", ["super_admin", "admin"])
-                .limit(1)
-                .maybeSingle();
-              if (admin) superiorId = admin.id;
-            }
-          } else {
-            // Family role: superior is the Berger of the family
-            const { data: family } = await supabase
-              .from("bergeries")
-              .select("berger_id, church_id")
-              .eq("id", memberToDelete.bergerie_id)
-              .maybeSingle();
 
-            if (family?.berger_id) {
-              superiorId = family.berger_id;
-            } else {
-              // Fallback to any profile with 'berger' role in this family
-              const { data: bProfile } = await supabase
-                .from("profiles")
-                .select("id")
-                .eq("bergerie_id", memberToDelete.bergerie_id)
-                .ilike("role", "%berger%")
-                .limit(1)
-                .maybeSingle();
-
-              if (bProfile) {
-                superiorId = bProfile.id;
-              } else if (family?.church_id) {
-                // Fallback to integration head of the church
-                const { data: head } = await supabase
-                  .from("profiles")
-                  .select("id")
-                  .eq("church_id", family.church_id)
-                  .eq("role", "integration_responsable")
-                  .limit(1)
-                  .maybeSingle();
-                if (head) superiorId = head.id;
-              }
+            if (bProfile) {
+              superiorId = bProfile.id;
             }
           }
 
-          // 4. Perform the reassignments if a superior was found
+          // 4. Perform reassignments ONLY for this discipleship family (0 impact on integration)
           if (superiorId && superiorId !== profileId) {
-            // A. Update invites assignments
+            // A. Update invites assignments strictly for this family (never touch integration invites where bergerie_id is null)
             await supabase
               .from("invites")
               .update({ assigned_to: superiorId })
-              .eq("assigned_to", profileId);
+              .eq("assigned_to", profileId)
+              .eq("bergerie_id", memberToDelete.bergerie_id);
 
-            // B. Update evangelisations created_by
+            // B. Update evangelisations created_by strictly for this family
             await supabase
               .from("evangelisations")
               .update({ created_by: superiorId })
-              .eq("created_by", profileId);
+              .eq("created_by", profileId)
+              .eq("bergerie_id", memberToDelete.bergerie_id);
           }
+
+          // 5. Clean up only family leadership context in this bergerie, leaving integration contexts completely untouched
+          await supabase
+            .from("user_contexts")
+            .delete()
+            .eq("user_id", profileId)
+            .eq("context_type", "family")
+            .eq("bergerie_id", memberToDelete.bergerie_id);
         }
       }
     } catch (err) {

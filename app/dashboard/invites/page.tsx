@@ -24,6 +24,7 @@ import FamilyAssignment from "@/components/experience/FamilyAssignment";
 import IntegrationOverview from "@/components/experience/IntegrationOverview";
 import PeopleListToolbar from "@/components/experience/PeopleListToolbar";
 import styles from "../affectation/Affectation.module.css";
+import viewStyles from "./Invites.module.css";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
 import CustomSelect from "@/components/ui/CustomSelect";
 import CountryPickerModal, { COUNTRIES } from "@/components/ui/CountryPickerModal";
@@ -1515,7 +1516,7 @@ function InvitesPage() {
     userRoleClean === "integration_second";
 
   return (
-    <div className="people-screen integration-people-screen" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div className={`people-screen integration-people-screen ${viewStyles.page}`}>
       <PeopleNavigation current="guests" />
       {personView.requestedId && !personView.selected && !loading && <div className="ux-list-context"><span>Cette fiche n’est pas disponible dans la liste actuelle.</span><button type="button" onClick={personView.closePerson}>Fermer</button></div>}
       {personView.selected && <PersonPanel person={personView.selected} kind="guest" onClose={personView.closePerson} onContinue={() => { setExpandedId(personView.selected!.id); setSearch(personView.selected!.firstName + " " + personView.selected!.lastName); setCurrentView("list"); }} />}
@@ -1540,10 +1541,11 @@ function InvitesPage() {
           </span>
         </div>
       )}
-      <div className="page-header people-page-header">
+      <div className={`page-header people-page-header ${viewStyles.header}`}>
         <div>
+          <span className={viewStyles.eyebrow}>ACCUEILLIR · ACCOMPAGNER · INTÉGRER</span>
           <h2 className="page-title">{isConseiller && !canDispatchAll ? "Ajouter un Invité" : "Invités"}</h2>
-          <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+          <p className={viewStyles.description}>
             Retrouvez chaque nouvel arrivant, son conseiller et sa famille de disciples.
           </p>
         </div>
@@ -1601,14 +1603,14 @@ function InvitesPage() {
         </div>
       </div>
 
-      {!isConseiller && <IntegrationOverview items={[
+      {!isConseiller && <div className={viewStyles.overview}><IntegrationOverview items={[
         { label: "Invités enregistrés", value: guests.filter(g => !g.archived).length, detail: "L’ensemble des nouveaux arrivants", icon: <UserIcon size={16} /> },
         { label: "Sans conseiller", value: guests.filter(g => !g.archived && !g.assigned_to && (!g.responsible || g.responsible === "Non assigné")).length, detail: "Une affectation à prévoir", icon: <UserPlus size={16} /> },
         { label: "En famille", value: guests.filter(g => !g.archived && g.famille_disciple && g.famille_disciple !== "AUCUNE").length, detail: "Rattachés à une famille de disciples", icon: <Home size={16} /> }
-      ]} />}
+      ]} /></div>}
       {/* View Switcher Tabs */}
       {!isConseiller && (
-        <div className="invite-view-switcher" style={{ gridTemplateColumns: isIntegrationOrCounselor ? "repeat(3, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))", width: "min(100%, 750px)" }}>
+        <div className={viewStyles.tabs} role="group" aria-label="Vue des invités">
           <button 
             onClick={() => {
               setCurrentView('list');
@@ -1616,34 +1618,34 @@ function InvitesPage() {
                 setSelectedMonth(new Date().getMonth());
               }
             }}
-            aria-pressed={currentView === 'list'} className={`invite-view-option ${currentView === 'list' ? 'active' : ''}`}
+            aria-pressed={currentView === 'list'} className={`${viewStyles.tab} ${currentView === 'list' ? viewStyles.tabActive : ''}`}
           >
-            <span className="invite-view-icon"><ListChecks size={18} /></span>
-            <span className="invite-view-copy">
-              <span className="invite-view-title">Tous les invités</span>
-              <span className="invite-view-subtitle">{filtered.length} invité{filtered.length > 1 ? "s" : ""} à suivre</span>
+            <span className={viewStyles.tabIcon}><ListChecks size={18} /></span>
+            <span className={viewStyles.tabCopy}>
+              <span className={viewStyles.tabTitle}>Tous les invités</span>
+              <span className={viewStyles.tabSubtitle}>{filtered.length} invité{filtered.length > 1 ? "s" : ""} à suivre</span>
             </span>
           </button>
           {isIntegrationOrCounselor && (
             <button 
               onClick={() => setCurrentView('families')}
-              aria-pressed={currentView === 'families'} className={`invite-view-option ${currentView === 'families' ? 'active' : ''}`}
+              aria-pressed={currentView === 'families'} className={`${viewStyles.tab} ${currentView === 'families' ? viewStyles.tabActive : ''}`}
             >
-              <span className="invite-view-icon"><Home size={18} /></span>
-              <span className="invite-view-copy">
-                <span className="invite-view-title">Familles</span>
-                <span className="invite-view-subtitle">Répartition par famille</span>
+              <span className={viewStyles.tabIcon}><Home size={18} /></span>
+              <span className={viewStyles.tabCopy}>
+                <span className={viewStyles.tabTitle}>Familles</span>
+                <span className={viewStyles.tabSubtitle}>Répartition par famille</span>
               </span>
             </button>
           )}
           <button 
             onClick={() => setCurrentView('stats')}
-            aria-pressed={currentView === 'stats'} className={`invite-view-option ${currentView === 'stats' ? 'active' : ''}`}
+            aria-pressed={currentView === 'stats'} className={`${viewStyles.tab} ${currentView === 'stats' ? viewStyles.tabActive : ''}`}
           >
-            <span className="invite-view-icon"><BarChart3 size={18} /></span>
-            <span className="invite-view-copy">
-              <span className="invite-view-title">Statistiques</span>
-              <span className="invite-view-subtitle">Suivi, présences et progression</span>
+            <span className={viewStyles.tabIcon}><BarChart3 size={18} /></span>
+            <span className={viewStyles.tabCopy}>
+              <span className={viewStyles.tabTitle}>Statistiques</span>
+              <span className={viewStyles.tabSubtitle}>Suivi, présences et progression</span>
             </span>
           </button>
         </div>
@@ -1985,6 +1987,7 @@ function InvitesPage() {
       />
 
       {/* Modern Filters & Controls */}
+      <div className={viewStyles.toolbar}>
       <PeopleListToolbar
             search={search} onSearch={setSearch}
             countLabel={`${filtered.length} invité${filtered.length > 1 ? "s" : ""}`}
@@ -2066,6 +2069,7 @@ function InvitesPage() {
 
           
           </PeopleListToolbar>
+      </div>
 
           {/* List or Families View */}
       {currentView === 'families' && isIntegrationOrCounselor ? (

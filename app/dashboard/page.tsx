@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import type { ActivityType } from "@/types";
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import { supabase, getSafeUser } from "@/lib/supabase";
-import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList, createFamilyUserContext, listIntegrationTeam } from "@/app/actions/auth";
+import { adminSignUp, getIntegrationDropdownList, getFamilyLeadersList, createFamilyUserContext, listIntegrationTeam, authenticateFamilyLeader } from "@/app/actions/auth";
 import { SUPER_ADMIN_EMAIL } from "@/lib/auth-contexts";
 import { getActiveContext, getActiveSpaceType, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
@@ -93,7 +93,11 @@ export default function DashboardPage() {
         const res = await getFamilyLeadersList(familyId);
         if (res.success && res.leaders) {
           setFamilyLeaders(res.leaders);
-          if (res.leaders.length > 0) {
+          const churchConnectedEmail = (typeof window !== "undefined" ? (localStorage.getItem("church_connected_email") || "") : "").toLowerCase().trim();
+          const matched = res.leaders.find((l: any) => l.email?.toLowerCase().trim() === churchConnectedEmail);
+          if (matched) {
+            setSelectedLeaderEmail(matched.email);
+          } else if (res.leaders.length > 0) {
             setSelectedLeaderEmail(res.leaders[0].email);
           }
         } else {
@@ -1138,83 +1142,50 @@ export default function DashboardPage() {
 
     setLoading(true);
     const email = selectedLeaderEmail.toLowerCase().trim();
-    const password = registration.code;
-    const churchConnectedEmail = localStorage.getItem("church_connected_email") || "";
-
-    // Security check: email must match church connected email
-    if (email !== churchConnectedEmail.toLowerCase().trim()) {
-      notify("Erreur de sécurité : L'adresse e-mail avec laquelle vous êtes connecté à l'église ne correspond pas à celle enregistrée pour ce responsable.");
-      setLoading(false);
-      return;
-    }
+    const password = registration.code.trim();
 
     try {
-      // 1. Check if user is already authenticated as the entered email
-      let sessionData = null;
-      let authError = null;
-
-      const currentUser = await getSafeUser();
-      const isAlreadyLoggedIn = currentUser && currentUser.email?.toLowerCase().trim() === email;
-
-      if (isAlreadyLoggedIn) {
-        // Direct validation client-side by checking the code against selectedForJoin access code
-        if (registration.code !== selectedForJoin.access_code) {
-          notify("Code d'accès de la famille invalide. Veuillez réessayer.");
-          setLoading(false);
-          return;
-        }
-        sessionData = { user: currentUser };
-      } else {
-        // Authenticate with Supabase Auth using email and family access code as password
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password
-          });
-          sessionData = data;
-          authError = error;
-        } catch {
-          // Ignore client-side error and try fallback signup
-        }
-
-        // If sign-in failed, attempt dynamic sign-up/recovery via Server Action
-        if (authError || !sessionData?.user) {
-          const res = await adminSignUp(email, password);
-          if (!res.success) {
-            notify(`Erreur d'accès : ${res.error}`);
-            setLoading(false);
-            return;
-          }
-
-          // Try signing in again now that the auth user exists
-          const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({
-            email,
-            password
-          });
-
-          if (retryErr || !retryData?.user) {
-            notify(`Erreur de connexion : ${retryErr?.message || "Échec d'authentification."}`);
-            setLoading(false);
-            return;
-          }
-          sessionData = retryData;
-        }
-      }
-
-      // 2. Fetch the newly established profile to populate user state
-      const { data: profile, error: profErr } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", sessionData.user.id)
-        .single();
-
-      if (profErr || !profile) {
-        notify("Erreur de profil : Impossible de charger votre profil de leader.");
+      // 1. Direct validation against selected family access code
+      if (password !== selectedForJoin.access_code?.trim()) {
+        notify("Code d'accès de la famille invalide. Veuillez réessayer.");
         setLoading(false);
         return;
       }
 
-      // 3. Fetch role inside the family from the members table
+      // 2. Authenticate or provision the family leader
+      const authRes = await authenticateFamilyLeader({
+        email,
+        accessCode: password,
+        familyId: selectedForJoin.id
+      });
+
+      if (!authRes.success || !authRes.user) {
+        notify(`Erreur d'accès : ${authRes.error || "Échec d'authentification."}`);
+        setLoading(false);
+        return;
+      }
+
+      // 3. Sign in client-side to establish Supabase Auth session token
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (signInErr || !signInData?.user) {
+        console.error("Client sign in error after authRes:", signInErr);
+        notify(`Erreur de connexion : ${signInErr?.message || "Échec d'authentification."}`);
+        setLoading(false);
+        return;
+      }
+
+      // 4. Fetch the profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", signInData.user.id)
+        .single();
+
+      // 5. Fetch member info for details (like is_conseiller)
       const { data: member } = await supabase
         .from("members")
         .select("*")
@@ -1222,69 +1193,52 @@ export default function DashboardPage() {
         .eq("bergerie_id", selectedForJoin.id)
         .maybeSingle();
 
-      const familyRole = member?.status || "Responsable";
+      const userRoleForUI = authRes.role || member?.status || "Responsable";
       const isConseillerForUI = member?.is_conseiller || false;
 
-      // 4. Save family context in the database via Server Action
-      const res = await createFamilyUserContext({
-        userId: sessionData.user.id,
-        email,
-        familyId: selectedForJoin.id,
-        role: familyRole,
-        churchId: selectedForJoin.church_id,
-        displayName: profile.display_name || (member ? `${member.first_name} ${member.last_name}` : "Leader")
-      });
-
-      if (!res.success || !res.context) {
-        notify(`Erreur lors de la création de la casquette : ${res.error}`);
-        setLoading(false);
-        return;
-      }
-
-      const userRoleForUI = res.context.role;
-
-      const activeContext = {
-        id: res.context.id,
-        user_id: sessionData.user.id,
+      const activeContext = authRes.context || {
+        id: `context-${signInData.user.id}`,
+        user_id: signInData.user.id,
         email: email,
         context_type: "family" as const,
         role: userRoleForUI,
-        church_id: profile.church_id || selectedForJoin.church_id,
+        church_id: profile?.church_id || selectedForJoin.church_id,
         bergerie_id: selectedForJoin.id,
-        display_name: profile.display_name || (member ? `${member.first_name} ${member.last_name}` : "Leader"),
+        display_name: authRes.displayName || (member ? `${member.first_name} ${member.last_name}` : "Leader"),
         active: true
       };
 
       const finalInfo = {
-        id: profile.id,
-        civility: "M.",
+        id: signInData.user.id,
+        civility: member?.civility || "M.",
         firstName: activeContext.display_name?.split(' ')[0] || '',
         lastName: activeContext.display_name?.split(' ').slice(1).join(' ') || '',
-        email: profile.email,
+        email: email,
         role: userRoleForUI,
         isConseiller: isConseillerForUI,
         bergerie_id: selectedForJoin.id,
-        church_id: profile.church_id || selectedForJoin.church_id
+        church_id: profile?.church_id || selectedForJoin.church_id
       };
 
       if (rememberMe) {
-        localStorage.setItem("poimen_saved_info", JSON.stringify({ email, code: registration.code, role: profile.role }));
+        localStorage.setItem("poimen_saved_info", JSON.stringify({ email, code: registration.code, role: userRoleForUI }));
       } else {
         localStorage.removeItem("poimen_saved_info");
       }
 
+      localStorage.setItem("church_connected_email", email);
       localStorage.removeItem("poimen_space_exited");
       localStorage.setItem("poimen_active_context", JSON.stringify(activeContext));
       localStorage.setItem("poimen_user_info", JSON.stringify(finalInfo));
       localStorage.setItem("selected_family", JSON.stringify(selectedForJoin));
-      
+
       setMyBergerie(selectedForJoin);
       setUserInfo(finalInfo);
       setActiveSpace("family");
       window.dispatchEvent(new Event("storage"));
       setSelectedForJoin(null);
       setLoading(false);
-      
+
       notify(`Bienvenue ${finalInfo.firstName} ! Connexion réussie en tant que ${userRoleForUI}.`);
     } catch (e: any) {
       notify(`Erreur inattendue : ${e.message}`);
@@ -1308,14 +1262,14 @@ export default function DashboardPage() {
     return (
       <div style={{ minHeight: "80dvh", display: "flex", flexDirection: "column", justifyItems: "center", justifyContent: "center", alignItems: "center", padding: "40px 20px", position: "relative" }}>
         {/* Ambient glows */}
-        <div style={{ position: "absolute", top: "10%", left: "20%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.05) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: "10%", left: "20%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", bottom: "10%", right: "20%", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,160,60,0.04) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div style={{ maxWidth: 800, width: "100%", textAlign: "center", zIndex: 1 }} className="fade-in">
           <span style={{ fontSize: 11, color: "var(--gold)", letterSpacing: 3, textTransform: "uppercase", fontWeight: 700, marginBottom: 8, display: "block" }}>
             {church?.name}
           </span>
-          <h1 style={{ fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 800, margin: "0 0 10px 0", background: "linear-gradient(135deg, #FFF, var(--gold-light) 60%, var(--gold) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontFamily: "var(--font-display)" }}>
+          <h1 style={{ fontSize: "clamp(26px, 4vw, 36px)", fontWeight: 550, margin: "0 0 10px 0", letterSpacing: "-.035em", color: "var(--cream)" }}>
             Choisissez votre Espace
           </h1>
           <p style={{ color: "var(--cream-dim)", fontSize: 15, maxWidth: 500, margin: "0 auto 40px auto", lineHeight: 1.6 }}>
@@ -1327,43 +1281,43 @@ export default function DashboardPage() {
             <motion.div 
               whileHover={{ scale: 1.03, y: -4 }}
               whileTap={{ scale: 0.98 }}
-              className="arch-card glass"
-              style={{ padding: "40px 30px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, border: "1px solid rgba(212, 175, 55, 0.25)" }}
+              className="arch-card"
+              style={{ padding: "36px 28px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, border: "1px solid var(--border)", background: "var(--surface-solid)", borderRadius: 22, boxShadow: "var(--shadow-soft)" }}
               onClick={() => setActiveSpace("family")}
             >
               <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--gold-glow)", border: "1.5px solid rgba(212,175,55,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)" }}>
                 <Users size={28} />
               </div>
               <div>
-                <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px 0", color: "var(--cream)", fontFamily: "var(--font-display)" }}>Espace Communautaire</h3>
+                <h3 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 8px 0", color: "var(--cream)", letterSpacing: "-.02em" }}>Espace Communautaire</h3>
                 <p style={{ fontSize: 13, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
                   Rejoignez votre Famille de Disciples (Berger, Second, Responsable) ou proposez la création d'une nouvelle bergerie.
                 </p>
               </div>
-              <button className="btn btn-primary btn-sm" style={{ width: "100%", marginTop: "auto", height: 40, justifyContent: "center" }}>Accéder</button>
+              <button className="btn btn-primary btn-sm" style={{ width: "100%", marginTop: "auto", height: 42, justifyContent: "center", borderRadius: 12 }}>Accéder</button>
             </motion.div>
 
             {/* Card 2: Intégration */}
             <motion.div 
               whileHover={{ scale: 1.03, y: -4 }}
               whileTap={{ scale: 0.98 }}
-              className="arch-card glass"
-              style={{ padding: "40px 30px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, border: "1px solid rgba(139, 92, 246, 0.25)" }}
+              className="arch-card"
+              style={{ padding: "36px 28px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, border: "1px solid var(--border)", background: "var(--surface-solid)", borderRadius: 22, boxShadow: "var(--shadow-soft)" }}
               onClick={() => {
                 setActiveSpace("integration");
                 fetchIntegrationList();
               }}
             >
-              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(139, 92, 246, 0.1)", border: "1.5px solid rgba(139,92,246,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "#c084fc" }}>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--gold-glow)", border: "1.5px solid rgba(212,175,55,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)" }}>
                 <UserPlus size={28} />
               </div>
               <div>
-                <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px 0", color: "var(--cream)", fontFamily: "var(--font-display)" }}>Intégration & Suivi</h3>
+                <h3 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 8px 0", color: "var(--cream)", letterSpacing: "-.02em" }}>Intégration & Suivi</h3>
                 <p style={{ fontSize: 13, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
                   Espace réservé à l'équipe d'intégration pour le suivi des nouveaux arrivants et la gestion des affectations.
                 </p>
               </div>
-              <button className="btn btn-primary btn-sm" style={{ width: "100%", marginTop: "auto", height: 40, justifyContent: "center", background: "linear-gradient(135deg, var(--purple-light), var(--purple))", border: "none" }}>Accéder</button>
+              <button className="btn btn-primary btn-sm" style={{ width: "100%", marginTop: "auto", height: 42, justifyContent: "center", borderRadius: 12 }}>Accéder</button>
             </motion.div>
           </div>
 
@@ -1385,14 +1339,14 @@ export default function DashboardPage() {
     return (
       <div style={{ minHeight: "80dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px", position: "relative" }}>
         {/* Ambient glows */}
-        <div style={{ position: "absolute", top: "10%", left: "20%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: "10%", left: "20%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,175,55,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div className="custom-modal arch-card glass fade-in" style={{ width: "100%", maxWidth: 440, padding: "40px 36px", border: "1px solid var(--border)", background: "var(--surface-solid)", boxShadow: "var(--shadow-dialog)", position: "relative", zIndex: 1 }}>
           <div style={{ textAlign: "center", marginBottom: 28 }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--bg-deep)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--action-bg)", margin: "0 auto 16px" }}>
               <Shield size={26} />
             </div>
-            <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)", color: "var(--cream)" }}>Espace Intégration</h2>
+            <h2 style={{ fontSize: 22, fontWeight: 550, margin: 0, letterSpacing: "-.03em", color: "var(--cream)" }}>Espace Intégration</h2>
             <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Authentification des responsables et conseillers</p>
           </div>
 
@@ -1468,7 +1422,7 @@ export default function DashboardPage() {
     return (
       <>
         {/* Background ambient sacred lights */}
-        <div style={{ position: "fixed", top: "5%", left: "10%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
+        <div style={{ position: "fixed", top: "5%", left: "10%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,175,55,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
         <div style={{ position: "fixed", bottom: "5%", right: "10%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,175,55,0.04) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
 
         <div style={{ display: "flex", flexDirection: "column", gap: 36, position: "relative", zIndex: 1 }} className="fade-in">
@@ -1476,7 +1430,7 @@ export default function DashboardPage() {
             <div style={{ fontSize: 11, color: "var(--gold)", letterSpacing: 3, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>
               Bienvenue à {church?.name}
             </div>
-            <h1 style={{ fontSize: 44, fontWeight: 700, margin: 0, background: "linear-gradient(135deg, #FFF, var(--gold-light) 60%, var(--gold) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <h1 style={{ fontSize: "clamp(28px, 4vw, 38px)", fontWeight: 550, letterSpacing: "-.035em", margin: 0, color: "var(--cream)" }}>
               Espace Communautaire
             </h1>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12 }}>
@@ -1566,7 +1520,7 @@ export default function DashboardPage() {
                           width: 48, 
                           height: 48, 
                           borderRadius: "50%", 
-                          background: "linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(139,92,246,0.05) 100%)", 
+                          background: "var(--gold-glow)", 
                           border: "1px solid rgba(212, 175, 55, 0.3)",
                           display: "flex", 
                           alignItems: "center", 
@@ -1659,7 +1613,7 @@ export default function DashboardPage() {
                       options={familyLeaders.map(m => ({
                         value: m.email,
                         label: `${m.civility || ""} ${m.first_name} ${m.last_name}`.trim(),
-                        badge: m.role || undefined
+                        badge: m.status || m.role || undefined
                       }))}
                     />
                   )}
@@ -1857,9 +1811,10 @@ export default function DashboardPage() {
 
       {/* Outreach & Soul Winning Impact Section */}
       <div className="glass d2" style={{ 
-        border: "1px solid rgba(139, 92, 246, 0.2)", 
-        background: "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, var(--surface) 100%)",
-        boxShadow: "0 8px 32px rgba(139, 92, 246, 0.05)",
+        border: "1px solid var(--border)", 
+        background: "var(--surface-solid)",
+        boxShadow: "var(--shadow-soft)",
+        borderRadius: 20,
         position: "relative",
         overflow: "hidden"
       }}>
@@ -1868,7 +1823,7 @@ export default function DashboardPage() {
         
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--purple-light)" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold)" }}>
               {isIntegration ? "🔥 Sortie d'évangélisation & Suivi" : "🔥 Sortie d'évangélisation"}
             </span>
             <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
@@ -1879,15 +1834,7 @@ export default function DashboardPage() {
           <button 
             className="btn btn-primary btn-sm" 
             onClick={() => window.location.href = "/dashboard/evangelisation"}
-            style={{ 
-              background: "linear-gradient(135deg, var(--purple-light), var(--purple))",
-              border: "none",
-              color: "#fff",
-              fontWeight: 600,
-              display: "flex",
-              alignItems: "center",
-              gap: 6
-            }}
+            style={{ gap: 6, borderRadius: 10 }}
           >
             <Plus size={14} /> Déposer un Rapport
           </button>
