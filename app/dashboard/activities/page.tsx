@@ -1392,10 +1392,11 @@ export default function ActivitiesPage() {
                               {[
                                 { id: "culte_1", label: "Culte 1" },
                                 { id: "culte_2", label: "Culte 2" },
+                                { id: "culte_1_2", label: "Culte 1 & 2" },
                                 { id: "en_ligne", label: "En ligne" }
                               ].map(sub => {
                                 const currentSub = typeof isPresent === "string" ? isPresent : "culte_1";
-                                const isSubSelected = currentSub === sub.id;
+                                const isSubSelected = currentSub === sub.id || (sub.id === "culte_1_2" && (currentSub === "culte_both" || currentSub === "culte_1_et_2" || currentSub === "both"));
                                 return (
                                   <button
                                     key={sub.id}

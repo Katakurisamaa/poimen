@@ -35,16 +35,18 @@ test('active navigation distinguishes admin tabs and grouped people routes', () 
 });
 
 test('person summary preserves explicit absences, services and unknown statuses', () => {
-  let attendance = buildAttendanceUpdate({}, 'culte', '2026-09-13', 'present', '', 'culte_2');
+  let attendance = buildAttendanceUpdate({}, 'culte', '2026-09-20', 'present', '', 'culte_1_2');
+  attendance = buildAttendanceUpdate(attendance, 'culte', '2026-09-13', 'present', '', 'culte_2');
   attendance = buildAttendanceUpdate(attendance, 'culte', '2026-09-06', 'justified', 'Maladie');
   attendance = buildAttendanceUpdate(attendance, 'cdm', '2026-09-10', 'unjustified');
   attendance.culte['2026-08-30'] = false;
   const summary = summarizePerson({ attendance }, 'member');
-  assert.equal(summary.events[0].status, 'Présent · Culte 2');
-  assert.equal(summary.events[1].status, 'Absence non justifiée');
-  assert.equal(summary.events[2].reason, 'Maladie');
-  assert.equal(summary.events[3].status, 'Non pointé');
-  assert.equal(summary.eventCount, 4);
+  assert.equal(summary.events[0].status, 'Présent · Culte 1 & 2');
+  assert.equal(summary.events[1].status, 'Présent · Culte 2');
+  assert.equal(summary.events[2].status, 'Absence non justifiée');
+  assert.equal(summary.events[3].reason, 'Maladie');
+  assert.equal(summary.events[4].status, 'Non pointé');
+  assert.equal(summary.eventCount, 5);
 });
 
 test('contact opt-out overrides suggested outreach and no history is invented', () => {
@@ -54,3 +56,23 @@ test('contact opt-out overrides suggested outreach and no history is invented', 
   assert.equal(summary.eventCount, 0);
   assert.equal(summary.steps.some(step => step.done), false);
 });
+
+test('fast check-in preserves mobile responsiveness without letter-wrapping names', () => {
+  const css = fs.readFileSync(new URL('../components/activities/FastCheckIn.module.css', import.meta.url), 'utf8');
+  const tsx = fs.readFileSync(new URL('../components/activities/FastCheckIn.tsx', import.meta.url), 'utf8');
+
+  // Verify member name does not use 'overflow-wrap: anywhere' which breaks names letter-by-letter
+  assert.ok(!css.includes('.memberInfo h3 { font-size: 14px; font-weight: 550; line-height: 1.35; overflow-wrap: anywhere; }'));
+  assert.match(css, /\.memberInfo h3\s*\{[^}]*text-overflow:\s*ellipsis/);
+  assert.match(css, /\.memberInfo h3\s*\{[^}]*white-space:\s*nowrap/);
+
+  // Verify Culte services include dual-service option 'culte_1_2'
+  assert.match(tsx, /id:\s*"culte_1_2"/);
+  assert.match(tsx, /short:\s*"C1\+2"/);
+
+  // Verify mobile styles use structured memberHeader and memberActions
+  assert.match(css, /\.memberHeader\s*\{/);
+  assert.match(css, /\.absentButtonHeader\s*\{/);
+  assert.match(css, /\.culteGroup\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*1fr\)/);
+});
+

@@ -239,8 +239,8 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                   <span style={{ fontSize: 15.5, fontWeight: 800, color: "#0c1527", display: "block" }}>
                     Culte 1
                   </span>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#16a34a" }}>
-                    Taux : {formatPct(metrics.pctTotalCulte1)} %
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#16a34a", whiteSpace: "nowrap" }}>
+                    Taux : {formatPct(metrics.pctTotalCulte1)}%
                   </span>
                 </div>
               </div>
@@ -266,8 +266,8 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                   <span style={{ fontSize: 15.5, fontWeight: 800, color: "#0c1527", display: "block" }}>
                     Culte 2
                   </span>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#16a34a" }}>
-                    Taux : {formatPct(metrics.pctTotalCulte2)} %
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#16a34a", whiteSpace: "nowrap" }}>
+                    Taux : {formatPct(metrics.pctTotalCulte2)}%
                   </span>
                 </div>
               </div>
@@ -294,8 +294,8 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                     <span style={{ fontSize: 14, fontWeight: 800, color: "#0c1527", display: "block" }}>
                       Culte en ligne
                     </span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>
-                      Taux : {formatPct(metrics.pctTotalCulteEnLigne)} %
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", whiteSpace: "nowrap" }}>
+                      Taux : {formatPct(metrics.pctTotalCulteEnLigne)}%
                     </span>
                   </div>
                 </div>
@@ -310,25 +310,34 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
               style={{
                 backgroundColor: "#dcfce7",
                 borderRadius: "10px",
-                padding: "8px 18px",
+                padding: "10px 18px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                gap: 12,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <TrendingUp size={28} color="#15803d" />
-                <div>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#0c1527", display: "block" }}>
-                    Taux de participation
-                  </span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#15803d" }}>
-                    C1 : {formatPct(metrics.pctTotalCulte1)}% • C2 : {formatPct(metrics.pctTotalCulte2)}%
-                  </span>
-                </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <TrendingUp size={28} color="#15803d" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 15.5, fontWeight: 800, color: "#0c1527", whiteSpace: "nowrap" }}>
+                  Taux de participation
+                </span>
               </div>
-              <span style={{ fontSize: 34, fontWeight: 900, color: "#15803d", lineHeight: 1 }}>
-                {formatPct(metrics.tauxParticipationGlobale)} %
+              <span
+                style={{
+                  fontSize: 30,
+                  fontWeight: 900,
+                  color: "#15803d",
+                  lineHeight: 1,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  display: "inline-flex",
+                  alignItems: "baseline",
+                  gap: 3,
+                }}
+              >
+                <span>{formatPct(metrics.tauxParticipationGlobale)}</span>
+                <span style={{ fontSize: 20, fontWeight: 800 }}>%</span>
               </span>
             </div>
           </div>
@@ -406,8 +415,8 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                   <span style={{ fontSize: 15.5, fontWeight: 800, color: "#0c1527", display: "block" }}>
                     Culte 1
                   </span>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#c2410c" }}>
-                    Taux : {formatPct(metrics.pctDisciplesCulte1)} %
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#c2410c", whiteSpace: "nowrap" }}>
+                    Taux : {formatPct(metrics.pctDisciplesCulte1)}%
                   </span>
                 </div>
               </div>
@@ -433,8 +442,8 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                   <span style={{ fontSize: 15.5, fontWeight: 800, color: "#0c1527", display: "block" }}>
                     Culte 2
                   </span>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#c2410c" }}>
-                    Taux : {formatPct(metrics.pctDisciplesCulte2)} %
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#c2410c", whiteSpace: "nowrap" }}>
+                    Taux : {formatPct(metrics.pctDisciplesCulte2)}%
                   </span>
                 </div>
               </div>
@@ -461,8 +470,8 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
                     <span style={{ fontSize: 14, fontWeight: 800, color: "#0c1527", display: "block" }}>
                       Culte en ligne
                     </span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#c2410c" }}>
-                      Taux : {formatPct(metrics.pctDisciplesCulteEnLigne)} %
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#c2410c", whiteSpace: "nowrap" }}>
+                      Taux : {formatPct(metrics.pctDisciplesCulteEnLigne)}%
                     </span>
                   </div>
                 </div>
@@ -477,25 +486,34 @@ export default function ReportingTemplate({ data, containerRef }: ReportingTempl
               style={{
                 backgroundColor: "#ffedd5",
                 borderRadius: "10px",
-                padding: "8px 18px",
+                padding: "10px 18px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                gap: 12,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <TrendingUp size={28} color="#ea580c" />
-                <div>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#0c1527", display: "block" }}>
-                    Taux de participation
-                  </span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#ea580c" }}>
-                    C1 : {formatPct(metrics.pctDisciplesCulte1)}% • C2 : {formatPct(metrics.pctDisciplesCulte2)}%
-                  </span>
-                </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <TrendingUp size={28} color="#ea580c" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 15.5, fontWeight: 800, color: "#0c1527", whiteSpace: "nowrap" }}>
+                  Taux de participation
+                </span>
               </div>
-              <span style={{ fontSize: 34, fontWeight: 900, color: "#ea580c", lineHeight: 1 }}>
-                {formatPct(metrics.tauxParticipationDisciples)} %
+              <span
+                style={{
+                  fontSize: 30,
+                  fontWeight: 900,
+                  color: "#ea580c",
+                  lineHeight: 1,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  display: "inline-flex",
+                  alignItems: "baseline",
+                  gap: 3,
+                }}
+              >
+                <span>{formatPct(metrics.tauxParticipationDisciples)}</span>
+                <span style={{ fontSize: 20, fontWeight: 800 }}>%</span>
               </span>
             </div>
           </div>

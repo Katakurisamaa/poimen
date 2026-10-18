@@ -14,9 +14,10 @@ export interface FddReportingData {
   repartition_hommes: number;
   repartition_femmes: number;
 
-  // Cultes (Culte 1, Culte 2, Culte en ligne)
+  // Cultes (Culte 1, Culte 2, Culte en ligne, Culte 1 & 2)
   culte_1: number;
   culte_2: number;
+  culte_1_et_2?: number; // Participants ayant assisté tant au Culte 1 qu'au Culte 2
   culte_en_ligne: number;
   taux_participation_globale?: number; // % Optionnel pour ajuster le taux de participation des membres
 
@@ -32,6 +33,7 @@ export interface FddReportingData {
   nombre_disciples: number;
   disciples_culte_1?: number;
   disciples_culte_2?: number;
+  disciples_culte_1_et_2?: number; // Disciples ayant assisté tant au Culte 1 qu'au Culte 2
   disciples_culte_en_ligne?: number;
   disciples_presents_total?: number;
   taux_participation_disciples: number; // %
@@ -63,11 +65,13 @@ export interface CalculatedMetrics {
   disciplesTotal: number;
   disciplesCulte1: number;
   disciplesCulte2: number;
+  disciplesCulte1Et2: number;
   disciplesCulteEnLigne: number;
   disciplesPresents: number;
   tauxParticipationDisciples: number; // %
   pctDisciplesCulte1: number;
   pctDisciplesCulte2: number;
+  pctDisciplesCulte1Et2: number;
   pctDisciplesCulteEnLigne: number;
 
   // Faiseurs de disciples
@@ -80,6 +84,7 @@ export interface CalculatedMetrics {
   // % sur le total des membres
   pctTotalCulte1: number;
   pctTotalCulte2: number;
+  pctTotalCulte1Et2: number;
   pctTotalCulteEnLigne: number;
   pctTotalHommes: number;
   pctTotalFemmes: number;
@@ -94,6 +99,7 @@ export interface CalculatedMetrics {
   // % sur la participation
   pctPartCulte1: number;
   pctPartCulte2: number;
+  pctPartCulte1Et2: number;
   pctPartCulteEnLigne: number;
   pctPartHommes: number;
   pctPartFemmes: number;
@@ -107,8 +113,11 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
   const c1 = Math.max(0, data.culte_1 || 0);
   const c2 = Math.max(0, data.culte_2 || 0);
   const cLigne = Math.max(0, data.culte_en_ligne || 0);
+  const cBoth = Math.max(0, data.culte_1_et_2 || 0);
   
-  const totalPart = c1 + c2 + cLigne;
+  // Les participants aux 2 cultes étant comptés dans c1 et c2, on retranche le cumul
+  // pour obtenir l'effectif exact des participants physiques uniques.
+  const totalPart = Math.max(0, (c1 + c2 - cBoth) + cLigne);
   const absJust = Math.max(0, data.absences_justifiees || 0);
   const totalAbs = Math.max(0, total - totalPart);
   
@@ -128,10 +137,12 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
   const discC1 = Math.max(0, data.disciples_culte_1 || 0);
   const discC2 = Math.max(0, data.disciples_culte_2 || 0);
   const discLigne = Math.max(0, data.disciples_culte_en_ligne || 0);
+  const discBoth = Math.max(0, data.disciples_culte_1_et_2 || 0);
+  const computedDiscPart = Math.max(0, (discC1 + discC2 - discBoth) + discLigne);
   const discPart = (data.disciples_presents_total !== undefined && data.disciples_presents_total > 0)
     ? data.disciples_presents_total
-    : (discC1 + discC2 + discLigne > 0
-        ? discC1 + discC2 + discLigne
+    : (computedDiscPart > 0
+        ? computedDiscPart
         : Math.round((discTotal * (data.taux_participation_disciples || 0)) / 100));
 
   const discPct = discTotal > 0
@@ -153,11 +164,13 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
     disciplesTotal: discTotal,
     disciplesCulte1: discC1,
     disciplesCulte2: discC2,
+    disciplesCulte1Et2: discBoth,
     disciplesCulteEnLigne: discLigne,
     disciplesPresents: discPart,
     tauxParticipationDisciples: discPct,
     pctDisciplesCulte1: pct(discC1, discTotal),
     pctDisciplesCulte2: pct(discC2, discTotal),
+    pctDisciplesCulte1Et2: pct(discBoth, discTotal),
     pctDisciplesCulteEnLigne: pct(discLigne, discTotal),
 
     // Faiseurs & 1/4h
@@ -168,6 +181,7 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
     // % sur total membres
     pctTotalCulte1: pct(c1, total),
     pctTotalCulte2: pct(c2, total),
+    pctTotalCulte1Et2: pct(cBoth, total),
     pctTotalCulteEnLigne: pct(cLigne, total),
     pctTotalHommes: pct(data.repartition_hommes, total),
     pctTotalFemmes: pct(data.repartition_femmes, total),
@@ -182,6 +196,7 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
     // % sur la participation
     pctPartCulte1: pct(c1, totalPart),
     pctPartCulte2: pct(c2, totalPart),
+    pctPartCulte1Et2: pct(cBoth, totalPart),
     pctPartCulteEnLigne: pct(cLigne, totalPart),
     pctPartHommes: pct(data.repartition_hommes, totalPart),
     pctPartFemmes: pct(data.repartition_femmes, totalPart),
@@ -222,10 +237,12 @@ export function getKeyPointsSummary(data: FddReportingData, metrics: CalculatedM
   } else if (cultes.length === 1) {
     points.push(`100% des présences se concentrent sur le ${cultes[0].name} (${cultes[0].count} participant${cultes[0].count > 1 ? "s" : ""}).`);
   } else if (cultes.length === 2 && cultes[0].count === cultes[1].count) {
-    points.push(`Participation équilibrée entre le ${cultes[0].name} et le ${cultes[1].name} (${cultes[0].pct}% chacun).`);
+    const bothMention = (data.culte_1_et_2 || 0) > 0 ? ` (dont ${data.culte_1_et_2} aux deux cultes)` : "";
+    points.push(`Participation équilibrée entre le ${cultes[0].name} et le ${cultes[1].name} (${cultes[0].pct}% chacun)${bothMention}.`);
   } else if (cultes.length >= 2) {
     const others = cultes.slice(1).map(c => `${c.name} (${c.pct}%)`).join(", ");
-    points.push(`Le ${cultes[0].name} arrive en tête avec ${cultes[0].pct}% des participants (${cultes[0].count}), suivi de : ${others}.`);
+    const bothMention = (data.culte_1_et_2 || 0) > 0 ? ` dont ${data.culte_1_et_2} ayant assisté aux deux cultes` : "";
+    points.push(`Le ${cultes[0].name} arrive en tête avec ${cultes[0].pct}% des participants (${cultes[0].count}), suivi de : ${others}${bothMention}.`);
   }
 
   // 3. Répartition Hommes / Femmes

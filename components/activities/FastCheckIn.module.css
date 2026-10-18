@@ -97,12 +97,17 @@
 .memberList { flex: 1; min-height: 0; overflow-y: auto; padding: 0 30px 24px; scrollbar-width: thin; scrollbar-color: var(--checkin-line) transparent; overscroll-behavior: contain; }
 .listCaption { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 19px 0 9px; font-size: 10px; color: var(--checkin-muted); }
 .listCaption > span:first-child { letter-spacing: .1em; font-size: 9px; font-weight: 650; }
-.member { display: flex; align-items: center; gap: 12px; min-height: 81px; border-bottom: 1px solid var(--checkin-line); }
-.avatar { display: grid; place-items: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%; color: var(--checkin-muted); background: var(--checkin-panel); border: 1px solid var(--checkin-line); font-size: 12px; font-weight: 500; text-transform: uppercase; }
-.memberInfo { min-width: 0; flex: 1; }
-.memberInfo h3 { font-size: 14px; font-weight: 550; line-height: 1.35; overflow-wrap: anywhere; }
-.memberInfo p { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
-.memberActions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.member { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; padding: 10px 0; border-bottom: 1px solid var(--checkin-line); transition: background 0.15s ease; }
+.memberHeader { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.avatar { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; color: var(--checkin-gold); background: color-mix(in srgb, var(--checkin-gold) 12%, var(--checkin-panel)); border: 1px solid color-mix(in srgb, var(--checkin-gold) 25%, transparent); font-size: 12px; font-weight: 600; text-transform: uppercase; }
+.memberInfo { min-width: 0; flex: 1; overflow: hidden; }
+.memberInfo h3 { font-size: 14px; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--cream); }
+.memberInfo p { display: flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 11.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.memberActions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.absentButtonHeader { display: none; }
+.absentButtonDesktop { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; border-radius: 10px; padding: 0 13px; font-size: 12px !important; font-weight: 600 !important; cursor: pointer; user-select: none; touch-action: manipulation; background: transparent; border: 1px solid var(--checkin-line); color: var(--checkin-muted); transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+.absentButtonDesktop:hover:not(:disabled) { transform: translateY(-1.5px); color: var(--cream); background: var(--checkin-panel); border-color: color-mix(in srgb, var(--checkin-gold) 40%, transparent); }
+.absentButtonDesktop:active:not(:disabled) { transform: scale(0.92) translateY(1px); background: color-mix(in srgb, var(--checkin-gold) 15%, transparent); transition-duration: 0.05s; }
 .culteGroup { display: inline-flex; align-items: center; gap: 6px; }
 .culteBtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; border-radius: 10px; padding: 0 12px; font-size: 12px !important; font-weight: 600 !important; background: color-mix(in srgb, var(--checkin-green) 12%, transparent); border: 1.5px solid color-mix(in srgb, var(--checkin-green) 30%, transparent); color: var(--checkin-green); white-space: nowrap; cursor: pointer; user-select: none; touch-action: manipulation; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease; }
 .culteBtn:hover:not(:disabled) { transform: translateY(-2px); background: color-mix(in srgb, var(--checkin-green) 24%, transparent); border-color: var(--checkin-green); color: #ffffff; box-shadow: 0 6px 16px color-mix(in srgb, var(--checkin-green) 35%, transparent); }
@@ -126,7 +131,7 @@
 .saveState { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1; }
 .saveIcon { display: inline-flex; color: var(--checkin-green); }
 .saveState > div { min-width: 0; }
-.saveState strong { display: block; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.saveState strong { display: block; font-size: 12px; font-weight: 500; overflow-wrap: break-word; }
 .saveState > div > span { display: block; margin-top: 2px; font-size: 10px; color: var(--checkin-muted); }
 .undoButton, .textButton { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 9px; background: transparent; color: var(--checkin-gold); font-size: 12px !important; font-weight: 550 !important; }
 .undoButton { flex-shrink: 0; margin-left: 6px; }
@@ -155,7 +160,7 @@
 .editor::backdrop { background: #030209a6; backdrop-filter: blur(5px); }
 .editorHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .editorHeader .iconButton { margin: -8px -8px 0 0; border: 0; }
-.editor h2 { font-size: 24px; font-weight: 550; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.editor h2 { font-size: 24px; font-weight: 550; letter-spacing: -.035em; overflow-wrap: break-word; }
 .editorSubtitle { font-size: 13px; color: var(--checkin-muted); margin-top: 6px !important; }
 .statusChoices { display: grid; gap: 8px; margin: 24px 0; }
 .statusChoices button { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 14px; border: 1px solid var(--checkin-line); border-radius: 12px; background: transparent; text-align: left; color: var(--checkin-muted); font-size: 13px; }
@@ -187,11 +192,17 @@
   .listTools { padding: 24px 20px 0; }
   .memberList { padding-inline: 20px; }
   .filters { gap: 14px; }
-  .member { flex-wrap: wrap; padding: 14px 0; }
-  .memberActions { width: 100%; padding-left: 54px; }
+  .member { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 0; min-height: auto; }
+  .memberHeader { width: 100%; gap: 10px; }
+  .absentButtonHeader { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 0 11px; border-radius: 8px; border: 1px solid var(--checkin-line); background: transparent; color: var(--checkin-muted); font-size: 11px !important; font-weight: 600 !important; flex-shrink: 0; cursor: pointer; user-select: none; touch-action: manipulation; transition: all 0.15s ease; }
+  .absentButtonHeader:hover:not(:disabled) { color: var(--cream); background: var(--checkin-panel); border-color: color-mix(in srgb, var(--checkin-gold) 40%, transparent); }
+  .absentButtonHeader:active:not(:disabled) { transform: scale(0.93); }
+  .absentButtonDesktop { display: none; }
+  .memberActions { width: 100%; padding: 0; gap: 6px; }
   .memberActions > button { flex: 1; }
-  .culteGroup { display: flex; flex: 3; gap: 4px; }
-  .culteGroup > .culteBtn { flex: 1; min-width: 0; padding-inline: 6px; }
+  .culteGroup { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; gap: 5px; }
+  .culteGroup > .culteBtn { flex: none; min-width: 0; min-height: 40px; padding-inline: 4px; gap: 4px; font-size: 11.5px !important; }
+  .editButton { margin-left: auto; flex-shrink: 0; min-height: 34px; padding: 0 10px; font-size: 11.5px !important; }
 }
 @media (max-width: 640px) {
   .dialog { width: 100%; height: 100dvh; margin: 0; border: 0; border-radius: 0; }
@@ -219,18 +230,16 @@
   .listHeading p { display: none; }
   .filters { gap: 0; justify-content: space-between; margin-top: 10px; }
   .filters button { font-size: 11px; gap: 5px; }
-  .memberList { overflow: visible; padding: 0 18px 18px; flex: none; }
+  .memberList { overflow: visible; padding: 0 18px 24px; flex: none; }
   .listCaption { padding-top: 15px; }
-  .member { flex-wrap: nowrap; gap: 10px; min-height: 87px; padding: 12px 0; }
-  .avatar { width: 35px; height: 35px; font-size: 10px; }
-  .memberInfo h3 { font-size: 13px; }
-  .memberInfo p { font-size: 10px; }
-  .memberActions { width: auto; padding: 0; gap: 4px; }
-  .memberActions > button { flex: none; padding-inline: 9px; font-size: 11px !important; }
+  .member { padding: 11px 0; gap: 8px; }
+  .avatar { width: 36px; height: 36px; font-size: 11px; }
+  .memberInfo h3 { font-size: 13.5px; }
+  .memberInfo p { font-size: 10.5px; }
   .culteBtnFull { display: none; }
   .culteBtnShort { display: inline; }
-  .culteGroup { flex: none; gap: 3px; }
-  .culteBtn { min-height: 38px; padding-inline: 7px; font-size: 11px !important; gap: 3px; }
+  .culteGroup { gap: 4px; }
+  .culteBtn { min-height: 38px; padding-inline: 4px; font-size: 11px !important; gap: 3px; }
   .presentButton { gap: 4px; }
   .footer { flex-wrap: wrap; gap: 10px; padding: 12px max(18px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); }
   .footer > .primaryButton { width: 100%; min-height: 45px; }
@@ -248,11 +257,12 @@
   .empty { min-height: 235px; }
 }
 @media (max-width: 370px) {
-  .member { flex-wrap: wrap; }
-  .memberActions { padding-left: 45px; width: 100%; }
-  .memberActions > button { flex: 1; }
-  .culteGroup { width: 100%; }
-  .culteGroup > .culteBtn { flex: 1; }
+  .memberHeader { gap: 8px; }
+  .avatar { width: 32px; height: 32px; font-size: 10px; }
+  .memberInfo h3 { font-size: 12.5px; }
+  .culteGroup { gap: 3px; }
+  .culteBtn { padding-inline: 2px; font-size: 10.5px !important; }
+  .absentButtonHeader { padding: 0 8px; font-size: 10.5px !important; }
   .filters button { font-size: 10px; gap: 4px; }
 }
 @media (prefers-reduced-motion: reduce) {

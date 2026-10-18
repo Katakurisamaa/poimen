@@ -112,6 +112,7 @@ export default function ReportingPage() {
 
     culte_1: 0,
     culte_2: 0,
+    culte_1_et_2: 0,
     culte_en_ligne: 0,
     taux_participation_globale: undefined,
 
@@ -125,6 +126,7 @@ export default function ReportingPage() {
     nombre_disciples: 0,
     disciples_culte_1: 0,
     disciples_culte_2: 0,
+    disciples_culte_1_et_2: 0,
     disciples_culte_en_ligne: 0,
     disciples_presents_total: 0,
     taux_participation_disciples: 85,
@@ -180,10 +182,12 @@ export default function ReportingPage() {
 
       let countC1 = 0;
       let countC2 = 0;
+      let countBoth = 0;
       let countEnLigne = 0;
 
       let disciplesC1 = 0;
       let disciplesC2 = 0;
+      let disciplesBoth = 0;
       let disciplesEnLigne = 0;
 
       let absJustifiees = 0;
@@ -354,7 +358,18 @@ export default function ReportingPage() {
               }
             }
 
-            if (attendedCulte === "culte_1") {
+            const isBothCultes = attendedCulte === "culte_1_2" || attendedCulte === "culte_both" || attendedCulte === "culte_1_et_2" || attendedCulte === "both";
+
+            if (isBothCultes) {
+              countC1++;
+              countC2++;
+              countBoth++;
+              if (isDisciple) {
+                disciplesC1++;
+                disciplesC2++;
+                disciplesBoth++;
+              }
+            } else if (attendedCulte === "culte_1") {
               countC1++;
               if (isDisciple) disciplesC1++;
             } else if (attendedCulte === "culte_2") {
@@ -425,9 +440,10 @@ export default function ReportingPage() {
           });
 
           // Accurate calculation of unjustified absences:
-          // Total absences = Total members - (Present Culte 1 + Culte 2 + Culte en ligne)
+          // Unique members present = (Culte 1 + Culte 2 - Cumul 2 cultes) + Culte en ligne
+          // Total absences = Total members - Unique members present
           // Absences non justifiées = Total absences - Absences justifiées
-          const totalPartCulte = countC1 + countC2 + countEnLigne;
+          const totalPartCulte = Math.max(0, (countC1 + countC2 - countBoth) + countEnLigne);
           const totalSundayAbsences = Math.max(0, totalMembres - totalPartCulte);
           absNonJustifiees = Math.max(0, totalSundayAbsences - absJustifiees);
 
@@ -550,13 +566,15 @@ export default function ReportingPage() {
           quart_heure_tenue: existingReport.quart_heure_tenue !== undefined ? existingReport.quart_heure_tenue : parsedTenue,
           quart_heure_presents: existingReport.quart_heure_presents !== undefined ? existingReport.quart_heure_presents : parsedPresents,
           faiseurs_de_disciples: existingReport.faiseurs_de_disciples !== undefined ? existingReport.faiseurs_de_disciples : (faiseursCount || prev.faiseurs_de_disciples || 0),
+          culte_1_et_2: existingReport.culte_1_et_2 !== undefined ? existingReport.culte_1_et_2 : countBoth,
           disciples_culte_1: existingReport.disciples_culte_1 !== undefined ? existingReport.disciples_culte_1 : disciplesC1,
           disciples_culte_2: existingReport.disciples_culte_2 !== undefined ? existingReport.disciples_culte_2 : disciplesC2,
+          disciples_culte_1_et_2: existingReport.disciples_culte_1_et_2 !== undefined ? existingReport.disciples_culte_1_et_2 : disciplesBoth,
           disciples_culte_en_ligne: existingReport.disciples_culte_en_ligne !== undefined ? existingReport.disciples_culte_en_ligne : disciplesEnLigne,
-          disciples_presents_total: existingReport.disciples_presents_total !== undefined ? existingReport.disciples_presents_total : (disciplesC1 + disciplesC2 + disciplesEnLigne),
+          disciples_presents_total: existingReport.disciples_presents_total !== undefined ? existingReport.disciples_presents_total : Math.max(0, (disciplesC1 + disciplesC2 - disciplesBoth) + disciplesEnLigne),
         }));
       } else {
-        const disciplesPartTotal = disciplesC1 + disciplesC2 + disciplesEnLigne;
+        const disciplesPartTotal = Math.max(0, (disciplesC1 + disciplesC2 - disciplesBoth) + disciplesEnLigne);
         const disciplesPct = disciplesCount > 0 
           ? Math.round((disciplesPartTotal / disciplesCount) * 1000) / 10 
           : 0;
@@ -581,6 +599,7 @@ export default function ReportingPage() {
           repartition_femmes: femmes || prev.repartition_femmes,
           culte_1: countC1,
           culte_2: countC2,
+          culte_1_et_2: countBoth,
           culte_en_ligne: countEnLigne,
           absences_justifiees: absJustifiees,
           absences_non_justifiees: absNonJustifiees,
@@ -589,6 +608,7 @@ export default function ReportingPage() {
           nombre_disciples: disciplesCount,
           disciples_culte_1: disciplesC1,
           disciples_culte_2: disciplesC2,
+          disciples_culte_1_et_2: disciplesBoth,
           disciples_culte_en_ligne: disciplesEnLigne,
           disciples_presents_total: disciplesPartTotal,
           taux_participation_disciples: disciplesPct,
@@ -699,6 +719,7 @@ export default function ReportingPage() {
         repartition_femmes: Number(formData.repartition_femmes) || 0,
         culte_1: Number(formData.culte_1) || 0,
         culte_2: Number(formData.culte_2) || 0,
+        culte_1_et_2: Number(formData.culte_1_et_2) || 0,
         culte_en_ligne: Number(formData.culte_en_ligne) || 0,
         absences_justifiees: Number(formData.absences_justifiees) || 0,
         absences_non_justifiees: Number(formData.absences_non_justifiees) || 0,
@@ -709,6 +730,7 @@ export default function ReportingPage() {
         nombre_disciples: Number(formData.nombre_disciples) || 0,
         disciples_culte_1: Number(formData.disciples_culte_1) || 0,
         disciples_culte_2: Number(formData.disciples_culte_2) || 0,
+        disciples_culte_1_et_2: Number(formData.disciples_culte_1_et_2) || 0,
         disciples_culte_en_ligne: Number(formData.disciples_culte_en_ligne) || 0,
         disciples_presents_total: Number(formData.disciples_presents_total) || 0,
         taux_participation_disciples: Number(formData.taux_participation_disciples) || 0,
@@ -728,7 +750,12 @@ export default function ReportingPage() {
           .from("rapports_fdd")
           .upsert(payload, { onConflict: "bergerie_id, date_rapport" });
         if (error) {
-          console.warn("Supabase upsert warning (table may require patch):", error.message);
+          if (error.message?.includes("culte_1_et_2") || error.code === "42703") {
+            const { culte_1_et_2, disciples_culte_1_et_2, ...fallbackPayload } = payload;
+            await supabase.from("rapports_fdd").upsert(fallbackPayload, { onConflict: "bergerie_id, date_rapport" });
+          } else {
+            console.warn("Supabase upsert warning (table may require patch):", error.message);
+          }
         }
       } catch (dbErr) {
         console.warn("Supabase error:", dbErr);
@@ -754,10 +781,16 @@ export default function ReportingPage() {
     setDownloadingPdf(true);
 
     try {
+      if (typeof document !== "undefined" && (document as any).fonts?.ready) {
+        await (document as any).fonts.ready;
+      }
+
       const dataUrl = await toPng(printElement, {
         pixelRatio: 2.5,
         backgroundColor: "#ffffff",
         cacheBust: true,
+        skipFonts: true,
+        fontEmbedCSS: "",
       });
 
       // Wait for image dimensions
@@ -807,10 +840,16 @@ export default function ReportingPage() {
     setDownloadingImage(true);
 
     try {
+      if (typeof document !== "undefined" && (document as any).fonts?.ready) {
+        await (document as any).fonts.ready;
+      }
+
       const dataUrl = await toPng(printElement, {
         pixelRatio: 2.5,
         backgroundColor: "#ffffff",
         cacheBust: true,
+        skipFonts: true,
+        fontEmbedCSS: "",
       });
 
       const safeFamilyName = (formData.nom_famille || "Famille").replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -1279,6 +1318,19 @@ export default function ReportingPage() {
                   </div>
 
                   <div>
+                    <label className="form-label" style={{ color: "#34d399", fontWeight: 700 }}>Culte 1 &amp; 2 (Cumul)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input"
+                      value={formData.culte_1_et_2 ?? ""}
+                      placeholder="0"
+                      title="Nombre de participants ayant assisté aux deux cultes"
+                      onChange={(e) => setFormData({ ...formData, culte_1_et_2: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div>
                     <label className="form-label" style={{ color: "var(--violet)", fontWeight: 700 }}>En Ligne</label>
                     <input
                       type="number"
@@ -1333,11 +1385,14 @@ export default function ReportingPage() {
                       value={formData.disciples_culte_1 ?? ""}
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
-                        setFormData((prev) => ({
-                          ...prev,
-                          disciples_culte_1: val,
-                          disciples_presents_total: val + (prev.disciples_culte_2 || 0) + (prev.disciples_culte_en_ligne || 0),
-                        }));
+                        setFormData((prev) => {
+                          const both = prev.disciples_culte_1_et_2 || 0;
+                          return {
+                            ...prev,
+                            disciples_culte_1: val,
+                            disciples_presents_total: Math.max(0, val + (prev.disciples_culte_2 || 0) + (prev.disciples_culte_en_ligne || 0) - both),
+                          };
+                        });
                       }}
                     />
                   </div>
@@ -1351,10 +1406,33 @@ export default function ReportingPage() {
                       value={formData.disciples_culte_2 ?? ""}
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
+                        setFormData((prev) => {
+                          const both = prev.disciples_culte_1_et_2 || 0;
+                          return {
+                            ...prev,
+                            disciples_culte_2: val,
+                            disciples_presents_total: Math.max(0, (prev.disciples_culte_1 || 0) + val + (prev.disciples_culte_en_ligne || 0) - both),
+                          };
+                        });
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ color: "#38bdf8", fontWeight: 700 }}>Disciples C1 &amp; 2</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input"
+                      value={formData.disciples_culte_1_et_2 ?? ""}
+                      placeholder="0"
+                      title="Nombre de disciples ayant assisté aux deux cultes"
+                      onChange={(e) => {
+                        const both = parseInt(e.target.value) || 0;
                         setFormData((prev) => ({
                           ...prev,
-                          disciples_culte_2: val,
-                          disciples_presents_total: (prev.disciples_culte_1 || 0) + val + (prev.disciples_culte_en_ligne || 0),
+                          disciples_culte_1_et_2: both,
+                          disciples_presents_total: Math.max(0, (prev.disciples_culte_1 || 0) + (prev.disciples_culte_2 || 0) + (prev.disciples_culte_en_ligne || 0) - both),
                         }));
                       }}
                     />
@@ -1369,11 +1447,14 @@ export default function ReportingPage() {
                       value={formData.disciples_culte_en_ligne ?? ""}
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
-                        setFormData((prev) => ({
-                          ...prev,
-                          disciples_culte_en_ligne: val,
-                          disciples_presents_total: (prev.disciples_culte_1 || 0) + (prev.disciples_culte_2 || 0) + val,
-                        }));
+                        setFormData((prev) => {
+                          const both = prev.disciples_culte_1_et_2 || 0;
+                          return {
+                            ...prev,
+                            disciples_culte_en_ligne: val,
+                            disciples_presents_total: Math.max(0, (prev.disciples_culte_1 || 0) + (prev.disciples_culte_2 || 0) + val - both),
+                          };
+                        });
                       }}
                     />
                   </div>

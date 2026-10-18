@@ -88,3 +88,12 @@ test('pointing and undoing leave other dates and activities intact', () => {
   assert.equal(getAttendanceStatus(restored, 'cdm', date), 'present');
   assert.equal(JSON.stringify(attendance), initial);
 });
+
+test('presence records culte_1_2 for participant attending both services', () => {
+  const initial = { _comments: { culte: { [date]: 'Voyage' } } };
+  const next = buildAttendanceUpdate(initial, activity, date, 'present', '', 'culte_1_2');
+  assert.equal(next.culte[date], 'culte_1_2');
+  assert.equal(next._attendance_status.culte[date], 'present');
+  assert.equal(getAttendanceStatus(next, activity, date), 'present');
+  assert.equal(next._comments.culte[date], undefined);
+});

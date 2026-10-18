@@ -78,6 +78,8 @@ export default function CrCallCenterModal({ isOpen, onClose, guests, churchName 
         pixelRatio: 3.2,
         backgroundColor: bgColor,
         cacheBust: true,
+        skipFonts: true,
+        fontEmbedCSS: "",
       });
 
       const pdf = new jsPDF({

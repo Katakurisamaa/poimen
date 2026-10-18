@@ -20,7 +20,8 @@ export function summarizePerson(input: object, kind: "member" | "guest") {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
       const status = getAttendanceStatus(attendance, activityId, date);
       const value = attendance[activityId]?.[date];
-      const service = value === "culte_2" ? " · Culte 2" : value === "culte_en_ligne" ? " · En ligne" : value === "culte_1" ? " · Culte 1" : "";
+      const isBoth = value === "culte_1_2" || value === "culte_both" || value === "culte_1_et_2";
+      const service = isBoth ? " · Culte 1 & 2" : value === "culte_2" ? " · Culte 2" : value === "culte_en_ligne" ? " · En ligne" : value === "culte_1" ? " · Culte 1" : "";
       events.push({ date, activity: activityNames[activityId] || activityId, status: statuses[status] + (status === "present" ? service : ""), reason: attendance._comments?.[activityId]?.[date] || "" });
     }
   }

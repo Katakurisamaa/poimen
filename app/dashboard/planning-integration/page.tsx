@@ -468,6 +468,8 @@ export default function PlanningIntegrationPage() {
         pixelRatio: 3.5,
         backgroundColor: "#ffffff",
         cacheBust: true,
+        skipFonts: true,
+        fontEmbedCSS: "",
         style: {
           opacity: "1",
           visibility: "visible",

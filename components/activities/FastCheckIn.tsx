@@ -31,6 +31,7 @@ const REASONS = ["Maladie", "Travail", "Voyage", "Famille"];
 const SERVICES = [
   { id: "culte_1", label: "Culte 1", short: "C1" },
   { id: "culte_2", label: "Culte 2", short: "C2" },
+  { id: "culte_1_2", label: "Culte 1 & 2", short: "C1+2" },
   { id: "culte_en_ligne", label: "En ligne", short: "Ligne" },
 ];
 const STATUS_LABELS = { unpointed: "À pointer", present: "Présent", justified: "Absence justifiée", unjustified: "Absence non justifiée" };
@@ -231,43 +232,126 @@ export default function FastCheckIn({ activity, date, members, onClose, onChange
           </div>
           <div ref={scrollRef} className={styles.memberList}>
             <div className={styles.listCaption}><span>{search.trim() ? "RÉSULTATS DE RECHERCHE" : filter === "unpointed" ? "EN ATTENTE DE POINTAGE" : FILTERS.find(item => item.id === filter)?.label.toLocaleUpperCase("fr")}</span><span aria-live="polite">{visibleRows.length} {visibleRows.length > 1 ? "membres" : "membre"}</span></div>
-            {visibleRows.map(entry => <article key={entry.member.id} className={styles.member} aria-label={label(entry.member)} aria-busy={savingId === entry.member.id}>
-              <span className={styles.avatar} aria-hidden="true">{entry.member.firstName[0]}{entry.member.lastName[0]}</span>
-              <div className={styles.memberInfo}><h3>{label(entry.member)}</h3><p className={entry.status === "present" ? styles.green : entry.status === "justified" ? styles.amber : styles.muted}>{entry.status === "present" && <Check size={13} />}{STATUS_LABELS[entry.status]}{entry.status === "present" && entry.service ? ` · ${SERVICES.find(item => item.id === entry.service)?.label || entry.service}` : entry.status === "justified" && entry.reason ? ` · ${entry.reason}` : ""}</p></div>
-              <div className={styles.memberActions}>{entry.status === "unpointed" ? <>
-                {isCulte ? (
-                  <div className={styles.culteGroup} role="group" aria-label={`Pointer ${label(entry.member)}`}>
-                    {SERVICES.map(srv => {
-                      const isThisSaving = savingId === entry.member.id && savingService === srv.id;
-                      const isOtherSaving = savingId === entry.member.id && savingService !== srv.id;
-                      return (
-                        <button
-                          key={srv.id}
-                          type="button"
-                          className={styles.culteBtn}
-                          disabled={saving}
-                          data-active={isThisSaving ? "true" : undefined}
-                          data-dimmed={isOtherSaving ? "true" : undefined}
-                          title={`Pointer ${label(entry.member)} au ${srv.label}`}
-                          aria-label={`Pointer ${label(entry.member)} présent au ${srv.label}`}
-                          onClick={() => void save({ memberId: entry.member.id, status: "present", service: srv.id })}
-                        >
-                          {isThisSaving ? <LoaderCircle className={styles.spin} size={13} /> : <Check size={13} />}
-                          <span className={styles.culteBtnFull}>{srv.label}</span>
-                          <span className={styles.culteBtnShort}>{srv.short}</span>
-                        </button>
-                      );
-                    })}
+            {visibleRows.map(entry => {
+              const initials = ((entry.member.firstName?.[0] || "") + (entry.member.lastName?.[0] || "")).toUpperCase() || "?";
+              const isUnpointed = entry.status === "unpointed";
+              return (
+                <article
+                  key={entry.member.id}
+                  className={styles.member}
+                  aria-label={label(entry.member)}
+                  aria-busy={savingId === entry.member.id}
+                  data-status={entry.status}
+                >
+                  <div className={styles.memberHeader}>
+                    <span className={styles.avatar} aria-hidden="true">{initials}</span>
+                    <div className={styles.memberInfo}>
+                      <h3 title={label(entry.member)}>{label(entry.member)}</h3>
+                      <p className={entry.status === "present" ? styles.green : entry.status === "justified" ? styles.amber : styles.muted}>
+                        {entry.status === "present" && <Check size={13} />}
+                        {STATUS_LABELS[entry.status]}
+                        {entry.status === "present" && entry.service
+                          ? ` · ${SERVICES.find(item => item.id === entry.service)?.label || entry.service}`
+                          : entry.status === "justified" && entry.reason
+                            ? ` · ${entry.reason}`
+                            : ""}
+                      </p>
+                    </div>
+
+                    {!isUnpointed && (
+                      <button
+                        type="button"
+                        className={styles.editButton}
+                        disabled={saving}
+                        aria-label={`Modifier le statut de ${label(entry.member)}`}
+                        onClick={() => openEditor(entry, entry.status)}
+                      >
+                        {savingId === entry.member.id ? <LoaderCircle className={styles.spin} size={16} /> : "Modifier"}
+                        <ChevronRight size={15} />
+                      </button>
+                    )}
+
+                    {isUnpointed && isCulte && (
+                      <button
+                        type="button"
+                        className={styles.absentButtonHeader}
+                        disabled={saving}
+                        aria-label={`Signaler une absence pour ${label(entry.member)}`}
+                        onClick={() => openEditor(entry, "unjustified")}
+                      >
+                        <UserRoundX size={13} />
+                        <span>Absence</span>
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <button type="button" className={styles.presentButton} disabled={saving} aria-label={`Marquer ${label(entry.member)} présent`} onClick={() => void save({ memberId: entry.member.id, status: "present" })}>
-                    {savingId === entry.member.id ? <LoaderCircle className={styles.spin} size={17} /> : <Check size={17} />}
-                    <span>Présent</span>
-                  </button>
-                )}
-                <button type="button" className={styles.absentButton} disabled={saving} aria-label={`Signaler une absence pour ${label(entry.member)}`} onClick={() => openEditor(entry, "unjustified")}>Absence</button>
-              </> : <button type="button" className={styles.editButton} disabled={saving} aria-label={`Modifier le statut de ${label(entry.member)}`} onClick={() => openEditor(entry, entry.status)}>{savingId === entry.member.id ? <LoaderCircle className={styles.spin} size={16} /> : "Modifier"}<ChevronRight size={15} /></button>}</div>
-            </article>)}
+
+                  {isUnpointed && (
+                    <div className={styles.memberActions}>
+                      {isCulte ? (
+                        <>
+                          <div className={styles.culteGroup} role="group" aria-label={`Pointer ${label(entry.member)}`}>
+                            {SERVICES.map(srv => {
+                              const isThisSaving = savingId === entry.member.id && savingService === srv.id;
+                              const isOtherSaving = savingId === entry.member.id && savingService !== srv.id;
+                              return (
+                                <button
+                                  key={srv.id}
+                                  type="button"
+                                  className={styles.culteBtn}
+                                  disabled={saving}
+                                  data-active={isThisSaving ? "true" : undefined}
+                                  data-dimmed={isOtherSaving ? "true" : undefined}
+                                  title={`Pointer ${label(entry.member)} au ${srv.label}`}
+                                  aria-label={`Pointer ${label(entry.member)} présent au ${srv.label}`}
+                                  onClick={() => void save({ memberId: entry.member.id, status: "present", service: srv.id })}
+                                >
+                                  {isThisSaving ? <LoaderCircle className={styles.spin} size={13} /> : <Check size={13} />}
+                                  <span className={styles.culteBtnFull}>{srv.label}</span>
+                                  <span className={styles.culteBtnShort}>{srv.short}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            className={styles.absentButtonDesktop}
+                            disabled={saving}
+                            aria-label={`Signaler une absence pour ${label(entry.member)}`}
+                            onClick={() => openEditor(entry, "unjustified")}
+                          >
+                            <UserRoundX size={14} />
+                            <span>Absence</span>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className={styles.presentButton}
+                            disabled={saving}
+                            aria-label={`Marquer ${label(entry.member)} présent`}
+                            onClick={() => void save({ memberId: entry.member.id, status: "present" })}
+                          >
+                            {savingId === entry.member.id ? <LoaderCircle className={styles.spin} size={17} /> : <Check size={17} />}
+                            <span>Présent</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.absentButton}
+                            disabled={saving}
+                            aria-label={`Signaler une absence pour ${label(entry.member)}`}
+                            onClick={() => openEditor(entry, "unjustified")}
+                          >
+                            <UserRoundX size={14} />
+                            <span>Absence</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
             {visibleRows.length === 0 && <div className={styles.empty}><span>{search.trim() ? <Search size={29} /> : filter === "unpointed" && complete ? <CheckCheck size={29} /> : <Users size={29} />}</span><h3>{search.trim() ? "Aucun membre trouvé" : !activeMembersList.length ? "Votre liste est encore vide" : filter === "unpointed" ? "Tout le monde est pointé" : "Aucun membre dans cette liste"}</h3><p>{search.trim() ? "Essayez un autre prénom ou nom, ou cherchez dans tous les membres." : !activeMembersList.length ? "Les membres de votre groupe apparaîtront ici." : filter === "unpointed" ? "Vous pouvez consulter le bilan ou corriger un statut." : "Les statuts enregistrés apparaîtront ici."}</p>{search.trim() ? <button type="button" className={styles.textButton} onClick={() => { setFilter("all"); setSearch(""); searchRef.current?.focus(); }}>Afficher tous les membres<ArrowRight size={16} /></button> : complete && <button type="button" className={styles.textButton} onClick={() => setSummary(true)}>Voir le bilan<ArrowRight size={16} /></button>}</div>}
           </div>
         </>}

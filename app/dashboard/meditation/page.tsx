@@ -342,10 +342,16 @@ export default function MeditationPage() {
     if (wrapper) wrapper.style.transform = "none";
 
     try {
+      if (typeof document !== "undefined" && (document as any).fonts?.ready) {
+        await (document as any).fonts.ready;
+      }
+
       return await toPng(element, {
         pixelRatio: 2.5,
         backgroundColor: plan.theme_style === "parchment" ? "#FAF7F0" : "#07192A",
         cacheBust: true,
+        skipFonts: true,
+        fontEmbedCSS: "",
       });
     } finally {
       if (wrapper && prevTransform) {

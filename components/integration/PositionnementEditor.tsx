@@ -442,10 +442,16 @@ Bénédictions à tous pour le service ! ✨`;
     notify("Génération du document PDF…");
 
     try {
+      if (typeof document !== "undefined" && (document as any).fonts?.ready) {
+        await (document as any).fonts.ready;
+      }
+
       const dataUrl = await toPng(printElement, {
         pixelRatio: 2.2,
         backgroundColor: "#ffffff",
         cacheBust: true,
+        skipFonts: true,
+        fontEmbedCSS: "",
       });
 
       const pdf = new jsPDF({
