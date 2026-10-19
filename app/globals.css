@@ -5660,7 +5660,28 @@ body .modal-overlay .arch-card .btn-subtle {
   opacity: 0;
 }
 
+.pwa-top-left-btn {
+  position: fixed !important;
+  top: 14px !important;
+  left: 14px !important;
+  z-index: 1600 !important;
+  width: 40px !important;
+  height: 40px !important;
+}
+
 @media (max-width: 768px) {
+  .pwa-top-left-btn {
+    top: 10px !important;
+    left: 10px !important;
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .pwa-top-left-btn button {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
   .theme-toggle {
     top: 10px;
     right: 10px;

@@ -1,6 +1,7 @@
 "use client";
 
 import PoimenLogo from "@/components/brand/PoimenLogo";
+import PwaInstallButton from "@/components/PwaInstallButton";
 
 import { useState, useEffect } from "react";
 import { Search, MapPin, Lock, ChevronRight, X, Loader2, Church, Flame, FileText } from "lucide-react";
@@ -116,8 +117,12 @@ export default function LandingPage() {
   };
 
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--cream)", padding: "60px 20px", overflowX: "hidden", position: "relative" }}>
-      {/* Background Decor - Divine Angelic Lights */}
+    <>
+      {/* PWA Local App Install Button - Fixed Top Left, perfectly aligned with ThemeToggle */}
+      <PwaInstallButton className="pwa-top-left-btn" tooltipAlign="left" />
+
+      <div style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--cream)", padding: "60px 20px", overflowX: "hidden", position: "relative" }}>
+        {/* Background Decor - Divine Angelic Lights */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
         {/* Liturgical Violet Aura */}
         <motion.div 
@@ -523,6 +528,7 @@ export default function LandingPage() {
           opacity: 0.8 !important;
         }
       `}</style>
-    </div>
+      </div>
+    </>
   );
 }
