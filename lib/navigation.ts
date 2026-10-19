@@ -59,7 +59,7 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
     canSeeMembers: false, canSeeGuests: false,
   };
   if (!access.hasFamily && !integration) return { primary: [], secondary: [], canSeeMembers: false, canSeeGuests: false };
-  const canSeeGuests = familyLeader || integrationLeader;
+  const canSeeGuests = integrationLeader;
   const primary: NavItem[] = [];
   const secondary: NavItem[] = [];
   if (familyLeader || integration || counselor) primary.push({ label: "Accueil", href: "/dashboard", icon: "home", description: "Vos priorités du jour" });
@@ -72,7 +72,6 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
     if (isNoe) {
       primary.push(meditationItem);
     }
-    secondary.push({ label: "Visio / Cellule", href: "/dashboard/visio?type=family", icon: "video", description: "Réunions de maison et partages d’écran" });
     secondary.push({ label: "Rapports", href: "/dashboard/reporting", icon: "report", description: "Bilan et export des rapports" });
     if (!isNoe) {
       secondary.push(meditationItem);
