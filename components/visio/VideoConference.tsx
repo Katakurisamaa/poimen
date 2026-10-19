@@ -10,6 +10,7 @@ import {
   ChevronLeft, ChevronRight, Sun, Moon
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { transitionTheme } from "@/lib/theme-transition";
 import { getPublicVisioUrl, getWhatsAppShareUrl, matchesLobbyAdmission, wasLobbyAdmissionDelivered } from "@/lib/visio";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import { animateVisioPanelExit } from "./interaction-transition";
@@ -309,24 +310,27 @@ export default function VideoConference({
   const toggleThemeMode = useCallback((e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const nextTheme: "light" | "dark" = currentTheme === "dark" ? "light" : "dark";
-    setCurrentTheme(nextTheme);
 
-    if (typeof document !== "undefined") {
-      document.documentElement.dataset.theme = nextTheme;
-      document.documentElement.style.colorScheme = nextTheme;
-      document.documentElement.classList.toggle("dark", nextTheme === "dark");
-      document.body.dataset.theme = nextTheme;
-      document.body.style.colorScheme = nextTheme;
-      document.body.classList.toggle("dark", nextTheme === "dark");
-    }
+    transitionTheme(() => {
+      setCurrentTheme(nextTheme);
 
-    try {
-      localStorage.setItem("poimen_theme", nextTheme);
-    } catch {}
+      if (typeof document !== "undefined") {
+        document.documentElement.dataset.theme = nextTheme;
+        document.documentElement.style.colorScheme = nextTheme;
+        document.documentElement.classList.toggle("dark", nextTheme === "dark");
+        document.body.dataset.theme = nextTheme;
+        document.body.style.colorScheme = nextTheme;
+        document.body.classList.toggle("dark", nextTheme === "dark");
+      }
 
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("poimen-theme-change", { detail: nextTheme }));
-    }
+      try {
+        localStorage.setItem("poimen_theme", nextTheme);
+      } catch {}
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("poimen-theme-change", { detail: nextTheme }));
+      }
+    });
   }, [currentTheme]);
 
   // Media states

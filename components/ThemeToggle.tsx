@@ -1,7 +1,8 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { transitionTheme } from "@/lib/theme-transition";
 
 type ThemeMode = "light" | "dark";
 
@@ -20,7 +21,6 @@ export default function ThemeToggle() {
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [mounted, setMounted] = useState(false);
   const [language, setLanguage] = useState("fr");
-  const isTransitioning = useRef(false);
 
   useEffect(() => {
     const syncLanguage = () => setLanguage(document.documentElement.lang.split("-")[0]);
@@ -28,6 +28,15 @@ export default function ThemeToggle() {
     const observer = new MutationObserver(syncLanguage);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const syncTheme = (event: Event) => {
+      const nextTheme = (event as CustomEvent<ThemeMode>).detail;
+      if (nextTheme === "light" || nextTheme === "dark") setTheme(nextTheme);
+    };
+    window.addEventListener("poimen-theme-change", syncTheme);
+    return () => window.removeEventListener("poimen-theme-change", syncTheme);
   }, []);
 
   const labels = language === "en"
@@ -84,11 +93,10 @@ export default function ThemeToggle() {
     }
   }, []);
 
-  const toggleTheme = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (isTransitioning.current) return;
+  const toggleTheme = () => {
     const nextTheme: ThemeMode = theme === "dark" ? "light" : "dark";
 
-    const updateDomAndState = () => {
+    transitionTheme(() => {
       setTheme(nextTheme);
       try {
         localStorage.setItem(STORAGE_KEY, nextTheme);
@@ -99,45 +107,7 @@ export default function ThemeToggle() {
       window.dispatchEvent(
         new CustomEvent("poimen-theme-change", { detail: nextTheme })
       );
-    };
-
-    const doc =
-      typeof document !== "undefined"
-        ? (document as unknown as {
-            startViewTransition?: (callback: () => void) => {
-              ready: Promise<void>;
-              finished: Promise<void>;
-            };
-          })
-        : null;
-
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    if (doc?.startViewTransition && !prefersReducedMotion) {
-      isTransitioning.current = true;
-      document.documentElement.classList.add("theme-transitioning");
-
-      const transition = doc.startViewTransition(() => {
-        updateDomAndState();
-      });
-
-      transition.finished
-        .catch(() => {})
-        .finally(() => {
-          document.documentElement.classList.remove("theme-transitioning");
-          isTransitioning.current = false;
-        });
-    } else {
-      isTransitioning.current = true;
-      document.documentElement.classList.add("theme-transitioning");
-      updateDomAndState();
-      setTimeout(() => {
-        document.documentElement.classList.remove("theme-transitioning");
-        isTransitioning.current = false;
-      }, 250);
-    }
+    });
   };
 
   return (

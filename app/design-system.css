@@ -1,5 +1,6 @@
 /* Shared visual foundation. Explicit theme selectors bridge the legacy global
    rules; page layouts and print documents keep their own geometry. */
+
 html[data-theme="light"], html[data-theme="light"] body {
   --bg: #f6f7fa;
   --bg-deep: #f0f2f6;
@@ -176,6 +177,38 @@ html[data-theme] body :is(.activity-view-option, .invite-view-option).active :is
 html[data-theme] body :is(.activity-view-option, .invite-view-option) :is(.activity-view-icon, .invite-view-icon) svg,
 html[data-theme] body :is(.activity-view-option, .invite-view-option).active :is(.activity-view-icon, .invite-view-icon) svg * { color: inherit !important; }
 
+/* Keep the Family of Disciples workflow palette on the same interpolated
+   tokens as the page. Legacy dark-mode gradients changed in one frame while
+   the surrounding surfaces were still transitioning. */
+html[data-theme] body .people-screen.integration-people-screen > .invite-view-switcher.integration-workflow-nav {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+html[data-theme] body .people-screen.integration-people-screen > .invite-view-switcher.integration-workflow-nav .invite-view-option {
+  background: var(--surface-solid) !important;
+  color: var(--cream) !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+html[data-theme] body .people-screen.integration-people-screen > .invite-view-switcher.integration-workflow-nav .invite-view-option.active {
+  background: linear-gradient(135deg, var(--gold-glow-strong), var(--gold-glow)) !important;
+  color: var(--cream) !important;
+  border-color: var(--gold) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+html[data-theme] body .people-screen.integration-people-screen > .invite-view-switcher.integration-workflow-nav .invite-view-icon {
+  background: var(--gold-glow) !important;
+  border-color: var(--border) !important;
+  color: var(--gold) !important;
+  box-shadow: none !important;
+}
+html[data-theme] body .people-screen.integration-people-screen > .invite-view-switcher.integration-workflow-nav .invite-view-option.active .invite-view-icon {
+  background: var(--gold-glow-strong) !important;
+  border-color: var(--gold) !important;
+  color: var(--gold-light) !important;
+}
+
 /* Consistent controls, including older screens and portal forms. */
 html[data-theme] body .btn {
   min-height: 44px;
@@ -264,7 +297,7 @@ html[data-theme] body .theme-toggle {
   box-shadow: var(--shadow-soft) !important;
 }
 html[data-theme] body .theme-toggle__icon { background: var(--gold-glow); color: var(--gold); border-radius: 8px; }
-html[data-theme] body .theme-toggle__icon svg { animation: ui-enter 200ms ease; }
+html[data-theme] body .theme-toggle__label { min-width: 4em; text-align: center; }
 
 @media (hover: hover) and (pointer: fine) {
   html[data-theme] body .btn:not(:disabled):hover { transform: translateY(-1px); filter: none; }
@@ -971,4 +1004,40 @@ html[data-theme] body .people-screen .affectation-expand-btn:hover {
     width: 100% !important;
     justify-content: space-between !important;
   }
+}
+
+/* One composite fade keeps every surface, gradient and text in the same frame.
+   The layer makes these temporary rules win over legacy !important transitions. */
+@layer theme-transitions {
+  html.theme-changing,
+  html.theme-changing *,
+  html.theme-changing *::before,
+  html.theme-changing *::after {
+    transition: none !important;
+    animation-play-state: paused !important;
+  }
+
+  html.theme-changing::view-transition-group(root) {
+    animation: none !important;
+  }
+
+  html.theme-changing::view-transition-image-pair(root) {
+    isolation: isolate !important;
+  }
+
+  html.theme-changing::view-transition-old(root) {
+    animation: none !important;
+    opacity: 1 !important;
+    mix-blend-mode: normal !important;
+  }
+
+  html.theme-changing::view-transition-new(root) {
+    animation: poimen-theme-reveal 260ms cubic-bezier(0.4, 0, 0.2, 1) both !important;
+    mix-blend-mode: normal !important;
+  }
+}
+
+@keyframes poimen-theme-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
