@@ -460,6 +460,7 @@
 
 /* Spec list */
 .specList {
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -483,10 +484,15 @@
 .specKey {
   color: var(--muted, #a0afc4);
   font-size: 12px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .specVal {
+  margin: 0;
+  flex: 0 1 48%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--cream, #eef2f8);
   font-weight: 500;
   text-align: right;

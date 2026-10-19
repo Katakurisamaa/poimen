@@ -1,0 +1,64 @@
+:global(html[data-theme]) :global(body) .modal.modal {
+  width: min(780px, calc(100vw - 32px));
+  max-width: 780px !important;
+  padding: 0 !important;
+  border-radius: 24px !important;
+  background: var(--surface-solid) !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.header { position: relative; padding: 28px 32px 24px; border-bottom: 1px solid var(--border); background: var(--surface-soft); }
+.eyebrow { display: block; color: var(--gold); font-size: 10px; font-weight: 700; letter-spacing: .12em; margin-bottom: 10px; }
+.header h2 { margin: 0 40px 8px 0; color: var(--cream); font-family: var(--font-body), sans-serif; font-size: clamp(22px, 3vw, 28px); font-weight: 600; letter-spacing: -.03em; }
+.header p { margin: 0; max-width: 550px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.close { position: absolute; top: 22px; right: 22px; display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-solid); color: var(--muted); cursor: pointer; }
+.form { display: flex; flex-direction: column; }
+.note { margin: 0; padding: 20px 32px 0; color: var(--muted); font-size: 11px; }
+.fields { padding: 24px 32px 8px; }
+.section { padding-bottom: 28px; }
+.section + .section { padding-top: 28px; border-top: 1px solid var(--border); }
+.sectionHeader { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 22px; }
+.sectionIcon { display: grid; flex: 0 0 38px; place-items: center; height: 38px; border: 1px solid var(--border); border-radius: 12px; color: var(--gold); background: var(--gold-glow); }
+.sectionHeader h3 { display: flex; align-items: baseline; gap: 9px; margin: 0 0 5px; color: var(--cream); font-family: inherit; font-size: 16px; font-weight: 600; }
+.sectionHeader h3 small { color: var(--gold); font-size: 10px; font-weight: 600; }
+.sectionHeader p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.grid, .identityGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.identityGrid { grid-template-columns: 100px minmax(0, 1fr) minmax(0, 1fr); margin-bottom: 18px; }
+.field { min-width: 0; }
+.field > div { width: 100%; min-width: 0; }
+.field > label { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; color: var(--cream); font-size: 12px; font-weight: 500; }
+.field > label span { color: var(--gold); }
+.field > label small { margin-left: auto; font-size: 10px; color: var(--muted); font-weight: 400; }
+.fields .field input, .fields .field textarea, .fields .field > button, .fields .field > div > button {
+  box-sizing: border-box; width: 100%; min-width: 0; min-height: 46px;
+  padding: 11px 13px; border: 1px solid var(--border) !important; border-radius: 11px !important;
+  background: var(--surface-solid) !important; color: var(--cream) !important; box-shadow: none !important;
+  font-family: inherit; font-size: 14px !important; font-weight: 400 !important;
+}
+.fields .field textarea { resize: vertical; min-height: 110px; line-height: 1.7; }
+.field input::placeholder, .field textarea::placeholder { color: var(--muted); opacity: .75; }
+.field input:focus-visible, .field textarea:focus-visible, .field button:focus-visible, .close:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.country, .country span { display: flex; align-items: center; gap: 8px; }
+.country { justify-content: space-between; cursor: pointer; }
+.country svg { color: var(--gold); }
+.questions { display: grid; gap: 12px; }
+.grid + .questions { margin-top: 22px; }
+.followup { padding: 4px 16px 16px; border-left: 2px solid var(--gold); margin-left: 12px; }
+.comment { margin-top: 24px; }
+.assignment { margin-top: 18px; padding: 16px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 12px; }
+.actions { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 12px; padding: 18px 32px; border-top: 1px solid var(--border); background: var(--surface-solid); z-index: 2; }
+.actions button { min-height: 46px; }
+@media (max-width: 600px) {
+  :global(html[data-theme]) :global(body) .modal.modal { width: calc(100vw - 20px); border-radius: 18px !important; }
+  .header { padding: 24px 20px 20px; }
+  .header h2 { font-size: 22px; }
+  .close { top: 16px; right: 16px; }
+  .note { padding: 18px 20px 0; }
+  .fields { padding: 22px 20px 0; }
+  .grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .identityGrid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .identityGrid .field:first-child { max-width: 130px; }
+  .fields .field input, .fields .field textarea, .fields .field > button, .fields .field > div > button { font-size: 16px !important; }
+  .actions { padding: 16px 20px; }
+  .actions button { flex: 1; }
+}

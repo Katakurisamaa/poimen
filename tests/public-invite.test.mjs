@@ -13,7 +13,7 @@ function load(relativePath) {
 }
 const { inviteCopy, localizedOptions, eventValues, ageValues, civilityValues } = load('../app/public-invite/translations.ts');
 const { emptyInvite, invitePayload, nextInvite, validateInvite } = load('../app/public-invite/form-data.ts');
-const valid = () => ({ ...emptyInvite(), firstName: 'Alex', lastName: 'Example', phone: '+32 470 00 00 00', aps: false, localChurch: false, baptemeEau: false, interetFormation: false, interetCDM: false });
+const valid = () => ({ ...emptyInvite(), firstName: 'Alex', lastName: 'Example', phone: '+32 470 00 00 00', aEteInvite: false, aps: false, localChurch: false, baptemeEau: true, interetFormation: false, interetCDM: false });
 
 test('all three form languages preserve French values in the integration payload', () => {
   for (const locale of ['fr', 'en', 'nl']) {
@@ -46,9 +46,10 @@ test('both saving actions can share validation: no missing church, email typo or
   assert.equal(validateInvite(valid(), '').field, 'church');
   assert.equal(validateInvite({ ...valid(), firstName: '   ' }, 'church-id').field, 'firstName');
   assert.equal(validateInvite({ ...valid(), email: 'broken@' }, 'church-id').message, 'emailError');
-  for (const field of ['aps', 'localChurch', 'baptemeEau', 'interetFormation', 'interetCDM']) {
+  for (const field of ['aEteInvite', 'aps', 'localChurch', 'baptemeEau', 'interetFormation', 'interetCDM']) {
     assert.equal(validateInvite({ ...valid(), [field]: null }, 'church-id').field, field);
   }
+  assert.equal(validateInvite({ ...valid(), baptemeEau: false, interetBapteme: null }, 'church-id').field, 'interetBapteme');
   assert.equal(validateInvite({ ...valid(), localChurch: true }, 'church-id').field, 'autreEglise');
 });
 

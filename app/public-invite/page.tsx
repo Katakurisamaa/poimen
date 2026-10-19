@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Flame, Church, Loader2, CheckCircle2, ArrowRight, UserPlus, Users, Check, X, Globe2, HeartHandshake } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import YesNoField from "@/components/ui/YesNoField";
 import CustomSelect from "@/components/ui/CustomSelect";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
 import { COUNTRIES } from "@/components/ui/CountryPickerModal";
@@ -26,14 +27,7 @@ function Field({ id, label, required, optional, error, children }: {
 function Question({ id, label, value, onChange, yes, no, error }: {
   id: string; label: string; value: boolean | null; onChange: (value: boolean) => void; yes: string; no: string; error?: string;
 }) {
-  return <div className={styles.question} data-field={id} data-invalid={!!error}>
-    <div id={`${id}-label`}>{label} <span aria-hidden="true">*</span>{error && <p id={`${id}-error`} className={styles.fieldError}>{error}</p>}</div>
-    <div className={styles.toggle} role="group" aria-labelledby={`${id}-label`} aria-describedby={error ? `${id}-error` : undefined}>
-      {[true, false].map(answer => <button key={String(answer)} type="button" aria-pressed={value === answer} onClick={() => onChange(answer)}>
-        {value === answer && <Check size={15} aria-hidden="true" />}{answer ? yes : no}
-      </button>)}
-    </div>
-  </div>;
+  return <YesNoField name={id} label={label} value={value} onChange={onChange} required yesLabel={yes} noLabel={no} error={error} />;
 }
 
 export default function PublicInvitePage() {
@@ -110,7 +104,7 @@ export default function PublicInvitePage() {
     try { localStorage.setItem(LANGUAGE_KEY, language); } catch { /* Optional preference. */ }
   }
   function update<K extends keyof InviteFormData>(key: K, value: InviteFormData[K]) {
-    setFormData(previous => ({ ...previous, [key]: value, ...(key === "baptemeEau" && value === true ? { interetBapteme: false } : {}) }));
+    setFormData(previous => ({ ...previous, [key]: value, ...(key === "baptemeEau" ? { interetBapteme: null } : {}) }));
     if (issue?.field === key) setIssue(null);
   }
   const fieldError = (field: FormField) => issue?.field === field ? t[issue.message] : undefined;
@@ -220,7 +214,7 @@ export default function PublicInvitePage() {
               <Field id="pays" label={t.country} required><CustomSelect value={formData.pays} onChange={value => update("pays", value)} ariaLabel={t.country} placeholder={t.select} options={countryOptions} messages={selectText} searchable /></Field>
             </div>
             <Field id="address" label={t.address} optional={t.optional}><input {...inputProps("address")} autoComplete="street-address" value={formData.address} onChange={event => update("address", event.target.value)} placeholder={t.addressPlaceholder} /></Field>
-            <label className={styles.checkbox}><input type="checkbox" checked={formData.aEteInvite} onChange={event => update("aEteInvite", event.target.checked)} /><span>{t.invited}</span></label>
+            <Question id="aEteInvite" label={t.invited} value={formData.aEteInvite} onChange={value => update("aEteInvite", value)} yes={t.yes} no={t.no} error={fieldError("aEteInvite")} />
             {formData.aEteInvite && <Field id="parQui" label={t.inviter}><input {...inputProps("parQui")} value={formData.parQui} onChange={event => update("parQui", event.target.value)} placeholder={t.inviterPlaceholder} /></Field>}
           </fieldset>
           <fieldset className={styles.section} disabled={submitting}>
@@ -229,7 +223,7 @@ export default function PublicInvitePage() {
             <Question id="localChurch" label={t.localChurch} value={formData.localChurch} onChange={value => update("localChurch", value)} yes={t.yes} no={t.no} error={fieldError("localChurch")} />
             {formData.localChurch && <Field id="autreEglise" label={t.otherChurch} required error={fieldError("autreEglise")}><input {...inputProps("autreEglise")} required value={formData.autreEglise} onChange={event => update("autreEglise", event.target.value)} placeholder={t.otherChurchPlaceholder} /></Field>}
             <Question id="baptemeEau" label={t.baptized} value={formData.baptemeEau} onChange={value => update("baptemeEau", value)} yes={t.yes} no={t.no} error={fieldError("baptemeEau")} />
-            {formData.baptemeEau === false && <label className={styles.checkbox}><input type="checkbox" checked={formData.interetBapteme} onChange={event => update("interetBapteme", event.target.checked)} /><span>{t.baptismInterest}</span></label>}
+            {formData.baptemeEau === false && <Question id="interetBapteme" label={t.baptismInterest} value={formData.interetBapteme} onChange={value => update("interetBapteme", value)} yes={t.yes} no={t.no} error={fieldError("interetBapteme")} />}
             <Question id="interetFormation" label={t.training} value={formData.interetFormation} onChange={value => update("interetFormation", value)} yes={t.yes} no={t.no} error={fieldError("interetFormation")} />
             <Question id="interetCDM" label={t.cells} value={formData.interetCDM} onChange={value => update("interetCDM", value)} yes={t.yes} no={t.no} error={fieldError("interetCDM")} />
             <Field id="commentaire" label={t.comment} optional={t.optional}><textarea {...inputProps("commentaire")} rows={4} value={formData.commentaire} onChange={event => update("commentaire", event.target.value)} placeholder={t.commentPlaceholder} /></Field>

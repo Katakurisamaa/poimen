@@ -371,7 +371,7 @@ export default function NotificationCenter() {
                             </a>
                           )}
                           <Link
-                            href={`/dashboard/affectation?filter=mine`}
+                            href={`/dashboard/affectation?filter=mine&person=${encodeURIComponent(item.guestId)}`}
                             className={styles.viewBtn}
                             onClick={() => setIsOpen(false)}
                           >

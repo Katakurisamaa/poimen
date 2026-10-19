@@ -17,7 +17,7 @@ import {
 } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
-import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
+import { PersonButton } from "@/components/experience/PersonPanel";
 import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import PeopleStatistics from "@/components/experience/PeopleStatistics";
@@ -26,8 +26,10 @@ import IntegrationOverview from "@/components/experience/IntegrationOverview";
 import PeopleListToolbar from "@/components/experience/PeopleListToolbar";
 import styles from "./Affectation.module.css";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
+import GuestRegistrationFields, { emptyGuestRegistration } from "@/components/invites/GuestRegistrationFields";
+import formStyles from "@/components/invites/GuestRegistrationFields.module.css";
 import CustomSelect from "@/components/ui/CustomSelect";
-import CountryPickerModal, { COUNTRIES } from "@/components/ui/CountryPickerModal";
+import CountryPickerModal from "@/components/ui/CountryPickerModal";
 import CrCallCenterModal from "@/components/experience/CrCallCenterModal";
 import ArrivalDateFilterModal from "@/components/experience/ArrivalDateFilterModal";
 import GuestArrivalDetailsModal from "@/components/experience/GuestArrivalDetailsModal";
@@ -207,7 +209,7 @@ function mapDbGuestToGuest(g: any): Guest {
     piliers3: isFreshUnassigned ? false : (g.piliers_3 ?? false),
     piliers4: isFreshUnassigned ? false : (g.piliers_4 ?? false),
     termine12Piliers: isFreshUnassigned ? false : (g.termine_12_piliers ?? false),
-    pays: g.pays || (g.commentaire?.match(/\[(?:Pays de résidence|Pays)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || "Belgique"),
+    pays: g.pays || (g.commentaire?.match(/\[(?:Pays de résidence|Pays)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
     souhaitSuivi: isFreshUnassigned ? false : (g.souhait_suivi ?? false),
     rdvPastoral: isFreshUnassigned ? false : (g.rdv_pastoral ?? false),
     neDecrochePas: isFreshUnassigned ? false : Boolean(g.ne_decroche_pas || /\[NE_DECROCHE_PAS\]/i.test(g.commentaire_suivi || "")),
@@ -216,8 +218,8 @@ function mapDbGuestToGuest(g: any): Guest {
     church_id: g.church_id,
     bergerie_id: g.bergerie_id,
     famille_disciple: g.famille_disciple || "AUCUNE",
-    etatCivil: g.etat_civil || "Célibataire",
-    souhaiteEtreContacte: g.souhaite_etre_contacte !== false,
+    etatCivil: g.etat_civil,
+    souhaiteEtreContacte: g.souhaite_etre_contacte,
     archived: g.archived || false,
     created_by: g.created_by,
     statutAffectation: (() => {
@@ -685,13 +687,13 @@ const selectedCounselorObj = useMemo(() => {
     address: "",
     arrivalDate: new Date().toISOString().split('T')[0],
     event: "Culte",
-    aps: false,
-    localChurch: false,
+    aps: undefined,
+    localChurch: undefined,
     autreEglise: "",
     responsible: "",
-    aEteInvite: false,
+    aEteInvite: undefined,
     parQui: "",
-    baptemeEau: false,
+    baptemeEau: undefined,
     piliers1: false,
     piliers2: false,
     piliers3: false,
@@ -701,18 +703,18 @@ const selectedCounselorObj = useMemo(() => {
     rdvPastoral: false,
     neDecrochePas: false,
     fauxNumero: false,
-    interetFormation: false,
-    interetCDM: false,
+    interetFormation: undefined,
+    interetCDM: undefined,
     integreCDM: false,
     prierePartage: false,
     dansFamilleDisciple: false,
-    interetBapteme: false,
+    interetBapteme: undefined,
     commentaire: "",
     commentaireSuivi: "",
     raisonEchec: "",
     famille_disciple: "AUCUNE",
     etatCivil: "Célibataire",
-    souhaiteEtreContacte: true,
+    souhaiteEtreContacte: undefined,
   });
 
   const toggleAttendance = async (guestId: string, day: string) => {
@@ -834,6 +836,8 @@ const selectedCounselorObj = useMemo(() => {
 
   const handleSaveGuest = async (e: React.FormEvent) => {
     e.preventDefault();
+    const unanswered = (["aEteInvite", "aps", "localChurch", "baptemeEau", "interetFormation", "interetCDM", "souhaiteEtreContacte", ...(newGuest.baptemeEau === false ? ["interetBapteme" as const] : [])] as const).some(field => typeof newGuest[field] !== "boolean");
+    if (unanswered) { setFormError("Choisissez Oui ou Non pour chaque question du formulaire."); return; }
     if (saveLock.current) return;
     saveLock.current = true;
     setIsSaving(true);
@@ -859,7 +863,7 @@ const selectedCounselorObj = useMemo(() => {
       autre_eglise: newGuest.localChurch ? (newGuest.autreEglise?.trim() || null) : null,
       responsible: newGuest.responsible,
       a_ete_invite: newGuest.aEteInvite,
-      par_qui: newGuest.parQui,
+      par_qui: newGuest.aEteInvite ? newGuest.parQui : null,
       bapteme_eau: newGuest.baptemeEau,
       piliers_1: newGuest.piliers1 || false,
       piliers_2: newGuest.piliers2 || false,
@@ -875,12 +879,12 @@ const selectedCounselorObj = useMemo(() => {
       integre_cdm: newGuest.integreCDM,
       priere_partage: newGuest.prierePartage,
       dans_famille_disciple: !editingGuestId ? false : (existingGuest ? existingGuest.dansFamilleDisciple : false),
-      interet_bapteme: newGuest.interetBapteme,
+      interet_bapteme: newGuest.baptemeEau === false && newGuest.interetBapteme === true,
       commentaire: newGuest.commentaire,
       commentaire_suivi: newGuest.commentaireSuivi || "",
       famille_disciple: !editingGuestId ? "AUCUNE" : (existingGuest ? (existingGuest.famille_disciple || "AUCUNE") : "AUCUNE"),
       etat_civil: newGuest.etatCivil || "Célibataire",
-      souhaite_etre_contacte: newGuest.souhaiteEtreContacte !== false
+      souhaite_etre_contacte: newGuest.souhaiteEtreContacte === true
     };
 
     if (isIntegrationOrCounselor) {
@@ -965,13 +969,13 @@ const selectedCounselorObj = useMemo(() => {
       address: "",
       arrivalDate: new Date().toISOString().split('T')[0],
       event: "Culte",
-      aps: false,
-      localChurch: false,
+      aps: undefined,
+      localChurch: undefined,
       autreEglise: "",
       responsible: "Non assigné",
-      aEteInvite: false,
+      aEteInvite: undefined,
       parQui: "",
-      baptemeEau: false,
+      baptemeEau: undefined,
       piliers1: false,
       piliers2: false,
       piliers3: false,
@@ -982,8 +986,8 @@ const selectedCounselorObj = useMemo(() => {
       neDecrochePas: false,
       fauxNumero: false,
       baptemeEsprit: false,
-      interetFormation: false,
-      interetCDM: false,
+      interetFormation: undefined,
+      interetCDM: undefined,
       interetEvenement: false,
       commentaire: "",
       famille_disciple: "AUCUNE",
@@ -1212,7 +1216,7 @@ const selectedCounselorObj = useMemo(() => {
       commentaireSuivi: guest.commentaireSuivi || "",
       famille_disciple: guest.famille_disciple || "AUCUNE",
       etatCivil: guest.etatCivil || "Célibataire",
-      souhaiteEtreContacte: guest.souhaiteEtreContacte !== false
+      souhaiteEtreContacte: guest.souhaiteEtreContacte
     });
     setIsAddModalOpen(true);
   };
@@ -1520,7 +1524,7 @@ const selectedCounselorObj = useMemo(() => {
     <div className="people-screen integration-people-screen" style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       
       {personView.requestedId && !personView.selected && !loading && <div className="ux-list-context"><span>Cette fiche n’est pas disponible dans la liste actuelle.</span><button type="button" onClick={personView.closePerson}>Fermer</button></div>}
-      {personView.selected && <PersonPanel person={personView.selected} kind="guest" onClose={personView.closePerson} onContinue={() => { setExpandedId(personView.selected!.id); setSearch(personView.selected!.firstName + " " + personView.selected!.lastName);  }} />}
+      {personView.selected && <GuestArrivalDetailsModal isOpen guest={personView.selected} onClose={personView.closePerson} />}
       {personView.filter && <div className="ux-list-context"><span>{personView.filter === "contact" ? "Premiers contacts à établir" : "Invités sans responsable"}</span><button type="button" onClick={personView.clearFilter}>Afficher tout</button></div>}
       {/* Header */}
       {/* Read-only banner for Conseiller */}
@@ -1554,7 +1558,8 @@ const selectedCounselorObj = useMemo(() => {
           </div></details>}
           {isIntegrationOrCounselor && (
             <button className="btn btn-primary btn-sm" onClick={() => {
-              setNewGuest({ ...newGuest, responsible: userName || "" });
+              setNewGuest({ ...emptyGuestRegistration(), responsible: userName || "" });
+              setEditingGuestId(null);
               setIsAddModalOpen(true);
             }}>
               <Plus size={16} /> Nouvelle âme
@@ -1565,235 +1570,22 @@ const selectedCounselorObj = useMemo(() => {
 
           {typeof window !== "undefined" && isAddModalOpen && createPortal(
             <div className="modal-overlay">
-              <div className="custom-modal fade-in" style={{ maxWidth: 620 }}>
-                <button onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }} style={{ position: "absolute", top: 24, right: 24, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center" }}>
-                  <X size={20} />
-                </button>
-                <h2 style={{ fontSize: "clamp(16px, 2.5vw, 22px)", color: "var(--gold-light)", marginBottom: 20, fontFamily: "var(--font-display)" }}>
-                  {editingGuestId ? "Modifier l'âme" : "Enregistrer une nouvelle âme"}
-                </h2>
-                <form onSubmit={handleSaveGuest} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div className={`custom-modal fade-in ${formStyles.modal}`}>
+              <header className={formStyles.header}>
+                <span className={formStyles.eyebrow}>ACCUEIL · FORMULAIRE INVITÉ</span>
+                <h2>{editingGuestId ? "Modifier les informations" : "Accueillir une nouvelle personne"}</h2>
+                <p>Une fiche claire pour faire connaissance et préparer son accompagnement.</p>
+                <button type="button" className={formStyles.close} aria-label="Fermer le formulaire" onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }}><X size={20} /></button>
+              </header>
+              <form onSubmit={handleSaveGuest} className={formStyles.form}>
               {formError && <p className="ux-form-error" role="alert">{formError}</p>}
-              <p className="ux-form-help">Commencez par l’essentiel. Les autres informations peuvent être complétées plus tard.</p>
+              <p className={formStyles.note}>Les champs marqués d’un * et les choix Oui / Non sont obligatoires.</p>
               <fieldset disabled={isSaving} style={{ display: "contents", border: 0 }}>
-
-                  {/* 1. Date d'arrivée & Événement en premier */}
-                  <div className="form-grid-2">
-                    <div>
-                      <label className="form-label" style={{ color: "var(--gold)" }}>DATE D'ARRIVÉE *</label>
-                      <CustomDatePicker 
-                        value={newGuest.arrivalDate || ""} 
-                        onChange={val => setNewGuest({...newGuest, arrivalDate: val})} 
-                        placeholder="Sélectionner la date"
-                      />
-                    </div>
-                    <div>
-                      <label className="form-label">ÉVÉNEMENT</label>
-                      <CustomSelect
-                        value={newGuest.event || "Culte"}
-                        onChange={val => setNewGuest({...newGuest, event: val})}
-                        searchable={false}
-                        options={[
-                          { value: "Culte", label: "Culte" },
-                          { value: "Baptême", label: "Baptême" },
-                          { value: "Évangélisation", label: "Évangélisation" },
-                          { value: "Séminaire", label: "Séminaire" },
-                          { value: "Autre", label: "Autre" }
-                        ]}
-                      />
-                    </div>
-                  </div>
-
-                  {/* 2. Civilité, Nom, Prénom */}
-                  <div className="form-grid-3">
-                    <div>
-                      <label className="form-label">CIVILITÉ</label>
-                      <CustomSelect
-                        value={newGuest.civility || "M."}
-                        onChange={val => setNewGuest({...newGuest, civility: val})}
-                        searchable={false}
-                        options={[
-                          { value: "M.", label: "M." },
-                          { value: "Mme.", label: "Mme." },
-                          { value: "Mlle.", label: "Mlle." }
-                        ]}
-                      />
-                    </div>
-                    <div>
-                      <label className="form-label">NOM</label>
-                      <input className="input" required value={newGuest.lastName || ""} onChange={e => setNewGuest({...newGuest, lastName: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="form-label">PRÉNOM</label>
-                      <input className="input" required value={newGuest.firstName || ""} onChange={e => setNewGuest({...newGuest, firstName: e.target.value})} />
-                    </div>
-                  </div>
-
-                  {/* 3. Téléphone, E-mail, État civil */}
-                  <div className="form-grid-3">
-                    <div>
-                      <label className="form-label">TÉLÉPHONE</label>
-                      <input className="input" value={newGuest.phone || ""} onChange={e => setNewGuest({...newGuest, phone: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="form-label">E-MAIL</label>
-                      <input className="input" type="email" value={newGuest.email || ""} onChange={e => setNewGuest({...newGuest, email: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="form-label">ÉTAT CIVIL</label>
-                      <CustomSelect
-                        value={newGuest.etatCivil || "Célibataire"}
-                        onChange={val => setNewGuest({...newGuest, etatCivil: val})}
-                        searchable={false}
-                        options={[
-                          { value: "Marié(e)", label: "Marié(e)" },
-                          { value: "Séparé(e)", label: "Séparé(e)" },
-                          { value: "Divorcé(e)", label: "Divorcé(e)" },
-                          { value: "Veuf(ve)", label: "Veuf(ve)" },
-                          { value: "En couple", label: "En couple" },
-                          { value: "Célibataire", label: "Célibataire" }
-                        ]}
-                      />
-                    </div>
-                  </div>
-
-                  <details className="ux-extra-fields" open={!!editingGuestId}><summary>Compléter le profil et le parcours</summary><div className="ux-extra-content">
-                    {/* Pays de résidence & Tranche d'âge */}
-                    <div className="form-grid-2">
-                      <div>
-                        <label className="form-label" style={{ color: "var(--gold)" }}>PAYS DE RÉSIDENCE *</label>
-                        <button
-                          type="button"
-                          onClick={() => setIsCountryModalOpen(true)}
-                          className="input"
-                          style={{
-                            width: "100%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "0 14px",
-                            cursor: "pointer",
-                            textAlign: "left",
-                            height: 40,
-                            background: "rgba(0,0,0,0.2)",
-                            border: "1px solid rgba(212,175,55,0.3)"
-                          }}
-                        >
-                          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--cream)" }}>
-                            <span style={{ fontSize: 18 }}>
-                              {COUNTRIES.find(c => c.name.toLowerCase() === (newGuest.pays || "").toLowerCase())?.flag || "🌍"}
-                            </span>
-                            <span style={{ fontWeight: 600, color: "var(--gold-light)" }}>{newGuest.pays || "Belgique"}</span>
-                          </span>
-                          <ChevronDown size={15} style={{ color: "var(--gold)" }} />
-                        </button>
-                      </div>
-                      <div>
-                        <label className="form-label">TRANCHE D'ÂGE</label>
-                        <CustomSelect
-                          value={newGuest.age || "26-30"}
-                          onChange={val => setNewGuest({...newGuest, age: val})}
-                          searchable={false}
-                          options={[
-                            { value: "< 18", label: "Moins de 18 ans" },
-                            { value: "18-25", label: "18-25 ans" },
-                            { value: "26-30", label: "26-30 ans" },
-                            { value: "31-40", label: "31-40 ans" },
-                            { value: "41-50", label: "41-50 ans" },
-                            { value: "> 50", label: "Plus de 50 ans" }
-                          ]}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="form-label">ADRESSE DOMICILE / LIEU DE RÉSIDENCE</label>
-                      <input className="input" value={newGuest.address || ""} onChange={e => setNewGuest({...newGuest, address: e.target.value})} placeholder="Rue de l'Industrie 12, 6040 Jumet" />
-                    </div>
-
-                    <div className="form-grid-2">
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <input type="checkbox" checked={newGuest.aEteInvite || false} onChange={e => setNewGuest({...newGuest, aEteInvite: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>A été invité ?</span>
-                      </div>
-                      {newGuest.aEteInvite && (
-                        <div>
-                          <label className="form-label">PAR QUI ?</label>
-                          <input className="input" value={newGuest.parQui || ""} onChange={e => setNewGuest({...newGuest, parQui: e.target.value})} placeholder="Nom de l'invitant" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="form-grid-2">
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <input type="checkbox" checked={newGuest.baptemeEau || false} onChange={e => setNewGuest({...newGuest, baptemeEau: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Baptisé par immersion ?</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <input type="checkbox" checked={newGuest.interetFormation || false} onChange={e => setNewGuest({...newGuest, interetFormation: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt PCNC</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <input type="checkbox" checked={newGuest.interetCDM || false} onChange={e => setNewGuest({...newGuest, interetCDM: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt C.D.M</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <input type="checkbox" checked={newGuest.interetBapteme || false} onChange={e => setNewGuest({...newGuest, interetBapteme: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                        <span style={{ fontSize: 13, color: "var(--cream-dim)" }}>Intérêt Baptême</span>
-                      </div>
-                    </div>
-
-                    {/* Questions spirituelles */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <input type="checkbox" id="aff-aps" checked={newGuest.aps || false} onChange={e => setNewGuest({...newGuest, aps: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                        <label htmlFor="aff-aps" style={{ fontSize: 13, color: "var(--cream)", cursor: "pointer", fontWeight: 500 }}>
-                          Avez-vous fait la prière du salut lors du culte ?
-                        </label>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <input type="checkbox" id="aff-localChurch" checked={newGuest.localChurch || false} onChange={e => setNewGuest({...newGuest, localChurch: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                          <label htmlFor="aff-localChurch" style={{ fontSize: 13, color: "var(--cream)", cursor: "pointer", fontWeight: 500 }}>
-                            Persévérez-vous déjà dans une autre église ?
-                          </label>
-                        </div>
-                        {newGuest.localChurch && (
-                          <div style={{ paddingLeft: 26 }}>
-                            <label className="form-label" style={{ fontSize: 10, marginBottom: 4 }}>NOM DE VOTRE ÉGLISE LOCALE</label>
-                            <input 
-                              type="text" 
-                              className="input" 
-                              placeholder="Ex: ICC Paris, Portes Ouvertes..." 
-                              value={newGuest.autreEglise || ""} 
-                              onChange={e => setNewGuest({...newGuest, autreEglise: e.target.value})}
-                              style={{ height: 36, fontSize: 12 }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="form-label">COMMENTAIRE / NOTES PARTICULIÈRES</label>
-                      <textarea 
-                        className="input" 
-                        value={newGuest.commentaire || ""} 
-                        onChange={e => setNewGuest({...newGuest, commentaire: e.target.value})} 
-                        placeholder="Sujets de prières, contexte spirituel ou familial..."
-                        style={{ minHeight: 80, fontSize: 12, resize: "vertical" }}
-                      />
-                    </div>
-</div></details>
-<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="checkbox" checked={newGuest.souhaiteEtreContacte !== false} onChange={e => setNewGuest({...newGuest, souhaiteEtreContacte: e.target.checked})} style={{ accentColor: "var(--gold)" }} />
-                      <span style={{ fontSize: 13, color: "var(--gold)", fontWeight: "bold" }}>Souhaite être contacté(e)</span>
-                    </div>
-<div style={{ marginTop: 10, display: "flex", gap: 12, justifyContent: "flex-end" }}>
-                    <button type="button" className="btn btn-subtle" onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }}>Annuler</button>
-                    <button type="submit" className="btn btn-primary" disabled={isSaving}>{isSaving ? "Enregistrement…" : "Enregistrer"}</button>
-                  </div>
-                
+                <GuestRegistrationFields value={newGuest} onChange={patch => setNewGuest(previous => ({...previous, ...patch}))} onChooseCountry={() => setIsCountryModalOpen(true)} />
+                <div className={formStyles.actions}>
+                  <button type="button" className="btn btn-subtle" onClick={() => { setIsAddModalOpen(false); setEditingGuestId(null); }}>Annuler</button>
+                  <button type="submit" className="btn btn-primary" disabled={isSaving}>{isSaving ? "Enregistrement…" : "Enregistrer la fiche"}</button>
+                </div>
               </fieldset>
 </form>
               </div>
@@ -2745,12 +2537,6 @@ const selectedCounselorObj = useMemo(() => {
         isOpen={Boolean(selectedArrivalGuest)}
         onClose={() => setSelectedArrivalGuest(null)}
         guest={selectedArrivalGuest}
-        counselors={counselors}
-        onAssign={async (guestId, counselorId) => {
-          await handleAssignCounselor(guestId, counselorId);
-          setSelectedArrivalGuest(prev => prev && prev.id === guestId ? { ...prev, assigned_to: counselorId } : prev);
-        }}
-        isLeader={isIntegrationLeader || canDispatchAll}
       />
 
       <QualifyGuestModal
