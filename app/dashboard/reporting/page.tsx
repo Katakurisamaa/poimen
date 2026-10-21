@@ -17,6 +17,7 @@ import { toPng } from "html-to-image";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import CustomSelect from "@/components/ui/CustomSelect";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
+import CrCallCenterFddModal from "@/components/experience/CrCallCenterFddModal";
 
 function isAttendancePresent(val: any): boolean {
   if (val === true || val === 1 || val === "present") return true;
@@ -40,6 +41,7 @@ export default function ReportingPage() {
   const [previewScale, setPreviewScale] = useState(1);
   const [previewHeight, setPreviewHeight] = useState(0);
   const [downloadingImage, setDownloadingImage] = useState(false);
+  const [isCrCallCenterOpen, setIsCrCallCenterOpen] = useState(false);
 
   // Helper to format French date for Sunday
   const formatFrenchDate = (dateStr: string) => {
@@ -1003,6 +1005,17 @@ export default function ReportingPage() {
             <ImageIcon size={15} color="var(--gold)" />
             {downloadingImage ? "Génération image..." : "Image HD (WhatsApp)"}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCrCallCenterOpen(true)}
+            className="btn btn-outline"
+            style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+            title="Générer le Compte-Rendu Call Center pour le Pasteur"
+          >
+            <FileText size={15} />
+            CR Call Center
+          </button>
         </div>
       </div>
 
@@ -1943,6 +1956,14 @@ export default function ReportingPage() {
           <ReportingTemplate data={formData} containerRef={reportRef} />
         </div>
       </div>
+
+      <CrCallCenterFddModal
+        isOpen={isCrCallCenterOpen}
+        onClose={() => setIsCrCallCenterOpen(false)}
+        familyId={formData.bergerie_id || currentFamily?.id || undefined}
+        familyName={formData.nom_famille || currentFamily?.name}
+        churchName={currentFamily?.church_name}
+      />
     </div>
   );
 }

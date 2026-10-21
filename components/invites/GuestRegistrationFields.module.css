@@ -36,7 +36,7 @@
   font-family: inherit; font-size: 14px !important; font-weight: 400 !important;
 }
 .fields .field textarea { resize: vertical; min-height: 110px; line-height: 1.7; }
-.field input::placeholder, .field textarea::placeholder { color: var(--muted); opacity: .75; }
+.field input::placeholder, .field textarea::placeholder { color: var(--muted); opacity: 1; }
 .field input:focus-visible, .field textarea:focus-visible, .field button:focus-visible, .close:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 .country, .country span { display: flex; align-items: center; gap: 8px; }
 .country { justify-content: space-between; cursor: pointer; }

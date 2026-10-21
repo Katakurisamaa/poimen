@@ -59,7 +59,7 @@
   background: var(--invite-surface) !important; color: var(--invite-text) !important; box-shadow: none !important;
 }
 .page .field textarea { display: block; min-height: 118px; resize: vertical; line-height: 1.6; }
-.page .field input::placeholder, .page .field textarea::placeholder { color: var(--invite-muted) !important; opacity: .85; }
+.page .field input::placeholder, .page .field textarea::placeholder { color: var(--invite-muted) !important; opacity: 1; }
 .page button:focus-visible, .page input:focus-visible, .page textarea:focus-visible { outline: 2px solid var(--invite-gold) !important; outline-offset: 3px; }
 .page .field[data-invalid="true"] input, .page .field[data-invalid="true"] > div > button { border-color: var(--invite-danger) !important; }
 .question { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--invite-line); }

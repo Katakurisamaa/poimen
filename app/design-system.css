@@ -255,7 +255,14 @@ html[data-theme] body .modal-overlay .custom-modal :is(.input, input:not([type="
   min-height: 44px;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
-html[data-theme] body :is(.input, .search-bar-premium)::placeholder { color: var(--muted) !important; opacity: 1; }
+/* Keep placeholder text legible, including fields without the legacy .input
+   class and forms inside modals. Do not fade the text a second time. */
+html[data-theme] body :is(input, textarea)::placeholder,
+html[data-theme] body .modal-overlay :is(.custom-modal, .arch-card) :is(input, textarea)::placeholder {
+  color: var(--invite-muted, var(--muted)) !important;
+  -webkit-text-fill-color: currentColor !important;
+  opacity: 1;
+}
 html[data-theme] body :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--gold) !important;
   outline-offset: 3px;

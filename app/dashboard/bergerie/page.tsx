@@ -6,8 +6,9 @@ import {
   Search, Plus, Grid3X3, List, UserMinus, UserPlus, 
   ChevronDown, ChevronUp, XCircle, Loader2, Pencil, Eye,
   Trash2, Trash, RotateCcw, Archive, Table, Maximize2, Minimize2,
-  Filter, SlidersHorizontal, Phone
+  Filter, SlidersHorizontal, Phone, FileText
 } from "lucide-react";
+import CrCallCenterFddModal from "@/components/experience/CrCallCenterFddModal";
 import { useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
@@ -239,6 +240,9 @@ function BergeriePage() {
   const [userName, setUserName] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
+  const [familyName, setFamilyName] = useState<string>("Famille de disciples");
+  const [churchName, setChurchName] = useState<string>("CHARLEROI");
+  const [isCrCallCenterOpen, setIsCrCallCenterOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isConseillerChecked, setIsConseillerChecked] = useState(false);
   const [showCorbeille, setShowCorbeille] = useState(false);
@@ -260,9 +264,17 @@ function BergeriePage() {
       if (fam) {
         const parsedFam = JSON.parse(fam);
         setFamilyId(parsedFam.id);
+        if (parsedFam.name) setFamilyName(parsedFam.name);
       } else if (activeContext?.context_type === "family" && activeContext.bergerie_id) {
         setFamilyId(activeContext.bergerie_id);
       }
+      try {
+        const savedChurch = localStorage.getItem("selected_church");
+        if (savedChurch) {
+          const parsedC = JSON.parse(savedChurch);
+          if (parsedC.name) setChurchName(parsedC.name);
+        }
+      } catch {}
     }
   }, []);
 
@@ -288,6 +300,7 @@ function BergeriePage() {
   ].includes(userRoleVal);
 
   const canManageMembers = ["berger", "second", "super_admin", "second_du_berger", "conseiller"].includes(userRoleVal);
+  const canViewCrCallCenter = ["berger", "second", "super_admin", "admin", "second_du_berger"].includes(userRoleVal);
 
   useEffect(() => {
     if (familyId) {
@@ -993,6 +1006,17 @@ function BergeriePage() {
           <div className="mobile-scroll-x" style={{ gap: 8 }}>
             {!showCorbeille && (
               <>
+                {canViewCrCallCenter && (
+                  <button 
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => setIsCrCallCenterOpen(true)}
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    title="Générer le Compte-Rendu Call Center pour le Pasteur"
+                  >
+                    <FileText size={14} /> CR Call Center
+                  </button>
+                )}
                 <button className="btn btn-primary" onClick={() => { setNewMember(createEmptyMember()); setIsConseillerChecked(false); setIsAddModalOpen(true); }}>
                   <Plus size={14} /> Nouveau Membre
                 </button>
@@ -2537,6 +2561,14 @@ function BergeriePage() {
         </div>,
         document.body
       )}
+
+      <CrCallCenterFddModal
+        isOpen={isCrCallCenterOpen}
+        onClose={() => setIsCrCallCenterOpen(false)}
+        familyId={familyId || undefined}
+        familyName={familyName}
+        churchName={churchName}
+      />
 
       <style jsx>{`
         .modal-overlay {
