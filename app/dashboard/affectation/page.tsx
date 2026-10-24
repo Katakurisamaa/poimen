@@ -596,7 +596,9 @@ const selectedCounselorObj = useMemo(() => {
         }
       }
 
-      const { data: dbGuests, error } = await query.order("created_at", { ascending: false });
+      const { data: dbGuests, error } = await query
+        .order("arrival_date", { ascending: true })
+        .order("created_at", { ascending: true });
 
       if (error) {
         console.error("Error fetching guests:", error?.message || error?.details || error);
@@ -1487,7 +1489,21 @@ const selectedCounselorObj = useMemo(() => {
     return rateCDM >= 45 || rateCulte >= 45;
   };
 
-  // 1. Unassigned guests (À affecter) - sorted most recent first
+  const compareGuestsByArrivalAsc = (
+    a: { arrivalDate?: string; lastName?: string; firstName?: string },
+    b: { arrivalDate?: string; lastName?: string; firstName?: string }
+  ) => {
+    const dateA = a.arrivalDate || "";
+    const dateB = b.arrivalDate || "";
+    if (dateA && !dateB) return -1;
+    if (!dateA && dateB) return 1;
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    const lastComp = (a.lastName || "").localeCompare(b.lastName || "", "fr");
+    if (lastComp !== 0) return lastComp;
+    return (a.firstName || "").localeCompare(b.firstName || "", "fr");
+  };
+
+  // 1. Unassigned guests (À affecter) - sorted earliest first (ascending arrival date)
   const unassignedGuests = useMemo(() => {
     return guests
       .filter(g => {
@@ -1496,10 +1512,10 @@ const selectedCounselorObj = useMemo(() => {
         const isAssigned = Boolean(g.assigned_to || (g.responsible && g.responsible !== "Non assigné" && g.responsible.trim() !== ""));
         return !isAssigned;
       })
-      .sort((a, b) => (b.arrivalDate || "").localeCompare(a.arrivalDate || ""));
+      .sort(compareGuestsByArrivalAsc);
   }, [guests]);
 
-  // 2. My pending assignments (Mes affectations) - sorted most recent first
+  // 2. My pending assignments (Mes affectations) - sorted earliest first (ascending arrival date)
   const myPendingGuests = useMemo(() => {
     return guests
       .filter(g => {
@@ -1509,10 +1525,10 @@ const selectedCounselorObj = useMemo(() => {
         if (g.statutAffectation === 'conserve') return false;
         return g.statutAffectation === 'en_attente_contact' || !g.appelAbouti;
       })
-      .sort((a, b) => (b.arrivalDate || "").localeCompare(a.arrivalDate || ""));
+      .sort(compareGuestsByArrivalAsc);
   }, [guests, userId, userName]);
 
-  // 3. Retired guests (Sans suite)
+  // 3. Retired guests (Sans suite) - sorted earliest first (ascending arrival date)
   const retiredGuests = useMemo(() => {
     return guests
       .filter(g => {
@@ -1520,7 +1536,7 @@ const selectedCounselorObj = useMemo(() => {
         if (isIntegrationLeader || canDispatchAll) return true;
         return g.retirePar === userId || g.assigned_to === userId;
       })
-      .sort((a, b) => (b.retireAt || b.arrivalDate || "").localeCompare(a.retireAt || a.arrivalDate || ""));
+      .sort(compareGuestsByArrivalAsc);
   }, [guests, isIntegrationLeader, canDispatchAll, userId]);
 
   const completedGuests = useMemo(() => {
@@ -1530,7 +1546,7 @@ const selectedCounselorObj = useMemo(() => {
         if (isIntegrationLeader || canDispatchAll) return true;
         return g.retirePar === userId || g.assigned_to === userId;
       })
-      .sort((a, b) => (b.retireAt || b.arrivalDate || "").localeCompare(a.retireAt || a.arrivalDate || ""));
+      .sort(compareGuestsByArrivalAsc);
   }, [guests, isIntegrationLeader, canDispatchAll, userId]);
 
   // Actions for Triage Workflow
@@ -1644,7 +1660,7 @@ const selectedCounselorObj = useMemo(() => {
         Boolean(selectedCounselorObj && g.responsible && g.responsible.toLowerCase() === selectedCounselorObj.display_name.toLowerCase());
 
       return matchesSearch && matchesArrivalDates && matchesMonth && matchesYear && matchesLocalChurch && matchesFamily && matchesCounselor;
-    });
+    }).sort(compareGuestsByArrivalAsc);
   }, [guests, completedGuests, currentView, isIntegrationLeader, canDispatchAll, userId, userName, personView.filter, userRole, search, arrivalDatesFilter, arrivalMonth, arrivalYear, localChurchFilter, familyFilter, selectedCounselorFilter, selectedCounselorObj]);
 
   const isAnyFilterActive = useMemo(() => {

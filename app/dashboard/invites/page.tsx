@@ -606,7 +606,9 @@ function InvitesPage() {
         }
       }
 
-      const { data: dbGuests, error } = await query.order("created_at", { ascending: false });
+      const { data: dbGuests, error } = await query
+        .order("arrival_date", { ascending: true })
+        .order("created_at", { ascending: true });
 
       if (error) {
         console.error("Error fetching guests:", error?.message || error?.details || error);
@@ -1288,6 +1290,20 @@ function InvitesPage() {
   const thursdays = useMemo(() => getDaysOfMonth(selectedYear, selectedMonth, 4), [selectedMonth, selectedYear]);
   const sundays = useMemo(() => getDaysOfMonth(selectedYear, selectedMonth, 0), [selectedMonth, selectedYear]);
 
+  const compareGuestsByArrivalAsc = (
+    a: { arrivalDate?: string; lastName?: string; firstName?: string },
+    b: { arrivalDate?: string; lastName?: string; firstName?: string }
+  ) => {
+    const dateA = a.arrivalDate || "";
+    const dateB = b.arrivalDate || "";
+    if (dateA && !dateB) return -1;
+    if (!dateA && dateB) return 1;
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    const lastComp = (a.lastName || "").localeCompare(b.lastName || "", "fr");
+    if (lastComp !== 0) return lastComp;
+    return (a.firstName || "").localeCompare(b.firstName || "", "fr");
+  };
+
   const filtered = useMemo(() => {
     return guests.filter(g => {
       if (personView.filter === "contact" && (g.appelAbouti || g.fauxNumero || g.neDecrochePas || g.souhaiteEtreContacte === false)) return false;
@@ -1307,7 +1323,7 @@ function InvitesPage() {
         presenceDatesFilter.some(d => Boolean(g.attendance && g.attendance[d] === true));
 
       return matchSearch && matchArchived && matchesLocalChurch && matchesFamily && matchesArrival && matchesPresence;
-    });
+    }).sort(compareGuestsByArrivalAsc);
   }, [guests, search, showCorbeille, localChurchFilter, familyFilter, arrivalDatesFilter, arrivalMonth, arrivalYear, presenceDatesFilter, personView.filter, userRole]);
 
   const canModifyInvites = useMemo(() => {

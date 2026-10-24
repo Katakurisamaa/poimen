@@ -478,7 +478,9 @@ export default function DashboardPage() {
         mErr = error;
       }
       const { data: rawInvites, error: iErr } = iQuery ? await iQuery : { data: [], error: null };
-      const invites = (rawInvites || []).filter((i: any) => !i.archived);
+      const invites: any[] = (rawInvites || [])
+        .filter((i: any) => !i.archived)
+        .sort((a: any, b: any) => (a.arrival_date || "").localeCompare(b.arrival_date || ""));
       const pendingContacts = invites.filter((guest: any) => {
         const isFaux = guest.faux_numero === true || /\[FAUX_NUMERO\]/i.test(guest.commentaire_suivi || "");
         const isNeDec = guest.ne_decroche_pas === true || /\[NE_DECROCHE_PAS\]/i.test(guest.commentaire_suivi || "");

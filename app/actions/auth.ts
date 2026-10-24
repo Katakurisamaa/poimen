@@ -1713,7 +1713,9 @@ export async function getIntegrationInvites(churchId: string) {
     query = query.or(`created_by.eq.${user.id},assigned_to.eq.${user.id}`);
   }
 
-  const { data, error } = await query.order("created_at", { ascending: false });
+  const { data, error } = await query
+    .order("arrival_date", { ascending: true })
+    .order("created_at", { ascending: true });
   if (error) return { success: false, error: error.message };
   return { success: true, invites: data || [], canDispatchAll: hasDispatchAll || isLeader };
 }
