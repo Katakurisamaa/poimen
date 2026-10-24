@@ -45,6 +45,7 @@ export default function IntegrationMonthlyReportPage() {
   const [selectedMonths, setSelectedMonths] = useState<number[]>([new Date().getMonth() + 1]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [copied, setCopied] = useState(false);
+  const [copiedPublicLink, setCopiedPublicLink] = useState(false);
   const [retryVersion, setRetryVersion] = useState(0);
   const [planRequest, setPlanRequest] = useState<{ key: string; loading: boolean; error?: string; setupRequired?: boolean }>({ key: "", loading: true });
   const [planForm, setPlanForm] = useState<PlanForm>(EMPTY_PLAN);
@@ -247,6 +248,21 @@ export default function IntegrationMonthlyReportPage() {
     }
   };
 
+  const copyPresentationLink = async () => {
+    if (typeof window === "undefined") return;
+    const url = new URL("/presentation", window.location.origin);
+    if (churchId) url.searchParams.set("church", churchId);
+    url.searchParams.set("year", String(selectedYear));
+    url.searchParams.set("months", selectedMonths.slice().sort((a, b) => a - b).join(","));
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setCopiedPublicLink(true);
+      window.setTimeout(() => setCopiedPublicLink(false), 2200);
+    } catch {
+      setCopiedPublicLink(false);
+    }
+  };
+
   const savePlan = async () => {
     if (!churchId || planLoading || planError || planSetupRequired) return;
     setPlanSaving(true);
@@ -341,15 +357,16 @@ export default function IntegrationMonthlyReportPage() {
         <button type="button" className={styles.copyButton} onClick={() => void copySummary()} disabled={loading || !report}>
           {copied ? <Check size={16} /> : <Copy size={16} />}{copied ? "Bilan copié" : "Copier les chiffres"}
         </button>
-        <Link
-          href="/presentation"
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={() => void copyPresentationLink()}
           className={styles.publicLinkButton}
-          title="Ouvrir la présentation sans devoir se connecter (idéal pour projecteur ou réunion)"
+          title="Copier le lien sans connexion (prêt à être partagé ou ouvert sur un projecteur)"
+          aria-label="Copier le lien sans connexion"
         >
-          <ExternalLink size={15} /> Lien sans connexion
-        </Link>
+          {copiedPublicLink ? <Check size={15} /> : <Copy size={15} />}
+          <span>{copiedPublicLink ? "Lien copié !" : "Copier le lien sans connexion"}</span>
+        </button>
         <button type="button" className={styles.presentationButton} onClick={openPresentation} disabled={loading || !report}>
           <Play size={15} fill="currentColor" /> Présenter
         </button>

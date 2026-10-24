@@ -5,8 +5,7 @@ import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { 
-  Play, Users, Phone, RotateCw, Church, Check, Copy, 
-  ArrowLeft, LogIn, Maximize, LoaderCircle, Calendar, Sparkles
+  Play, Church, Check, Copy, LogIn, LoaderCircle
 } from "lucide-react";
 import PoimenLogo from "@/components/brand/PoimenLogo";
 import { getPublicIntegrationPresentationData, getPublicIntegrationReportPlan } from "@/app/actions/auth";
@@ -71,10 +70,13 @@ function PresentationContent() {
     setError(null);
     try {
       const res = await getPublicIntegrationPresentationData(targetChurchId, reportPeriod);
-      if (res.success) {
+      if (res.success && res.summary) {
         setChurch(res.church);
         setChurches(res.churches);
-        setReportData(res.summary);
+        setReportData({
+          families: res.summary.families,
+          months: res.summary.months,
+        });
         if (res.plan) setPlan(res.plan);
       } else {
         setError(res.error || "Impossible de charger les données de présentation.");
@@ -219,7 +221,7 @@ function PresentationContent() {
     try {
       await navigator.clipboard.writeText(url.toString());
       setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      setTimeout(() => setCopied(false), 2200);
     } catch {}
   };
 
@@ -227,8 +229,8 @@ function PresentationContent() {
     return (
       <main className={styles.page}>
         <div className={styles.loadingBox}>
-          <LoaderCircle size={32} />
-          <p>Chargement de la présentation...</p>
+          <LoaderCircle size={28} />
+          <p>Chargement du bilan d’intégration...</p>
         </div>
       </main>
     );
@@ -239,7 +241,7 @@ function PresentationContent() {
       <main className={styles.page}>
         <div className={styles.container}>
           <div className={styles.topBar}>
-            <PoimenLogo height={26} />
+            <PoimenLogo size="navigation" />
             <Link href="/login" className={styles.linkBtn}>
               <LogIn size={15} /> Connexion
             </Link>
@@ -263,14 +265,12 @@ function PresentationContent() {
 
   return (
     <main className={styles.page}>
-      <div className={styles.glowBackground} />
-
       <div className={styles.container}>
         {/* Navigation Bar */}
         <header className={styles.topBar}>
           <div className={styles.brandWrap}>
-            <PoimenLogo height={28} />
-            <span className={styles.brandSub}>Mode Présentation</span>
+            <PoimenLogo size="navigation" />
+            <span className={styles.brandSub}>Conseil Pastoral</span>
           </div>
 
           <div className={styles.topActions}>
@@ -304,15 +304,11 @@ function PresentationContent() {
           </div>
         </header>
 
-        {/* Hero Section */}
+        {/* Clean Center Content */}
         <section className={styles.hero}>
-          <div className={styles.heroTag}>
-            <Sparkles size={14} /> Bilan d’intégration & Conseil Pastoral
-          </div>
-          <h1>Présentation du Bilan</h1>
+          <h1>Bilan de l’Intégration</h1>
           <p>
-            Diaporama interactif plein écran avec indicateurs clés d’accueil, fidélisation,
-            familles de disciples et plan d’action pastoral.
+            {church?.name || "ICC"} · {periodLabel}
           </p>
 
           <div className={styles.ctaWrap}>
@@ -320,18 +316,18 @@ function PresentationContent() {
               type="button"
               className={styles.playBtn}
               onClick={handleLaunchFullscreen}
-              title="Lancer le diaporama interactif"
+              title="Lancer le diaporama plein écran"
             >
-              <Play size={17} fill="currentColor" /> Lancer la présentation
+              <Play size={15} fill="currentColor" /> Lancer la présentation
             </button>
 
             <button
               type="button"
               className={styles.copyBtn}
               onClick={copyDirectLink}
-              title="Copier le lien direct pour le projeter sans mot de passe"
+              title="Copier le lien sans connexion"
             >
-              {copied ? <Check size={16} /> : <Copy size={16} />}
+              {copied ? <Check size={15} /> : <Copy size={15} />}
               {copied ? "Lien copié !" : "Copier le lien sans connexion"}
             </button>
           </div>
@@ -377,57 +373,8 @@ function PresentationContent() {
           </div>
         </section>
 
-        {/* Metrics Grid Preview */}
-        <section className={styles.metricsGrid} aria-label="Aperçu des indicateurs">
-          <article className={styles.metricCard}>
-            <div className={styles.metricCardTop}>
-              <span>Invités reçus</span>
-              <Users size={18} />
-            </div>
-            <strong className={styles.metricValue}>{totals.guestsReceived}</strong>
-            <span className={styles.metricDetail}>Selon la date d’arrivée</span>
-          </article>
-
-          <article className={styles.metricCard}>
-            <div className={styles.metricCardTop}>
-              <span>Contact recueilli</span>
-              <Phone size={18} />
-            </div>
-            <strong className={styles.metricValue}>{totals.guestsWithPhone}</strong>
-            <span className={styles.metricDetail}>
-              {totals.guestsReceived > 0 
-                ? `${Math.round((totals.guestsWithPhone / totals.guestsReceived) * 100)}% avec numéro`
-                : "—"}
-            </span>
-          </article>
-
-          <article className={styles.metricCard}>
-            <div className={styles.metricCardTop}>
-              <span>Appels aboutis</span>
-              <RotateCw size={18} />
-            </div>
-            <strong className={styles.metricValue}>{totals.callsReached}</strong>
-            <span className={styles.metricDetail}>
-              {totals.guestsWithPhone > 0
-                ? `${Math.round((totals.callsReached / totals.guestsWithPhone) * 100)}% des numéros joints`
-                : "—"}
-            </span>
-          </article>
-
-          <article className={styles.metricCard}>
-            <div className={styles.metricCardTop}>
-              <span>Fidélisés sans église</span>
-              <Church size={18} />
-            </div>
-            <strong className={styles.metricValue}>{totals.fidelizedWithoutLocalChurch}</strong>
-            <span className={styles.metricDetail}>
-              sur {totals.withoutLocalChurch} sans église d’origine
-            </span>
-          </article>
-        </section>
-
         <footer className={styles.footer}>
-          <span>Accès direct sans connexion · Poimén Intégration</span>
+          <span>Poimén Intégration</span>
           <span>&bull;</span>
           <Link href="/login">Espace Conseillers & Responsables</Link>
           <span>&bull;</span>
@@ -462,7 +409,7 @@ export default function PublicPresentationPage() {
       fallback={
         <main className={styles.page}>
           <div className={styles.loadingBox}>
-            <LoaderCircle size={32} />
+            <LoaderCircle size={28} />
             <p>Chargement...</p>
           </div>
         </main>

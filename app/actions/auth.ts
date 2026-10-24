@@ -1714,8 +1714,8 @@ export async function getIntegrationInvites(churchId: string) {
   }
 
   const { data, error } = await query
-    .order("arrival_date", { ascending: true })
-    .order("created_at", { ascending: true });
+    .order("arrival_date", { ascending: false })
+    .order("created_at", { ascending: false });
   if (error) return { success: false, error: error.message };
   return { success: true, invites: data || [], canDispatchAll: hasDispatchAll || isLeader };
 }
@@ -1928,6 +1928,9 @@ export async function getPublicIntegrationPresentationData(churchId?: string, pe
 
     const resolvedChurch = (churchId ? list.find(c => c.id === churchId) : null) || list[0];
     const summary = await computeIntegrationMonthlySummaryRaw(resolvedChurch.id);
+    if (!summary.success) {
+      return { success: false as const, error: summary.error };
+    }
 
     let plan = null;
     if (period && isValidIntegrationReportPeriod(period)) {
@@ -1943,7 +1946,10 @@ export async function getPublicIntegrationPresentationData(churchId?: string, pe
       success: true as const,
       church: resolvedChurch,
       churches: list,
-      summary,
+      summary: {
+        families: summary.families,
+        months: summary.months,
+      },
       plan: plan ? {
         monthlyGuestTarget: plan.monthly_guest_target == null ? "" : String(plan.monthly_guest_target),
         observation: plan.observation || "",
