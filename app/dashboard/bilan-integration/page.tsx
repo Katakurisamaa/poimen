@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Activity, BarChart3, Check, Copy, FileChartColumnIncreasing, HeartHandshake, LoaderCircle, Phone, Play, RotateCw, Save, Target, Users } from "lucide-react";
+import { Activity, BarChart3, Check, Copy, FileChartColumnIncreasing, HeartHandshake, LoaderCircle, Phone, PhoneForwarded, PhoneOff, Play, RotateCw, Save, Target, Users } from "lucide-react";
 import { getIntegrationMonthlyReportPlan, getIntegrationMonthlySummary, saveIntegrationMonthlyReportPlan } from "@/app/actions/auth";
 import IntegrationSubNav from "@/components/integration/IntegrationSubNav";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
@@ -130,6 +130,7 @@ export default function IntegrationMonthlyReportPage() {
     guestsWithoutFamily: sum.guestsWithoutFamily + month.guestsWithoutFamily,
     guestsWithPhone: sum.guestsWithPhone + month.guestsWithPhone,
     wrongNumbers: sum.wrongNumbers + month.wrongNumbers,
+    noAnswer: sum.noAnswer + (month.noAnswer ?? 0),
     callsReached: sum.callsReached + month.callsReached,
     withLocalChurch: sum.withLocalChurch + month.withLocalChurch,
     withoutLocalChurch: sum.withoutLocalChurch + month.withoutLocalChurch,
@@ -144,7 +145,7 @@ export default function IntegrationMonthlyReportPage() {
     awaitingContact: sum.awaitingContact + (month.awaitingContact ?? 0),
     guestsWithoutNextStep: sum.guestsWithoutNextStep + (month.uninitiatedCalls ?? month.guestsWithoutNextStep ?? 0),
   }), {
-    guestsReceived: 0, guestsWithoutFamily: 0, guestsWithPhone: 0, wrongNumbers: 0, callsReached: 0,
+    guestsReceived: 0, guestsWithoutFamily: 0, guestsWithPhone: 0, wrongNumbers: 0, noAnswer: 0, callsReached: 0,
     withLocalChurch: 0, withoutLocalChurch: 0, salvationPrayer: 0, integratedCdm: 0,
     pcnc: 0, returnedToChurch: 0, returnedWithoutLocalChurch: 0, fidelizedWithoutLocalChurch: 0,
     uninitiatedCalls: 0, awaitingAssignment: 0, awaitingContact: 0, guestsWithoutNextStep: 0,
@@ -213,6 +214,7 @@ export default function IntegrationMonthlyReportPage() {
       `Appels aboutis : ${formatCount(totals.callsReached)}`,
       `Appels aboutis parmi les numéros enregistrés : ${callRate}`,
       `Numéros erronés : ${formatCount(totals.wrongNumbers)}`,
+      `Ne décroche pas suite à plusieurs relances : ${formatCount(totals.noAnswer)}`,
       `Avec église locale : ${formatCount(totals.withLocalChurch)}`,
       `Sans église locale : ${formatCount(totals.withoutLocalChurch)}`,
       `Prière du salut : ${formatCount(totals.salvationPrayer)}`,
@@ -430,7 +432,8 @@ export default function IntegrationMonthlyReportPage() {
             </div>
           </div>
           <div className={styles.detailMetrics}>
-            <MetricCard label="Numéros erronés" value={formatCount(totals.wrongNumbers)} detail="Signalés comme faux dans le suivi" icon={Phone} />
+            <MetricCard label="Numéros erronés" value={formatCount(totals.wrongNumbers)} detail="Signalés comme faux dans le suivi" icon={PhoneOff} />
+            <MetricCard label="Sans réponse aux relances" value={formatCount(totals.noAnswer)} detail="Ne décroche pas suite à plusieurs relances" icon={PhoneForwarded} />
             <MetricCard label="Avec une église locale" value={formatCount(totals.withLocalChurch)} detail="Déclarée sur la fiche d’arrivée" icon={Users} />
             <MetricCard label="Sans église locale" value={formatCount(totals.withoutLocalChurch)} detail="Base de calcul de la fidélisation" icon={Users} />
             <MetricCard label="Prière du salut" value={formatCount(totals.salvationPrayer)} detail="Fiches avec une réponse positive" icon={HeartHandshake} />

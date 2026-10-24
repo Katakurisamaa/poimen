@@ -191,9 +191,10 @@
 .meter { height: 7px; overflow: hidden; border-radius: 20px; background: var(--deck-soft); }
 .meter > span { display: block; height: 100%; border-radius: inherit; background: var(--deck-gold); transform-origin: left; }
 .tealMeter > span { background: var(--deck-teal); }
-.contactRow .meter { margin-top: 16px; }
-.contactNote { display: flex; align-items: center; gap: 12px; padding-top: 20px; font-size: 12px; color: var(--deck-muted); }
-.contactNote > strong { margin-left: auto; color: var(--deck-ink); font-size: 25px; font-weight: 550; }
+.contactUnreachedGroup { display: flex; flex-direction: column; gap: 10px; padding-top: 18px; }
+.contactNote { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--deck-muted); }
+.contactNote > svg { color: var(--deck-muted); flex-shrink: 0; }
+.contactNote > strong { margin-left: auto; color: var(--deck-ink); font-size: 22px; font-weight: 550; font-variant-numeric: tabular-nums; }
 .orientationGrid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 24px; }
 .churchPanel, .salvationPanel, .chartPanel, .insightCard, .actionPanel, .loyaltyPanel, .journeyCard { border: 1px solid var(--deck-line); background: var(--deck-paper); border-radius: 14px; }
 .churchPanel { padding: 28px 32px; }

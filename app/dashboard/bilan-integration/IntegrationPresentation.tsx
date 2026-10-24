@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, CalendarDays, Church, HeartHandshake, Maximize, Minimize, Moon, Phone, RotateCcw, SlidersHorizontal, Sun, Target, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Church, HeartHandshake, Maximize, Minimize, Moon, Phone, PhoneForwarded, PhoneOff, RotateCcw, SlidersHorizontal, Sun, Target, Users, X } from "lucide-react";
 import styles from "./IntegrationPresentation.module.css";
 
 type Totals = {
   guestsReceived: number; guestsWithoutFamily: number; guestsWithPhone: number;
-  wrongNumbers: number; callsReached: number; withLocalChurch: number;
+  wrongNumbers: number; noAnswer: number; callsReached: number; withLocalChurch: number;
   withoutLocalChurch: number; salvationPrayer: number; integratedCdm: number;
   pcnc: number; returnedToChurch: number; fidelizedWithoutLocalChurch: number;
   uninitiatedCalls?: number;
@@ -246,7 +246,10 @@ function SlideContent({ slide, data }: { slide: Slide; data: Props }) {
         <div className={styles.contactPanel}>
           <article className={styles.contactRow}><span className={styles.stepNumber}>01</span><div><h2>Numéro recueilli</h2><p>{rate(t.guestsWithPhone, t.guestsReceived)} des invités ont un numéro enregistré.</p><Meter value={t.guestsWithPhone} total={t.guestsReceived} /></div><strong>{count(t.guestsWithPhone)}</strong></article>
           <article className={styles.contactRow}><span className={styles.stepNumber}>02</span><div><h2>Appel abouti</h2><p>{rate(t.callsReached, t.guestsWithPhone)} parmi les invités avec un numéro.</p><Meter value={t.callsReached} total={t.guestsWithPhone} teal /></div><strong>{count(t.callsReached)}</strong></article>
-          <div className={styles.contactNote}><Phone size={18} /><span>Numéros erronés ou non attribués</span><strong>{count(t.wrongNumbers)}</strong></div>
+          <div className={styles.contactUnreachedGroup}>
+            <div className={styles.contactNote}><PhoneOff size={16} /><span>Numéros erronés ou non attribués</span><strong>{count(t.wrongNumbers)}</strong></div>
+            <div className={styles.contactNote}><PhoneForwarded size={16} /><span>Ne décroche pas suite à plusieurs relances</span><strong>{count(t.noAnswer)}</strong></div>
+          </div>
         </div>
       </div>
       <Takeaway>{noGuests ? "Confirmer la saisie des arrivées avant d’interpréter les indicateurs de contact." : missingPhone > 0 ? <><strong>{quantity(missingPhone, "invité")} sans numéro enregistré.</strong> Compléter les coordonnées avec leur accord facilite le premier échange.</> : <>Un numéro est renseigné pour chaque invité. <strong>La qualité du premier échange et la suite proposée restent à suivre.</strong></>}</Takeaway>

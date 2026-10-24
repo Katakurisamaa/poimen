@@ -118,6 +118,7 @@ export default function Preview() {
             guestsWithoutFamily: Math.max(0, Math.round(guestsReceived * 0.45)),
             guestsWithPhone,
             wrongNumbers: 0,
+            noAnswer: 0,
             callsReached,
             withLocalChurch,
             withoutLocalChurch,

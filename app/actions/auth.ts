@@ -1736,7 +1736,7 @@ export async function getIntegrationMonthlySummary(churchId: string) {
         const pageSize = 1000;
         for (let start = 0; ; start += pageSize) {
           const { data, error } = await supabase.from("invites")
-            .select("arrival_date, phone, faux_numero, appel_abouti, local_church, aps, dans_famille_disciple, famille_disciple, is_in_bergerie, bergerie_id, integre_cdm, pcnc, p101, p201, p301, interet_formation, est_revenu_culte, attendance, motif_retrait, statut_affectation, assigned_to, responsible, prevu_revenir, rdv_pastoral, souhait_suivi, commentaire_suivi")
+            .select("arrival_date, phone, faux_numero, ne_decroche_pas, appel_abouti, local_church, aps, dans_famille_disciple, famille_disciple, is_in_bergerie, bergerie_id, integre_cdm, pcnc, p101, p201, p301, interet_formation, est_revenu_culte, attendance, motif_retrait, statut_affectation, assigned_to, responsible, prevu_revenir, rdv_pastoral, souhait_suivi, commentaire_suivi")
             .eq("church_id", churchId)
             .eq("archived", false)
             .order("arrival_date", { ascending: true })
@@ -1768,6 +1768,7 @@ export async function getIntegrationMonthlySummary(churchId: string) {
       guestsWithoutFamily: number;
       guestsWithPhone: number;
       wrongNumbers: number;
+      noAnswer: number;
       callsReached: number;
       withLocalChurch: number;
       withoutLocalChurch: number;
@@ -1802,7 +1803,7 @@ export async function getIntegrationMonthlySummary(churchId: string) {
       let bucket = monthBuckets.get(month);
       if (!bucket) {
         bucket = {
-          month, guestsReceived: 0, guestsWithoutFamily: 0, guestsWithPhone: 0, wrongNumbers: 0, callsReached: 0,
+          month, guestsReceived: 0, guestsWithoutFamily: 0, guestsWithPhone: 0, wrongNumbers: 0, noAnswer: 0, callsReached: 0,
           withLocalChurch: 0, withoutLocalChurch: 0, salvationPrayer: 0, integratedCdm: 0,
           pcnc: 0, returnedToChurch: 0, returnedWithoutLocalChurch: 0, fidelizedWithoutLocalChurch: 0,
           uninitiatedCalls: 0, awaitingAssignment: 0, awaitingContact: 0, guestsWithoutNextStep: 0,
@@ -1813,6 +1814,9 @@ export async function getIntegrationMonthlySummary(churchId: string) {
       bucket.guestsReceived += 1;
       if (typeof guest.phone === "string" && guest.phone.trim()) bucket.guestsWithPhone += 1;
       if (guest.faux_numero === true) bucket.wrongNumbers += 1;
+      if (guest.ne_decroche_pas === true || guest.motif_retrait === "ne_decroche_pas" || /\[NE_DECROCHE_PAS\]/i.test(guest.commentaire_suivi || "")) {
+        bucket.noAnswer += 1;
+      }
       if (guest.appel_abouti === true) bucket.callsReached += 1;
       if (guest.local_church === true) bucket.withLocalChurch += 1;
       else bucket.withoutLocalChurch += 1;
