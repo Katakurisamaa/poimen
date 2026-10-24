@@ -3,7 +3,7 @@
 import PoimenLogo from "@/components/brand/PoimenLogo";
 
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, LogIn, MapPin, AlertCircle, ShieldCheck, Users, UserRoundCheck } from "lucide-react";
+import { Eye, EyeOff, LogIn, MapPin, AlertCircle, ShieldCheck, Users, UserRoundCheck, Play } from "lucide-react";
 import { supabase, getSafeUser } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { adminSignUp, authenticateFamilyLeader } from "@/app/actions/auth";
@@ -464,6 +464,31 @@ export default function LoginPage() {
               {loading ? <span className="spinner" /> : <><LogIn size={16} /> Se connecter</>}
             </button>
           </form>
+
+          <div style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--border)", textAlign: "center" }}>
+            <Link
+              href="/presentation"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                width: "100%",
+                padding: "11px 16px",
+                borderRadius: 12,
+                background: "rgba(212, 160, 60, 0.08)",
+                border: "1px solid rgba(212, 160, 60, 0.25)",
+                color: "var(--gold-light)",
+                fontSize: 12.5,
+                fontWeight: 600,
+                textDecoration: "none",
+                transition: "all 0.2s ease"
+              }}
+            >
+              <Play size={13} fill="currentColor" />
+              Lancer la présentation du bilan (sans connexion)
+            </Link>
+          </div>
         </div>
 
         <p style={{ textAlign: "center", fontSize: 10, color: "var(--muted)", marginTop: 28, letterSpacing: 1 }}>© 2025 ICC · Poimén v1.0</p>

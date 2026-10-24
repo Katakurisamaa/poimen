@@ -1722,13 +1722,10 @@ export async function getIntegrationInvites(churchId: string) {
 
 /**
  * Returns an anonymous monthly integration summary for the pastoral dashboard.
- * The service role is used only after checking the active integration leader,
- * and the response contains aggregate values rather than guest contact details.
+/**
+ * Internal raw calculation of the anonymous monthly integration summary.
  */
-export async function getIntegrationMonthlySummary(churchId: string) {
-  const permission = await assertCanManageIntegrationTeam(churchId);
-  if (!permission.ok) return { success: false as const, error: permission.error };
-
+async function computeIntegrationMonthlySummaryRaw(churchId: string) {
   try {
     const supabase = await getServiceSupabase();
     const [familyResult, arrivalRows] = await Promise.all([
@@ -1892,6 +1889,104 @@ export async function getIntegrationMonthlySummary(churchId: string) {
       success: false as const,
       error: message,
     };
+  }
+}
+
+/**
+ * Returns an anonymous monthly integration summary for the pastoral dashboard.
+ * The service role is used only after checking the active integration leader,
+ * and the response contains aggregate values rather than guest contact details.
+ */
+export async function getIntegrationMonthlySummary(churchId: string) {
+  const permission = await assertCanManageIntegrationTeam(churchId);
+  if (!permission.ok) return { success: false as const, error: permission.error };
+  return computeIntegrationMonthlySummaryRaw(churchId);
+}
+
+/**
+ * Loads the anonymous integration presentation data (summary, church info, and plan)
+ * for public / projection display without requiring user login.
+ */
+export async function getPublicIntegrationPresentationData(churchId?: string, period?: string) {
+  try {
+    const supabase = await getServiceSupabase();
+    const { data: churches, error: chErr } = await supabase
+      .from("churches")
+      .select("id, name, city")
+      .order("name");
+
+    if (chErr) throw chErr;
+    const list = (churches || []).map((c: any) => ({
+      id: c.id,
+      name: (c.name || "").trim(),
+      city: (c.city || "").trim(),
+    }));
+
+    if (list.length === 0) {
+      return { success: false as const, error: "Aucune église configurée." };
+    }
+
+    const resolvedChurch = (churchId ? list.find(c => c.id === churchId) : null) || list[0];
+    const summary = await computeIntegrationMonthlySummaryRaw(resolvedChurch.id);
+
+    let plan = null;
+    if (period && isValidIntegrationReportPeriod(period)) {
+      const { data } = await supabase.from(INTEGRATION_REPORT_PLAN_TABLE)
+        .select("monthly_guest_target, observation, challenge, action, owner, due_date")
+        .eq("church_id", resolvedChurch.id)
+        .eq("period", period)
+        .maybeSingle();
+      if (data) plan = data;
+    }
+
+    return {
+      success: true as const,
+      church: resolvedChurch,
+      churches: list,
+      summary,
+      plan: plan ? {
+        monthlyGuestTarget: plan.monthly_guest_target == null ? "" : String(plan.monthly_guest_target),
+        observation: plan.observation || "",
+        challenge: plan.challenge || "",
+        action: plan.action || "",
+        owner: plan.owner || "",
+        dueDate: plan.due_date || "",
+      } : { monthlyGuestTarget: "", observation: "", challenge: "", action: "", owner: "", dueDate: "" },
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Impossible de charger la présentation.";
+    return {
+      success: false as const,
+      error: message,
+    };
+  }
+}
+
+/**
+ * Loads the pastoral action plan for a specific church and period in public presentation mode.
+ */
+export async function getPublicIntegrationReportPlan(churchId: string, period: string) {
+  if (!isValidIntegrationReportPeriod(period)) return { success: false as const, error: "Période invalide." };
+  try {
+    const supabase = await getServiceSupabase();
+    const { data } = await supabase.from(INTEGRATION_REPORT_PLAN_TABLE)
+      .select("monthly_guest_target, observation, challenge, action, owner, due_date")
+      .eq("church_id", churchId)
+      .eq("period", period)
+      .maybeSingle();
+    return {
+      success: true as const,
+      plan: data ? {
+        monthlyGuestTarget: data.monthly_guest_target == null ? "" : String(data.monthly_guest_target),
+        observation: data.observation || "",
+        challenge: data.challenge || "",
+        action: data.action || "",
+        owner: data.owner || "",
+        dueDate: data.due_date || "",
+      } : null,
+    };
+  } catch {
+    return { success: true as const, plan: null };
   }
 }
 

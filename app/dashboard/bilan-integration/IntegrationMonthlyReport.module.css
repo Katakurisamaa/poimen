@@ -114,7 +114,8 @@
 .planError > span { color: var(--cream-dim); }
 .planError code { color: var(--gold-light); font-size: 10px; overflow-wrap: anywhere; }
 .retryPlan { justify-self: start; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-solid); color: var(--cream); font: inherit; font-size: 10px; font-weight: 600; cursor: pointer; }
-.retryPlan:hover { border-color: var(--gold); }
+.publicLinkButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); color: var(--cream-dim); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease; }
+.publicLinkButton:hover { border-color: var(--gold); background: var(--gold-glow); color: var(--gold-light); }
 .presentationButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid transparent; border-radius: 12px; background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: #17130a; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; box-shadow: 0 8px 22px rgba(168, 124, 31, .2); transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease; }
 .presentationButton:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(168, 124, 31, .3); }
 .presentationButton:disabled { opacity: .55; cursor: wait; }

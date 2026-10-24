@@ -4,7 +4,7 @@ import PoimenLogo from "@/components/brand/PoimenLogo";
 import PwaInstallButton from "@/components/PwaInstallButton";
 
 import { useState, useEffect } from "react";
-import { Search, MapPin, Lock, ChevronRight, X, Loader2, Church, Flame, FileText } from "lucide-react";
+import { Search, MapPin, Lock, ChevronRight, X, Loader2, Church, Flame, FileText, Play } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -208,6 +208,29 @@ export default function LandingPage() {
             Plateforme des Familles de Disciples
           </p>
 
+          <div style={{ marginTop: 14 }}>
+            <Link
+              href="/presentation"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "6px 14px",
+                borderRadius: 999,
+                background: "rgba(212, 175, 55, 0.08)",
+                border: "1px solid rgba(212, 175, 55, 0.22)",
+                color: "var(--gold-light)",
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: "none",
+                transition: "all 0.2s ease"
+              }}
+            >
+              <Play size={12} fill="currentColor" />
+              Mode Présentation · Bilan d'intégration (sans connexion)
+            </Link>
+          </div>
+
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, margin: "24px auto 32px" }}>
             <div style={{ height: 1, width: 45, background: "linear-gradient(90deg, transparent, var(--gold))" }} />
             <div style={{ width: 6, height: 6, borderRadius: "50%", border: "1.5px solid var(--gold)" }} />
@@ -340,8 +363,28 @@ export default function LandingPage() {
         )}
       </div>
 
-      {/* Super Admin Access */}
-      <footer style={{ marginTop: 90, textAlign: "center", padding: "30px 0 10px", borderTop: "1px solid rgba(212, 175, 55, 0.1)", position: "relative", zIndex: 1 }}>
+      {/* Super Admin Access & Presentation Direct Access */}
+      <footer style={{ marginTop: 90, textAlign: "center", padding: "30px 0 10px", borderTop: "1px solid rgba(212, 175, 55, 0.1)", position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
+        <Link
+          href="/presentation"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            padding: "8px 18px",
+            borderRadius: 999,
+            background: "rgba(212, 175, 55, 0.08)",
+            border: "1px solid rgba(212, 175, 55, 0.25)",
+            color: "var(--gold-light)",
+            fontSize: 12,
+            fontWeight: 600,
+            textDecoration: "none",
+            transition: "all 0.2s ease"
+          }}
+        >
+          <Play size={12} fill="currentColor" />
+          Lancer la présentation du bilan d'intégration (sans connexion)
+        </Link>
         <a 
           href="/login/admin" 
           style={{ 

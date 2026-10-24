@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Activity, BarChart3, Check, Copy, FileChartColumnIncreasing, HeartHandshake, LoaderCircle, Phone, PhoneForwarded, PhoneOff, Play, RotateCw, Save, Target, Users } from "lucide-react";
+import Link from "next/link";
+import { Activity, BarChart3, Check, Copy, ExternalLink, FileChartColumnIncreasing, HeartHandshake, LoaderCircle, Phone, PhoneForwarded, PhoneOff, Play, RotateCw, Save, Target, Users } from "lucide-react";
 import { getIntegrationMonthlyReportPlan, getIntegrationMonthlySummary, saveIntegrationMonthlyReportPlan } from "@/app/actions/auth";
 import IntegrationSubNav from "@/components/integration/IntegrationSubNav";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
@@ -340,6 +341,15 @@ export default function IntegrationMonthlyReportPage() {
         <button type="button" className={styles.copyButton} onClick={() => void copySummary()} disabled={loading || !report}>
           {copied ? <Check size={16} /> : <Copy size={16} />}{copied ? "Bilan copié" : "Copier les chiffres"}
         </button>
+        <Link
+          href="/presentation"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.publicLinkButton}
+          title="Ouvrir la présentation sans devoir se connecter (idéal pour projecteur ou réunion)"
+        >
+          <ExternalLink size={15} /> Lien sans connexion
+        </Link>
         <button type="button" className={styles.presentationButton} onClick={openPresentation} disabled={loading || !report}>
           <Play size={15} fill="currentColor" /> Présenter
         </button>
