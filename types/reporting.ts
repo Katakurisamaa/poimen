@@ -58,7 +58,8 @@ export interface FddReportingData {
 }
 
 export interface CalculatedMetrics {
-  totalParticipation: number;
+  totalParticipation: number; // Participants physiques uniques (présentiel)
+  totalParticipationAvecLigne?: number; // Participants totaux (présentiel + en ligne)
   tauxParticipationGlobale: number; // %
   
   // Disciples metrics
@@ -115,9 +116,15 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
   const cLigne = Math.max(0, data.culte_en_ligne || 0);
   const cBoth = Math.max(0, data.culte_1_et_2 || 0);
   
+  // Participants physiques uniques en présentiel :
   // Les participants aux 2 cultes étant comptés dans c1 et c2, on retranche le cumul
   // pour obtenir l'effectif exact des participants physiques uniques.
-  const totalPart = Math.max(0, (c1 + c2 - cBoth) + cLigne);
+  const totalPartPhysique = Math.max(0, c1 + c2 - cBoth);
+  // Total participants tous canaux (physique + en ligne conservé à titre informatif)
+  const totalPartAvecLigne = Math.max(0, totalPartPhysique + cLigne);
+
+  // Le taux de participation globale concerne uniquement les présences en présentiel.
+  const totalPart = totalPartPhysique;
   const absJust = Math.max(0, data.absences_justifiees || 0);
   const totalAbs = Math.max(0, total - totalPart);
   
@@ -130,15 +137,16 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
 
   const partGlobale = (data.taux_participation_globale !== undefined && data.taux_participation_globale > 0)
     ? data.taux_participation_globale
-    : pct(totalPart, total);
+    : pct(totalPartPhysique, total);
 
-  // Disciples metrics
+  // Disciples metrics (taux en présentiel uniquement)
   const discTotal = Math.max(0, data.nombre_disciples || 0);
   const discC1 = Math.max(0, data.disciples_culte_1 || 0);
   const discC2 = Math.max(0, data.disciples_culte_2 || 0);
   const discLigne = Math.max(0, data.disciples_culte_en_ligne || 0);
   const discBoth = Math.max(0, data.disciples_culte_1_et_2 || 0);
-  const computedDiscPart = Math.max(0, (discC1 + discC2 - discBoth) + discLigne);
+  const computedDiscPartPhysique = Math.max(0, discC1 + discC2 - discBoth);
+  const computedDiscPart = computedDiscPartPhysique;
   const discPart = (data.disciples_presents_total !== undefined && data.disciples_presents_total > 0)
     ? data.disciples_presents_total
     : (computedDiscPart > 0
@@ -158,6 +166,7 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
 
   return {
     totalParticipation: totalPart,
+    totalParticipationAvecLigne: totalPartAvecLigne,
     tauxParticipationGlobale: partGlobale,
 
     // Disciples
@@ -193,13 +202,13 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
     pctTotalReunionHebdo: pct(data.reunion_hebdomadaire, total),
     pctTotalNouveauxMembres: pct(data.nouveaux_membres, total),
 
-    // % sur la participation
-    pctPartCulte1: pct(c1, totalPart),
-    pctPartCulte2: pct(c2, totalPart),
-    pctPartCulte1Et2: pct(cBoth, totalPart),
-    pctPartCulteEnLigne: pct(cLigne, totalPart),
-    pctPartHommes: pct(data.repartition_hommes, totalPart),
-    pctPartFemmes: pct(data.repartition_femmes, totalPart),
+    // % sur la participation physique (présentiel)
+    pctPartCulte1: pct(c1, totalPartPhysique),
+    pctPartCulte2: pct(c2, totalPartPhysique),
+    pctPartCulte1Et2: pct(cBoth, totalPartPhysique),
+    pctPartCulteEnLigne: pct(cLigne, total),
+    pctPartHommes: pct(data.repartition_hommes, totalPartPhysique),
+    pctPartFemmes: pct(data.repartition_femmes, totalPartPhysique),
 
     totalAbsences: totalAbs,
   };
@@ -208,41 +217,44 @@ export function computeReportingMetrics(data: FddReportingData): CalculatedMetri
 export function getKeyPointsSummary(data: FddReportingData, metrics: CalculatedMetrics): string[] {
   const points: string[] = [];
 
-  // 1. Taux de participation globale
+  // 1. Taux de participation globale (présentiel)
   if (data.nombre_total_membres > 0) {
     if (metrics.tauxParticipationGlobale >= 80) {
-      points.push(`Excellente mobilisation : ${metrics.tauxParticipationGlobale}% de participation globale (${metrics.totalParticipation} sur ${data.nombre_total_membres} membres).`);
+      points.push(`Excellente mobilisation : ${metrics.tauxParticipationGlobale}% de participation en présentiel (${metrics.totalParticipation} sur ${data.nombre_total_membres} membres).`);
     } else if (metrics.tauxParticipationGlobale >= 50) {
-      points.push(`La participation globale est de ${metrics.tauxParticipationGlobale}% (${metrics.totalParticipation} présents sur ${data.nombre_total_membres} membres).`);
+      points.push(`La participation en présentiel est de ${metrics.tauxParticipationGlobale}% (${metrics.totalParticipation} présents sur ${data.nombre_total_membres} membres).`);
     } else if (metrics.totalParticipation > 0) {
-      points.push(`Participation globale : ${metrics.tauxParticipationGlobale}% (${metrics.totalParticipation} présents sur ${data.nombre_total_membres} membres).`);
+      points.push(`Participation en présentiel : ${metrics.tauxParticipationGlobale}% (${metrics.totalParticipation} présents sur ${data.nombre_total_membres} membres).`);
     } else {
-      points.push(`Aucune présence enregistrée au culte ce dimanche sur ${data.nombre_total_membres} membres.`);
+      points.push(`Aucune présence en présentiel enregistrée au culte ce dimanche sur ${data.nombre_total_membres} membres.`);
     }
   } else {
-    points.push(`Taux de participation globale : ${metrics.tauxParticipationGlobale}%.`);
+    points.push(`Taux de participation globale (présentiel) : ${metrics.tauxParticipationGlobale}%.`);
   }
 
-  // 2. Répartition des cultes
+  // 2. Répartition des cultes physiques
   const cultes = [
     { name: "Culte 1", count: data.culte_1 || 0, pct: metrics.pctPartCulte1 || 0 },
     { name: "Culte 2", count: data.culte_2 || 0, pct: metrics.pctPartCulte2 || 0 },
-    { name: "Culte en ligne", count: data.culte_en_ligne || 0, pct: metrics.pctPartCulteEnLigne || 0 },
   ].filter(c => c.count > 0);
 
   cultes.sort((a, b) => b.count - a.count);
 
   if (metrics.totalParticipation === 0) {
-    points.push("Aucune participation aux cultes ce dimanche.");
+    points.push("Aucune participation physique aux cultes ce dimanche.");
   } else if (cultes.length === 1) {
-    points.push(`100% des présences se concentrent sur le ${cultes[0].name} (${cultes[0].count} participant${cultes[0].count > 1 ? "s" : ""}).`);
+    points.push(`100% des présences physiques se concentrent sur le ${cultes[0].name} (${cultes[0].count} participant${cultes[0].count > 1 ? "s" : ""}).`);
   } else if (cultes.length === 2 && cultes[0].count === cultes[1].count) {
     const bothMention = (data.culte_1_et_2 || 0) > 0 ? ` (dont ${data.culte_1_et_2} aux deux cultes)` : "";
-    points.push(`Participation équilibrée entre le ${cultes[0].name} et le ${cultes[1].name} (${cultes[0].pct}% chacun)${bothMention}.`);
+    points.push(`Participation physique équilibrée entre le ${cultes[0].name} et le ${cultes[1].name} (${cultes[0].pct}% chacun)${bothMention}.`);
   } else if (cultes.length >= 2) {
     const others = cultes.slice(1).map(c => `${c.name} (${c.pct}%)`).join(", ");
     const bothMention = (data.culte_1_et_2 || 0) > 0 ? ` dont ${data.culte_1_et_2} ayant assisté aux deux cultes` : "";
-    points.push(`Le ${cultes[0].name} arrive en tête avec ${cultes[0].pct}% des participants (${cultes[0].count}), suivi de : ${others}${bothMention}.`);
+    points.push(`Le ${cultes[0].name} arrive en tête avec ${cultes[0].pct}% des participants physiques (${cultes[0].count}), suivi de : ${others}${bothMention}.`);
+  }
+
+  if ((data.culte_en_ligne || 0) > 0) {
+    points.push(`${data.culte_en_ligne} participant${data.culte_en_ligne > 1 ? "s" : ""} ont suivi le culte en ligne (${metrics.pctTotalCulteEnLigne}% de l'effectif total).`);
   }
 
   // 3. Répartition Hommes / Femmes

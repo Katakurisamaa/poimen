@@ -8,6 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
 import { SUPER_ADMIN_EMAIL, inferContextType, normalizeFamilyRole } from "@/lib/auth-contexts";
 import { isUuid, isFamilyLeader, validTeamInput, validObservationMemberInput } from "@/lib/security-validation";
+import { DEFAULT_DISCIPLE_FAMILIES } from "@/lib/default-disciple-families";
 
 type ResolvedAccess = {
   role: string;
@@ -1717,6 +1718,256 @@ export async function getIntegrationInvites(churchId: string) {
   return { success: true, invites: data || [], canDispatchAll: hasDispatchAll || isLeader };
 }
 
+/**
+ * Returns an anonymous monthly integration summary for the pastoral dashboard.
+ * The service role is used only after checking the active integration leader,
+ * and the response contains aggregate values rather than guest contact details.
+ */
+export async function getIntegrationMonthlySummary(churchId: string) {
+  const permission = await assertCanManageIntegrationTeam(churchId);
+  if (!permission.ok) return { success: false as const, error: permission.error };
+
+  try {
+    const supabase = await getServiceSupabase();
+    const [familyResult, arrivalRows] = await Promise.all([
+      supabase.from("bergeries").select("id, name").eq("church_id", churchId).order("name"),
+      (async () => {
+        const rows: Record<string, any>[] = [];
+        const pageSize = 1000;
+        for (let start = 0; ; start += pageSize) {
+          const { data, error } = await supabase.from("invites")
+            .select("arrival_date, phone, faux_numero, appel_abouti, local_church, aps, dans_famille_disciple, famille_disciple, is_in_bergerie, bergerie_id, integre_cdm, pcnc, p101, p201, p301, interet_formation, est_revenu_culte, attendance, motif_retrait, statut_affectation, assigned_to, responsible, prevu_revenir, rdv_pastoral, souhait_suivi, commentaire_suivi")
+            .eq("church_id", churchId)
+            .eq("archived", false)
+            .order("arrival_date", { ascending: true })
+            .range(start, start + pageSize - 1);
+          if (error) throw error;
+          rows.push(...(data || []));
+          if ((data || []).length < pageSize) break;
+        }
+        return rows;
+      })(),
+    ]);
+
+    if (familyResult.error) throw familyResult.error;
+
+    const normalizeFamily = (name: string) => name.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr");
+    const familyNames = new Map<string, string>();
+    const familyNamesById = new Map<string, string>();
+    for (const name of DEFAULT_DISCIPLE_FAMILIES) familyNames.set(normalizeFamily(name), name);
+    for (const row of familyResult.data || []) {
+      if (row.name?.trim()) {
+        familyNames.set(normalizeFamily(row.name), row.name.trim());
+        familyNamesById.set(row.id, row.name.trim());
+      }
+    }
+
+    const monthBuckets = new Map<string, {
+      month: string;
+      guestsReceived: number;
+      guestsWithoutFamily: number;
+      guestsWithPhone: number;
+      wrongNumbers: number;
+      callsReached: number;
+      withLocalChurch: number;
+      withoutLocalChurch: number;
+      salvationPrayer: number;
+      integratedCdm: number;
+      pcnc: number;
+      returnedToChurch: number;
+      returnedWithoutLocalChurch: number;
+      fidelizedWithoutLocalChurch: number;
+      uninitiatedCalls: number;
+      awaitingAssignment: number;
+      awaitingContact: number;
+      guestsWithoutNextStep: number;
+    }>();
+
+    const familyAssignments = new Map<string, { familyName: string; count: number }>();
+    const isReturned = (guest: Record<string, any>) => {
+      if (guest.est_revenu_culte) return true;
+      const attendance = guest.attendance && typeof guest.attendance === "object" ? guest.attendance : {};
+      const arrivalDate = typeof guest.arrival_date === "string" ? guest.arrival_date : "";
+      return Object.entries(attendance).some(([date, present]) => {
+        if (present !== true || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date <= arrivalDate) return false;
+        return new Date(`${date}T00:00:00Z`).getUTCDay() === 0;
+      });
+    };
+
+    for (const guest of arrivalRows) {
+      const arrivalDate = typeof guest.arrival_date === "string" ? guest.arrival_date : "";
+      const month = arrivalDate.slice(0, 7);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) continue;
+
+      let bucket = monthBuckets.get(month);
+      if (!bucket) {
+        bucket = {
+          month, guestsReceived: 0, guestsWithoutFamily: 0, guestsWithPhone: 0, wrongNumbers: 0, callsReached: 0,
+          withLocalChurch: 0, withoutLocalChurch: 0, salvationPrayer: 0, integratedCdm: 0,
+          pcnc: 0, returnedToChurch: 0, returnedWithoutLocalChurch: 0, fidelizedWithoutLocalChurch: 0,
+          uninitiatedCalls: 0, awaitingAssignment: 0, awaitingContact: 0, guestsWithoutNextStep: 0,
+        };
+        monthBuckets.set(month, bucket);
+      }
+
+      bucket.guestsReceived += 1;
+      if (typeof guest.phone === "string" && guest.phone.trim()) bucket.guestsWithPhone += 1;
+      if (guest.faux_numero === true) bucket.wrongNumbers += 1;
+      if (guest.appel_abouti === true) bucket.callsReached += 1;
+      if (guest.local_church === true) bucket.withLocalChurch += 1;
+      else bucket.withoutLocalChurch += 1;
+      if (guest.aps === true) bucket.salvationPrayer += 1;
+      if (guest.integre_cdm === true) bucket.integratedCdm += 1;
+      if (guest.interet_formation === true || guest.pcnc === true || guest.p101 === true || guest.p201 === true || guest.p301 === true) bucket.pcnc += 1;
+      if (isReturned(guest)) {
+        bucket.returnedToChurch += 1;
+        if (guest.local_church !== true) bucket.returnedWithoutLocalChurch += 1;
+      }
+      const followupCompleted = guest.motif_retrait === "suivi_termine";
+      if (guest.local_church !== true && (isReturned(guest) || followupCompleted)) {
+        bucket.fidelizedWithoutLocalChurch += 1;
+      }
+
+      const recordedFamily = typeof guest.famille_disciple === "string" ? guest.famille_disciple.trim() : "";
+      const hasRecordedFamily = !!recordedFamily && normalizeFamily(recordedFamily) !== "aucune";
+      const hasFamily = guest.dans_famille_disciple === true || guest.is_in_bergerie === true || hasRecordedFamily;
+
+      // Pipeline de qualification : Appels non entamés (À affecter ou À contacter)
+      const rawStatut = (typeof guest.statut_affectation === "string" && guest.statut_affectation.trim())
+        || (typeof guest.commentaire_suivi === "string" ? guest.commentaire_suivi.match(/\[STATUT:\s*([^\]]+)\]/i)?.[1]?.trim() : "")
+        || "";
+      const motifRetrait = (typeof guest.motif_retrait === "string" && guest.motif_retrait.trim())
+        || (typeof guest.commentaire_suivi === "string" ? guest.commentaire_suivi.match(/\[MOTIF_RETRAIT:\s*([^\]]+)\]/i)?.[1]?.trim() : "")
+        || "";
+      const isAssigned = Boolean(guest.assigned_to || (typeof guest.responsible === "string" && !!guest.responsible.trim() && guest.responsible.trim() !== "Non assigné"));
+      const isSansSuite = rawStatut === "sans_suite" || guest.statut_affectation === "sans_suite" || motifRetrait === "sans_suite";
+      const isConserve = rawStatut === "conserve" || guest.statut_affectation === "conserve";
+      const isSuiviTermine = motifRetrait === "suivi_termine" || followupCompleted;
+
+      const isAwaitingAssignment = !isSansSuite && !isConserve && !isSuiviTermine && !isAssigned;
+      const isAwaitingContact = !isSansSuite && !isConserve && !isSuiviTermine && isAssigned && (rawStatut === "en_attente_contact" || !guest.appel_abouti);
+
+      if (isAwaitingAssignment) bucket.awaitingAssignment += 1;
+      if (isAwaitingContact) bucket.awaitingContact += 1;
+      if (isAwaitingAssignment || isAwaitingContact) {
+        bucket.uninitiatedCalls += 1;
+      }
+      bucket.guestsWithoutNextStep = bucket.uninitiatedCalls;
+      const familyName = hasRecordedFamily
+        ? recordedFamily
+        : hasFamily && typeof guest.bergerie_id === "string" ? familyNamesById.get(guest.bergerie_id) || "" : "";
+      if (hasFamily && familyName && normalizeFamily(familyName) !== "aucune") {
+        const key = normalizeFamily(familyName);
+        familyNames.set(key, familyNames.get(key) || familyName);
+        const familyKey = `${month}:${key}`;
+        const current = familyAssignments.get(familyKey) || { familyName: familyNames.get(key) || familyName, count: 0 };
+        current.count += 1;
+        familyAssignments.set(familyKey, current);
+      } else {
+        bucket.guestsWithoutFamily += 1;
+      }
+    }
+
+    const months = Array.from(monthBuckets.values()).map(bucket => ({
+      ...bucket,
+      families: Array.from(familyAssignments.entries())
+        .filter(([key]) => key.startsWith(`${bucket.month}:`))
+        .map(([, family]) => ({ familyName: family.familyName, count: family.count })),
+    })).sort((a, b) => a.month.localeCompare(b.month));
+
+    return {
+      success: true as const,
+      families: Array.from(familyNames.values()).sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" })),
+      months,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Impossible de charger le bilan.";
+    return {
+      success: false as const,
+      error: message,
+    };
+  }
+}
+
+const INTEGRATION_REPORT_PLAN_TABLE = "integration_monthly_report_plans";
+
+function isMissingIntegrationReportPlanTable(error: any) {
+  const message = String(error?.message || "").toLowerCase();
+  return error?.code === "42P01" || error?.code === "PGRST205"
+    || (message.includes(INTEGRATION_REPORT_PLAN_TABLE) && (message.includes("does not exist") || message.includes("schema cache")));
+}
+
+function isValidIntegrationReportPeriod(period: string) {
+  return /^\d{4}-(0[1-9]|1[0-2])(,(0[1-9]|1[0-2])){0,11}$/.test(period)
+    && new Set(period.slice(5).split(",")).size === period.slice(5).split(",").length;
+}
+
+/** Loads the shared preparation notes and optional monthly target for a selected report period. */
+export async function getIntegrationMonthlyReportPlan(churchId: string, period: string) {
+  const permission = await assertCanManageIntegrationTeam(churchId);
+  if (!permission.ok) return { success: false as const, error: permission.error };
+  if (!isValidIntegrationReportPeriod(period)) return { success: false as const, error: "Période invalide." };
+
+  try {
+    const supabase = await getServiceSupabase();
+    const { data, error } = await supabase.from(INTEGRATION_REPORT_PLAN_TABLE)
+      .select("monthly_guest_target, observation, challenge, action, owner, due_date")
+      .eq("church_id", churchId).eq("report_period", period).maybeSingle();
+    if (error) {
+      if (isMissingIntegrationReportPlanTable(error)) return { success: false as const, setupRequired: true as const, error: "La table des plans de bilan n’est pas encore installée." };
+      throw error;
+    }
+    return { success: true as const, plan: data || null };
+  } catch (error) {
+    return { success: false as const, error: error instanceof Error ? error.message : "Impossible de charger le plan du bilan." };
+  }
+}
+
+/** Saves shared report preparation notes and an optional target, limited to integration leaders. */
+export async function saveIntegrationMonthlyReportPlan(params: {
+  churchId: string;
+  period: string;
+  monthlyGuestTarget: number | null;
+  observation: string;
+  challenge: string;
+  action: string;
+  owner: string;
+  dueDate: string;
+}) {
+  const permission = await assertCanManageIntegrationTeam(params.churchId);
+  if (!permission.ok) return { success: false as const, error: permission.error };
+  if (!isValidIntegrationReportPeriod(params.period)) return { success: false as const, error: "Période invalide." };
+  if (params.monthlyGuestTarget !== null && (!Number.isInteger(params.monthlyGuestTarget) || params.monthlyGuestTarget < 0 || params.monthlyGuestTarget > 1000000)) {
+    return { success: false as const, error: "L’objectif mensuel doit être un nombre entier positif." };
+  }
+  const textFields = [params.observation, params.challenge, params.action, params.owner];
+  if (textFields.some(value => typeof value !== "string" || value.length > 2000)) return { success: false as const, error: "Chaque note doit contenir au maximum 2 000 caractères." };
+  if (params.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(params.dueDate)) return { success: false as const, error: "Date d’échéance invalide." };
+
+  try {
+    const supabase = await getServiceSupabase();
+    const { error } = await supabase.from(INTEGRATION_REPORT_PLAN_TABLE).upsert({
+      church_id: params.churchId,
+      report_period: params.period,
+      monthly_guest_target: params.monthlyGuestTarget,
+      observation: params.observation.trim(),
+      challenge: params.challenge.trim(),
+      action: params.action.trim(),
+      owner: params.owner.trim(),
+      due_date: params.dueDate || null,
+      updated_by: permission.user?.id ?? null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "church_id,report_period" });
+    if (error) {
+      if (isMissingIntegrationReportPlanTable(error)) return { success: false as const, setupRequired: true as const, error: "La table des plans de bilan n’est pas encore installée." };
+      throw error;
+    }
+    return { success: true as const };
+  } catch (error) {
+    return { success: false as const, error: error instanceof Error ? error.message : "Impossible d’enregistrer le plan du bilan." };
+  }
+}
+
 export async function assignCounselorToGuest(params: {
   churchId: string;
   guestId: string;
@@ -1928,7 +2179,11 @@ export async function retireGuestAction(params: {
   motif: string;
   autreEglise?: string;
   commentaire: string;
+  appelAbouti?: boolean;
 }) {
+  const allowedMotifs = new Set(["ne_decroche_pas", "faux_numero", "autre_eglise", "pas_interesse", "demenagement", "autre"]);
+  if (!allowedMotifs.has(params.motif)) return { success: false, error: "Motif de retrait invalide." };
+
   const serverSupabase = await createServerClient();
   const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
   if (authErr || !user) return { success: false, error: "Non authentifié." };
@@ -1942,6 +2197,18 @@ export async function retireGuestAction(params: {
   const isNeDecrochePas = params.motif === "ne_decroche_pas";
   const isAutreEglise = params.motif === "autre_eglise";
   const isPasInteresse = params.motif === "pas_interesse";
+
+  // Détermination de l'aboutissement de l'appel :
+  // Si le conseiller a explicitement indiqué appelAbouti, on respecte son choix.
+  // Sinon valeur par défaut intelligente selon le motif choisi.
+  let finalAppelAbouti = false;
+  if (typeof params.appelAbouti === "boolean") {
+    finalAppelAbouti = params.appelAbouti;
+  } else if (isFauxNumero || isNeDecrochePas) {
+    finalAppelAbouti = false;
+  } else if (["autre_eglise", "pas_interesse", "demenagement"].includes(params.motif)) {
+    finalAppelAbouti = true;
+  }
 
   const { data: currentGuest } = await supabase
     .from("invites")
@@ -1970,6 +2237,8 @@ export async function retireGuestAction(params: {
     `[RETIRE_PAR:${user.id}]`,
     `[RETIRE_AT:${new Date().toISOString()}]`,
     `[RAISON_ECHEC:${params.motif}]`,
+    `[APPEL_ABOUTI:${finalAppelAbouti ? "oui" : "non"}]`,
+    isAutreEglise && params.autreEglise ? `[AUTRE_EGLISE:${params.autreEglise.trim()}]` : "",
     isFauxNumero ? `[FAUX_NUMERO]` : "",
     isNeDecrochePas ? `[NE_DECROCHE_PAS]` : ""
   ].filter(Boolean).join(" ");
@@ -1982,13 +2251,19 @@ export async function retireGuestAction(params: {
     retire_par: user.id,
     retire_at: new Date().toISOString(),
     raison_echec: params.motif,
-    commentaire_suivi: combinedComment
+    commentaire_suivi: combinedComment,
+    appel_abouti: finalAppelAbouti
   };
 
-  if (isFauxNumero) updateData.faux_numero = true;
-  if (isNeDecrochePas) updateData.ne_decroche_pas = true;
-  if (isAutreEglise && params.autreEglise) {
-    updateData.autre_eglise = params.autreEglise.trim();
+  if (isFauxNumero) {
+    updateData.faux_numero = true;
+    updateData.ne_decroche_pas = false;
+  }
+  if (isNeDecrochePas) {
+    updateData.ne_decroche_pas = true;
+    updateData.faux_numero = false;
+  }
+  if (isAutreEglise) {
     updateData.local_church = true;
   }
   if (isPasInteresse) {
@@ -2025,12 +2300,136 @@ export async function retireGuestAction(params: {
       // Ultimate minimal fallback: only core columns guaranteed in invites
       const { error: minErr } = await supabase
         .from("invites")
-        .update({ commentaire_suivi: combinedComment })
+        .update({ appel_abouti: finalAppelAbouti, commentaire_suivi: combinedComment })
         .eq("id", params.guestId)
         .eq("church_id", params.churchId);
 
       if (minErr) return { success: false, error: minErr.message };
     }
+  }
+
+  return { success: true };
+}
+
+/** Closes a counselor's active follow-up while recording the guest as fidelized. */
+export async function completeGuestFollowupAction(params: {
+  churchId: string;
+  guestId: string;
+}) {
+  const serverSupabase = await createServerClient();
+  const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
+  if (authErr || !user) return { success: false, error: "Non authentifié." };
+
+  const permission = await assertCanReadIntegrationTeam(params.churchId);
+  if (!permission.ok) return { success: false, error: permission.error };
+
+  const supabase = await getServiceSupabase();
+  const { data: guest, error: guestError } = await supabase
+    .from("invites")
+    .select("assigned_to, responsible, appel_abouti, statut_affectation, motif_retrait, commentaire_suivi")
+    .eq("id", params.guestId)
+    .eq("church_id", params.churchId)
+    .maybeSingle();
+
+  if (guestError || !guest) {
+    return { success: false, error: guestError?.message || "Invité introuvable." };
+  }
+
+  const counselorOwnsAssignment = guest.assigned_to === user.id;
+  let legacyAssignmentName = "";
+  if (!counselorOwnsAssignment && !guest.assigned_to) {
+    const { data: memberships } = await supabase
+      .from("user_contexts")
+      .select("user_id, display_name")
+      .eq("church_id", params.churchId)
+      .eq("context_type", "integration")
+      .eq("active", true)
+      .in("role", ["integration_conseiller", "conseiller"]);
+    const matchingMemberships = (memberships || []).filter((membership: { display_name?: string | null }) =>
+      membership.display_name?.trim().toLocaleLowerCase("fr") === (guest.responsible || "").trim().toLocaleLowerCase("fr")
+    );
+    if (matchingMemberships.length === 1 && matchingMemberships[0].user_id === user.id) {
+      legacyAssignmentName = matchingMemberships[0].display_name?.trim() || "";
+    }
+  }
+
+  if (!counselorOwnsAssignment && !legacyAssignmentName) {
+    return { success: false, error: "Seul le conseiller chargé de cet invité peut terminer son suivi." };
+  }
+
+  const previousComment = guest.commentaire_suivi || "";
+  const previousMotif = guest.motif_retrait || previousComment.match(/\[MOTIF_RETRAIT:\s*([^\]]+)\]/i)?.[1]?.trim();
+  const previousStatus = guest.statut_affectation || previousComment.match(/\[STATUT:\s*([^\]]+)\]/i)?.[1]?.trim();
+  if (previousStatus === "sans_suite" && previousMotif === "suivi_termine") {
+    return { success: false, error: "Ce suivi est déjà clôturé comme fidélisé." };
+  }
+  if (previousStatus === "sans_suite" || (previousStatus !== "conserve" && guest.appel_abouti !== true)) {
+    return { success: false, error: "Seul un suivi actif peut être clôturé comme fidélisé." };
+  }
+
+  const retiredAt = new Date().toISOString();
+  const cleanComment = previousComment
+    .replace(/\[STATUT:\s*[^\]]+\]\s*/gi, "")
+    .replace(/\[MOTIF_RETRAIT:\s*[^\]]+\]\s*/gi, "")
+    .replace(/\[RETIRE_PAR:\s*[^\]]+\]\s*/gi, "")
+    .replace(/\[RETIRE_AT:\s*[^\]]+\]\s*/gi, "")
+    .trim();
+  const combinedComment = [
+    "[STATUT:sans_suite]",
+    "[MOTIF_RETRAIT:suivi_termine]",
+    `[RETIRE_PAR:${user.id}]`,
+    `[RETIRE_AT:${retiredAt}]`,
+    cleanComment
+  ].filter(Boolean).join(" ");
+
+  const updateOwnedGuest = async (payload: Record<string, unknown>) => {
+    let query = supabase.from("invites").update(payload).eq("id", params.guestId).eq("church_id", params.churchId);
+    query = counselorOwnsAssignment
+      ? query.eq("assigned_to", user.id)
+      : query.is("assigned_to", null).eq("responsible", guest.responsible);
+    return query.select("id").maybeSingle();
+  };
+
+  const { data: updated, error: updateError } = await updateOwnedGuest({
+    statut_affectation: "sans_suite",
+    motif_retrait: "suivi_termine",
+    retire_par: user.id,
+    retire_at: retiredAt,
+    commentaire_suivi: combinedComment
+  });
+
+  if (updateError) {
+    // Preserve compatibility with installations where some triage columns are not deployed yet.
+    const { data: safeUpdated, error: safeError } = await updateOwnedGuest({
+      statut_affectation: "sans_suite",
+      motif_retrait: "suivi_termine",
+      commentaire_suivi: combinedComment
+    });
+    if (safeError) {
+      const { data: statusUpdated, error: statusError } = await updateOwnedGuest({
+        statut_affectation: "sans_suite",
+        commentaire_suivi: combinedComment
+      });
+      if (statusError) {
+        const { data: motifUpdated, error: motifError } = await updateOwnedGuest({
+          motif_retrait: "suivi_termine",
+          commentaire_suivi: combinedComment
+        });
+        if (motifError) {
+          const { data: commentUpdated, error: commentError } = await updateOwnedGuest({ commentaire_suivi: combinedComment });
+          if (commentError) return { success: false, error: commentError.message };
+          if (!commentUpdated) return { success: false, error: "L’affectation a changé. Rechargez la liste avant de réessayer." };
+        } else if (!motifUpdated) {
+          return { success: false, error: "L’affectation a changé. Rechargez la liste avant de réessayer." };
+        }
+      } else if (!statusUpdated) {
+        return { success: false, error: "L’affectation a changé. Rechargez la liste avant de réessayer." };
+      }
+    } else if (!safeUpdated) {
+      return { success: false, error: "L’affectation a changé. Rechargez la liste avant de réessayer." };
+    }
+  } else if (!updated) {
+    return { success: false, error: "L’affectation a changé. Rechargez la liste avant de réessayer." };
   }
 
   return { success: true };

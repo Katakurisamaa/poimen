@@ -20,7 +20,7 @@ CREATE INDEX IF NOT EXISTS idx_invites_assigned_to ON public.invites(assigned_to
 
 -- 3. Documentation des colonnes
 COMMENT ON COLUMN public.invites.statut_affectation IS 'Statut dans le pipeline de qualification: a_affecter (non assigné), en_attente_contact (assigné au conseiller mais appel non abouti), conserve (qualifié, suivi spirituel actif), sans_suite (retiré du suivi actif)';
-COMMENT ON COLUMN public.invites.motif_retrait IS 'Motif de clôture du dossier (ex: faux_numero, autre_eglise, ne_decroche_pas, pas_interesse, demenagement, autre)';
+COMMENT ON COLUMN public.invites.motif_retrait IS 'Motif de clôture du dossier (ex: faux_numero, autre_eglise, ne_decroche_pas, pas_interesse, demenagement, suivi_termine pour une personne fidélisée, autre)';
 COMMENT ON COLUMN public.invites.retire_par IS 'Identifiant auth.users de la personne ayant clôturé le dossier';
 COMMENT ON COLUMN public.invites.retire_at IS 'Date et heure de la clôture du dossier';
 

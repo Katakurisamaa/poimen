@@ -12,11 +12,12 @@ import {
 import { supabase } from "@/lib/supabase";
 import { 
   autoAddLeaderToMembers, listIntegrationTeam, getIntegrationInvites, 
-  assignCounselorToGuest, conserveGuestAction, retireGuestAction, 
+  assignCounselorToGuest, conserveGuestAction, retireGuestAction, completeGuestFollowupAction,
   type ConserveGuestPayload 
 } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
+import { DEFAULT_DISCIPLE_FAMILIES } from "@/lib/default-disciple-families";
 import { PersonButton } from "@/components/experience/PersonPanel";
 import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
@@ -97,6 +98,7 @@ interface Guest {
   baptemeEsprit: boolean;
   veutServir: boolean;
   devenuStar: boolean;
+  departementStar?: string;
   smsBienvenue: boolean;
   priere: boolean;
   interetEvenement: boolean;
@@ -105,6 +107,7 @@ interface Guest {
   parQui: string;
   interetCDM: boolean;
   integreCDM: boolean;
+  cdmHostFirstName?: string;
   prierePartage: boolean;
   dansFamilleDisciple: boolean;
   interetBapteme: boolean;
@@ -133,22 +136,15 @@ interface Guest {
   motifRetrait?: string;
   retirePar?: string;
   retireAt?: string;
+  suiviTermine?: boolean;
 }
 
 const MOCK_RESPONSIBLES = ["Non assigné"];
 const STATUS_OPTIONS = ["Brebi", "Faiseur de Disciple", "Responsable", "Second", "Berger"];
-const DEFAULT_FAMILIES = [
-  "FAMILLE DE NOÉ",
-  "FAMILLE DE DAVID",
-  "FAMILLE CHARIS",
-  "FAMILLE IT'S TIME",
-  "FAMILLE GÉNÉRATION JOSUÉ",
-  "FAMILLE DE MOÏSE"
-];
-
 function mapDbGuestToGuest(g: any): Guest {
   const isAssigned = Boolean(g.assigned_to || (g.responsible && g.responsible !== "Non assigné" && g.responsible.trim() !== ""));
   const rawStatut = (g.statut_affectation as any) || g.commentaire_suivi?.match(/\[STATUT:\s*([^\]]+)\]/i)?.[1]?.trim();
+  const motifRetrait = g.motif_retrait || g.commentaire_suivi?.match(/\[MOTIF_RETRAIT:\s*([^\]]+)\]/i)?.[1]?.trim() || g.raison_echec || "";
   const hadPastFollowup = rawStatut === 'sans_suite' || rawStatut === 'conserve' || Boolean(g.appel_abouti) || Boolean(g.statut_affectation && g.statut_affectation !== 'a_affecter');
   const isFreshUnassigned = !isAssigned && !hadPastFollowup;
 
@@ -165,7 +161,9 @@ function mapDbGuestToGuest(g: any): Guest {
     event: g.event,
     aps: g.aps,
     localChurch: g.local_church,
-    autreEglise: g.autre_eglise || (g.commentaire?.match(/\[(?:Autre église|Église d'origine)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
+    autreEglise: g.autre_eglise 
+      || (g.commentaire_suivi?.match(/\[(?:Autre église|Église d'origine|AUTRE_EGLISE)\s*:\s*([^\]]+)\]/i)?.[1]?.trim())
+      || (g.commentaire?.match(/\[(?:Autre église|Église d'origine|AUTRE_EGLISE)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
     responsible: g.responsible,
     isInBergerie: g.is_in_bergerie,
     status: g.status,
@@ -186,6 +184,7 @@ function mapDbGuestToGuest(g: any): Guest {
     baptemeEsprit: isFreshUnassigned ? false : Boolean(g.bapteme_esprit),
     veutServir: isFreshUnassigned ? false : Boolean(g.veut_servir),
     devenuStar: isFreshUnassigned ? false : Boolean(g.devenu_star),
+    departementStar: isFreshUnassigned ? "" : (g.departement_star || ""),
     smsBienvenue: g.sms_bienvenue || false,
     priere: g.priere || false,
     interetEvenement: g.interet_evenement || false,
@@ -194,6 +193,7 @@ function mapDbGuestToGuest(g: any): Guest {
     parQui: g.par_qui || "",
     interetCDM: isFreshUnassigned ? false : Boolean(g.interet_cdm),
     integreCDM: isFreshUnassigned ? false : Boolean(g.integre_cdm),
+    cdmHostFirstName: g.prenom_hote_cdm || "",
     prierePartage: isFreshUnassigned ? false : Boolean(g.priere_partage),
     dansFamilleDisciple: isFreshUnassigned ? false : Boolean(g.dans_famille_disciple),
     interetBapteme: g.interet_bapteme || false,
@@ -230,13 +230,14 @@ function mapDbGuestToGuest(g: any): Guest {
       }
       return 'a_affecter';
     })() as 'a_affecter' | 'en_attente_contact' | 'conserve' | 'sans_suite',
-    motifRetrait: g.motif_retrait || (g.commentaire_suivi?.match(/\[MOTIF_RETRAIT:\s*([^\]]+)\]/i)?.[1]?.trim() || g.raison_echec || ""),
+    motifRetrait,
     retirePar: g.retire_par || (g.commentaire_suivi?.match(/\[RETIRE_PAR:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
-    retireAt: g.retire_at || (g.commentaire_suivi?.match(/\[RETIRE_AT:\s*([^\]]+)\]/i)?.[1]?.trim() || "")
+    retireAt: g.retire_at || (g.commentaire_suivi?.match(/\[RETIRE_AT:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
+    suiviTermine: motifRetrait === "suivi_termine"
   };
 }
 
-export type ViewTab = 'unassigned' | 'my_assignments' | 'my_souls' | 'all_souls' | 'retired' | 'stats';
+export type ViewTab = 'unassigned' | 'my_assignments' | 'my_souls' | 'all_souls' | 'completed' | 'retired' | 'stats';
 
 function AffectationPage() {
   const { notify, confirm } = useFeedback();
@@ -253,9 +254,58 @@ function AffectationPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [currentView, setCurrentView] = useState<ViewTab>('my_souls');
+  const navSwitcherRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (navSwitcherRef.current) {
+      const activeBtn = navSwitcherRef.current.querySelector<HTMLButtonElement>('.invite-view-option.active');
+      if (activeBtn) {
+        activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [currentView]);
+
+  const viewMeta: Record<ViewTab, { title: string; subtitle: string }> = {
+    unassigned: {
+      title: "À affecter",
+      subtitle: "Invités accueillis en attente d’attribution à un conseiller de l’équipe."
+    },
+    my_assignments: {
+      title: "À contacter",
+      subtitle: "Vos nouveaux premiers contacts en attente de qualification."
+    },
+    my_souls: {
+      title: "Mes âmes",
+      subtitle: "Les âmes que vous accompagnez et les prochaines étapes de leur parcours."
+    },
+    all_souls: {
+      title: "Suivi de l’équipe",
+      subtitle: "Vue d’ensemble des âmes accompagnées par les conseillers de l’équipe."
+    },
+    completed: {
+      title: "Âmes fidélisées",
+      subtitle: "Disciples ayant terminé leur parcours d’accompagnement et intégrés."
+    },
+    retired: {
+      title: "Sans suite",
+      subtitle: "Historique des personnes dont le suivi a été clôturé."
+    },
+    stats: {
+      title: "Statistiques du suivi",
+      subtitle: "Indicateurs de qualification, progression et taux de fidélisation."
+    }
+  };
   const [selectedArrivalGuest, setSelectedArrivalGuest] = useState<Guest | null>(null);
   const [qualifyingGuest, setQualifyingGuest] = useState<Guest | null>(null);
   const [retiringGuest, setRetiringGuest] = useState<Guest | null>(null);
+  const [cdmHostPromptGuestId, setCdmHostPromptGuestId] = useState<string | null>(null);
+  const [cdmHostFirstNameDraft, setCdmHostFirstNameDraft] = useState("");
+  const [cdmHostError, setCdmHostError] = useState("");
+  const [isSavingCdmHost, setIsSavingCdmHost] = useState(false);
+  const [starDepartmentPromptGuestId, setStarDepartmentPromptGuestId] = useState<string | null>(null);
+  const [starDepartmentDraft, setStarDepartmentDraft] = useState("");
+  const [starDepartmentError, setStarDepartmentError] = useState("");
+  const [isSavingStarDepartment, setIsSavingStarDepartment] = useState(false);
   // Table mode removed per user request
   const [showTableDetails, setShowTableDetails] = useState(false);
   const [arrivalDatesFilter, setArrivalDatesFilter] = useState<string[]>([]);
@@ -346,7 +396,7 @@ const selectedCounselorObj = useMemo(() => {
   const [isTransferring, setIsTransferring] = useState(false);
 
   const availableFamilies = useMemo(() => {
-    const list = [...DEFAULT_FAMILIES];
+    const list: string[] = [...DEFAULT_DISCIPLE_FAMILIES];
     activeBergeries.forEach(b => {
       const trimmed = (b.name || "").trim();
       if (trimmed && !list.some(f => f.toLowerCase() === trimmed.toLowerCase())) {
@@ -726,11 +776,162 @@ const selectedCounselorObj = useMemo(() => {
     await supabase.from("invites").update({ attendance: newAttendance }).eq("id", guestId);
   };
 
+  const executeGuestRetirement = async (guest: Guest, payload: RetirePayload) => {
+    if (!churchId) {
+      notify("Impossible de classer cet invité sans église active.");
+      return false;
+    }
+    const finalAppelAbouti = typeof payload.appelAbouti === "boolean"
+      ? payload.appelAbouti
+      : !["ne_decroche_pas", "faux_numero"].includes(payload.motif) && ["autre_eglise", "pas_interesse", "demenagement"].includes(payload.motif);
+
+    const result = await retireGuestAction({
+      churchId,
+      guestId: guest.id,
+      motif: payload.motif,
+      autreEglise: payload.autreEglise,
+      commentaire: payload.commentaire,
+      appelAbouti: finalAppelAbouti,
+    });
+    if (!result.success) {
+      notify("Erreur lors du retrait : " + result.error);
+      return false;
+    }
+
+    notify(`${guest.firstName} a été retiré(e) et placé(e) dans « Sans suite » (${finalAppelAbouti ? "appel abouti" : "appel non abouti"}).`);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId: guest.id } }));
+      window.dispatchEvent(new CustomEvent("poimen-session-change"));
+    }
+    setGuests(prev => prev.map(current => current.id === guest.id ? {
+      ...current,
+      statutAffectation: "sans_suite",
+      motifRetrait: payload.motif,
+      retirePar: userId || undefined,
+      retireAt: new Date().toISOString(),
+      commentaireSuivi: payload.commentaire || current.commentaireSuivi,
+      appelAbouti: finalAppelAbouti,
+      fauxNumero: payload.motif === "faux_numero",
+      neDecrochePas: payload.motif === "ne_decroche_pas",
+      localChurch: payload.motif === "autre_eglise" ? true : current.localChurch,
+      autreEglise: payload.autreEglise || current.autreEglise,
+    } : current));
+    return true;
+  };
+
+  const saveCdmHostName = async (guestId: string) => {
+    const guest = guests.find(g => g.id === guestId);
+    const firstName = cdmHostFirstNameDraft.trim();
+    if (!guest) return;
+    if (!firstName) {
+      setCdmHostError("Saisissez le prénom de l’hôte pour confirmer l’intégration.");
+      return;
+    }
+
+    setIsSavingCdmHost(true);
+    setCdmHostError("");
+    try {
+      const { data, error } = await supabase
+        .from("invites")
+        .update({ integre_cdm: true, prenom_hote_cdm: firstName })
+        .eq("id", guestId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("La fiche n’a pas confirmé l’enregistrement.");
+
+      setGuests(prev => prev.map(current => current.id === guestId
+        ? { ...current, integreCDM: true, cdmHostFirstName: firstName }
+        : current));
+      setCdmHostPromptGuestId(null);
+      setCdmHostFirstNameDraft("");
+      notify(`${guest.firstName} est marqué(e) comme intégré(e) en C.D.M.`);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
+        window.dispatchEvent(new CustomEvent("poimen-session-change"));
+      }
+    } catch (error) {
+      const message = (error as { message?: string })?.message || "Erreur inconnue";
+      const notice = /prenom_hote_cdm|column/i.test(message)
+        ? "La colonne du prénom de l’hôte manque dans Supabase. Appliquez le patch SQL fourni, puis réessayez."
+        : `Impossible d’enregistrer l’intégration C.D.M : ${message}`;
+      setCdmHostError(notice);
+      notify(notice);
+    } finally {
+      setIsSavingCdmHost(false);
+    }
+  };
+
+  const saveStarDepartment = async (guestId: string) => {
+    const guest = guests.find(g => g.id === guestId);
+    const department = starDepartmentDraft.trim().toLocaleUpperCase("fr-BE");
+    if (!guest) return;
+    if (!department) {
+      setStarDepartmentError("Saisissez le nom du département pour confirmer le statut S.T.A.R.");
+      return;
+    }
+
+    setIsSavingStarDepartment(true);
+    setStarDepartmentError("");
+    try {
+      const { data, error } = await supabase
+        .from("invites")
+        .update({ devenu_star: true, departement_star: department })
+        .eq("id", guestId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("La fiche n’a pas confirmé l’enregistrement.");
+
+      setGuests(prev => prev.map(current => current.id === guestId
+        ? { ...current, devenuStar: true, departementStar: department }
+        : current));
+      setStarDepartmentPromptGuestId(null);
+      setStarDepartmentDraft("");
+      notify(`${guest.firstName} sert dans le département « ${department} » et est marqué(e) S.T.A.R.`);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
+        window.dispatchEvent(new CustomEvent("poimen-session-change"));
+      }
+    } catch (error) {
+      const message = (error as { message?: string })?.message || "Erreur inconnue";
+      const notice = /departement_star|column/i.test(message)
+        ? "La colonne du département S.T.A.R manque dans Supabase. Appliquez le patch SQL fourni, puis réessayez."
+        : `Impossible d’enregistrer le département S.T.A.R : ${message}`;
+      setStarDepartmentError(notice);
+      notify(notice);
+    } finally {
+      setIsSavingStarDepartment(false);
+    }
+  };
+
   const toggleSuivi = async (guestId: string, field: keyof Guest) => {
     const guest = guests.find(g => g.id === guestId);
     if (!guest) return;
 
     const newValue = !guest[field];
+    if (field === "integreCDM" && newValue) {
+      setCdmHostPromptGuestId(guestId);
+      setCdmHostFirstNameDraft(guest.cdmHostFirstName || "");
+      setCdmHostError("");
+      return;
+    }
+    if (field === "devenuStar" && newValue) {
+      setStarDepartmentPromptGuestId(guestId);
+      setStarDepartmentDraft((guest.departementStar || "").toLocaleUpperCase("fr-BE"));
+      setStarDepartmentError("");
+      return;
+    }
+    if (newValue && (field === "neDecrochePas" || field === "fauxNumero")) {
+      const motif = field === "fauxNumero" ? "faux_numero" : "ne_decroche_pas";
+      const confirmed = await confirm(
+        `${guest.firstName} ${guest.lastName} ne fera plus partie des âmes que vous suivez. Son dossier sera transféré dans « Sans suite » avec le motif correspondant.`,
+        { title: "Confirmer la fin du suivi ?", confirmLabel: "Confirmer et classer", tone: "danger" }
+      );
+      if (confirmed) await executeGuestRetirement(guest, { motif, commentaire: "", appelAbouti: false });
+      return;
+    }
+
     const extraUpdates: Partial<Guest> = {};
     const dbExtraUpdates: Record<string, any> = {};
 
@@ -756,9 +957,11 @@ const selectedCounselorObj = useMemo(() => {
     }
     if (field === "appelAbouti" && newValue) {
       extraUpdates.fauxNumero = false;
+      extraUpdates.neDecrochePas = false;
       dbExtraUpdates.faux_numero = false;
+      dbExtraUpdates.ne_decroche_pas = false;
       const cur = guest.commentaireSuivi || "";
-      const cleaned = cur.replace(/\[FAUX_NUMERO\]/g, "").trim();
+      const cleaned = cur.replace(/\[(?:FAUX_NUMERO|NE_DECROCHE_PAS)\]/g, "").trim();
       extraUpdates.commentaireSuivi = cleaned;
       dbExtraUpdates.commentaire_suivi = cleaned;
     }
@@ -1000,23 +1203,21 @@ const selectedCounselorObj = useMemo(() => {
     }
   };
 
-  const handleQuickRetire = async (guestId: string) => {
+  const handleCompleteFollowup = async (guestId: string) => {
     const guest = guests.find(g => g.id === guestId);
     if (!guest || !churchId) return;
 
-    if (!await confirm(`Voulez-vous retirer ${guest.firstName} ${guest.lastName} de votre suivi ? Cette âme sera directement déplacée dans l'onglet "Sans suite".`)) {
+    if (!await confirm(`Marquer ${guest.firstName} ${guest.lastName} comme fidélisé(e) et terminer votre suivi ? Cette personne apparaîtra dans la vue "Fidélisés" et comptera dans la fidélisation.`)) {
       return;
     }
 
-    const res = await retireGuestAction({
+    const res = await completeGuestFollowupAction({
       churchId,
-      guestId,
-      motif: "retire_depuis_mes_ames",
-      commentaire: ""
+      guestId
     });
 
     if (res.success) {
-      notify(`${guest.firstName} a été retiré(e) de votre suivi et placé(e) dans l'onglet "Sans suite".`);
+      notify(`${guest.firstName} est marqué(e) comme fidélisé(e). Son suivi actif est terminé.`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
       }
@@ -1025,14 +1226,10 @@ const selectedCounselorObj = useMemo(() => {
         return {
           ...g,
           statutAffectation: 'sans_suite',
-          motifRetrait: 'retire_depuis_mes_ames',
+          motifRetrait: 'suivi_termine',
+          suiviTermine: true,
           retirePar: userId || undefined,
-          retireAt: new Date().toISOString(),
-          commentaireSuivi: (g.commentaireSuivi || "")
-            .replace(/\[[A-Za-z0-9_]+:[^\]]*\]\s*/gi, "")
-            .replace(/\[(?:FAUX_NUMERO|NE_DECROCHE_PAS)\]\s*/gi, "")
-            .replace(/Retir[ée] directement depuis l'onglet Mes [âa]mes\s*/gi, "")
-            .trim()
+          retireAt: new Date().toISOString()
         };
       }));
     } else {
@@ -1284,6 +1481,7 @@ const selectedCounselorObj = useMemo(() => {
   };
 
   const isFidelise = (guest: Guest) => {
+    if (guest.suiviTermine || guest.motifRetrait === "suivi_termine") return true;
     const rateCDM = calculateRate(guest, thursdays);
     const rateCulte = calculateRate(guest, sundays);
     return rateCDM >= 45 || rateCulte >= 45;
@@ -1318,7 +1516,17 @@ const selectedCounselorObj = useMemo(() => {
   const retiredGuests = useMemo(() => {
     return guests
       .filter(g => {
-        if (g.statutAffectation !== 'sans_suite') return false;
+        if (g.statutAffectation !== 'sans_suite' || g.suiviTermine) return false;
+        if (isIntegrationLeader || canDispatchAll) return true;
+        return g.retirePar === userId || g.assigned_to === userId;
+      })
+      .sort((a, b) => (b.retireAt || b.arrivalDate || "").localeCompare(a.retireAt || a.arrivalDate || ""));
+  }, [guests, isIntegrationLeader, canDispatchAll, userId]);
+
+  const completedGuests = useMemo(() => {
+    return guests
+      .filter(g => {
+        if (g.statutAffectation !== 'sans_suite' || !g.suiviTermine) return false;
         if (isIntegrationLeader || canDispatchAll) return true;
         return g.retirePar === userId || g.assigned_to === userId;
       })
@@ -1365,36 +1573,7 @@ const selectedCounselorObj = useMemo(() => {
 
   const handleConfirmRetire = async (payload: RetirePayload) => {
     if (!retiringGuest || !churchId) return;
-    const guestId = retiringGuest.id;
-    const res = await retireGuestAction({
-      churchId,
-      guestId,
-      motif: payload.motif,
-      autreEglise: payload.autreEglise,
-      commentaire: payload.commentaire
-    });
-    if (res.success) {
-      notify(`${retiringGuest.firstName} a été retiré(e) et placé(e) dans l'onglet "Sans suite".`);
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("poimen:soul-updated", { detail: { guestId } }));
-      }
-      setGuests(prev => prev.map(g => {
-        if (g.id !== guestId) return g;
-        return {
-          ...g,
-          statutAffectation: 'sans_suite',
-          motifRetrait: payload.motif,
-          retirePar: userId || undefined,
-          retireAt: new Date().toISOString(),
-          commentaireSuivi: payload.commentaire,
-          fauxNumero: payload.motif === 'faux_numero' ? true : g.fauxNumero,
-          neDecrochePas: payload.motif === 'ne_decroche_pas' ? true : g.neDecrochePas,
-          autreEglise: payload.autreEglise || g.autreEglise
-        };
-      }));
-    } else {
-      notify("Erreur lors du retrait : " + res.error);
-    }
+    await executeGuestRetirement(retiringGuest, payload);
   };
 
   const mySoulsCount = useMemo(() => {
@@ -1415,12 +1594,15 @@ const selectedCounselorObj = useMemo(() => {
   }, [guests]);
 
   const filtered = useMemo(() => {
-    return guests.filter(g => {
+    const sourceGuests = currentView === "completed" ? completedGuests : guests;
+    return sourceGuests.filter(g => {
       // Exclude retired guests from active souls
-      if (g.statutAffectation === 'sans_suite') return false;
+      if (g.statutAffectation === 'sans_suite' && !((currentView === 'stats' || currentView === 'completed') && g.suiviTermine)) return false;
 
+      if (currentView === 'completed') {
+        if (!g.suiviTermine) return false;
       // In "Mes âmes" view (strictly the user's personally conserved / followed souls):
-      if (currentView === 'my_souls') {
+      } else if (currentView === 'my_souls') {
         const isAssignedToMe = g.assigned_to === userId || (!g.assigned_to && userName && g.responsible === userName);
         if (!isAssignedToMe) return false;
         // Must be conserved or already marked successful
@@ -1432,13 +1614,14 @@ const selectedCounselorObj = useMemo(() => {
         // Fallback: if in standard counselor mode
         if (!isIntegrationLeader && !canDispatchAll) {
           const isAssignedToMe = g.assigned_to === userId || (!g.assigned_to && userName && g.responsible === userName);
-          if (!isAssignedToMe) return false;
-          if (g.statutAffectation !== 'conserve' && !g.appelAbouti) return false;
+          const isMyCompletedFollowup = g.suiviTermine && (g.retirePar === userId || isAssignedToMe);
+          if (!isAssignedToMe && !isMyCompletedFollowup) return false;
+          if (!g.suiviTermine && g.statutAffectation !== 'conserve' && !g.appelAbouti) return false;
         }
       }
 
-      if (personView.filter === "contact" && (g.appelAbouti || g.fauxNumero || g.neDecrochePas || g.souhaiteEtreContacte === false)) return false;
-      if (personView.filter === "unassigned" && (userRole?.startsWith("integration_") ? !!g.assigned_to : !!g.responsible && g.responsible !== "Non assigné")) return false;
+      if (currentView !== "completed" && personView.filter === "contact" && (g.appelAbouti || g.fauxNumero || g.neDecrochePas || g.souhaiteEtreContacte === false)) return false;
+      if (currentView !== "completed" && personView.filter === "unassigned" && (userRole?.startsWith("integration_") ? !!g.assigned_to : !!g.responsible && g.responsible !== "Non assigné")) return false;
 
       const matchesSearch = `${g.firstName} ${g.lastName}`.toLowerCase().includes(search.toLowerCase());
       const matchesArrivalDates = arrivalDatesFilter.length === 0 || (Boolean(g.arrivalDate) && arrivalDatesFilter.includes(g.arrivalDate));
@@ -1462,7 +1645,7 @@ const selectedCounselorObj = useMemo(() => {
 
       return matchesSearch && matchesArrivalDates && matchesMonth && matchesYear && matchesLocalChurch && matchesFamily && matchesCounselor;
     });
-  }, [guests, currentView, isIntegrationLeader, canDispatchAll, userId, userName, personView.filter, userRole, search, arrivalDatesFilter, arrivalMonth, arrivalYear, localChurchFilter, familyFilter, selectedCounselorFilter, selectedCounselorObj]);
+  }, [guests, completedGuests, currentView, isIntegrationLeader, canDispatchAll, userId, userName, personView.filter, userRole, search, arrivalDatesFilter, arrivalMonth, arrivalYear, localChurchFilter, familyFilter, selectedCounselorFilter, selectedCounselorObj]);
 
   const isAnyFilterActive = useMemo(() => {
     return search.trim() !== "" || arrivalDatesFilter.length > 0 || arrivalMonth !== "all" || arrivalYear !== "all" || localChurchFilter !== "all" || familyFilter !== "all" || selectedCounselorFilter !== "all";
@@ -1483,6 +1666,8 @@ const selectedCounselorObj = useMemo(() => {
   const noChurch = filtered.filter(g => !g.localChurch).length;
   const apsCount = filtered.filter(g => g.aps).length;
   const phoneCount = filtered.filter(g => g.phone && g.phone.trim() !== "").length;
+  const groupeWhatsappCount = filtered.filter(g => g.groupeWhatsapp).length;
+  const cocktailBienvenueCount = filtered.filter(g => g.cocktailBienvenue).length;
   const returnedCount = filtered.filter(g => {
     if (g.estRevenuCulte) return true;
     const attendanceDates = Object.keys(g.attendance || {});
@@ -1537,9 +1722,9 @@ const selectedCounselorObj = useMemo(() => {
 
       <div className="page-header fade-in people-page-header">
         <div>
-          <h2 className="page-title">Mes âmes</h2>
+          <h2 className="page-title">{viewMeta[currentView]?.title || "Mes âmes"}</h2>
           <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-            Vos premiers contacts, les âmes que vous accompagnez et les prochaines étapes de leur parcours.
+            {viewMeta[currentView]?.subtitle || "Vos premiers contacts, les âmes que vous accompagnez et les prochaines étapes de leur parcours."}
           </p>
         </div>
         <div className="people-page-actions">
@@ -1624,7 +1809,7 @@ const selectedCounselorObj = useMemo(() => {
           : { label: "Sans suite", value: retiredGuests.length, detail: "Historique des dossiers clôturés", icon: <Clock size={16} />, onClick: () => setCurrentView("retired") }
       ]} />
       {/* View Switcher Tabs */}
-      <div className="invite-view-switcher integration-workflow-nav" role="group" aria-label="Étapes du suivi des âmes">
+      <div ref={navSwitcherRef} className="invite-view-switcher integration-workflow-nav" role="group" aria-label="Étapes du suivi des âmes">
         {/* Tab 1: À affecter (Leader & dispatch only) */}
         {(isIntegrationLeader || canDispatchAll) && (
           <button 
@@ -1645,7 +1830,7 @@ const selectedCounselorObj = useMemo(() => {
         )}
 
         {/* Tab 2: Mes affectations (Conseillers & Leaders) */}
-        <button 
+        <button
           type="button"
           onClick={() => setCurrentView('my_assignments')}
           aria-pressed={currentView === 'my_assignments'} 
@@ -1662,7 +1847,7 @@ const selectedCounselorObj = useMemo(() => {
         </button>
 
         {/* Tab 3: Mes âmes (Toujours présent pour chaque utilisateur) */}
-        <button 
+        <button
           type="button"
           onClick={() => {
             setCurrentView('my_souls');
@@ -1707,7 +1892,24 @@ const selectedCounselorObj = useMemo(() => {
           </button>
         )}
 
-        {/* Tab 4: Sans suite (Dossiers clôturés) */}
+        {/* Tab: Fidélisés (accompagnement terminé) */}
+        <button
+          type="button"
+          onClick={() => setCurrentView('completed')}
+          aria-pressed={currentView === 'completed'}
+          className={`invite-view-option ${currentView === 'completed' ? 'active' : ''}`}
+        >
+          <span className="invite-view-icon"><CheckCircle2 size={18} /></span>
+          <span className="invite-view-copy">
+            <span className="invite-view-title">
+              <span className="invite-view-label">Fidélisés</span>
+              {completedGuests.length > 0 && <span className="invite-view-count-badge gold">{completedGuests.length}</span>}
+            </span>
+            <span className="invite-view-subtitle">Suivi terminé</span>
+          </span>
+        </button>
+
+        {/* Tab: Sans suite (dossiers clôturés sans fidélisation) */}
         <button 
           type="button"
           onClick={() => setCurrentView('retired')}
@@ -1777,8 +1979,7 @@ const selectedCounselorObj = useMemo(() => {
             </button>
             <CustomSelect
               size="sm"
-              style={{ width: 130 }}
-              value={arrivalMonth}
+              style={{ minWidth: 140 }} value={arrivalMonth}
               onChange={setArrivalMonth}
               searchable={false}
               options={[
@@ -1791,8 +1992,7 @@ const selectedCounselorObj = useMemo(() => {
             />
             <CustomSelect
               size="sm"
-              style={{ width: 110 }}
-              value={arrivalYear}
+              style={{ minWidth: 125 }} value={arrivalYear}
               onChange={setArrivalYear}
               searchable={false}
               options={[
@@ -1805,8 +2005,7 @@ const selectedCounselorObj = useMemo(() => {
             <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>PRÉSENCES</span>
             <CustomSelect
               size="sm"
-              style={{ width: 135 }}
-              value={selectedMonth.toString()}
+              style={{ minWidth: 140 }} value={selectedMonth.toString()}
               onChange={val => setSelectedMonth(parseInt(val, 10))}
               searchable={false}
               options={[
@@ -1819,8 +2018,7 @@ const selectedCounselorObj = useMemo(() => {
             />
             <CustomSelect
               size="sm"
-              style={{ width: 100 }}
-              value={selectedYear.toString()}
+              style={{ minWidth: 105 }} value={selectedYear.toString()}
               onChange={val => setSelectedYear(parseInt(val, 10))}
               searchable={false}
               options={availableYears.map(y => ({ value: y, label: y }))}
@@ -1830,8 +2028,7 @@ const selectedCounselorObj = useMemo(() => {
             <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>ÉGLISE LOCALE</span>
             <CustomSelect
               size="sm"
-              style={{ width: 160 }}
-              value={localChurchFilter}
+              style={{ minWidth: 165 }} value={localChurchFilter}
               onChange={setLocalChurchFilter}
               searchable={false}
               options={[
@@ -1846,8 +2043,7 @@ const selectedCounselorObj = useMemo(() => {
               <span style={{ fontSize: 11, color: "var(--gold-light)", fontWeight: 700, letterSpacing: "0.5px" }}>CONSEILLER</span>
               <CustomSelect
                 size="sm"
-                style={{ width: 190 }}
-                value={selectedCounselorFilter}
+                style={{ minWidth: 200 }} value={selectedCounselorFilter}
                 onChange={setSelectedCounselorFilter}
                 searchable={counselors.length >= 6}
                 options={[
@@ -1870,7 +2066,7 @@ const selectedCounselorObj = useMemo(() => {
             loyal={fidelisees}
             pcnc={[pcnc001,pcnc101,pcnc201,pcnc301]}
             pcncTotal={totalPCNC}
-            followup={[{label:"Sans église",value:noChurch},{label:"Avec téléphone",value:phoneCount},{label:"Fiches APS",value:apsCount},{label:"Revenus au culte",value:returnedCount}]}
+            followup={[{label:"Sans église",value:noChurch},{label:"Avec téléphone",value:phoneCount},{label:"Fiches APS",value:apsCount},{label:"Revenus au culte",value:returnedCount},{label:"Groupe WhatsApp",value:groupeWhatsappCount},{label:"Cocktail de bienvenue",value:cocktailBienvenueCount}]}
             engagement={[{label:"Intérêt PCNC",value:interetPCNC},{label:"Baptême par immersion",value:baptemeEauCount},{label:"Dans une famille de disciples",value:dansFamilleDiscipleCount},{label:"Intégrés en CDM",value:integreCDMCount},{label:"Souhaitent servir",value:veutServirCount},{label:"Devenus S.T.A.R",value:devenuStarCount}]}
             participation={[{label:"Culte du dimanche",value:avgParticipationCulte},{label:"CDM du jeudi",value:avgParticipationCDM}]}
             families={[...new Set([...availableFamilies, ...filtered.map(g => g.famille_disciple).filter((f): f is string => !!f && f !== "AUCUNE")])].map(f => ({label:f,value:filtered.filter(g => g.famille_disciple === f).length})).concat([{label:"Sans famille affectée",value:filtered.filter(g => !g.famille_disciple || g.famille_disciple === "AUCUNE").length}])}
@@ -1937,6 +2133,135 @@ const selectedCounselorObj = useMemo(() => {
           onOpenRetirer={setRetiringGuest}
           onOpenVoirPlus={setSelectedArrivalGuest}
         />
+      ) : currentView === 'completed' ? (
+        <section style={{ display: "grid", gap: 14 }} aria-label="Suivi des personnes fidélisées">
+          {completedGuests.length === 0 && (
+            <div className="people-empty">
+              <Search size={26} />
+              <h3>Aucune personne fidélisée</h3>
+            </div>
+          )}
+          {completedGuests.map(guest => {
+            const canEditCompletedFollowup = isIntegrationLeader || canDispatchAll || guest.assigned_to === userId || guest.retirePar === userId;
+            const toggleDisabled = !canEditCompletedFollowup;
+
+            return (
+              <article key={guest.id} className="glass glass-flush soul-card">
+                <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                  <strong style={{ color: "var(--cream)", fontSize: 16 }}>{guest.firstName} {guest.lastName}</strong>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => setSelectedArrivalGuest(guest)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                    title="Voir les informations renseignées dans le formulaire d’accueil"
+                  >
+                    <Eye size={14} /> Voir la fiche
+                  </button>
+                </div>
+                <details className="people-card-section">
+                  <summary style={{ padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <strong style={{ color: "var(--cream)", fontSize: 13 }}>Parcours et accompagnement</strong>
+                    <ChevronDown size={17} />
+                  </summary>
+                  <div style={{ padding: "0 20px 20px", display: "grid", gap: 18 }}>
+                    <section>
+                      <h4 style={{ fontSize: 12, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.2, margin: "0 0 12px", fontFamily: "var(--font-body)", fontWeight: 700 }}>
+                        PCNC & engagement spirituel
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))", gap: 10 }}>
+                        <SuiviToggle label="PCNC 001" checked={guest.pcnc} onChange={() => toggleSuivi(guest.id, "pcnc")} disabled={toggleDisabled} />
+                        <SuiviToggle label="PCNC 101" checked={guest.p101} onChange={() => toggleSuivi(guest.id, "p101")} disabled={toggleDisabled} />
+                        <SuiviToggle label="PCNC 201" checked={guest.p201} onChange={() => toggleSuivi(guest.id, "p201")} disabled={toggleDisabled} />
+                        <SuiviToggle label="PCNC 301" checked={guest.p301} onChange={() => toggleSuivi(guest.id, "p301")} disabled={toggleDisabled} />
+                        <SuiviToggle label="PCNC Terminé" checked={guest.terminePCNC} onChange={() => toggleSuivi(guest.id, "terminePCNC")} disabled={toggleDisabled} />
+                        <SuiviToggle label="Baptême par immersion" checked={guest.baptemeEau} onChange={() => toggleSuivi(guest.id, "baptemeEau")} disabled={toggleDisabled} />
+                        <SuiviToggle label="Veut servir" checked={guest.veutServir} onChange={() => toggleSuivi(guest.id, "veutServir")} disabled={toggleDisabled} />
+                        <SuiviToggle label="Devenu S.T.A.R" checked={guest.devenuStar} onChange={() => toggleSuivi(guest.id, "devenuStar")} disabled={toggleDisabled} />
+                      </div>
+                      {guest.devenuStar && guest.departementStar && (
+                        <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-deep)", color: "var(--muted)", fontSize: 12 }}>
+                          Département de service : <strong style={{ color: "var(--cream)" }}>{guest.departementStar.toLocaleUpperCase("fr-BE")}</strong>
+                        </div>
+                      )}
+                      {starDepartmentPromptGuestId === guest.id && (
+                        <div role="group" aria-label="Département de service S.T.A.R" style={{ display: "grid", gap: 8, marginTop: 10, padding: 12, border: "1px solid var(--border)", borderRadius: 10, background: "var(--bg-deep)" }}>
+                          <label htmlFor={`completed-star-department-${guest.id}`} style={{ fontSize: 12, fontWeight: 600, color: "var(--cream)" }}>Département de service *</label>
+                          <input id={`completed-star-department-${guest.id}`} className="input" type="text" value={starDepartmentDraft} onChange={event => { setStarDepartmentDraft(event.target.value.toLocaleUpperCase("fr-BE")); if (starDepartmentError) setStarDepartmentError(""); }} onKeyDown={event => { if (event.key === "Enter" && starDepartmentDraft.trim() && !isSavingStarDepartment) { event.preventDefault(); void saveStarDepartment(guest.id); } }} placeholder="Nom du département" disabled={isSavingStarDepartment} style={{ width: "100%", fontSize: 12, minHeight: 38, background: "var(--surface-solid)", color: "var(--cream)" }} />
+                          {starDepartmentError && <div role="alert" style={{ color: "var(--danger, #dc6b6b)", fontSize: 11 }}>{starDepartmentError}</div>}
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            <button type="button" className="btn btn-subtle" disabled={isSavingStarDepartment} onClick={() => { setStarDepartmentPromptGuestId(null); setStarDepartmentDraft(""); setStarDepartmentError(""); }}>Annuler</button>
+                            <button type="button" className="btn btn-primary" disabled={!starDepartmentDraft.trim() || isSavingStarDepartment} onClick={() => saveStarDepartment(guest.id)}>{isSavingStarDepartment && <Loader2 size={13} className="animate-spin" />} Confirmer le département</button>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+
+                    <section style={{ paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                      <h4 style={{ fontSize: 12, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.2, margin: "0 0 12px", fontFamily: "var(--font-body)", fontWeight: 700 }}>
+                        12 Piliers (formation - 4 séances)
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))", gap: 10 }}>
+                        <SuiviToggle label="Séance 1" checked={Boolean(guest.piliers1)} onChange={() => toggleSuivi(guest.id, "piliers1")} disabled={toggleDisabled} />
+                        <SuiviToggle label="Séance 2" checked={Boolean(guest.piliers2)} onChange={() => toggleSuivi(guest.id, "piliers2")} disabled={toggleDisabled} />
+                        <SuiviToggle label="Séance 3" checked={Boolean(guest.piliers3)} onChange={() => toggleSuivi(guest.id, "piliers3")} disabled={toggleDisabled} />
+                        <SuiviToggle label="Séance 4" checked={Boolean(guest.piliers4)} onChange={() => toggleSuivi(guest.id, "piliers4")} disabled={toggleDisabled} />
+                        <SuiviToggle label="12 Piliers Terminé" checked={Boolean(guest.termine12Piliers)} onChange={() => toggleSuivi(guest.id, "termine12Piliers")} disabled={toggleDisabled} />
+                      </div>
+                    </section>
+
+                    <section style={{ paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                      <h4 style={{ fontSize: 12, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1.2, margin: "0 0 12px", fontFamily: "var(--font-body)", fontWeight: 700 }}>
+                        Compléments demandés
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))", gap: 10 }}>
+                        <SuiviToggle label="Cocktail de bienvenue" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, "cocktailBienvenue")} disabled={toggleDisabled} />
+                        <SuiviToggle label="Famille de Disciple" checked={guest.dansFamilleDisciple} onChange={() => toggleSuivi(guest.id, "dansFamilleDisciple")} disabled={toggleDisabled} />
+                        <SuiviToggle label="A intégré C.D.M" checked={guest.integreCDM} onChange={() => toggleSuivi(guest.id, "integreCDM")} disabled={toggleDisabled} />
+                        <SuiviToggle label="Groupe WhatsApp" checked={guest.groupeWhatsapp} onChange={() => toggleSuivi(guest.id, "groupeWhatsapp")} disabled={toggleDisabled} />
+                      </div>
+                      {cdmHostPromptGuestId === guest.id && (
+                        <div role="group" aria-label="Prénom de l’hôte de la cellule de maison" style={{ display: "grid", gap: 8, marginTop: 10, padding: 12, border: "1px solid var(--border)", borderRadius: 10, background: "var(--bg-deep)" }}>
+                          <label htmlFor={`completed-cdm-host-${guest.id}`} style={{ fontSize: 12, fontWeight: 600, color: "var(--cream)" }}>Prénom de l’hôte *</label>
+                          <input id={`completed-cdm-host-${guest.id}`} className="input" type="text" autoComplete="given-name" value={cdmHostFirstNameDraft} onChange={event => { setCdmHostFirstNameDraft(event.target.value); if (cdmHostError) setCdmHostError(""); }} onKeyDown={event => { if (event.key === "Enter" && cdmHostFirstNameDraft.trim() && !isSavingCdmHost) { event.preventDefault(); void saveCdmHostName(guest.id); } }} placeholder="Prénom de l’hôte" disabled={isSavingCdmHost} style={{ width: "100%", fontSize: 12, minHeight: 38, background: "var(--surface-solid)", color: "var(--cream)" }} />
+                          {cdmHostError && <div role="alert" style={{ color: "var(--danger, #dc6b6b)", fontSize: 11 }}>{cdmHostError}</div>}
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            <button type="button" className="btn btn-subtle" disabled={isSavingCdmHost} onClick={() => { setCdmHostPromptGuestId(null); setCdmHostFirstNameDraft(""); setCdmHostError(""); }}>Annuler</button>
+                            <button type="button" className="btn btn-primary" disabled={!cdmHostFirstNameDraft.trim() || isSavingCdmHost} onClick={() => saveCdmHostName(guest.id)}>{isSavingCdmHost && <Loader2 size={13} className="animate-spin" />} Confirmer l’intégration</button>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+
+                    <section style={{ paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                      <label htmlFor={`completed-followup-notes-${guest.id}`} className="form-label" style={{ fontSize: 11 }}>Commentaires de suivi / Notes d'accompagnement</label>
+                      <textarea
+                        id={`completed-followup-notes-${guest.id}`}
+                        className="input"
+                        rows={4}
+                        value={guest.commentaireSuivi || ""}
+                        disabled={toggleDisabled}
+                        placeholder="Notes détaillées sur son parcours spirituel, ses défis, ses besoins de prière…"
+                        style={{ width: "100%", fontSize: 13, resize: "vertical", background: "var(--bg-deep)", minHeight: 100, padding: 12, opacity: toggleDisabled ? 0.55 : 1, cursor: toggleDisabled ? "not-allowed" : "text" }}
+                        onChange={event => {
+                          const value = event.target.value;
+                          setGuests(prev => prev.map(current => current.id === guest.id ? { ...current, commentaireSuivi: value } : current));
+                        }}
+                        onBlur={async event => {
+                          const value = event.target.value.trim();
+                          setGuests(prev => prev.map(current => current.id === guest.id ? { ...current, commentaireSuivi: value } : current));
+                          const tag = guest.raisonEchec ? `[RAISON_ECHEC: ${guest.raisonEchec}]` : "";
+                          const fullComment = [tag, value].filter(Boolean).join("\n").trim();
+                          await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
+                        }}
+                      />
+                    </section>
+                  </div>
+                </details>
+              </article>
+            );
+          })}
+        </section>
       ) : currentView === 'retired' ? (
         <TriageListView
           key="retired"
@@ -1992,8 +2317,7 @@ const selectedCounselorObj = useMemo(() => {
                 </button>
                 <CustomSelect
                   size="sm"
-                  style={{ width: 105 }}
-                  value={arrivalMonth}
+                  style={{ minWidth: 120 }} value={arrivalMonth}
                   onChange={setArrivalMonth}
                   searchable={false}
                   options={[
@@ -2006,8 +2330,7 @@ const selectedCounselorObj = useMemo(() => {
                 />
                 <CustomSelect
                   size="sm"
-                  style={{ width: 95 }}
-                  value={arrivalYear}
+                  style={{ minWidth: 125 }} value={arrivalYear}
                   onChange={setArrivalYear}
                   searchable={false}
                   options={[
@@ -2022,8 +2345,7 @@ const selectedCounselorObj = useMemo(() => {
                 <span className={styles.filterLabel}>👁 Présences</span>
                 <CustomSelect
                   size="sm"
-                  style={{ width: 110 }}
-                  value={selectedMonth.toString()}
+                  style={{ minWidth: 120 }} value={selectedMonth.toString()}
                   onChange={val => setSelectedMonth(parseInt(val, 10))}
                   searchable={false}
                   options={[
@@ -2036,8 +2358,7 @@ const selectedCounselorObj = useMemo(() => {
                 />
                 <CustomSelect
                   size="sm"
-                  style={{ width: 90 }}
-                  value={selectedYear.toString()}
+                  style={{ minWidth: 95 }} value={selectedYear.toString()}
                   onChange={val => setSelectedYear(parseInt(val, 10))}
                   searchable={false}
                   options={availableYears.map(y => ({ value: y, label: y }))}
@@ -2049,8 +2370,7 @@ const selectedCounselorObj = useMemo(() => {
                 <span className={styles.filterLabel}>⛪ Église</span>
                 <CustomSelect
                   size="sm"
-                  style={{ width: 135 }}
-                  value={localChurchFilter}
+                  style={{ minWidth: 145 }} value={localChurchFilter}
                   onChange={setLocalChurchFilter}
                   searchable={false}
                   options={[
@@ -2066,8 +2386,7 @@ const selectedCounselorObj = useMemo(() => {
                 <span className={styles.filterLabel}>👥 Famille</span>
                 <CustomSelect
                   size="sm"
-                  style={{ width: 145 }}
-                  value={familyFilter}
+                  style={{ minWidth: 155 }} value={familyFilter}
                   onChange={setFamilyFilter}
                   searchable={availableFamilies.length >= 8}
                   options={[
@@ -2084,8 +2403,7 @@ const selectedCounselorObj = useMemo(() => {
                   <span className={styles.filterLabel}>👤 Conseiller</span>
                   <CustomSelect
                     size="sm"
-                    style={{ width: 160 }}
-                    value={selectedCounselorFilter}
+                    style={{ minWidth: 175 }} value={selectedCounselorFilter}
                     onChange={setSelectedCounselorFilter}
                     searchable={counselors.length >= 6}
                     options={[
@@ -2126,7 +2444,7 @@ const selectedCounselorObj = useMemo(() => {
                           <h3 className="affectation-card-title">
                             <span>{guest.firstName} {guest.lastName}</span>
                           </h3>
-                          {fidelised && <span className="badge badge-gold" style={{ fontSize: 8 }}>Fidélisé</span>}
+                          {fidelised && <span className="badge badge-gold">Fidélisé</span>}
                           {(isIntegrationOrCounselor || isAuthorizedLeader) && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); openEditModal(guest); }}
@@ -2244,19 +2562,19 @@ const selectedCounselorObj = useMemo(() => {
                                 type="button"
                                 className="btn btn-subtle btn-sm" 
                                 style={{ 
-                                  color: "var(--red)", 
-                                  borderColor: "rgba(239, 68, 68, 0.25)", 
-                                  background: "rgba(239, 68, 68, 0.05)",
+                                  color: "var(--green)",
+                                  borderColor: "rgba(34, 197, 94, 0.28)",
+                                  background: "rgba(34, 197, 94, 0.06)",
                                   display: "inline-flex",
                                   alignItems: "center",
                                   gap: 6,
                                   padding: "6px 12px",
                                   fontSize: 12
                                 }}
-                                onClick={() => handleQuickRetire(guest.id)}
-                                title="Retirer cette âme de votre suivi et la placer directement dans 'Sans suite'"
+                                onClick={() => handleCompleteFollowup(guest.id)}
+                                title="Terminer votre suivi et classer cette personne comme fidélisée"
                               >
-                                <UserMinus size={14} /> Retirer de mon suivi
+                                <CheckCircle2 size={14} /> Terminer le suivi
                               </button>
                             ) : (
                               (isIntegrationOrCounselor || isAuthorizedLeader) && !isConseiller && (
@@ -2327,7 +2645,7 @@ const selectedCounselorObj = useMemo(() => {
                             <h4 style={{ fontSize: 10, color: "var(--gold-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "var(--font-body)", fontWeight: 700 }}>Premier Contact</h4>
                             <div>
                               <SuiviToggle label="Appel abouti" checked={guest.appelAbouti} onChange={() => toggleSuivi(guest.id, 'appelAbouti')} disabled={isRestricted} />
-                              <SuiviToggle label="Ne décroche pas / Relance" checked={Boolean(guest.neDecrochePas)} onChange={() => toggleSuivi(guest.id, 'neDecrochePas')} disabled={isRestricted} />
+                              <SuiviToggle label="Ne décroche pas suite à plusieurs relances" checked={Boolean(guest.neDecrochePas)} onChange={() => toggleSuivi(guest.id, 'neDecrochePas')} disabled={isRestricted} />
                               <SuiviToggle label="Faux numéro / Erroné" checked={Boolean(guest.fauxNumero)} onChange={() => toggleSuivi(guest.id, 'fauxNumero')} disabled={isRestricted} />
                               <SuiviToggle label="Souhait suivi" checked={Boolean(guest.souhaitSuivi)} onChange={() => toggleSuivi(guest.id, 'souhaitSuivi')} disabled={isRestricted} />
                               {!guest.appelAbouti && !isRestricted && (
@@ -2389,13 +2707,68 @@ const selectedCounselorObj = useMemo(() => {
                             <SuiviToggle label="Sujet Prière/Partage" checked={guest.prierePartage} onChange={() => toggleSuivi(guest.id, 'prierePartage')} disabled={isRestricted} />
                             <SuiviToggle label="Intérêt C.D.M" checked={guest.interetCDM} onChange={() => toggleSuivi(guest.id, 'interetCDM')} disabled={isRestricted} />
                             <SuiviToggle label="A intégré C.D.M" checked={guest.integreCDM} onChange={() => toggleSuivi(guest.id, 'integreCDM')} disabled={isRestricted} />
+                            {guest.integreCDM && guest.cdmHostFirstName && (
+                              <div style={{ fontSize: 11, color: "var(--muted)", paddingLeft: 22, marginTop: -4 }}>
+                                Hôte : <strong style={{ color: "var(--cream)" }}>{guest.cdmHostFirstName}</strong>
+                              </div>
+                            )}
+                            {cdmHostPromptGuestId === guest.id && (
+                              <div role="group" aria-label="Prénom de l’hôte de la cellule de maison" style={{ display: "flex", flexDirection: "column", gap: 8, padding: 12, border: "1px solid var(--border)", borderRadius: 10, background: "var(--bg-deep)" }}>
+                                <label htmlFor={`cdm-host-first-name-${guest.id}`} style={{ fontSize: 11, fontWeight: 600, color: "var(--cream)" }}>
+                                  Prénom de l’hôte <span style={{ color: "var(--gold-light)" }}>*</span>
+                                </label>
+                                <input
+                                  id={`cdm-host-first-name-${guest.id}`}
+                                  className="input"
+                                  type="text"
+                                  autoComplete="given-name"
+                                  value={cdmHostFirstNameDraft}
+                                  onChange={event => {
+                                    setCdmHostFirstNameDraft(event.target.value);
+                                    if (cdmHostError) setCdmHostError("");
+                                  }}
+                                  onKeyDown={event => {
+                                    if (event.key === "Enter" && cdmHostFirstNameDraft.trim() && !isSavingCdmHost) {
+                                      event.preventDefault();
+                                      void saveCdmHostName(guest.id);
+                                    }
+                                  }}
+                                  placeholder="Prénom de l’hôte"
+                                  disabled={isSavingCdmHost}
+                                  style={{ width: "100%", fontSize: 12, minHeight: 38, background: "var(--surface-solid)", color: "var(--cream)" }}
+                                />
+                                {cdmHostError && <div role="alert" style={{ color: "var(--danger, #dc6b6b)", fontSize: 11 }}>{cdmHostError}</div>}
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 8, width: "100%", minWidth: 0 }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-subtle"
+                                    disabled={isSavingCdmHost}
+                                    onClick={() => {
+                                      setCdmHostPromptGuestId(null);
+                                      setCdmHostFirstNameDraft("");
+                                      setCdmHostError("");
+                                    }}
+                                    style={{ width: "100%", minWidth: 0, justifyContent: "center", padding: "7px 10px", fontSize: 11 }}
+                                  >Annuler</button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    disabled={!cdmHostFirstNameDraft.trim() || isSavingCdmHost}
+                                    onClick={() => saveCdmHostName(guest.id)}
+                                    style={{ width: "100%", minWidth: 0, justifyContent: "center", padding: "7px 10px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }}
+                                  >{isSavingCdmHost && <Loader2 size={13} className="animate-spin" />} Confirmer l’intégration</button>
+                                </div>
+                              </div>
+                            )}
                             <SuiviToggle label="Famille Disciple" checked={guest.dansFamilleDisciple} onChange={() => toggleSuivi(guest.id, 'dansFamilleDisciple')} disabled={isRestricted} />
                             {guest.famille_disciple && guest.famille_disciple !== "AUCUNE" && (
                               <div style={{ fontSize: 10, color: "var(--gold-light)", fontWeight: 600, paddingLeft: 22, marginTop: -4 }}>
                                 ↳ {guest.famille_disciple}
                               </div>
                             )}
-                            <SuiviToggle label="Intérêt Baptême" checked={guest.interetBapteme} onChange={() => toggleSuivi(guest.id, 'interetBapteme')} disabled={isRestricted} />
+                            {!guest.baptemeEau && !guest.baptemeEsprit && (
+                              <SuiviToggle label="Intérêt Baptême" checked={guest.interetBapteme} onChange={() => toggleSuivi(guest.id, 'interetBapteme')} disabled={isRestricted} />
+                            )}
                             <SuiviToggle label="RDV pastoral" checked={Boolean(guest.rdvPastoral)} onChange={() => toggleSuivi(guest.id, 'rdvPastoral')} disabled={isRestricted} />
                             <SuiviToggle label="Visite à domicile" checked={Boolean(guest.visiteDomicile)} onChange={() => toggleSuivi(guest.id, 'visiteDomicile')} disabled={isRestricted} />
                             <SuiviToggle label="Cocktail Bienvenue" checked={guest.cocktailBienvenue} onChange={() => toggleSuivi(guest.id, 'cocktailBienvenue')} disabled={isRestricted} />
@@ -2414,6 +2787,58 @@ const selectedCounselorObj = useMemo(() => {
                             <SuiviToggle label="Baptême par immersion" checked={guest.baptemeEau} onChange={() => toggleSuivi(guest.id, 'baptemeEau')} disabled={isRestricted} />
                             <SuiviToggle label="Veut servir" checked={guest.veutServir} onChange={() => toggleSuivi(guest.id, 'veutServir')} disabled={isRestricted} />
                             <SuiviToggle label="Devenu S.T.A.R" checked={guest.devenuStar} onChange={() => toggleSuivi(guest.id, 'devenuStar')} disabled={isRestricted} />
+                            {guest.devenuStar && guest.departementStar && (
+                              <div style={{ fontSize: 11, color: "var(--muted)", paddingLeft: 22, marginTop: -4 }}>
+                                Département : <strong style={{ color: "var(--cream)" }}>{guest.departementStar.toLocaleUpperCase("fr-BE")}</strong>
+                              </div>
+                            )}
+                            {starDepartmentPromptGuestId === guest.id && (
+                              <div role="group" aria-label="Département de service S.T.A.R" style={{ display: "flex", flexDirection: "column", gap: 8, padding: 12, border: "1px solid var(--border)", borderRadius: 10, background: "var(--bg-deep)" }}>
+                                <label htmlFor={`star-department-${guest.id}`} style={{ fontSize: 11, fontWeight: 600, color: "var(--cream)" }}>
+                                  Département de service <span style={{ color: "var(--gold-light)" }}>*</span>
+                                </label>
+                                <input
+                                  id={`star-department-${guest.id}`}
+                                  className="input"
+                                  type="text"
+                                  value={starDepartmentDraft}
+                                  onChange={event => {
+                                    setStarDepartmentDraft(event.target.value.toLocaleUpperCase("fr-BE"));
+                                    if (starDepartmentError) setStarDepartmentError("");
+                                  }}
+                                  onKeyDown={event => {
+                                    if (event.key === "Enter" && starDepartmentDraft.trim() && !isSavingStarDepartment) {
+                                      event.preventDefault();
+                                      void saveStarDepartment(guest.id);
+                                    }
+                                  }}
+                                  placeholder="Nom du département"
+                                  disabled={isSavingStarDepartment}
+                                  style={{ width: "100%", fontSize: 12, minHeight: 38, background: "var(--surface-solid)", color: "var(--cream)" }}
+                                />
+                                {starDepartmentError && <div role="alert" style={{ color: "var(--danger, #dc6b6b)", fontSize: 11 }}>{starDepartmentError}</div>}
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 8, width: "100%", minWidth: 0 }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-subtle"
+                                    disabled={isSavingStarDepartment}
+                                    onClick={() => {
+                                      setStarDepartmentPromptGuestId(null);
+                                      setStarDepartmentDraft("");
+                                      setStarDepartmentError("");
+                                    }}
+                                    style={{ width: "100%", minWidth: 0, justifyContent: "center", padding: "7px 10px", fontSize: 11 }}
+                                  >Annuler</button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    disabled={!starDepartmentDraft.trim() || isSavingStarDepartment}
+                                    onClick={() => saveStarDepartment(guest.id)}
+                                    style={{ width: "100%", minWidth: 0, justifyContent: "center", padding: "7px 10px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }}
+                                  >{isSavingStarDepartment && <Loader2 size={13} className="animate-spin" />} Confirmer le département</button>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {/* 12 Piliers (Formation en 4 séances) */}

@@ -664,11 +664,13 @@ html[data-theme] body .people-screen .people-card-section > div { margin: 0 !imp
 html[data-theme] body .people-screen .soul-card-body h4 { font-family: var(--font-body), sans-serif !important; font-size: 11px !important; line-height: 1.5; font-weight: 700; }
 html[data-theme] body .people-screen .people-card-section > div > .glass-compact { min-width: 0; }
 /* Statistics filters: stacked labels and controls remain reachable on phones. */
-.people-screen .people-stat-filters { display:grid;grid-template-columns:minmax(0,1fr);gap:18px;padding:20px;background:var(--surface-solid);border:1px solid var(--border);border-radius:16px; }
-.people-screen .people-stat-filters > div { display:flex!important;flex-wrap:wrap;align-items:stretch!important;min-width:0;gap:8px!important; }
-.people-screen .people-stat-filters > div > span { flex-basis:100%;font-size:11px!important;color:var(--cream-dim)!important;letter-spacing:.5px; }
-.people-screen .people-stat-filters > div > div { flex:1;min-width:0!important;width:auto!important; }
-@media(min-width:1000px){.people-screen .people-stat-filters {grid-template-columns:repeat(3,minmax(0,1fr));}}
+.people-screen .people-stat-filters { display: flex !important; flex-wrap: wrap !important; gap: 16px 20px !important; padding: 20px !important; background: var(--surface-solid); border: 1px solid var(--border); border-radius: 16px; align-items: flex-start !important; }
+.people-screen .people-stat-filters > div { display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; min-width: fit-content !important; flex: 0 0 auto !important; }
+.people-screen .people-stat-filters > div > span { font-size: 11px !important; font-weight: 700 !important; color: var(--gold-light) !important; letter-spacing: 0.5px !important; text-transform: uppercase !important; }
+
+@media (max-width: 768px) {
+  html[data-theme] body .people-screen { padding-bottom: 96px !important; }
+}
 
 
 /* Global Search Input Reset: prevent rogue inner borders/backgrounds */
@@ -866,11 +868,20 @@ html[data-theme] body .people-screen .affectation-card-person .avatar {
   flex-shrink: 0 !important;
 }
 
+/* All badges: prevent accidental text-wrapping or deformation into vertical towers */
+.badge,
+html[data-theme] body .badge {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  flex-shrink: 0 !important;
+}
+
 html[data-theme] body .people-screen .affectation-card-identity {
   display: flex !important;
   flex-direction: column !important;
-  gap: 2px !important;
+  gap: 3px !important;
   min-width: 0 !important;
+  flex: 1 1 auto !important;
 }
 
 html[data-theme] body .people-screen .affectation-card-name-row {
@@ -878,6 +889,8 @@ html[data-theme] body .people-screen .affectation-card-name-row {
   align-items: center !important;
   gap: 8px !important;
   flex-wrap: nowrap !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
 }
 
 html[data-theme] body .people-screen .affectation-card-title {
@@ -887,6 +900,23 @@ html[data-theme] body .people-screen .affectation-card-title {
   margin: 0 !important;
   line-height: 1.25 !important;
   white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+}
+
+html[data-theme] body .people-screen .affectation-card-name-row .badge {
+  font-size: 10px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  padding: 3px 8px !important;
+  border-radius: 999px !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  flex-shrink: 0 !important;
+  line-height: 1.2 !important;
 }
 
 html[data-theme] body .people-screen .affectation-btn-more {

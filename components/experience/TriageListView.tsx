@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { 
   Phone, Mail, Calendar, User, Eye, UserCheck, UserMinus, 
-  AlertTriangle, ShieldCheck, Clock, UserPlus, PhoneCall,
+  AlertTriangle, CheckCircle2, ShieldCheck, Clock, UserPlus, PhoneCall,
   Home, Trash2, Search, X, MoreHorizontal, Edit3
 } from "lucide-react";
 import CustomSelect from "@/components/ui/CustomSelect";
@@ -17,7 +17,7 @@ interface CounselorOption {
 }
 
 interface TriageListViewProps {
-  mode: "unassigned" | "my_assignments" | "retired" | "all_guests";
+  mode: "unassigned" | "my_assignments" | "completed" | "retired" | "all_guests";
   guests: any[];
   counselors: CounselorOption[];
   onAssign?: (guestId: string, counselorId: string | null) => Promise<void>;
@@ -172,18 +172,21 @@ export default function TriageListView({
         <div className={styles.emptyIcon}>
           {mode === "unassigned" && <ShieldCheck size={26} />}
           {mode === "my_assignments" && <UserCheck size={26} />}
+          {mode === "completed" && <CheckCircle2 size={26} />}
           {mode === "retired" && <Clock size={26} />}
           {mode === "all_guests" && <User size={26} />}
         </div>
         <h3 className={styles.emptyTitle}>
           {mode === "unassigned" && "Aucun invité en attente d'affectation"}
           {mode === "my_assignments" && "Toutes vos affectations sont traitées !"}
+          {mode === "completed" && "Aucune personne fidélisée pour le moment"}
           {mode === "retired" && "Aucune personne dans Sans suite"}
           {mode === "all_guests" && "Aucun invité trouvé"}
         </h3>
         <p className={styles.emptySubtitle}>
           {mode === "unassigned" && "Tous les nouveaux arrivants ont déjà été attribués à un conseiller de l'équipe."}
           {mode === "my_assignments" && "Vous n'avez aucune nouvelle personne en attente de premier contact. Vos âmes suivies se trouvent dans l'onglet 'Mes âmes'."}
+          {mode === "completed" && "Les personnes dont le conseiller a terminé le suivi apparaîtront ici et seront comptées parmi les personnes fidélisées."}
           {mode === "retired" && "Les personnes retirées suite à un premier contact sans suite apparaîtront ici avec leur rapport de clôture."}
           {mode === "all_guests" && "Aucune personne ne correspond à vos filtres ou aucun invité n'a encore été enregistré."}
         </p>
@@ -234,6 +237,11 @@ export default function TriageListView({
               <span className={styles.summaryHighlight}>{guests.length}</span> personne{guests.length > 1 ? "s" : ""} à contacter pour premier échange et qualification
             </>
           )}
+          {mode === "completed" && (
+            <>
+              <span className={styles.summaryHighlight}>{guests.length}</span> personne{guests.length > 1 ? "s" : ""} fidélisée{guests.length > 1 ? "s" : ""} dont le suivi est terminé
+            </>
+          )}
           {mode === "retired" && (
             <>
               <span className={styles.summaryHighlight}>{guests.length}</span> dossier{guests.length > 1 ? "s" : ""} sans suite clôturé{guests.length > 1 ? "s" : ""}
@@ -254,7 +262,7 @@ export default function TriageListView({
           const initials = `${(g.firstName || "")[0] || ""}${(g.lastName || "")[0] || ""}`.toUpperCase() || "IN";
           const primaryContact = g.phone ? g.phone : g.email ? g.email : null;
           const isPhone = Boolean(g.phone);
-          const motifLabel = g.motifRetrait ? (MOTIF_LABELS[g.motifRetrait] || g.motifRetrait) : (g.raisonEchec || "Sans suite");
+          const motifLabel = mode === "completed" ? "Suivi terminé · fidélisé" : (g.motifRetrait ? (MOTIF_LABELS[g.motifRetrait] || g.motifRetrait) : (g.raisonEchec || "Sans suite"));
           const retiredByName = g.retirePar ? (counselorNameMap.get(g.retirePar) || "Conseiller") : null;
 
           return (
@@ -267,9 +275,9 @@ export default function TriageListView({
                       {g.civility} {g.firstName} {g.lastName}
                     </span>
                     {g.age && <span className={styles.badgeAge}>{g.age}</span>}
-                    {mode === "retired" && (
-                      <span className={styles.badgeMotif}>
-                        <AlertTriangle size={12} /> {motifLabel}
+                    {(mode === "retired" || mode === "completed") && (
+                      <span className={mode === "completed" ? styles.badgeCompleted : styles.badgeMotif}>
+                        {mode === "completed" ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />} {motifLabel}
                       </span>
                     )}
                   </div>
@@ -322,15 +330,15 @@ export default function TriageListView({
                       </span>
                     )}
 
-                    {mode === "retired" && retiredByName && (
+                    {(mode === "retired" || mode === "completed") && retiredByName && (
                       <span className={styles.metaItem}>
-                        <User size={13} /> Retiré par {retiredByName}
+                        <User size={13} /> {mode === "completed" ? "Suivi terminé par" : "Retiré par"} {retiredByName}
                       </span>
                     )}
                   </div>
 
                   {/* Comment snippet and call history in retired mode */}
-                  {mode === "retired" && (() => {
+                  {(mode === "retired" || mode === "completed") && (() => {
                     const { humanNote, lastCall } = parseRetiredComment(g.commentaireSuivi);
                     if (!humanNote && !lastCall) return null;
                     return (
@@ -431,6 +439,17 @@ export default function TriageListView({
                       <Eye size={14} /> Voir la fiche
                     </button>
                   </>
+                )}
+
+                {mode === "completed" && (
+                  <button
+                    type="button"
+                    className={styles.btnVoirPlus}
+                    onClick={() => onOpenVoirPlus(g)}
+                    title="Voir les informations saisies au formulaire"
+                  >
+                    <Eye size={14} /> Voir la fiche
+                  </button>
                 )}
 
                 {mode === "all_guests" && (

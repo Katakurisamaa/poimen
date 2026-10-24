@@ -64,6 +64,7 @@ function harness({ user = null, sessionResult = () => ({ data: null }), serviceR
     '@/lib/supabase-server': { createClient: async () => session },
     '@/lib/auth-contexts': load('lib/auth-contexts.ts'),
     '@/lib/security-validation': load('lib/security-validation.ts'),
+    '@/lib/default-disciple-families': load('lib/default-disciple-families.ts'),
   });
   return { actions, calls, privilegedClients: () => privilegedClients };
 }

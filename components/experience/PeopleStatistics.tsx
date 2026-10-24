@@ -16,7 +16,7 @@ export default function PeopleStatistics({ total, totalLabel, brebis, calls, loy
     <div className={styles.heading}><h2>Vue d’ensemble</h2><p>{total} personne{total !== 1 ? "s" : ""} dans la sélection actuelle</p></div>
     {total === 0 && <p className={styles.empty}>Aucune personne ne correspond aux filtres. Modifiez la période ou les critères pour afficher les statistiques.</p>}
     <div className={styles.summary}>
-      {[{ label: totalLabel, value: total, detail: `${brebis} brebis confirmées` }, { label: "Appels aboutis", value: calls, detail: `${percent(calls)} de la sélection` }, { label: "Personnes fidélisées", value: loyal, detail: "Présence ≥ 45 % au culte ou en CDM" }].map(item => <article className={styles.kpi} key={item.label}><span>{item.label}</span><strong>{item.value}</strong><small>{item.detail}</small></article>)}
+      {[{ label: totalLabel, value: total, detail: `${brebis} brebis confirmées` }, { label: "Appels aboutis", value: calls, detail: `${percent(calls)} de la sélection` }, { label: "Personnes fidélisées", value: loyal, detail: "Présence ≥ 45 % ou suivi terminé comme fidélisé" }].map(item => <article className={styles.kpi} key={item.label}><span>{item.label}</span><strong>{item.value}</strong><small>{item.detail}</small></article>)}
     </div>
     <div className={styles.grid}>
       <section className={styles.panel}><h3>Suivi et intégration</h3><p>Les repères pour accompagner chaque personne.</p>{rows(followup)}</section>

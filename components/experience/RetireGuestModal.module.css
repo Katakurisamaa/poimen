@@ -91,12 +91,22 @@
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+.formWrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .content {
   padding: 20px 24px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 18px;
+  flex: 1;
+  min-height: 0;
 }
 
 .warningBox {
@@ -178,6 +188,118 @@
   font-size: 13.5px;
   font-weight: 500;
   color: var(--cream);
+}
+
+.callStatusSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.callStatusHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.callStatusHint {
+  font-size: 12px;
+  color: var(--muted, #9ca3af);
+  line-height: 1.35;
+}
+
+.callStatusGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.callStatusBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  color: var(--cream);
+  min-height: 52px;
+  position: relative;
+}
+
+.callStatusBtn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.callStatusBtnSuccessActive {
+  background: rgba(16, 185, 129, 0.1) !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25);
+}
+
+.callStatusBtnDangerActive {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
+}
+
+.callStatusIconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.callStatusBtnSuccessActive .callStatusIconWrapper {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.callStatusBtnDangerActive .callStatusIconWrapper {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.callStatusTextCol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.callStatusMainLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cream);
+  line-height: 1.25;
+}
+
+.callStatusSubLabel {
+  font-size: 11px;
+  color: var(--muted, #9ca3af);
+  line-height: 1.2;
+}
+
+.callStatusCheckmark {
+  color: currentColor;
+  flex-shrink: 0;
+}
+
+.callStatusBtnSuccessActive .callStatusCheckmark {
+  color: #10b981;
+}
+
+.callStatusBtnDangerActive .callStatusCheckmark {
+  color: #ef4444;
 }
 
 .inputField {

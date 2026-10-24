@@ -86,6 +86,7 @@ interface Guest {
   commentaireSuivi: string;
   archived: boolean;
   assigned_to?: string | null;
+  suiviTermine?: boolean;
   church_id?: string | null;
   bergerie_id?: string | null;
   created_by?: string | null;
@@ -134,6 +135,8 @@ const FAMILY_COLORS: Record<string, { main: string; glow: string; border: string
 function mapDbGuestToGuest(g: any): Guest {
   const isAssigned = Boolean(g.assigned_to || (g.responsible && g.responsible !== "Non assigné" && g.responsible.trim() !== ""));
   const rawStatut = (g.statut_affectation as any) || g.commentaire_suivi?.match(/\[STATUT:\s*([^\]]+)\]/i)?.[1]?.trim();
+  const motifRetrait = g.motif_retrait || g.commentaire_suivi?.match(/\[MOTIF_RETRAIT:\s*([^\]]+)\]/i)?.[1]?.trim();
+  const suiviTermine = motifRetrait === "suivi_termine";
   const hadPastFollowup = rawStatut === 'sans_suite' || rawStatut === 'conserve' || Boolean(g.appel_abouti) || Boolean(g.statut_affectation && g.statut_affectation !== 'a_affecter');
   const isFreshUnassigned = !isAssigned && !hadPastFollowup;
 
@@ -150,9 +153,12 @@ function mapDbGuestToGuest(g: any): Guest {
     event: g.event,
     aps: g.aps,
     localChurch: g.local_church,
-    autreEglise: g.autre_eglise || (g.commentaire?.match(/\[(?:Autre église|Église d'origine)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
+    autreEglise: g.autre_eglise 
+      || (g.commentaire_suivi?.match(/\[(?:Autre église|Église d'origine|AUTRE_EGLISE)\s*:\s*([^\]]+)\]/i)?.[1]?.trim())
+      || (g.commentaire?.match(/\[(?:Autre église|Église d'origine|AUTRE_EGLISE)\s*:\s*([^\]]+)\]/i)?.[1]?.trim() || ""),
     responsible: g.responsible,
     assigned_to: g.assigned_to,
+    suiviTermine,
     church_id: g.church_id,
     bergerie_id: g.bergerie_id,
     isInBergerie: g.is_in_bergerie,
@@ -1363,6 +1369,7 @@ function InvitesPage() {
   };
 
   const isFidelise = (guest: Guest) => {
+    if (guest.suiviTermine) return true;
     const rateCDM = calculateRate(guest, thursdays);
     const rateCulte = calculateRate(guest, sundays);
     return rateCDM >= 45 || rateCulte >= 45;

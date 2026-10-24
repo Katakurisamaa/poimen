@@ -87,6 +87,7 @@ export function getNavigation(access: WorkspaceAccess): { primary: NavItem[]; se
     });
   }
   if (integrationLeader) secondary.push({ label: "Équipe", href: "/dashboard/equipe", icon: "team", description: "Responsables et conseillers" });
+  if (integrationLeader) secondary.push({ label: "Bilan mensuel", href: "/dashboard/bilan-integration", icon: "report", description: "Indicateurs mensuels pour le conseil pastoral" });
   if (!familyLeader && (integration || counselor)) {
     secondary.push({ label: "Visio & Entretiens", href: "/dashboard/visio?type=integration", icon: "video", description: "Réunions d’équipe et entretiens de suivi" });
   }

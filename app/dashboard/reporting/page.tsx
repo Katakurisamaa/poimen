@@ -442,10 +442,10 @@ export default function ReportingPage() {
           });
 
           // Accurate calculation of unjustified absences:
-          // Unique members present = (Culte 1 + Culte 2 - Cumul 2 cultes) + Culte en ligne
-          // Total absences = Total members - Unique members present
+          // Unique physical members present = (Culte 1 + Culte 2 - Cumul 2 cultes)
+          // Total absences = Total members - Unique physical members present
           // Absences non justifiées = Total absences - Absences justifiées
-          const totalPartCulte = Math.max(0, (countC1 + countC2 - countBoth) + countEnLigne);
+          const totalPartCulte = Math.max(0, countC1 + countC2 - countBoth);
           const totalSundayAbsences = Math.max(0, totalMembres - totalPartCulte);
           absNonJustifiees = Math.max(0, totalSundayAbsences - absJustifiees);
 
@@ -573,10 +573,10 @@ export default function ReportingPage() {
           disciples_culte_2: existingReport.disciples_culte_2 !== undefined ? existingReport.disciples_culte_2 : disciplesC2,
           disciples_culte_1_et_2: existingReport.disciples_culte_1_et_2 !== undefined ? existingReport.disciples_culte_1_et_2 : disciplesBoth,
           disciples_culte_en_ligne: existingReport.disciples_culte_en_ligne !== undefined ? existingReport.disciples_culte_en_ligne : disciplesEnLigne,
-          disciples_presents_total: existingReport.disciples_presents_total !== undefined ? existingReport.disciples_presents_total : Math.max(0, (disciplesC1 + disciplesC2 - disciplesBoth) + disciplesEnLigne),
+          disciples_presents_total: existingReport.disciples_presents_total !== undefined ? existingReport.disciples_presents_total : Math.max(0, disciplesC1 + disciplesC2 - disciplesBoth),
         }));
       } else {
-        const disciplesPartTotal = Math.max(0, (disciplesC1 + disciplesC2 - disciplesBoth) + disciplesEnLigne);
+        const disciplesPartTotal = Math.max(0, disciplesC1 + disciplesC2 - disciplesBoth);
         const disciplesPct = disciplesCount > 0 
           ? Math.round((disciplesPartTotal / disciplesCount) * 1000) / 10 
           : 0;
@@ -1303,7 +1303,7 @@ export default function ReportingPage() {
                     Présences Membres
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#86efac" }}>
-                    Total : <strong>{metrics.totalParticipation}</strong> ({metrics.tauxParticipationGlobale}%)
+                    Total présentiel : <strong>{metrics.totalParticipation}</strong> ({metrics.tauxParticipationGlobale}%)
                   </span>
                 </div>
 
@@ -1384,7 +1384,7 @@ export default function ReportingPage() {
                     Présences Disciples
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#7dd3fc" }}>
-                    Total : <strong>{metrics.disciplesPresents}</strong> ({metrics.tauxParticipationDisciples}%)
+                    Total présentiel : <strong>{metrics.disciplesPresents}</strong> ({metrics.tauxParticipationDisciples}%)
                   </span>
                 </div>
 
@@ -1403,7 +1403,7 @@ export default function ReportingPage() {
                           return {
                             ...prev,
                             disciples_culte_1: val,
-                            disciples_presents_total: Math.max(0, val + (prev.disciples_culte_2 || 0) + (prev.disciples_culte_en_ligne || 0) - both),
+                            disciples_presents_total: Math.max(0, val + (prev.disciples_culte_2 || 0) - both),
                           };
                         });
                       }}
@@ -1424,7 +1424,7 @@ export default function ReportingPage() {
                           return {
                             ...prev,
                             disciples_culte_2: val,
-                            disciples_presents_total: Math.max(0, (prev.disciples_culte_1 || 0) + val + (prev.disciples_culte_en_ligne || 0) - both),
+                            disciples_presents_total: Math.max(0, (prev.disciples_culte_1 || 0) + val - both),
                           };
                         });
                       }}
@@ -1445,7 +1445,7 @@ export default function ReportingPage() {
                         setFormData((prev) => ({
                           ...prev,
                           disciples_culte_1_et_2: both,
-                          disciples_presents_total: Math.max(0, (prev.disciples_culte_1 || 0) + (prev.disciples_culte_2 || 0) + (prev.disciples_culte_en_ligne || 0) - both),
+                          disciples_presents_total: Math.max(0, (prev.disciples_culte_1 || 0) + (prev.disciples_culte_2 || 0) - both),
                         }));
                       }}
                     />
@@ -1460,14 +1460,10 @@ export default function ReportingPage() {
                       value={formData.disciples_culte_en_ligne ?? ""}
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
-                        setFormData((prev) => {
-                          const both = prev.disciples_culte_1_et_2 || 0;
-                          return {
-                            ...prev,
-                            disciples_culte_en_ligne: val,
-                            disciples_presents_total: Math.max(0, (prev.disciples_culte_1 || 0) + (prev.disciples_culte_2 || 0) + val - both),
-                          };
-                        });
+                        setFormData((prev) => ({
+                          ...prev,
+                          disciples_culte_en_ligne: val,
+                        }));
                       }}
                     />
                   </div>

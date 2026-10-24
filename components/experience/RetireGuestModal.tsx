@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { 
   X, UserMinus, AlertTriangle, PhoneOff, PhoneForwarded, 
-  Church, ShieldAlert, MapPin, MessageSquare, Loader2
+  Church, ShieldAlert, MapPin, MessageSquare, Loader2, PhoneCall, Check
 } from "lucide-react";
 import styles from "./RetireGuestModal.module.css";
 
@@ -12,6 +12,7 @@ export interface RetirePayload {
   motif: string;
   autreEglise?: string;
   commentaire: string;
+  appelAbouti?: boolean;
 }
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
     lastName: string;
     phone?: string;
     email?: string;
+    appelAbouti?: boolean;
   } | null;
   onConfirm: (payload: RetirePayload) => Promise<void>;
 }
@@ -43,6 +45,7 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
   const [selectedMotif, setSelectedMotif] = useState<string>("ne_decroche_pas");
   const [autreEglise, setAutreEglise] = useState<string>("");
   const [commentaire, setCommentaire] = useState<string>("");
+  const [appelAbouti, setAppelAbouti] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   useEffect(() => {
@@ -50,8 +53,18 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
     setSelectedMotif("ne_decroche_pas");
     setAutreEglise("");
     setCommentaire("");
+    setAppelAbouti(guest.appelAbouti ? true : false);
     setErrorMsg("");
   }, [isOpen, guest]);
+
+  const handleSelectMotif = (motifId: string) => {
+    setSelectedMotif(motifId);
+    if (motifId === "ne_decroche_pas" || motifId === "faux_numero") {
+      setAppelAbouti(false);
+    } else if (motifId === "autre_eglise" || motifId === "pas_interesse" || motifId === "demenagement") {
+      setAppelAbouti(true);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -89,7 +102,8 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
       await onConfirm({
         motif: selectedMotif,
         autreEglise: selectedMotif === "autre_eglise" ? autreEglise.trim() : undefined,
-        commentaire: commentaire.trim()
+        commentaire: commentaire.trim(),
+        appelAbouti,
       });
       onClose();
     } catch (err) {
@@ -130,8 +144,9 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className={styles.content}>
-          <div className={styles.warningBox}>
+        <form onSubmit={handleSubmit} className={styles.formWrapper}>
+          <div className={styles.content}>
+            <div className={styles.warningBox}>
             Cette personne sera retirée de vos affectations et transférée dans l&apos;onglet <strong>Sans suite</strong>. Elle restera conservée dans l&apos;annuaire général des invités de l&apos;église.
           </div>
 
@@ -146,7 +161,7 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
                   <div
                     key={item.id}
                     className={`${styles.motifOption} ${isSelected ? styles.motifOptionActive : ""}`}
-                    onClick={() => setSelectedMotif(item.id)}
+                    onClick={() => handleSelectMotif(item.id)}
                   >
                     <div className={styles.radioCircle}>
                       {isSelected && <div className={styles.radioDot} />}
@@ -176,6 +191,48 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
             </div>
           )}
 
+          {/* Précision du statut de l'appel */}
+          <div className={styles.callStatusSection}>
+            <div className={styles.callStatusHeader}>
+              <span className={styles.sectionLabel}>L&apos;appel téléphonique a-t-il abouti ?</span>
+              <span className={styles.callStatusHint}>
+                Indiquez si vous avez pu échanger directement de vive voix avec la personne.
+              </span>
+            </div>
+
+            <div className={styles.callStatusGrid}>
+              <button
+                type="button"
+                className={`${styles.callStatusBtn} ${appelAbouti ? styles.callStatusBtnSuccessActive : ""}`}
+                onClick={() => setAppelAbouti(true)}
+              >
+                <div className={styles.callStatusIconWrapper}>
+                  <PhoneCall size={16} />
+                </div>
+                <div className={styles.callStatusTextCol}>
+                  <span className={styles.callStatusMainLabel}>Oui, appel abouti</span>
+                  <span className={styles.callStatusSubLabel}>Échange téléphonique établi</span>
+                </div>
+                {appelAbouti && <Check size={16} className={styles.callStatusCheckmark} />}
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.callStatusBtn} ${!appelAbouti ? styles.callStatusBtnDangerActive : ""}`}
+                onClick={() => setAppelAbouti(false)}
+              >
+                <div className={styles.callStatusIconWrapper}>
+                  <PhoneOff size={16} />
+                </div>
+                <div className={styles.callStatusTextCol}>
+                  <span className={styles.callStatusMainLabel}>Non, appel non abouti</span>
+                  <span className={styles.callStatusSubLabel}>Injoignable, faux numéro ou pas d&apos;appel</span>
+                </div>
+                {!appelAbouti && <Check size={16} className={styles.callStatusCheckmark} />}
+              </button>
+            </div>
+          </div>
+
           {/* Rapport / Commentaire obligatoire */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label htmlFor="retire-comment" className={styles.sectionLabel}>
@@ -200,6 +257,7 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
               {errorMsg}
             </div>
           )}
+          </div>
 
           <div className={styles.footer}>
             <button 
