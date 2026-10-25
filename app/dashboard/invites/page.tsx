@@ -12,7 +12,7 @@ import {
   QrCode, UserCheck
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { autoAddLeaderToMembers, listIntegrationTeam, getIntegrationInvites, assignCounselorToGuest } from "@/app/actions/auth";
+import { autoAddLeaderToMembers, listIntegrationTeam, getIntegrationInvites, assignCounselorToGuest, updateGuestRecordAction } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
 import { PersonButton } from "@/components/experience/PersonPanel";
@@ -277,7 +277,13 @@ function InvitesPage() {
     userRoleClean === "integration_responsable" || 
     userRoleClean === "integration_second" ||
     userRoleClean === "integration_conseiller" ||
-    userRoleClean === "conseiller";
+    userRoleClean === "conseiller" ||
+    userRoleClean === "berger" ||
+    userRoleClean.includes("second") ||
+    userRoleClean.includes("responsable") ||
+    userRoleClean.includes("coordonnateur") ||
+    userRoleClean === "admin" ||
+    userRoleClean === "super_admin";
   const [userName, setUserName] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const info = getActiveUserInfo();
@@ -663,7 +669,7 @@ function InvitesPage() {
     const guest = guests.find(g => g.id === guestId);
     if (!guest) return;
 
-    const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second";
+    const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "admin" || userRoleClean === "super_admin";
     const isAssignedCounselor = guest.assigned_to === userId && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller");
     const isCreator = guest.created_by === userId && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller");
     
@@ -672,14 +678,22 @@ function InvitesPage() {
 
     const newAttendance = { ...guest.attendance, [day]: !guest.attendance[day] };
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, attendance: newAttendance } : g));
-    await supabase.from("invites").update({ attendance: newAttendance }).eq("id", guestId);
+
+    const actionRes = await updateGuestRecordAction({
+      guestId,
+      churchId: churchId || undefined,
+      updates: { attendance: newAttendance }
+    });
+    if (!actionRes.success) {
+      await supabase.from("invites").update({ attendance: newAttendance }).eq("id", guestId);
+    }
   };
 
   const toggleSuivi = async (guestId: string, field: keyof Guest) => {
     const guest = guests.find(g => g.id === guestId);
     if (!guest) return;
 
-    const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second";
+    const isIntegrationLeader = userRoleClean === "integration_responsable" || userRoleClean === "integration_second" || userRoleClean === "admin" || userRoleClean === "super_admin";
     const isAssignedCounselor = guest.assigned_to === userId && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller");
     const isCreator = guest.created_by === userId && (userRoleClean === "integration_conseiller" || userRoleClean === "conseiller");
     
@@ -762,13 +776,20 @@ function InvitesPage() {
     const dbField = dbFieldMap[field as string] || field;
     const updateObj: Record<string, any> = { [dbField]: newValue, ...dbExtraUpdates };
     try {
-      const { error } = await supabase.from("invites").update(updateObj).eq("id", guestId);
-      if (error) {
-        console.warn("Champs Supabase non encore disponible ou erreur:", error.message);
-        if (dbExtraUpdates.commentaire_suivi) {
-          const fallbackObj: Record<string, any> = { commentaire_suivi: dbExtraUpdates.commentaire_suivi };
-          if (dbExtraUpdates.appel_abouti !== undefined) fallbackObj.appel_abouti = dbExtraUpdates.appel_abouti;
-          await supabase.from("invites").update(fallbackObj).eq("id", guestId);
+      const actionRes = await updateGuestRecordAction({
+        guestId,
+        churchId: churchId || undefined,
+        updates: updateObj
+      });
+      if (!actionRes.success) {
+        const { error } = await supabase.from("invites").update(updateObj).eq("id", guestId);
+        if (error) {
+          console.warn("Champs Supabase non encore disponible ou erreur:", error.message);
+          if (dbExtraUpdates.commentaire_suivi) {
+            const fallbackObj: Record<string, any> = { commentaire_suivi: dbExtraUpdates.commentaire_suivi };
+            if (dbExtraUpdates.appel_abouti !== undefined) fallbackObj.appel_abouti = dbExtraUpdates.appel_abouti;
+            await supabase.from("invites").update(fallbackObj).eq("id", guestId);
+          }
         }
       }
     } catch (err) {
@@ -791,6 +812,9 @@ function InvitesPage() {
     try {
     if (!familyId && !churchId) return;
 
+    const existingGuest = editingGuestId ? guests.find(g => g.id === editingGuestId) : null;
+    const isUnassigned = Boolean(existingGuest && !existingGuest.assigned_to);
+
     const payload: any = {
       civility: newGuest.civility,
       first_name: newGuest.firstName,
@@ -808,28 +832,31 @@ function InvitesPage() {
       responsible: newGuest.responsible,
       a_ete_invite: newGuest.aEteInvite,
       par_qui: newGuest.aEteInvite ? newGuest.parQui : null,
-      bapteme_eau: newGuest.baptemeEau,
-      piliers_1: newGuest.piliers1 || false,
-      piliers_2: newGuest.piliers2 || false,
-      piliers_3: newGuest.piliers3 || false,
-      piliers_4: newGuest.piliers4 || false,
-      termine_12_piliers: newGuest.termine12Piliers || false,
-      souhait_suivi: newGuest.souhaitSuivi || false,
-      rdv_pastoral: newGuest.rdvPastoral || false,
-      ne_decroche_pas: newGuest.neDecrochePas || false,
-      faux_numero: newGuest.fauxNumero || false,
-      interet_formation: newGuest.interetFormation,
-      interet_cdm: newGuest.interetCDM,
-      integre_cdm: newGuest.integreCDM,
-      priere_partage: newGuest.prierePartage,
-      dans_famille_disciple: editingGuestId ? (newGuest.dansFamilleDisciple || false) : false,
-      interet_bapteme: newGuest.baptemeEau === false && newGuest.interetBapteme === true,
       commentaire: newGuest.commentaire,
-      commentaire_suivi: newGuest.commentaireSuivi || "",
       famille_disciple: editingGuestId ? (newGuest.famille_disciple || "AUCUNE") : "AUCUNE",
       etat_civil: newGuest.etatCivil || "Célibataire",
       souhaite_etre_contacte: newGuest.souhaiteEtreContacte === true
     };
+
+    if (!isUnassigned || newGuest.assigned_to) {
+      payload.bapteme_eau = newGuest.baptemeEau;
+      payload.piliers_1 = newGuest.piliers1 || false;
+      payload.piliers_2 = newGuest.piliers2 || false;
+      payload.piliers_3 = newGuest.piliers3 || false;
+      payload.piliers_4 = newGuest.piliers4 || false;
+      payload.termine_12_piliers = newGuest.termine12Piliers || false;
+      payload.souhait_suivi = newGuest.souhaitSuivi || false;
+      payload.rdv_pastoral = newGuest.rdvPastoral || false;
+      payload.ne_decroche_pas = newGuest.neDecrochePas || false;
+      payload.faux_numero = newGuest.fauxNumero || false;
+      payload.interet_formation = newGuest.interetFormation;
+      payload.interet_cdm = newGuest.interetCDM;
+      payload.integre_cdm = newGuest.integreCDM;
+      payload.priere_partage = newGuest.prierePartage;
+      payload.dans_famille_disciple = editingGuestId ? (newGuest.dansFamilleDisciple || false) : false;
+      payload.interet_bapteme = newGuest.baptemeEau === false && newGuest.interetBapteme === true;
+      payload.commentaire_suivi = newGuest.commentaireSuivi || "";
+    }
 
     if (userRoleClean.startsWith("integration_")) {
       payload.church_id = churchId;
@@ -851,37 +878,50 @@ function InvitesPage() {
     }
 
     if (editingGuestId) {
-      let { error } = await supabase
-        .from("invites")
-        .update(payload)
-        .eq("id", editingGuestId);
+      const actionRes = await updateGuestRecordAction({
+        guestId: editingGuestId,
+        churchId: churchId || undefined,
+        updates: payload
+      });
 
-      // Fallback if column autre_eglise, pays, or piliers does not exist yet in database
-      if (error && (error.message.includes("autre_eglise") || error.message.includes("pays") || error.message.includes("piliers") || error.message.includes("souhait_suivi") || error.message.includes("rdv_pastoral") || error.message.includes("ne_decroche_pas") || error.message.includes("faux_numero") || error.code === "42703" || error.code === "PGRST204")) {
-        const fallbackPayload = { ...payload };
-        delete fallbackPayload.autre_eglise;
-        delete fallbackPayload.pays;
-        delete fallbackPayload.piliers_1;
-        delete fallbackPayload.piliers_2;
-        delete fallbackPayload.piliers_3;
-        delete fallbackPayload.piliers_4;
-        delete fallbackPayload.termine_12_piliers;
-        delete fallbackPayload.souhait_suivi;
-        delete fallbackPayload.rdv_pastoral;
-        delete fallbackPayload.ne_decroche_pas;
-        delete fallbackPayload.faux_numero;
-        const res = await supabase.from("invites").update(fallbackPayload).eq("id", editingGuestId);
-        error = res.error;
-      }
-
-      if (error) {
-        setFormError("Erreur lors de la modification : " + error.message);
-        return;
-      } else {
+      if (actionRes.success) {
         fetchGuests();
         notify("La fiche a bien été enregistrée.");
         setIsAddModalOpen(false);
         setEditingGuestId(null);
+      } else {
+        let { error } = await supabase
+          .from("invites")
+          .update(payload)
+          .eq("id", editingGuestId);
+
+        // Fallback if column autre_eglise, pays, or piliers does not exist yet in database
+        if (error && (error.message.includes("autre_eglise") || error.message.includes("pays") || error.message.includes("piliers") || error.message.includes("souhait_suivi") || error.message.includes("rdv_pastoral") || error.message.includes("ne_decroche_pas") || error.message.includes("faux_numero") || error.code === "42703" || error.code === "PGRST204")) {
+          const fallbackPayload = { ...payload };
+          delete fallbackPayload.autre_eglise;
+          delete fallbackPayload.pays;
+          delete fallbackPayload.piliers_1;
+          delete fallbackPayload.piliers_2;
+          delete fallbackPayload.piliers_3;
+          delete fallbackPayload.piliers_4;
+          delete fallbackPayload.termine_12_piliers;
+          delete fallbackPayload.souhait_suivi;
+          delete fallbackPayload.rdv_pastoral;
+          delete fallbackPayload.ne_decroche_pas;
+          delete fallbackPayload.faux_numero;
+          const res = await supabase.from("invites").update(fallbackPayload).eq("id", editingGuestId);
+          error = res.error;
+        }
+
+        if (error) {
+          setFormError("Erreur lors de la modification : " + (actionRes.error || error.message));
+          return;
+        } else {
+          fetchGuests();
+          notify("La fiche a bien été enregistrée.");
+          setIsAddModalOpen(false);
+          setEditingGuestId(null);
+        }
       }
     } else {
       if (!userRoleClean.startsWith("integration_")) {
@@ -1333,9 +1373,12 @@ function InvitesPage() {
       role.includes("berger") ||
       role.includes("second") ||
       role.includes("responsable") ||
-      role.includes("coordonnateur")
+      role.includes("coordonnateur") ||
+      role === "admin" ||
+      role === "super_admin" ||
+      canDispatchAll
     );
-  }, [userRole]);
+  }, [userRole, canDispatchAll]);
 
   const guestsByFamily = useMemo(() => {
     const groups: Record<string, Guest[]> = {
@@ -1495,9 +1538,16 @@ function InvitesPage() {
   const handleUpdateFamily = async (guestId: string, newFamily: string) => {
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, famille_disciple: newFamily } : g));
     try {
-      const { error } = await supabase.from("invites").update({ famille_disciple: newFamily }).eq("id", guestId);
-      if (error) {
-        console.error("Error updating family assignment:", error);
+      const actionRes = await updateGuestRecordAction({
+        guestId,
+        churchId: churchId || undefined,
+        updates: { famille_disciple: newFamily }
+      });
+      if (!actionRes.success) {
+        const { error } = await supabase.from("invites").update({ famille_disciple: newFamily }).eq("id", guestId);
+        if (error) {
+          console.error("Error updating family assignment:", error);
+        }
       }
     } catch (e) {
       console.error("Exception updating family:", e);

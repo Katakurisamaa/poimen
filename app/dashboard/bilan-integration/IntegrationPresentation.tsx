@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, CalendarDays, Church, HeartHandshake, Maximize, Minimize, Moon, Phone, PhoneForwarded, PhoneOff, RotateCcw, SlidersHorizontal, Sun, Target, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Church, HeartHandshake, Maximize, Minimize, Moon, Phone, PhoneForwarded, PhoneOff, RotateCcw, SlidersHorizontal, Sun, Target, Users, X } from "lucide-react";
 import styles from "./IntegrationPresentation.module.css";
 
 type Totals = {
@@ -448,7 +448,7 @@ export default function IntegrationPresentation(props: Props) {
   const [theme, setTheme] = useState(() => typeof document !== "undefined" && document.documentElement.dataset.theme === "light" ? "light" : "dark");
   const [fullscreen, setFullscreen] = useState(isFullscreenActive);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filterMode, setFilterMode] = useState<"single" | "multi">("single");
+  const [filterMode, setFilterMode] = useState<"single" | "multi">((props.selectedMonths?.length ?? 0) > 1 ? "multi" : "single");
 
   const reduceMotion = useReducedMotion();
   const familyPages = Math.max(1, Math.ceil(props.families.length / FAMILIES_PER_SLIDE));
@@ -470,6 +470,11 @@ export default function IntegrationPresentation(props: Props) {
 
   const currentMonths = props.selectedMonths ?? EMPTY_MONTHS;
   const initialMonths = props.initialMonths ?? EMPTY_MONTHS;
+  const sortedMonths = [...currentMonths].sort((a, b) => a - b);
+  const selectedPeriod = sortedMonths.length === 12 ? "Toute l’année"
+    : sortedMonths.length === 0 ? "Aucun mois sélectionné"
+    : new Intl.ListFormat("fr", { style: "long", type: "conjunction" }).format(sortedMonths.map(month => MONTH_NAMES[month - 1]));
+  const selectedGuests = props.monthlyTrend.reduce((total, month) => total + (currentMonths.includes(month.monthNumber) ? month.received : 0), 0);
   const canReset = initialMonths.length > 0 && (
     initialMonths.length !== currentMonths.length ||
     !initialMonths.every(m => currentMonths.includes(m))
@@ -493,11 +498,13 @@ export default function IntegrationPresentation(props: Props) {
   const handleResetInitial = useCallback(() => {
     if (props.onSelectMonths && initialMonths.length > 0) {
       props.onSelectMonths(initialMonths);
+      setFilterMode(initialMonths.length > 1 ? "multi" : "single");
     }
   }, [initialMonths, props]);
 
   const handleSelectAllYear = useCallback(() => {
     if (props.onSelectMonths) {
+      setFilterMode("multi");
       props.onSelectMonths([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     }
   }, [props]);
@@ -579,6 +586,7 @@ export default function IntegrationPresentation(props: Props) {
         }
         return;
       }
+      if (isFilterOpen) return;
       if (event.key === "ArrowRight" || event.key === "PageDown" || (event.key === " " && !target.closest("button"))) {
         event.preventDefault(); navigate("next");
       } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
@@ -652,28 +660,24 @@ export default function IntegrationPresentation(props: Props) {
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             onClick={e => e.stopPropagation()}
             role="dialog"
-            aria-label="Filtre rapide de la période"
+            aria-labelledby="period-filter-title"
+            aria-describedby="period-filter-description"
           >
             <div className={styles.filterCardHeader}>
               <div className={styles.filterCardTitleGroup}>
                 <div className={styles.filterCardIconBadge}><SlidersHorizontal size={15} /></div>
                 <div>
-                  <h3 className={styles.filterCardTitle}>Période analysée · {props.year}</h3>
-                  <p className={styles.filterCardSubtitle}>
-                    {currentMonths.length === 1
-                      ? `Affichage ciblé : ${MONTH_NAMES[currentMonths[0] - 1]}`
-                      : `${currentMonths.length} mois sélectionnés`}
-                  </p>
+                  <h3 id="period-filter-title" className={styles.filterCardTitle}>Période analysée · {props.year}</h3>
+                  <p id="period-filter-description" className={styles.filterCardSubtitle}>Choisissez les mois à inclure dans votre bilan.</p>
                 </div>
               </div>
               <div className={styles.filterHeaderActions}>
-                <span className={styles.filterKeyHint} title="Touche clavier M pour afficher / masquer"><kbd>M</kbd></span>
                 <button
                   type="button"
                   className={styles.filterCloseBtn}
                   onClick={() => setIsFilterOpen(false)}
-                  aria-label="Fermer le filtre (Échap)"
-                  title="Fermer (Échap)"
+                  aria-label="Fermer le filtre"
+                  title="Fermer · Échap"
                 >
                   <X size={16} />
                 </button>
@@ -681,27 +685,33 @@ export default function IntegrationPresentation(props: Props) {
             </div>
 
             <div className={styles.filterModeBar}>
-              <span className={styles.filterModeLabel}>Mode :</span>
-              <div className={styles.filterModeButtons}>
+              <div className={styles.filterModeButtons} role="group" aria-label="Type de sélection">
                 <button
                   type="button"
                   className={filterMode === "single" ? styles.filterModeActive : ""}
+                  aria-pressed={filterMode === "single"}
                   onClick={() => setFilterMode("single")}
                 >
-                  1 seul mois (Focus)
+                  Un mois
                 </button>
                 <button
                   type="button"
                   className={filterMode === "multi" ? styles.filterModeActive : ""}
+                  aria-pressed={filterMode === "multi"}
                   onClick={() => setFilterMode("multi")}
                 >
-                  Plusieurs mois (Cumul)
+                  Plusieurs mois
                 </button>
               </div>
+              <p className={styles.filterModeDescription}>{filterMode === "single" ? "Sélectionnez un mois pour un bilan détaillé." : "Sélectionnez plusieurs mois pour un bilan cumulé."}</p>
             </div>
 
+            <div className={styles.filterCalendarHeader}>
+              <span>Mois de l’année</span>
+              <button type="button" className={styles.filterAllBtn} onClick={handleSelectAllYear} aria-pressed={currentMonths.length === 12}>Toute l’année</button>
+            </div>
             <div className={styles.filterMonthGrid}>
-              {MONTH_SHORT.map((name, idx) => {
+              {MONTH_NAMES.map((name, idx) => {
                 const monthNum = idx + 1;
                 const isSelected = currentMonths.includes(monthNum);
                 const trend = props.monthlyTrend.find(m => m.monthNumber === monthNum);
@@ -710,45 +720,43 @@ export default function IntegrationPresentation(props: Props) {
                   <button
                     key={monthNum}
                     type="button"
-                    className={`${styles.filterMonthBtn} ${isSelected ? styles.filterMonthSelected : ""} ${receivedCount > 0 ? styles.filterMonthHasData : ""}`}
+                    className={`${styles.filterMonthBtn} ${isSelected ? styles.filterMonthSelected : ""}`}
                     onClick={() => handleMonthClick(monthNum)}
                     aria-pressed={isSelected}
-                    title={`${MONTH_NAMES[idx]} ${props.year}${receivedCount > 0 ? ` · ${receivedCount} invité(s)` : " · Aucune donnée"}`}
+                    title={`${name} ${props.year} · ${trend ? quantity(receivedCount, "invité") : "Aucune donnée"}`}
                   >
+                    {isSelected && <Check size={12} className={styles.filterMonthCheck} aria-hidden="true" />}
                     <span className={styles.filterMonthName}>{name}</span>
                     <span className={styles.filterMonthMeta}>
-                      {receivedCount > 0 ? `${receivedCount} inv.` : "—"}
+                      {trend ? quantity(receivedCount, "invité") : "—"}
                     </span>
                   </button>
                 );
               })}
             </div>
 
+            <div className={styles.filterSelection} aria-live="polite" aria-atomic="true">
+              <CalendarDays size={18} aria-hidden="true" />
+              <div><span>Votre sélection</span><strong>{selectedPeriod}</strong></div>
+              <span className={styles.filterSelectionCount}>{quantity(selectedGuests, "invité")}</span>
+            </div>
             <div className={styles.filterCardFooter}>
-              {canReset && (
                 <button
                   type="button"
                   className={styles.filterResetBtn}
                   onClick={handleResetInitial}
+                  disabled={!canReset}
                   title="Revenir à la sélection initiale du conseil"
                 >
                   <RotateCcw size={13} />
-                  <span>Rétablir période initiale</span>
+                  <span>Réinitialiser</span>
                 </button>
-              )}
-              <button
-                type="button"
-                className={styles.filterAllBtn}
-                onClick={handleSelectAllYear}
-              >
-                Toute l’année
-              </button>
               <button
                 type="button"
                 className={styles.filterDoneBtn}
                 onClick={() => setIsFilterOpen(false)}
               >
-                Appliquer
+                Voir le bilan <ArrowRight size={16} aria-hidden="true" />
               </button>
             </div>
           </motion.div>

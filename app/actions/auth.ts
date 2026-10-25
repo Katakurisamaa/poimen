@@ -2542,4 +2542,129 @@ export async function completeGuestFollowupAction(params: {
   return { success: true };
 }
 
+export async function updateGuestRecordAction(params: {
+  guestId: string;
+  churchId?: string;
+  updates: Record<string, any>;
+}) {
+  if (!params.guestId) return { success: false, error: "Identifiant de l'invité manquant." };
+
+  const serverSupabase = await createServerClient();
+  const { data: { user }, error: authErr } = await serverSupabase.auth.getUser();
+  if (authErr || !user) return { success: false, error: "Non authentifié." };
+
+  const supabase = await getServiceSupabase();
+
+  // Retrieve existing guest record
+  const { data: existingGuest, error: fetchErr } = await supabase
+    .from("invites")
+    .select("*")
+    .eq("id", params.guestId)
+    .maybeSingle();
+
+  if (fetchErr || !existingGuest) {
+    return { success: false, error: "Invité introuvable." };
+  }
+
+  // Determine user authority (leaders or assigned counselor)
+  const { data: userContexts } = await supabase
+    .from("user_contexts")
+    .select("role, active, church_id, bergerie_id")
+    .eq("user_id", user.id)
+    .eq("active", true);
+
+  const { data: userProfile } = await supabase
+    .from("profiles")
+    .select("role, church_id, bergerie_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const userEmail = (user.email || "").toLowerCase().trim();
+  const isSuperAdmin = userEmail === SUPER_ADMIN_EMAIL.toLowerCase();
+
+  const allRoles: string[] = [
+    ...(userProfile?.role ? [userProfile.role.toLowerCase().trim()] : []),
+    ...(userContexts || []).map((c: any) => (c.role || "").toLowerCase().trim())
+  ];
+
+  const isLeader = isSuperAdmin || allRoles.some(r =>
+    r === "super_admin" ||
+    r === "admin" ||
+    r === "berger" ||
+    r.includes("second") ||
+    r.includes("responsable") ||
+    r.includes("coordonnateur")
+  );
+
+  const isAssignedCounselor = existingGuest.assigned_to === user.id;
+
+  if (!isLeader && !isAssignedCounselor) {
+    return { success: false, error: "Vous n'avez pas l'autorisation de modifier cette fiche." };
+  }
+
+  // Prepare clean updates
+  const cleanedUpdates = { ...params.updates };
+
+  // If the guest is unassigned (assigned_to IS NULL) and the caller is not assigning them:
+  // Postgres trigger rejects modifying follow-up columns on unassigned guests.
+  // If this update does not assign the guest, remove follow-up columns that are untouched or default false/null
+  if (!existingGuest.assigned_to && !cleanedUpdates.assigned_to) {
+    const followupCols = [
+      "appel_abouti", "groupe_whatsapp", "prevu_revenir", "est_revenu_culte",
+      "rencontre_effectuee", "visite_domicile", "cocktail_bienvenue", "pcnc",
+      "p101", "p201", "p301", "termine_pcnc", "bapteme_eau", "bapteme_esprit",
+      "veut_servir", "devenu_star", "interet_cdm", "integre_cdm", "priere_partage",
+      "dans_famille_disciple", "interet_bapteme", "commentaire_suivi", "attendance",
+      "piliers_1", "piliers_2", "piliers_3", "piliers_4", "termine_12_piliers",
+      "souhait_suivi", "rdv_pastoral", "ne_decroche_pas", "faux_numero"
+    ];
+
+    for (const col of followupCols) {
+      if (col in cleanedUpdates) {
+        const curVal = (existingGuest as any)[col];
+        const newVal = cleanedUpdates[col];
+        const isBasicallySame = curVal === newVal || (curVal == null && (newVal === "" || newVal === false || newVal == null));
+        if (isBasicallySame) {
+          delete cleanedUpdates[col];
+        }
+      }
+    }
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("invites")
+    .update(cleanedUpdates)
+    .eq("id", params.guestId)
+    .select()
+    .single();
+
+  if (updateError) {
+    console.warn("Primary updateGuestRecordAction failed:", updateError.message);
+    const fallbackUpdates = { ...cleanedUpdates };
+    const optionalCols = [
+      "autre_eglise", "pays", "piliers_1", "piliers_2", "piliers_3", "piliers_4",
+      "termine_12_piliers", "souhait_suivi", "rdv_pastoral", "ne_decroche_pas",
+      "faux_numero", "statut_affectation", "motif_retrait", "retire_par", "retire_at",
+      "raison_echec", "departement_star"
+    ];
+    for (const c of optionalCols) {
+      delete fallbackUpdates[c];
+    }
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("invites")
+      .update(fallbackUpdates)
+      .eq("id", params.guestId)
+      .select()
+      .single();
+
+    if (fallbackError) {
+      return { success: false, error: updateError.message || fallbackError.message };
+    }
+    return { success: true, data: fallbackData };
+  }
+
+  return { success: true, data: updated };
+}
+
+
 

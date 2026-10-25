@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { 
   autoAddLeaderToMembers, listIntegrationTeam, getIntegrationInvites, 
   assignCounselorToGuest, conserveGuestAction, retireGuestAction, completeGuestFollowupAction,
+  updateGuestRecordAction,
   type ConserveGuestPayload 
 } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
@@ -645,9 +646,19 @@ const selectedCounselorObj = useMemo(() => {
       ...(matchedBergerie ? { bergerie_id: matchedBergerie.id } : (isNone ? { bergerie_id: null } : {}))
     } : g));
 
-    const { error } = await supabase.from("invites").update(updatePayload).eq("id", guestId);
-    if (error) {
-      notify("Erreur lors de l'affectation à la famille : " + error.message);
+    const actionRes = await updateGuestRecordAction({
+      guestId,
+      churchId: churchId || undefined,
+      updates: updatePayload
+    });
+
+    if (!actionRes.success) {
+      const { error } = await supabase.from("invites").update(updatePayload).eq("id", guestId);
+      if (error) {
+        notify("Erreur lors de l'affectation à la famille : " + error.message);
+      } else {
+        notify(isNone ? "L'âme n'est plus affectée à aucune famille." : `L'âme a été affectée à ${newFamily}`);
+      }
     } else {
       notify(isNone ? "L'âme n'est plus affectée à aucune famille." : `L'âme a été affectée à ${newFamily}`);
     }
@@ -775,7 +786,15 @@ const selectedCounselorObj = useMemo(() => {
 
     const newAttendance = { ...guest.attendance, [day]: !guest.attendance[day] };
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, attendance: newAttendance } : g));
-    await supabase.from("invites").update({ attendance: newAttendance }).eq("id", guestId);
+
+    const actionRes = await updateGuestRecordAction({
+      guestId,
+      churchId: churchId || undefined,
+      updates: { attendance: newAttendance }
+    });
+    if (!actionRes.success) {
+      await supabase.from("invites").update({ attendance: newAttendance }).eq("id", guestId);
+    }
   };
 
   const executeGuestRetirement = async (guest: Guest, payload: RetirePayload) => {
@@ -833,14 +852,21 @@ const selectedCounselorObj = useMemo(() => {
     setIsSavingCdmHost(true);
     setCdmHostError("");
     try {
-      const { data, error } = await supabase
-        .from("invites")
-        .update({ integre_cdm: true, prenom_hote_cdm: firstName })
-        .eq("id", guestId)
-        .select("id")
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error("La fiche n’a pas confirmé l’enregistrement.");
+      const actionRes = await updateGuestRecordAction({
+        guestId,
+        churchId: churchId || undefined,
+        updates: { integre_cdm: true, prenom_hote_cdm: firstName }
+      });
+      if (!actionRes.success) {
+        const { data, error } = await supabase
+          .from("invites")
+          .update({ integre_cdm: true, prenom_hote_cdm: firstName })
+          .eq("id", guestId)
+          .select("id")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error("La fiche n’a pas confirmé l’enregistrement.");
+      }
 
       setGuests(prev => prev.map(current => current.id === guestId
         ? { ...current, integreCDM: true, cdmHostFirstName: firstName }
@@ -876,14 +902,21 @@ const selectedCounselorObj = useMemo(() => {
     setIsSavingStarDepartment(true);
     setStarDepartmentError("");
     try {
-      const { data, error } = await supabase
-        .from("invites")
-        .update({ devenu_star: true, departement_star: department })
-        .eq("id", guestId)
-        .select("id")
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error("La fiche n’a pas confirmé l’enregistrement.");
+      const actionRes = await updateGuestRecordAction({
+        guestId,
+        churchId: churchId || undefined,
+        updates: { devenu_star: true, departement_star: department }
+      });
+      if (!actionRes.success) {
+        const { data, error } = await supabase
+          .from("invites")
+          .update({ devenu_star: true, departement_star: department })
+          .eq("id", guestId)
+          .select("id")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error("La fiche n’a pas confirmé l’enregistrement.");
+      }
 
       setGuests(prev => prev.map(current => current.id === guestId
         ? { ...current, devenuStar: true, departementStar: department }
@@ -1019,15 +1052,22 @@ const selectedCounselorObj = useMemo(() => {
       updateObj.bergerie_id = null;
     }
     try {
-      const { error } = await supabase.from("invites").update(updateObj).eq("id", guestId);
-      if (error) {
-        console.warn("Champs Supabase non encore disponible ou erreur:", error.message);
-        // Fallback résilient : si la colonne dédiée n'existe pas encore dans la table SQL,
-        // enregistrer dans commentaire_suivi pour garantir la persistance immédiate
-        if (dbExtraUpdates.commentaire_suivi) {
-          const fallbackObj: Record<string, any> = { commentaire_suivi: dbExtraUpdates.commentaire_suivi };
-          if (dbExtraUpdates.appel_abouti !== undefined) fallbackObj.appel_abouti = dbExtraUpdates.appel_abouti;
-          await supabase.from("invites").update(fallbackObj).eq("id", guestId);
+      const actionRes = await updateGuestRecordAction({
+        guestId,
+        churchId: churchId || undefined,
+        updates: updateObj
+      });
+      if (!actionRes.success) {
+        const { error } = await supabase.from("invites").update(updateObj).eq("id", guestId);
+        if (error) {
+          console.warn("Champs Supabase non encore disponible ou erreur:", error.message);
+          // Fallback résilient : si la colonne dédiée n'existe pas encore dans la table SQL,
+          // enregistrer dans commentaire_suivi pour garantir la persistance immédiate
+          if (dbExtraUpdates.commentaire_suivi) {
+            const fallbackObj: Record<string, any> = { commentaire_suivi: dbExtraUpdates.commentaire_suivi };
+            if (dbExtraUpdates.appel_abouti !== undefined) fallbackObj.appel_abouti = dbExtraUpdates.appel_abouti;
+            await supabase.from("invites").update(fallbackObj).eq("id", guestId);
+          }
         }
       }
     } catch (err) {
@@ -1051,6 +1091,7 @@ const selectedCounselorObj = useMemo(() => {
     if (!familyId && !churchId) return;
 
     const existingGuest = editingGuestId ? guests.find(g => g.id === editingGuestId) : null;
+    const isUnassigned = Boolean(existingGuest && !existingGuest.assigned_to);
 
     const payload: any = {
       civility: newGuest.civility,
@@ -1069,28 +1110,32 @@ const selectedCounselorObj = useMemo(() => {
       responsible: newGuest.responsible,
       a_ete_invite: newGuest.aEteInvite,
       par_qui: newGuest.aEteInvite ? newGuest.parQui : null,
-      bapteme_eau: newGuest.baptemeEau,
-      piliers_1: newGuest.piliers1 || false,
-      piliers_2: newGuest.piliers2 || false,
-      piliers_3: newGuest.piliers3 || false,
-      piliers_4: newGuest.piliers4 || false,
-      termine_12_piliers: newGuest.termine12Piliers || false,
-      souhait_suivi: newGuest.souhaitSuivi || false,
-      rdv_pastoral: newGuest.rdvPastoral || false,
-      ne_decroche_pas: newGuest.neDecrochePas || false,
-      faux_numero: newGuest.fauxNumero || false,
-      interet_formation: newGuest.interetFormation,
-      interet_cdm: newGuest.interetCDM,
-      integre_cdm: newGuest.integreCDM,
-      priere_partage: newGuest.prierePartage,
-      dans_famille_disciple: !editingGuestId ? false : (existingGuest ? existingGuest.dansFamilleDisciple : false),
-      interet_bapteme: newGuest.baptemeEau === false && newGuest.interetBapteme === true,
       commentaire: newGuest.commentaire,
-      commentaire_suivi: newGuest.commentaireSuivi || "",
       famille_disciple: !editingGuestId ? "AUCUNE" : (existingGuest ? (existingGuest.famille_disciple || "AUCUNE") : "AUCUNE"),
       etat_civil: newGuest.etatCivil || "Célibataire",
       souhaite_etre_contacte: newGuest.souhaiteEtreContacte === true
     };
+
+    // Pour les invités déjà assignés ou en cours d'assignation, inclure les informations de suivi
+    if (!isUnassigned || newGuest.assigned_to) {
+      payload.bapteme_eau = newGuest.baptemeEau;
+      payload.piliers_1 = newGuest.piliers1 || false;
+      payload.piliers_2 = newGuest.piliers2 || false;
+      payload.piliers_3 = newGuest.piliers3 || false;
+      payload.piliers_4 = newGuest.piliers4 || false;
+      payload.termine_12_piliers = newGuest.termine12Piliers || false;
+      payload.souhait_suivi = newGuest.souhaitSuivi || false;
+      payload.rdv_pastoral = newGuest.rdvPastoral || false;
+      payload.ne_decroche_pas = newGuest.neDecrochePas || false;
+      payload.faux_numero = newGuest.fauxNumero || false;
+      payload.interet_formation = newGuest.interetFormation;
+      payload.interet_cdm = newGuest.interetCDM;
+      payload.integre_cdm = newGuest.integreCDM;
+      payload.priere_partage = newGuest.prierePartage;
+      payload.dans_famille_disciple = !editingGuestId ? false : (existingGuest ? existingGuest.dansFamilleDisciple : false);
+      payload.interet_bapteme = newGuest.baptemeEau === false && newGuest.interetBapteme === true;
+      payload.commentaire_suivi = newGuest.commentaireSuivi || "";
+    }
 
     if (isIntegrationOrCounselor) {
       payload.church_id = churchId;
@@ -1105,32 +1150,45 @@ const selectedCounselorObj = useMemo(() => {
     }
 
     if (editingGuestId) {
-      let { error } = await supabase
-        .from("invites")
-        .update(payload)
-        .eq("id", editingGuestId);
+      const actionRes = await updateGuestRecordAction({
+        guestId: editingGuestId,
+        churchId: churchId || undefined,
+        updates: payload
+      });
 
-      if (error && (error.message.includes("autre_eglise") || error.message.includes("pays") || error.message.includes("piliers") || error.code === "42703" || error.code === "PGRST204")) {
-        const fallbackPayload = { ...payload };
-        delete fallbackPayload.autre_eglise;
-        delete fallbackPayload.pays;
-        delete fallbackPayload.piliers_1;
-        delete fallbackPayload.piliers_2;
-        delete fallbackPayload.piliers_3;
-        delete fallbackPayload.piliers_4;
-        delete fallbackPayload.termine_12_piliers;
-        const res = await supabase.from("invites").update(fallbackPayload).eq("id", editingGuestId);
-        error = res.error;
-      }
-
-      if (error) {
-        setFormError("Erreur lors de la modification : " + error.message);
-        return;
-      } else {
+      if (actionRes.success) {
         fetchGuests();
         notify("La fiche a bien été enregistrée.");
         setIsAddModalOpen(false);
         setEditingGuestId(null);
+      } else {
+        let { error } = await supabase
+          .from("invites")
+          .update(payload)
+          .eq("id", editingGuestId);
+
+        if (error && (error.message.includes("autre_eglise") || error.message.includes("pays") || error.message.includes("piliers") || error.code === "42703" || error.code === "PGRST204")) {
+          const fallbackPayload = { ...payload };
+          delete fallbackPayload.autre_eglise;
+          delete fallbackPayload.pays;
+          delete fallbackPayload.piliers_1;
+          delete fallbackPayload.piliers_2;
+          delete fallbackPayload.piliers_3;
+          delete fallbackPayload.piliers_4;
+          delete fallbackPayload.termine_12_piliers;
+          const res = await supabase.from("invites").update(fallbackPayload).eq("id", editingGuestId);
+          error = res.error;
+        }
+
+        if (error) {
+          setFormError("Erreur lors de la modification : " + (actionRes.error || error.message));
+          return;
+        } else {
+          fetchGuests();
+          notify("La fiche a bien été enregistrée.");
+          setIsAddModalOpen(false);
+          setEditingGuestId(null);
+        }
       }
     } else {
       payload.commentaire_suivi = "";
@@ -2441,9 +2499,12 @@ const selectedCounselorObj = useMemo(() => {
               const rateCulte = calculateRate(guest, sundays);
               const fidelised = isFidelise(guest);
               const isExpanded = expandedId === guest.id;
-              const isRestricted = isIntegrationOrCounselor
-                ? guest.assigned_to !== userId
-                : guest.responsible !== userName;
+              const isLeader = Boolean(isAuthorizedLeader || isIntegrationLeader || canDispatchAll);
+              const isRestricted = isLeader
+                ? false
+                : isIntegrationOrCounselor
+                  ? guest.assigned_to !== userId
+                  : guest.responsible !== userName;
 
               return (
                 <div key={guest.id} className="glass glass-flush soul-card" data-expanded={isExpanded} style={{ borderLeft: fidelised ? "4px solid var(--gold)" : "1px solid var(--border)", transition: "all 0.3s ease" }}>
@@ -2690,9 +2751,16 @@ const selectedCounselorObj = useMemo(() => {
                                       const tag = val ? `[RAISON_ECHEC: ${val}]` : "";
                                       const fullComment = [tag, baseComment].filter(Boolean).join("\n").trim();
                                       try {
-                                        const { error } = await supabase.from("invites").update({ raison_echec: val, commentaire_suivi: fullComment }).eq("id", guest.id);
-                                        if (error) {
-                                          await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
+                                        const actionRes = await updateGuestRecordAction({
+                                          guestId: guest.id,
+                                          churchId: churchId || undefined,
+                                          updates: { raison_echec: val, commentaire_suivi: fullComment }
+                                        });
+                                        if (!actionRes.success) {
+                                          const { error } = await supabase.from("invites").update({ raison_echec: val, commentaire_suivi: fullComment }).eq("id", guest.id);
+                                          if (error) {
+                                            await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
+                                          }
                                         }
                                       } catch {}
                                     }}
@@ -2897,7 +2965,14 @@ const selectedCounselorObj = useMemo(() => {
                                 setGuests(prev => prev.map(g => g.id === guest.id ? {...g, commentaireSuivi: val} : g));
                                 const tag = guest.raisonEchec ? `[RAISON_ECHEC: ${guest.raisonEchec}]` : "";
                                 const fullComment = [tag, val].filter(Boolean).join("\n").trim();
-                                await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
+                                const actionRes = await updateGuestRecordAction({
+                                  guestId: guest.id,
+                                  churchId: churchId || undefined,
+                                  updates: { commentaire_suivi: fullComment }
+                                });
+                                if (!actionRes.success) {
+                                  await supabase.from("invites").update({ commentaire_suivi: fullComment }).eq("id", guest.id);
+                                }
                               }}
                             />
                           </div>
