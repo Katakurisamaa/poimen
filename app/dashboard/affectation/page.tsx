@@ -7,7 +7,7 @@ import {
   Calendar, CalendarDays, MapPin, Mail, Phone, User as UserIcon,
   ChevronDown, ChevronUp, MoreHorizontal, Loader2, ListChecks, BarChart3,
   LayoutGrid, Table as TableIcon, RotateCcw, Eye, FileText,
-  Clock, ShieldCheck, UserCheck, UserMinus, Users
+  Clock, ShieldCheck, UserCheck, UserMinus, Users, MessageSquare
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { 
@@ -38,6 +38,7 @@ import GuestArrivalDetailsModal from "@/components/experience/GuestArrivalDetail
 import QualifyGuestModal from "@/components/experience/QualifyGuestModal";
 import RetireGuestModal, { type RetirePayload } from "@/components/experience/RetireGuestModal";
 import TriageListView from "@/components/experience/TriageListView";
+import CounselorCrWhatsAppModal from "@/components/experience/CounselorCrWhatsAppModal";
 
 const formatDisplayDate = (d?: string) => {
   if (!d) return "—";
@@ -313,6 +314,13 @@ function AffectationPage() {
   const [isArrivalDateModalOpen, setIsArrivalDateModalOpen] = useState(false);
   const [arrivalMonth, setArrivalMonth] = useState<string>("all");
   const [arrivalYear, setArrivalYear] = useState<string>("all");
+  const [crWhatsAppGuest, setCrWhatsAppGuest] = useState<Guest | null>(null);
+  const [isCrWhatsAppOpen, setIsCrWhatsAppOpen] = useState(false);
+
+  const handleOpenCrWhatsApp = (guest?: Guest | null) => {
+    setCrWhatsAppGuest(guest || null);
+    setIsCrWhatsAppOpen(true);
+  };
   const [localChurchFilter, setLocalChurchFilter] = useState<string>("all");
   const [familyFilter, setFamilyFilter] = useState<string>("all");
   const [selectedCounselorFilter, setSelectedCounselorFilter] = useState<string>("all");
@@ -804,7 +812,7 @@ const selectedCounselorObj = useMemo(() => {
     }
     const finalAppelAbouti = typeof payload.appelAbouti === "boolean"
       ? payload.appelAbouti
-      : !["ne_decroche_pas", "faux_numero"].includes(payload.motif) && ["autre_eglise", "pas_interesse", "demenagement"].includes(payload.motif);
+      : !["ne_decroche_pas", "faux_numero", "pas_de_numero"].includes(payload.motif) && ["autre_eglise", "pas_interesse", "demenagement"].includes(payload.motif);
 
     const result = await retireGuestAction({
       churchId,
@@ -1640,6 +1648,23 @@ const selectedCounselorObj = useMemo(() => {
           commentaireSuivi: payload.commentaireSuivi || g.commentaireSuivi
         };
       }));
+      setCrWhatsAppGuest({
+        ...qualifyingGuest,
+        statutAffectation: 'conserve',
+        appelAbouti: true,
+        prevuRevenir: Boolean(payload.prevuRevenir),
+        estRevenuCulte: Boolean(payload.estRevenuCulte),
+        groupeWhatsapp: Boolean(payload.groupeWhatsapp),
+        interetFormation: Boolean(payload.interetFormation),
+        interetCDM: Boolean(payload.interetCDM),
+        piliers1: Boolean(payload.piliers1),
+        souhaitSuivi: Boolean(payload.souhaitSuivi),
+        rdvPastoral: Boolean(payload.rdvPastoral),
+        visiteDomicile: Boolean(payload.visiteDomicile),
+        aps: Boolean(payload.aps),
+        commentaireSuivi: payload.commentaireSuivi || qualifyingGuest.commentaireSuivi
+      });
+      setIsCrWhatsAppOpen(true);
     } else {
       notify("Erreur lors de la qualification : " + res.error);
     }
@@ -1815,6 +1840,17 @@ const selectedCounselorObj = useMemo(() => {
             </button>
           )}
           </div></details>}
+          {isIntegrationOrCounselor && (
+            <button 
+              type="button" 
+              className="btn btn-outline btn-sm" 
+              style={{ borderColor: "rgba(37, 211, 102, 0.45)", color: "#25d366", display: "inline-flex", alignItems: "center", gap: 6 }}
+              onClick={() => handleOpenCrWhatsApp(null)}
+              title="Générer mon compte-rendu WhatsApp (individuel ou groupé)"
+            >
+              <MessageSquare size={14} /> Mon CR WhatsApp
+            </button>
+          )}
           {isIntegrationOrCounselor && (
             <button className="btn btn-primary btn-sm" onClick={() => {
               setNewGuest({ ...emptyGuestRegistration(), responsible: userName || "" });
@@ -2634,6 +2670,25 @@ const selectedCounselorObj = useMemo(() => {
                               <Eye size={14} /> Fiche d'arrivée complète
                             </button>
 
+                            <button 
+                              type="button" 
+                              className="btn btn-subtle btn-sm" 
+                              style={{ 
+                                color: "#25d366", 
+                                borderColor: "rgba(37, 211, 102, 0.3)", 
+                                background: "rgba(37, 211, 102, 0.08)", 
+                                display: "inline-flex", 
+                                alignItems: "center", 
+                                gap: 6, 
+                                padding: "6px 12px", 
+                                fontSize: 12 
+                              }} 
+                              onClick={() => handleOpenCrWhatsApp(guest)} 
+                              title="Générer le CR d'appel WhatsApp"
+                            >
+                              <MessageSquare size={14} /> CR WhatsApp
+                            </button>
+
                             {currentView === 'my_souls' ? (
                               <button 
                                 type="button"
@@ -3067,6 +3122,16 @@ const selectedCounselorObj = useMemo(() => {
         onClose={() => setRetiringGuest(null)}
         guest={retiringGuest}
         onConfirm={handleConfirmRetire}
+      />
+
+      <CounselorCrWhatsAppModal
+        isOpen={isCrWhatsAppOpen}
+        onClose={() => {
+          setIsCrWhatsAppOpen(false);
+          setCrWhatsAppGuest(null);
+        }}
+        initialGuest={crWhatsAppGuest}
+        counselorGuests={myPendingGuests.concat(guests.filter(g => g.assigned_to === userId))}
       />
     </div>
   );

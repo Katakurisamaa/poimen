@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { 
   Phone, Mail, Calendar, User, Eye, UserCheck, UserMinus, 
   AlertTriangle, CheckCircle2, ShieldCheck, Clock, UserPlus, PhoneCall,
-  Home, Trash2, Search, X, MoreHorizontal, Edit3
+  Home, Trash2, Search, X, MoreHorizontal, Edit3, MessageSquare
 } from "lucide-react";
 import CustomSelect from "@/components/ui/CustomSelect";
 import styles from "./TriageListView.module.css";
@@ -24,6 +24,7 @@ interface TriageListViewProps {
   onOpenVoirPlus: (guest: any) => void;
   onOpenConserver?: (guest: any) => void;
   onOpenRetirer?: (guest: any) => void;
+  onOpenCrWhatsApp?: (guest: any) => void;
   onDeleteGuest?: (guestId: string) => Promise<void>;
   onEditGuest?: (guest: any) => void;
   isLeader?: boolean;
@@ -45,6 +46,7 @@ const formatDisplayDate = (d?: string) => {
 const MOTIF_LABELS: Record<string, string> = {
   ne_decroche_pas: "Ne décroche pas",
   faux_numero: "Faux numéro",
+  pas_de_numero: "Pas de numéro",
   autre_eglise: "Autre église",
   pas_interesse: "Pas intéressé(e)",
   demenagement: "Déménagement",
@@ -58,7 +60,7 @@ function parseRetiredComment(raw?: string): { humanNote: string; lastCall: strin
   // 1. Strip technical bracket metadata tags [TAG:value] or [TAG]
   const text = raw
     .replace(/\[[A-Za-z0-9_]+:[^\]]*\]/gi, " ")
-    .replace(/\[(?:FAUX_NUMERO|NE_DECROCHE_PAS)\]/gi, " ")
+    .replace(/\[(?:FAUX_NUMERO|PAS_DE_NUMERO|NE_DECROCHE_PAS)\]/gi, " ")
     .replace(/Retir[ée] directement depuis l'onglet Mes [âa]mes/gi, " ")
     .trim();
 
@@ -97,6 +99,7 @@ export default function TriageListView({
   onOpenVoirPlus,
   onOpenConserver,
   onOpenRetirer,
+  onOpenCrWhatsApp,
   onDeleteGuest,
   onEditGuest,
   isLeader = false
@@ -392,17 +395,17 @@ export default function TriageListView({
                       type="button"
                       className={styles.btnConserver}
                       onClick={() => onOpenConserver && onOpenConserver(g)}
-                      title="Confirmer l'appel et conserver dans Mes âmes"
+                      title="Prendre cette âme en suivi (transférer dans Mes âmes)"
                     >
-                      <UserCheck size={14} /> Conserver
+                      <UserCheck size={14} /> Prendre en suivi
                     </button>
                     <button
                       type="button"
                       className={styles.btnRetirer}
                       onClick={() => onOpenRetirer && onOpenRetirer(g)}
-                      title="Retirer avec rapport vers l'onglet Sans suite"
+                      title="Classer sans suite (transférer dans l’onglet Sans suite)"
                     >
-                      <UserMinus size={14} /> Retirer
+                      <UserMinus size={14} /> Sans suite
                     </button>
                     <button
                       type="button"
@@ -442,14 +445,26 @@ export default function TriageListView({
                 )}
 
                 {mode === "completed" && (
-                  <button
-                    type="button"
-                    className={styles.btnVoirPlus}
-                    onClick={() => onOpenVoirPlus(g)}
-                    title="Voir les informations saisies au formulaire"
-                  >
-                    <Eye size={14} /> Voir la fiche
-                  </button>
+                  <>
+                    {onOpenCrWhatsApp && (
+                      <button
+                        type="button"
+                        className={styles.btnWhatsAppCr}
+                        onClick={() => onOpenCrWhatsApp(g)}
+                        title="Générer le CR d'appel WhatsApp"
+                      >
+                        <MessageSquare size={14} /> CR WhatsApp
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={styles.btnVoirPlus}
+                      onClick={() => onOpenVoirPlus(g)}
+                      title="Voir les informations saisies au formulaire"
+                    >
+                      <Eye size={14} /> Voir la fiche
+                    </button>
+                  </>
                 )}
 
                 {mode === "all_guests" && (

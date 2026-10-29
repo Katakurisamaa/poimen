@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { 
   X, UserMinus, AlertTriangle, PhoneOff, PhoneForwarded, 
-  Church, ShieldAlert, MapPin, MessageSquare, Loader2, PhoneCall, Check
+  Church, ShieldAlert, MessageSquare, Loader2, PhoneCall, Check
 } from "lucide-react";
 import styles from "./RetireGuestModal.module.css";
 
@@ -33,9 +33,9 @@ interface Props {
 const MOTIFS = [
   { id: "ne_decroche_pas", label: "Ne décroche pas suite à plusieurs relances", icon: PhoneForwarded },
   { id: "faux_numero", label: "Faux numéro / Numéro erroné", icon: PhoneOff },
+  { id: "pas_de_numero", label: "Pas de numéro de téléphone", icon: PhoneOff },
   { id: "autre_eglise", label: "Fréquente déjà une autre église", icon: Church },
   { id: "pas_interesse", label: "Ne souhaite pas être contacté(e) / suivi(e)", icon: ShieldAlert },
-  { id: "demenagement", label: "A déménagé / Hors secteur géographique", icon: MapPin },
   { id: "autre", label: "Autre raison", icon: AlertTriangle }
 ];
 
@@ -50,16 +50,17 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
 
   useEffect(() => {
     if (!isOpen || !guest) return;
-    setSelectedMotif("ne_decroche_pas");
+    const hasPhone = Boolean(guest.phone && guest.phone.trim());
+    setSelectedMotif(hasPhone ? "ne_decroche_pas" : "pas_de_numero");
     setAutreEglise("");
     setCommentaire("");
-    setAppelAbouti(guest.appelAbouti ? true : false);
+    setAppelAbouti(hasPhone && guest.appelAbouti ? true : false);
     setErrorMsg("");
   }, [isOpen, guest]);
 
   const handleSelectMotif = (motifId: string) => {
     setSelectedMotif(motifId);
-    if (motifId === "ne_decroche_pas" || motifId === "faux_numero") {
+    if (motifId === "ne_decroche_pas" || motifId === "faux_numero" || motifId === "pas_de_numero") {
       setAppelAbouti(false);
     } else if (motifId === "autre_eglise" || motifId === "pas_interesse" || motifId === "demenagement") {
       setAppelAbouti(true);
@@ -127,10 +128,10 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
         <div className={styles.header}>
           <div className={styles.titleArea}>
             <span className={styles.badgeCategory}>
-              <UserMinus size={13} /> Rapport de clôture / Retrait
+              <UserMinus size={13} /> Rapport · Sans suite
             </span>
             <h2 id="retire-modal-title" className={styles.personName}>
-              Retirer {guest.civility} {guest.firstName} {guest.lastName}
+              Classer sans suite {guest.civility} {guest.firstName} {guest.lastName}
             </h2>
           </div>
           <button 
@@ -147,7 +148,7 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
         <form onSubmit={handleSubmit} className={styles.formWrapper}>
           <div className={styles.content}>
             <div className={styles.warningBox}>
-            Cette personne sera retirée de vos affectations et transférée dans l&apos;onglet <strong>Sans suite</strong>. Elle restera conservée dans l&apos;annuaire général des invités de l&apos;église.
+            Cette personne sera transférée dans l&apos;onglet <strong>Sans suite</strong> avec le motif renseigné. Elle restera consultable dans l&apos;annuaire général des invités de l&apos;église.
           </div>
 
           {/* Sélection du motif */}
@@ -279,7 +280,7 @@ export default function RetireGuestModal({ isOpen, onClose, guest, onConfirm }: 
                 </>
               ) : (
                 <>
-                  <UserMinus size={15} /> Confirmer le retrait
+                  <UserMinus size={15} /> Confirmer et classer sans suite
                 </>
               )}
             </button>

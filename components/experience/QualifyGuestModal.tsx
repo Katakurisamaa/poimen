@@ -125,7 +125,7 @@ export default function QualifyGuestModal({ isOpen, onClose, guest, onConfirm }:
               <UserCheck size={13} /> Premier contact abouti
             </span>
             <h2 id="qualify-modal-title" className={styles.personName}>
-              Conserver {guest.civility} {guest.firstName} {guest.lastName}
+              Prendre en suivi {guest.civility} {guest.firstName} {guest.lastName}
             </h2>
           </div>
           <button 
@@ -141,7 +141,7 @@ export default function QualifyGuestModal({ isOpen, onClose, guest, onConfirm }:
 
         <form onSubmit={handleSubmit} className={styles.content}>
           <div className={styles.introNote}>
-            En conservant cette personne, l&apos;appel est marqué comme <strong>abouti</strong> et elle rejoint directement votre suivi <strong>Mes âmes</strong>. Cochez les informations relevées lors de ce premier échange :
+            En validant la prise en suivi, l&apos;appel est marqué comme <strong>abouti</strong> et cette personne rejoint directement votre suivi <strong>Mes âmes</strong>. Cochez les informations relevées lors de ce premier échange :
           </div>
 
           {/* Section Présence & Culte */}

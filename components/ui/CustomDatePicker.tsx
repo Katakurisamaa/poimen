@@ -2,13 +2,74 @@
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Check } from "lucide-react";
+import { 
+  Calendar as CalendarIcon, 
+  ChevronLeft, 
+  ChevronRight, 
+  ChevronDown, 
+  X, 
+  Check 
+} from "lucide-react";
 import styles from "./CustomDatePicker.module.css";
 
 const calendarCopy = {
-  fr: { placeholder: "Sélectionner une date", clear: "Effacer la sélection", previous: "Mois précédent", next: "Mois suivant", month: "Sélectionner le mois", year: "Sélectionner l’année", multiple: "Sélection multiple", selected: "dates sélectionnées", sundays: "Dimanches", today: "Aujourd’hui", erase: "Effacer", apply: "Valider", sunday: "Dimanche prochain", all: "Toutes les dates" },
-  en: { placeholder: "Choose a date", clear: "Clear selection", previous: "Previous month", next: "Next month", month: "Choose month", year: "Choose year", multiple: "Multiple selection", selected: "selected dates", sundays: "Sundays", today: "Today", erase: "Clear", apply: "Apply", sunday: "Next Sunday", all: "All dates" },
-  nl: { placeholder: "Kies een datum", clear: "Selectie wissen", previous: "Vorige maand", next: "Volgende maand", month: "Kies een maand", year: "Kies een jaar", multiple: "Meerdere datums", selected: "geselecteerde datums", sundays: "Zondagen", today: "Vandaag", erase: "Wissen", apply: "Bevestigen", sunday: "Volgende zondag", all: "Alle datums" },
+  fr: {
+    placeholder: "Sélectionner une date",
+    clear: "Effacer la sélection",
+    previous: "Mois précédent",
+    next: "Mois suivant",
+    month: "Sélectionner le mois",
+    year: "Sélectionner l’année",
+    multiple: "Sélection multiple",
+    selected: "dates sélectionnées",
+    sundays: "Dimanches",
+    today: "Aujourd’hui",
+    lastSunday: "Dimanche dernier",
+    sunday: "Dimanche prochain",
+    erase: "Effacer",
+    apply: "Valider",
+    all: "Toutes les dates",
+    chooseMonth: "Choisir le mois",
+    backToCalendar: "← Retour aux jours"
+  },
+  en: {
+    placeholder: "Choose a date",
+    clear: "Clear selection",
+    previous: "Previous month",
+    next: "Next month",
+    month: "Choose month",
+    year: "Choose year",
+    multiple: "Multiple selection",
+    selected: "selected dates",
+    sundays: "Sundays",
+    today: "Today",
+    lastSunday: "Last Sunday",
+    sunday: "Next Sunday",
+    erase: "Clear",
+    apply: "Apply",
+    all: "All dates",
+    chooseMonth: "Choose month",
+    backToCalendar: "← Back to days"
+  },
+  nl: {
+    placeholder: "Kies een datum",
+    clear: "Selectie wissen",
+    previous: "Vorige maand",
+    next: "Volgende maand",
+    month: "Kies een maand",
+    year: "Kies een jaar",
+    multiple: "Meerdere datums",
+    selected: "geselecteerde datums",
+    sundays: "Zondagen",
+    today: "Vandaag",
+    lastSunday: "Vorige zondag",
+    sunday: "Volgende zondag",
+    erase: "Wissen",
+    apply: "Bevestigen",
+    all: "Alle datums",
+    chooseMonth: "Kies een maand",
+    backToCalendar: "← Terug naar dagen"
+  },
 };
 
 export interface CustomDatePickerProps {
@@ -44,13 +105,23 @@ export default function CustomDatePicker({
 }: CustomDatePickerProps) {
   const copy = calendarCopy[locale];
   const resolvedPlaceholder = placeholder ?? copy.placeholder;
-  const months = useMemo(() => Array.from({ length: 12 }, (_, index) => new Intl.DateTimeFormat(locale, { month: "long" }).format(new Date(2024, index, 1))), [locale]);
-  const weekdays = useMemo(() => Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, index + 1))), [locale]);
+  const months = useMemo(
+    () => Array.from({ length: 12 }, (_, index) => new Intl.DateTimeFormat(locale, { month: "long" }).format(new Date(2024, index, 1))),
+    [locale]
+  );
+  const weekdays = useMemo(
+    () => Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, index + 1))),
+    [locale]
+  );
+
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const wrapperRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Sub-view: "days" (calendar) | "months" (12-month grid) | "years" (12-year grid)
+  const [pickerView, setPickerView] = useState<"days" | "months" | "years">("days");
 
   // Normalize selected dates list
   const selectedDates: string[] = useMemo(() => {
@@ -78,12 +149,14 @@ export default function CustomDatePicker({
   const today = useMemo(() => new Date(), []);
   const [viewYear, setViewYear] = useState<number>(() => parsedDate?.getFullYear() || today.getFullYear());
   const [viewMonth, setViewMonth] = useState<number>(() => parsedDate ? parsedDate.getMonth() : today.getMonth());
+  const [yearPage, setYearPage] = useState<number>(() => Math.floor((parsedDate?.getFullYear() || today.getFullYear()) / 12) * 12);
 
   // Keep view aligned when value changes externally
   useEffect(() => {
     if (parsedDate) {
       setViewYear(parsedDate.getFullYear());
       setViewMonth(parsedDate.getMonth());
+      setYearPage(Math.floor(parsedDate.getFullYear() / 12) * 12);
     }
   }, [parsedDate]);
 
@@ -99,20 +172,32 @@ export default function CustomDatePicker({
   const updatePosition = () => {
     if (wrapperRef.current && !isMobile) {
       const rect = wrapperRef.current.getBoundingClientRect();
-      const popoverWidth = 290;
+      const popoverWidth = 320;
+      const popoverHeight = 380;
       let left = rect.left;
+      let top = rect.bottom + 8;
+
+      // Adjust if overflowing viewport right
       if (left + popoverWidth > window.innerWidth - 12) {
         left = window.innerWidth - popoverWidth - 12;
       }
-      setPopoverPos({
-        top: rect.bottom + 6,
-        left: Math.max(12, left),
-      });
+      if (left < 12) left = 12;
+
+      // Adjust if overflowing viewport bottom
+      if (top + popoverHeight > window.innerHeight - 12) {
+        const altTop = rect.top - popoverHeight - 8;
+        if (altTop > 12) {
+          top = altTop;
+        }
+      }
+
+      setPopoverPos({ top, left });
     }
   };
 
   useEffect(() => {
     if (open) {
+      setPickerView("days");
       updatePosition();
       window.addEventListener("scroll", updatePosition, true);
       window.addEventListener("resize", updatePosition);
@@ -123,19 +208,18 @@ export default function CustomDatePicker({
     }
   }, [open, isMobile]);
 
-  // Outside click & escape listeners
+  // Outside click & ESC dismissal
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
     const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
       if (
         wrapperRef.current &&
-        !wrapperRef.current.contains(target) &&
+        !wrapperRef.current.contains(e.target as Node) &&
         popoverRef.current &&
-        !popoverRef.current.contains(target)
+        !popoverRef.current.contains(e.target as Node)
       ) {
         setOpen(false);
       }
@@ -148,24 +232,36 @@ export default function CustomDatePicker({
     };
   }, [open]);
 
-  // Navigate months
-  const handlePrevMonth = (e: React.MouseEvent) => {
+  // Navigation handlers
+  const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (viewMonth === 0) {
-      setViewMonth(11);
-      setViewYear((y) => y - 1);
-    } else {
-      setViewMonth((m) => m - 1);
+    if (pickerView === "days") {
+      if (viewMonth === 0) {
+        setViewMonth(11);
+        setViewYear(y => y - 1);
+      } else {
+        setViewMonth(m => m - 1);
+      }
+    } else if (pickerView === "months") {
+      setViewYear(y => y - 1);
+    } else if (pickerView === "years") {
+      setYearPage(p => p - 12);
     }
   };
 
-  const handleNextMonth = (e: React.MouseEvent) => {
+  const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (viewMonth === 11) {
-      setViewMonth(0);
-      setViewYear((y) => y + 1);
-    } else {
-      setViewMonth((m) => m + 1);
+    if (pickerView === "days") {
+      if (viewMonth === 11) {
+        setViewMonth(0);
+        setViewYear(y => y + 1);
+      } else {
+        setViewMonth(m => m + 1);
+      }
+    } else if (pickerView === "months") {
+      setViewYear(y => y + 1);
+    } else if (pickerView === "years") {
+      setYearPage(p => p + 12);
     }
   };
 
@@ -222,6 +318,16 @@ export default function CustomDatePicker({
   // Quick shortcuts
   const selectToday = () => {
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    handleSelectDate(dateStr);
+  };
+
+  const selectLastSunday = () => {
+    const d = new Date();
+    const day = d.getDay(); // 0 is Sunday
+    const daysBack = day === 0 ? 7 : day;
+    const lastSunday = new Date(d);
+    lastSunday.setDate(d.getDate() - daysBack);
+    const dateStr = `${lastSunday.getFullYear()}-${String(lastSunday.getMonth() + 1).padStart(2, "0")}-${String(lastSunday.getDate()).padStart(2, "0")}`;
     handleSelectDate(dateStr);
   };
 
@@ -308,10 +414,10 @@ export default function CustomDatePicker({
         )}
       </button>
 
-      {/* Popover / Mobile Sheet rendered via Portal to prevent any parent overflow clipping */}
+      {/* Popover / Mobile Sheet rendered via Portal */}
       {open && typeof document !== "undefined" && createPortal(
         <>
-          {isMobile && <div className={styles.backdrop} style={{ zIndex: 99998 }} onClick={() => setOpen(false)} />}
+          {isMobile && <div className={styles.backdrop} onClick={() => setOpen(false)} />}
 
           <div
             ref={popoverRef}
@@ -327,49 +433,83 @@ export default function CustomDatePicker({
           >
             {isMobile && <div className={styles.dragHandle} />}
 
-            {/* Header: Month Year + Chevrons */}
+            {/* Custom Header Nav with interactive Month & Year triggers */}
             <div className={styles.header}>
               <div className={styles.headerNavRow}>
                 <button
                   type="button"
-                  onClick={handlePrevMonth}
+                  onClick={handlePrev}
                   className={styles.navButton}
                   aria-label={copy.previous}
                 >
                   <ChevronLeft size={16} />
                 </button>
+
                 <div className={styles.headerSelectGroup}>
-                  <select
-                    value={viewMonth}
-                    onChange={(e) => setViewMonth(Number(e.target.value))}
-                    className={styles.headerSelect}
-                    aria-label={copy.month}
-                  >
-                    {months.map((name, i) => (
-                      <option key={name} value={i}>{name}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={viewYear}
-                    onChange={(e) => setViewYear(Number(e.target.value))}
-                    className={styles.headerSelect}
-                    aria-label={copy.year}
-                  >
-                    {Array.from({ length: 15 }, (_, i) => today.getFullYear() - 8 + i).map((y) => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
+                  {pickerView === "days" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPickerView("months")}
+                        className={styles.headerButton}
+                        aria-label={copy.month}
+                        title="Changer de mois"
+                      >
+                        <span>{months[viewMonth]}</span>
+                        <ChevronDown size={13} className={styles.headerChevron} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setYearPage(Math.floor(viewYear / 12) * 12);
+                          setPickerView("years");
+                        }}
+                        className={styles.headerButton}
+                        aria-label={copy.year}
+                        title="Changer d’année"
+                      >
+                        <span>{viewYear}</span>
+                        <ChevronDown size={13} className={styles.headerChevron} />
+                      </button>
+                    </>
+                  )}
+
+                  {pickerView === "months" && (
+                    <>
+                      <span className={styles.viewTitle}>{copy.chooseMonth}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setYearPage(Math.floor(viewYear / 12) * 12);
+                          setPickerView("years");
+                        }}
+                        className={styles.headerButton}
+                        title="Changer d’année"
+                      >
+                        <span>{viewYear}</span>
+                        <ChevronDown size={13} className={styles.headerChevron} />
+                      </button>
+                    </>
+                  )}
+
+                  {pickerView === "years" && (
+                    <span className={styles.viewTitle}>
+                      {yearPage} – {yearPage + 11}
+                    </span>
+                  )}
                 </div>
+
                 <button
                   type="button"
-                  onClick={handleNextMonth}
+                  onClick={handleNext}
                   className={styles.navButton}
                   aria-label={copy.next}
                 >
                   <ChevronRight size={16} />
                 </button>
               </div>
-              {multiple && (
+
+              {multiple && pickerView === "days" && (
                 <div className={styles.multipleHint}>
                   {selectedDates.length > 0 
                     ? `${selectedDates.length} ${copy.selected}` 
@@ -378,82 +518,158 @@ export default function CustomDatePicker({
               )}
             </div>
 
-            {/* Days of week header */}
-            <div className={styles.weekdaysGrid}>
-              {weekdays.map((wd, i) => (
-                <div key={wd} className={`${styles.weekdayHeader} ${i === 6 ? styles.sundayHeader : ""}`}>
-                  {wd}
+            {/* VIEW 1: DAYS CALENDAR */}
+            {pickerView === "days" && (
+              <>
+                {/* Days of week header */}
+                <div className={styles.weekdaysGrid}>
+                  {weekdays.map((wd, i) => (
+                    <div key={wd} className={`${styles.weekdayHeader} ${i === 6 ? styles.sundayHeader : ""}`}>
+                      {wd}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Calendar Days */}
-            <div className={styles.daysGrid}>
-              {calendarDays.map((item, idx) => {
-                if (!item) {
-                  return <div key={`empty-${idx}`} className={`${styles.dayCell} ${styles.dayEmpty}`} />;
-                }
-                return (
-                  <button
-                    key={item.dateStr}
-                    type="button"
-                    onClick={() => handleSelectDate(item.dateStr)}
-                    className={`${styles.dayCell} ${item.isSunday ? styles.daySunday : ""} ${
-                      item.isToday ? styles.dayToday : ""
-                    } ${item.isSelected ? styles.daySelected : ""}`}
-                  >
-                    {item.day}
-                  </button>
-                );
-              })}
-            </div>
+                {/* Calendar Days */}
+                <div className={styles.daysGrid}>
+                  {calendarDays.map((item, idx) => {
+                    if (!item) {
+                      return <div key={`empty-${idx}`} className={`${styles.dayCell} ${styles.dayEmpty}`} />;
+                    }
+                    return (
+                      <button
+                        key={item.dateStr}
+                        type="button"
+                        onClick={() => handleSelectDate(item.dateStr)}
+                        className={`${styles.dayCell} ${item.isSunday ? styles.daySunday : ""} ${
+                          item.isToday ? styles.dayToday : ""
+                        } ${item.isSelected ? styles.daySelected : ""}`}
+                      >
+                        {item.day}
+                      </button>
+                    );
+                  })}
+                </div>
 
-            {/* Quick shortcuts */}
-            {multiple ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button type="button" onClick={selectAllSundaysInMonth} className={styles.shortcutBtn}>
-                    {copy.sundays}
-                  </button>
-                  <button type="button" onClick={selectToday} className={styles.shortcutBtn}>
-                    {copy.today}
-                  </button>
-                  {clearable && selectedDates.length > 0 && (
-                    <button type="button" onClick={handleClear} className={`${styles.shortcutBtn} ${styles.shortcutBtnClear}`}>
-                      {copy.erase}
+                {/* Quick shortcuts */}
+                {multiple ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button type="button" onClick={selectAllSundaysInMonth} className={styles.shortcutBtn}>
+                        {copy.sundays}
+                      </button>
+                      <button type="button" onClick={selectToday} className={styles.shortcutBtn}>
+                        {copy.today}
+                      </button>
+                      {clearable && selectedDates.length > 0 && (
+                        <button type="button" onClick={handleClear} className={`${styles.shortcutBtn} ${styles.shortcutBtnClear}`}>
+                          {copy.erase}
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOpen(false)}
+                      className={styles.applyBtn}
+                    >
+                      <Check size={14} style={{ marginRight: 5 }} />
+                      {copy.apply} {selectedDates.length > 0 ? `(${selectedDates.length})` : ""}
                     </button>
-                  )}
+                  </div>
+                ) : (
+                  <div className={styles.shortcuts}>
+                    <button type="button" onClick={selectLastSunday} className={styles.shortcutBtn} title="Dimanche précédent">
+                      {copy.lastSunday}
+                    </button>
+                    <button type="button" onClick={selectToday} className={styles.shortcutBtn} title="Aujourd'hui">
+                      {copy.today}
+                    </button>
+                    <button type="button" onClick={selectNextSunday} className={styles.shortcutBtn} title="Dimanche à venir">
+                      {copy.sunday}
+                    </button>
+                    {clearable && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleClear();
+                          setOpen(false);
+                        }}
+                        className={`${styles.shortcutBtn} ${styles.shortcutBtnClear}`}
+                      >
+                        {copy.all}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* VIEW 2: 12-MONTH INTERACTIVE GRID */}
+            {pickerView === "months" && (
+              <>
+                <div className={styles.monthsGrid}>
+                  {months.map((name, i) => {
+                    const isSelected = viewMonth === i;
+                    const isCurrent = today.getFullYear() === viewYear && today.getMonth() === i;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          setViewMonth(i);
+                          setPickerView("days");
+                        }}
+                        className={`${styles.monthCell} ${isSelected ? styles.cellSelected : ""} ${isCurrent ? styles.cellCurrent : ""}`}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className={styles.applyBtn}
-                >
-                  <Check size={14} style={{ marginRight: 5 }} />
-                  {copy.apply} {selectedDates.length > 0 ? `(${selectedDates.length})` : ""}
-                </button>
-              </div>
-            ) : (
-              <div className={styles.shortcuts}>
-                <button type="button" onClick={selectToday} className={styles.shortcutBtn}>
-                  {copy.today}
-                </button>
-                <button type="button" onClick={selectNextSunday} className={styles.shortcutBtn}>
-                  {copy.sunday}
-                </button>
-                {clearable && (
+                <div className={styles.subviewFooter}>
                   <button
                     type="button"
-                    onClick={() => {
-                      handleClear();
-                      setOpen(false);
-                    }}
-                    className={`${styles.shortcutBtn} ${styles.shortcutBtnClear}`}
+                    onClick={() => setPickerView("days")}
+                    className={styles.backToDaysBtn}
                   >
-                    {copy.all}
+                    {copy.backToCalendar}
                   </button>
-                )}
-              </div>
+                </div>
+              </>
+            )}
+
+            {/* VIEW 3: 12-YEAR INTERACTIVE GRID */}
+            {pickerView === "years" && (
+              <>
+                <div className={styles.yearsGrid}>
+                  {Array.from({ length: 12 }, (_, i) => yearPage + i).map((y) => {
+                    const isSelected = viewYear === y;
+                    const isCurrent = today.getFullYear() === y;
+                    return (
+                      <button
+                        key={y}
+                        type="button"
+                        onClick={() => {
+                          setViewYear(y);
+                          setPickerView("days");
+                        }}
+                        className={`${styles.yearCell} ${isSelected ? styles.cellSelected : ""} ${isCurrent ? styles.cellCurrent : ""}`}
+                      >
+                        {y}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className={styles.subviewFooter}>
+                  <button
+                    type="button"
+                    onClick={() => setPickerView("days")}
+                    className={styles.backToDaysBtn}
+                  >
+                    {copy.backToCalendar}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </>,
@@ -462,4 +678,3 @@ export default function CustomDatePicker({
     </div>
   );
 }
-

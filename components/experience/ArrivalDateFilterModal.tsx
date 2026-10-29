@@ -4,9 +4,10 @@ import React, { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { 
   X, Calendar, CalendarDays, Check, Search, RotateCcw, 
-  CalendarRange, CheckSquare, Square, ChevronLeft, ChevronRight 
+  CalendarRange, CheckSquare, Square, ChevronLeft, ChevronRight, ChevronDown 
 } from "lucide-react";
 import styles from "./ArrivalDateFilterModal.module.css";
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 const MONTH_NAMES_FR = [
   "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
@@ -56,6 +57,8 @@ export default function ArrivalDateFilterModal({
   const today = useMemo(() => new Date(), []);
   const [viewYear, setViewYear] = useState<number>(() => today.getFullYear());
   const [viewMonth, setViewMonth] = useState<number>(() => today.getMonth());
+  const [calendarSubView, setCalendarSubView] = useState<"days" | "months" | "years">("days");
+  const [yearPage, setYearPage] = useState<number>(() => Math.floor(today.getFullYear() / 12) * 12);
 
   // Range states
   const [rangeStart, setRangeStart] = useState("");
@@ -66,12 +69,14 @@ export default function ArrivalDateFilterModal({
     if (isOpen) {
       setLocalSelected(initialDates || []);
       setSearch("");
+      setCalendarSubView("days");
       if (initialDates && initialDates.length > 0) {
         const first = initialDates[0];
         const parts = first.split("-").map(Number);
         if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1])) {
           setViewYear(parts[0]);
           setViewMonth(parts[1] - 1);
+          setYearPage(Math.floor(parts[0] / 12) * 12);
         }
       }
     }
@@ -213,6 +218,46 @@ export default function ArrivalDateFilterModal({
     setLocalSelected(prev =>
       allAlready ? prev.filter(d => !monthSundays.includes(d)) : Array.from(new Set([...prev, ...monthSundays])).sort()
     );
+  };
+
+  const selectLastSunday = () => {
+    const d = new Date();
+    const day = d.getDay();
+    const daysBack = day === 0 ? 7 : day;
+    const lastSunday = new Date(d);
+    lastSunday.setDate(d.getDate() - daysBack);
+    const dateStr = `${lastSunday.getFullYear()}-${String(lastSunday.getMonth() + 1).padStart(2, "0")}-${String(lastSunday.getDate()).padStart(2, "0")}`;
+    toggleDate(dateStr);
+  };
+
+  const handlePrev = () => {
+    if (calendarSubView === "days") {
+      if (viewMonth === 0) {
+        setViewMonth(11);
+        setViewYear(y => y - 1);
+      } else {
+        setViewMonth(m => m - 1);
+      }
+    } else if (calendarSubView === "months") {
+      setViewYear(y => y - 1);
+    } else if (calendarSubView === "years") {
+      setYearPage(p => p - 12);
+    }
+  };
+
+  const handleNext = () => {
+    if (calendarSubView === "days") {
+      if (viewMonth === 11) {
+        setViewMonth(0);
+        setViewYear(y => y + 1);
+      } else {
+        setViewMonth(m => m + 1);
+      }
+    } else if (calendarSubView === "months") {
+      setViewYear(y => y + 1);
+    } else if (calendarSubView === "years") {
+      setYearPage(p => p + 12);
+    }
   };
 
   // Apply range
@@ -379,141 +424,233 @@ export default function ArrivalDateFilterModal({
               <div className={styles.directJumpRow}>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (viewMonth === 0) {
-                      setViewMonth(11);
-                      setViewYear(y => y - 1);
-                    } else {
-                      setViewMonth(m => m - 1);
-                    }
-                  }}
-                  className={styles.presetBtn}
-                  style={{ padding: "6px 8px" }}
-                  aria-label="Mois précédent"
+                  onClick={handlePrev}
+                  className={styles.navButton}
+                  aria-label="Précédent"
                 >
                   <ChevronLeft size={16} />
                 </button>
 
-                <select
-                  value={viewMonth}
-                  onChange={e => setViewMonth(Number(e.target.value))}
-                  className={styles.jumpSelect}
-                  aria-label="Sélectionner le mois"
-                >
-                  {MONTH_NAMES_FR.map((name, i) => (
-                    <option key={name} value={i}>{name}</option>
-                  ))}
-                </select>
+                <div className={styles.headerSelectGroup}>
+                  {calendarSubView === "days" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarSubView("months")}
+                        className={styles.headerButton}
+                        aria-label="Sélectionner le mois"
+                        title="Changer de mois"
+                      >
+                        <span>{MONTH_NAMES_FR[viewMonth]}</span>
+                        <ChevronDown size={13} className={styles.headerChevron} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setYearPage(Math.floor(viewYear / 12) * 12);
+                          setCalendarSubView("years");
+                        }}
+                        className={styles.headerButton}
+                        aria-label="Sélectionner l’année"
+                        title="Changer d’année"
+                      >
+                        <span>{viewYear}</span>
+                        <ChevronDown size={13} className={styles.headerChevron} />
+                      </button>
+                    </>
+                  )}
 
-                <select
-                  value={viewYear}
-                  onChange={e => setViewYear(Number(e.target.value))}
-                  className={styles.jumpSelect}
-                  aria-label="Sélectionner l'année"
-                >
-                  {Array.from({ length: 10 }, (_, i) => today.getFullYear() - 5 + i).map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
+                  {calendarSubView === "months" && (
+                    <>
+                      <span className={styles.viewTitle}>Choisir le mois</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setYearPage(Math.floor(viewYear / 12) * 12);
+                          setCalendarSubView("years");
+                        }}
+                        className={styles.headerButton}
+                        title="Changer d’année"
+                      >
+                        <span>{viewYear}</span>
+                        <ChevronDown size={13} className={styles.headerChevron} />
+                      </button>
+                    </>
+                  )}
+
+                  {calendarSubView === "years" && (
+                    <span className={styles.viewTitle}>
+                      {yearPage} – {yearPage + 11}
+                    </span>
+                  )}
+                </div>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (viewMonth === 11) {
-                      setViewMonth(0);
-                      setViewYear(y => y + 1);
-                    } else {
-                      setViewMonth(m => m + 1);
-                    }
-                  }}
-                  className={styles.presetBtn}
-                  style={{ padding: "6px 8px" }}
-                  aria-label="Mois suivant"
+                  onClick={handleNext}
+                  className={styles.navButton}
+                  aria-label="Suivant"
                 >
                   <ChevronRight size={16} />
                 </button>
               </div>
 
-              {/* Shortcuts */}
-              <div className={styles.presetsRow}>
-                <button type="button" onClick={selectAllSundaysInViewMonth} className={styles.presetBtn}>
-                  Dimanches de ce mois
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-                    toggleDate(todayStr);
-                  }}
-                  className={styles.presetBtn}
-                >
-                  Aujourd’hui
-                </button>
-                {localSelected.length > 0 && (
-                  <button type="button" onClick={clearSelection} className={styles.presetBtn}>
-                    Effacer la sélection
-                  </button>
-                )}
-              </div>
-
-              {/* Calendar Grid */}
-              <div style={{ width: "100%", maxWidth: 340 }}>
-                {/* Weekday names */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, textAlign: "center", marginBottom: 6 }}>
-                  {WEEKDAY_NAMES_FR.map((wd, i) => (
-                    <div key={wd} style={{ fontSize: 11, fontWeight: 700, color: i === 6 ? "var(--gold)" : "var(--muted)" }}>
-                      {wd}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Days */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-                  {calendarDays.map((item, idx) => {
-                    if (!item) {
-                      return <div key={`empty-${idx}`} style={{ aspectRatio: 1 }} />;
-                    }
-                    return (
-                      <button
-                        key={item.dateStr}
-                        type="button"
-                        onClick={() => toggleDate(item.dateStr)}
-                        style={{
-                          aspectRatio: 1,
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          borderRadius: 8,
-                          border: item.isSelected ? "1px solid var(--gold)" : item.isToday ? "1px dashed var(--gold)" : "1px solid transparent",
-                          background: item.isSelected ? "var(--gold)" : item.guestCount > 0 ? "rgba(212, 175, 55, 0.12)" : "rgba(255, 255, 255, 0.03)",
-                          color: item.isSelected ? "#000" : item.isSunday ? "var(--gold-light)" : "var(--cream)",
-                          fontWeight: item.isSelected ? 750 : 600,
-                          fontSize: 12,
-                          cursor: "pointer",
-                          position: "relative",
-                          transition: "all 0.12s ease"
-                        }}
-                        title={item.guestCount > 0 ? `${item.guestCount} arrivée(s) ce jour` : item.dateStr}
-                      >
-                        <span>{item.day}</span>
-                        {item.guestCount > 0 && (
-                          <span
-                            style={{
-                              width: 4,
-                              height: 4,
-                              borderRadius: "50%",
-                              background: item.isSelected ? "#000" : "var(--gold)",
-                              position: "absolute",
-                              bottom: 2
-                            }}
-                          />
-                        )}
+              {/* VIEW 1: DAYS CALENDAR */}
+              {calendarSubView === "days" && (
+                <>
+                  {/* Shortcuts */}
+                  <div className={styles.presetsRow}>
+                    <button type="button" onClick={selectAllSundaysInViewMonth} className={styles.presetBtn}>
+                      Dimanches de ce mois
+                    </button>
+                    <button type="button" onClick={selectLastSunday} className={styles.presetBtn} title="Dimanche précédent">
+                      Dimanche dernier
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+                        toggleDate(todayStr);
+                      }}
+                      className={styles.presetBtn}
+                    >
+                      Aujourd’hui
+                    </button>
+                    {localSelected.length > 0 && (
+                      <button type="button" onClick={clearSelection} className={styles.presetBtn}>
+                        Effacer la sélection
                       </button>
-                    );
-                  })}
-                </div>
-              </div>
+                    )}
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div style={{ width: "100%", maxWidth: 340 }}>
+                    {/* Weekday names */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, textAlign: "center", marginBottom: 6 }}>
+                      {WEEKDAY_NAMES_FR.map((wd, i) => (
+                        <div key={wd} style={{ fontSize: 11, fontWeight: 700, color: i === 6 ? "var(--gold)" : "var(--muted)" }}>
+                          {wd}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Days */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+                      {calendarDays.map((item, idx) => {
+                        if (!item) {
+                          return <div key={`empty-${idx}`} style={{ aspectRatio: 1 }} />;
+                        }
+                        return (
+                          <button
+                            key={item.dateStr}
+                            type="button"
+                            onClick={() => toggleDate(item.dateStr)}
+                            style={{
+                              aspectRatio: 1,
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRadius: 8,
+                              border: item.isSelected ? "1px solid var(--gold)" : item.isToday ? "1px dashed var(--gold)" : "1px solid transparent",
+                              background: item.isSelected ? "var(--gold)" : item.guestCount > 0 ? "rgba(212, 175, 55, 0.12)" : "rgba(255, 255, 255, 0.03)",
+                              color: item.isSelected ? "#000" : item.isSunday ? "var(--gold-light)" : "var(--cream)",
+                              fontWeight: item.isSelected ? 750 : 600,
+                              fontSize: 12,
+                              cursor: "pointer",
+                              position: "relative",
+                              transition: "all 0.12s ease"
+                            }}
+                            title={item.guestCount > 0 ? `${item.guestCount} arrivée(s) ce jour` : item.dateStr}
+                          >
+                            <span>{item.day}</span>
+                            {item.guestCount > 0 && (
+                              <span
+                                style={{
+                                  width: 4,
+                                  height: 4,
+                                  borderRadius: "50%",
+                                  background: item.isSelected ? "#000" : "var(--gold)",
+                                  position: "absolute",
+                                  bottom: 2
+                                }}
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* VIEW 2: 12-MONTH INTERACTIVE GRID */}
+              {calendarSubView === "months" && (
+                <>
+                  <div className={styles.monthsGrid}>
+                    {MONTH_NAMES_FR.map((name, i) => {
+                      const isSelected = viewMonth === i;
+                      const isCurrent = today.getFullYear() === viewYear && today.getMonth() === i;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => {
+                            setViewMonth(i);
+                            setCalendarSubView("days");
+                          }}
+                          className={`${styles.monthCell} ${isSelected ? styles.cellSelected : ""} ${isCurrent ? styles.cellCurrent : ""}`}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className={styles.subviewFooter}>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarSubView("days")}
+                      className={styles.backToDaysBtn}
+                    >
+                      ← Retour au calendrier
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* VIEW 3: 12-YEAR INTERACTIVE GRID */}
+              {calendarSubView === "years" && (
+                <>
+                  <div className={styles.yearsGrid}>
+                    {Array.from({ length: 12 }, (_, i) => yearPage + i).map(y => {
+                      const isSelected = viewYear === y;
+                      const isCurrent = today.getFullYear() === y;
+                      return (
+                        <button
+                          key={y}
+                          type="button"
+                          onClick={() => {
+                            setViewYear(y);
+                            setCalendarSubView("days");
+                          }}
+                          className={`${styles.yearCell} ${isSelected ? styles.cellSelected : ""} ${isCurrent ? styles.cellCurrent : ""}`}
+                        >
+                          {y}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className={styles.subviewFooter}>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarSubView("days")}
+                      className={styles.backToDaysBtn}
+                    >
+                      ← Retour au calendrier
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -525,24 +662,22 @@ export default function ArrivalDateFilterModal({
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--gold-light)", marginBottom: 6 }}>
                     DATE DE DÉBUT
                   </label>
-                  <input
-                    type="date"
-                    className="input"
+                  <CustomDatePicker
                     value={rangeStart}
-                    onChange={e => setRangeStart(e.target.value)}
-                    style={{ width: "100%", height: 40, padding: "0 10px" }}
+                    onChange={setRangeStart}
+                    style={{ width: "100%" }}
+                    placeholder="Choisir date début"
                   />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--gold-light)", marginBottom: 6 }}>
                     DATE DE FIN
                   </label>
-                  <input
-                    type="date"
-                    className="input"
+                  <CustomDatePicker
                     value={rangeEnd}
-                    onChange={e => setRangeEnd(e.target.value)}
-                    style={{ width: "100%", height: 40, padding: "0 10px" }}
+                    onChange={setRangeEnd}
+                    style={{ width: "100%" }}
+                    placeholder="Choisir date fin"
                   />
                 </div>
               </div>

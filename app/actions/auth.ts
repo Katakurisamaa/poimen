@@ -2288,7 +2288,7 @@ export async function retireGuestAction(params: {
   commentaire: string;
   appelAbouti?: boolean;
 }) {
-  const allowedMotifs = new Set(["ne_decroche_pas", "faux_numero", "autre_eglise", "pas_interesse", "demenagement", "autre"]);
+  const allowedMotifs = new Set(["ne_decroche_pas", "faux_numero", "pas_de_numero", "autre_eglise", "pas_interesse", "demenagement", "autre"]);
   if (!allowedMotifs.has(params.motif)) return { success: false, error: "Motif de retrait invalide." };
 
   const serverSupabase = await createServerClient();
@@ -2301,6 +2301,7 @@ export async function retireGuestAction(params: {
   const supabase = await getServiceSupabase();
 
   const isFauxNumero = params.motif === "faux_numero";
+  const isPasDeNumero = params.motif === "pas_de_numero";
   const isNeDecrochePas = params.motif === "ne_decroche_pas";
   const isAutreEglise = params.motif === "autre_eglise";
   const isPasInteresse = params.motif === "pas_interesse";
@@ -2311,7 +2312,7 @@ export async function retireGuestAction(params: {
   let finalAppelAbouti = false;
   if (typeof params.appelAbouti === "boolean") {
     finalAppelAbouti = params.appelAbouti;
-  } else if (isFauxNumero || isNeDecrochePas) {
+  } else if (isFauxNumero || isNeDecrochePas || isPasDeNumero) {
     finalAppelAbouti = false;
   } else if (["autre_eglise", "pas_interesse", "demenagement"].includes(params.motif)) {
     finalAppelAbouti = true;
@@ -2326,7 +2327,7 @@ export async function retireGuestAction(params: {
   const prevComment = currentGuest?.commentaire_suivi || "";
   const cleanedPrev = prevComment
     .replace(/\[[A-Za-z0-9_]+:[^\]]*\]\s*/gi, "")
-    .replace(/\[(?:FAUX_NUMERO|NE_DECROCHE_PAS)\]\s*/gi, "")
+    .replace(/\[(?:FAUX_NUMERO|PAS_DE_NUMERO|NE_DECROCHE_PAS)\]\s*/gi, "")
     .replace(/Retir[ée] directement depuis l'onglet Mes [âa]mes/gi, "")
     .trim();
 
@@ -2347,6 +2348,7 @@ export async function retireGuestAction(params: {
     `[APPEL_ABOUTI:${finalAppelAbouti ? "oui" : "non"}]`,
     isAutreEglise && params.autreEglise ? `[AUTRE_EGLISE:${params.autreEglise.trim()}]` : "",
     isFauxNumero ? `[FAUX_NUMERO]` : "",
+    isPasDeNumero ? `[PAS_DE_NUMERO]` : "",
     isNeDecrochePas ? `[NE_DECROCHE_PAS]` : ""
   ].filter(Boolean).join(" ");
 
