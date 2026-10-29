@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { autoAddLeaderToMembers } from "@/app/actions/auth";
 import { getActiveContext, getActiveUserInfo } from "@/lib/client-session";
 import { filterElapsedDateKeys } from "@/lib/date-utils";
+import { isCulteActivity, isPresentialAttendance } from "@/lib/attendance";
 import PersonPanel, { PersonButton } from "@/components/experience/PersonPanel";
 import { usePeopleView } from "@/lib/use-people-view";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
@@ -441,11 +442,15 @@ function BergeriePage() {
     const now = new Date();
     
     activities.forEach(act => {
+      const isCulte = isCulteActivity(act.id, act.name);
       const dates = filterElapsedDateKeys(getDaysOfPeriodForActivity(now.getFullYear(), now.getMonth(), act));
       const validDates = dates.filter(d => !member.date_entree || d >= member.date_entree);
       const nonCancelledDates = validDates.filter(d => !act.cancelledDates?.includes(d));
       totalPossible += nonCancelledDates.length;
-      totalPresent += nonCancelledDates.filter(d => member.attendance[act.id]?.[d]).length;
+      totalPresent += nonCancelledDates.filter(d => {
+        const val = member.attendance[act.id]?.[d];
+        return isPresentialAttendance(val, isCulte);
+      }).length;
     });
     
     return totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);

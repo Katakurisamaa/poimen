@@ -11,7 +11,15 @@ const source = fs.readFileSync(path.join(root, 'lib/attendance.ts'), 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const fixtureModule = { exports: {} };
 vm.runInNewContext(code, { module: fixtureModule, exports: fixtureModule.exports });
-const { buildAttendanceUpdate, getAttendanceStatus, usesExplicitAttendance } = fixtureModule.exports;
+const {
+  buildAttendanceUpdate,
+  getAttendanceStatus,
+  usesExplicitAttendance,
+  isCulteActivity,
+  isOnlineAttendance,
+  isPresentialCulteService,
+  isPresentialAttendance
+} = fixtureModule.exports;
 
 const activity = 'culte';
 const date = '2026-09-13';
@@ -97,3 +105,39 @@ test('presence records culte_1_2 for participant attending both services', () =>
   assert.equal(getAttendanceStatus(next, activity, date), 'present');
   assert.equal(next._comments.culte[date], undefined);
 });
+
+test('isPresentialAttendance marks culte 1, 2, and dual service as present, but excludes online', () => {
+  assert.equal(isCulteActivity('culte', 'Culte du dimanche'), true);
+  assert.equal(isCulteActivity('cdm', 'Cellule de maison'), false);
+
+  // Online attendances are recognized as online
+  assert.equal(isOnlineAttendance('en_ligne'), true);
+  assert.equal(isOnlineAttendance('culte_en_ligne'), true);
+  assert.equal(isOnlineAttendance('online'), true);
+  assert.equal(isOnlineAttendance('culte_1'), false);
+
+  // In Culte, only presential services (culte 1, culte 2, dual service, true) are considered presential
+  assert.equal(isPresentialAttendance('culte_1', true), true);
+  assert.equal(isPresentialAttendance('culte_2', true), true);
+  assert.equal(isPresentialAttendance('culte_1_2', true), true);
+  assert.equal(isPresentialAttendance('culte_1_et_2', true), true);
+  assert.equal(isPresentialAttendance('culte_both', true), true);
+  assert.equal(isPresentialAttendance('both', true), true);
+  assert.equal(isPresentialAttendance(true, true), true);
+
+  // Online Culte attendance MUST be false for presential attendance
+  assert.equal(isPresentialAttendance('en_ligne', true), false);
+  assert.equal(isPresentialAttendance('culte_en_ligne', true), false);
+  assert.equal(isPresentialAttendance('online', true), false);
+
+  // Unpointed or absent are false
+  assert.equal(isPresentialAttendance(false, true), false);
+  assert.equal(isPresentialAttendance(undefined, true), false);
+  assert.equal(isPresentialAttendance(null, true), false);
+
+  // Non-culte activities count truthy values as present
+  assert.equal(isPresentialAttendance(true, false), true);
+  assert.equal(isPresentialAttendance('present', false), true);
+  assert.equal(isPresentialAttendance(false, false), false);
+});
+

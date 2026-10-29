@@ -15,7 +15,7 @@ import {
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from "@/types";
 import type { ActivityType } from "@/types";
 import FastCheckIn from "@/components/activities/FastCheckIn";
-import { buildAttendanceUpdate, QuickAttendanceStatus } from "@/lib/attendance";
+import { buildAttendanceUpdate, isCulteActivity, isOnlineAttendance, isPresentialAttendance, QuickAttendanceStatus } from "@/lib/attendance";
 import { useFeedback } from "@/components/experience/FeedbackProvider";
 import CustomSelect from "@/components/ui/CustomSelect";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
@@ -619,21 +619,27 @@ export default function ActivitiesPage() {
     const member = members.find(m => m.id === memberId);
     if (!member) return;
 
+    const act = activities.find(a => a.id === activityId);
+    const isCulte = isCulteActivity(activityId, act?.name);
     const actAtt = member.attendance[activityId] || {};
-    const newPresentState = !actAtt[date];
-    const newAttendance = {
-      ...member.attendance,
-      [activityId]: { ...actAtt, [date]: newPresentState }
-    };
+    const currentlyPresential = isPresentialAttendance(actAtt[date], isCulte);
+
+    let nextAttendance: any;
+    if (currentlyPresential) {
+      nextAttendance = buildAttendanceUpdate(member.attendance, activityId, date, "unpointed", "");
+    } else {
+      const service = isCulte ? "culte_1" : undefined;
+      nextAttendance = buildAttendanceUpdate(member.attendance, activityId, date, "present", "", service);
+    }
 
     // 1. Update local state immediately
     setMembers(prev => prev.map(m => 
-      m.id === memberId ? { ...m, attendance: newAttendance } : m
+      m.id === memberId ? { ...m, attendance: nextAttendance } : m
     ));
 
     // 2. Update Supabase
     try {
-      await supabase.from("members").update({ attendance: newAttendance }).eq("id", memberId);
+      await supabase.from("members").update({ attendance: nextAttendance }).eq("id", memberId);
     } catch (err) {
       console.error("Attendance update error:", err);
     }
@@ -686,17 +692,17 @@ export default function ActivitiesPage() {
     if (!selectedActivityId || !selectedDate) return;
     
     const targetIds = new Set(displayedMembers.map(m => m.id));
+    const isCulte = isCulteActivity(selectedActivityId, activeActivity?.name);
     
     // 1. Optimistic local update
     const updatedMembers = members.map(m => {
       if (!targetIds.has(m.id)) return m;
-      const actAtt = m.attendance[selectedActivityId] || {};
+      const service = isCulte && present ? "culte_1" : undefined;
+      const status: QuickAttendanceStatus = present ? "present" : "unpointed";
+      const nextAtt = buildAttendanceUpdate(m.attendance, selectedActivityId, selectedDate, status, "", service);
       return {
         ...m,
-        attendance: {
-          ...m.attendance,
-          [selectedActivityId]: { ...actAtt, [selectedDate]: present }
-        }
+        attendance: nextAtt
       };
     });
     setMembers(updatedMembers);
@@ -705,11 +711,7 @@ export default function ActivitiesPage() {
     try {
       await Promise.all(updatedMembers.map(async (m) => {
         if (!targetIds.has(m.id)) return;
-        // Only update if state actually changed for this member
-        const wasPresent = members.find(old => old.id === m.id)?.attendance[selectedActivityId]?.[selectedDate];
-        if (wasPresent !== present) {
-          return supabase.from("members").update({ attendance: m.attendance }).eq("id", m.id);
-        }
+        return supabase.from("members").update({ attendance: m.attendance }).eq("id", m.id);
       }));
     } catch (err) {
       console.error("Batch update error:", err);
@@ -790,11 +792,15 @@ export default function ActivitiesPage() {
     let totalPresent = 0;
     
     activeActivitiesForPeriod.forEach(act => {
+      const isCulte = isCulteActivity(act.id, act.name);
       const dates = filterElapsedDateKeys(activityDates[act.id] || []);
       const validDates = dates.filter(d => !member.dateEntree || d >= member.dateEntree);
       const nonCancelledDates = validDates.filter(d => !act.cancelledDates?.includes(d));
       totalPossible += nonCancelledDates.length;
-      totalPresent += nonCancelledDates.filter(d => member.attendance[act.id]?.[d]).length;
+      totalPresent += nonCancelledDates.filter(d => {
+        const val = member.attendance[act.id]?.[d];
+        return isPresentialAttendance(val, isCulte);
+      }).length;
     });
     
     return totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
@@ -802,11 +808,15 @@ export default function ActivitiesPage() {
 
   const calculateAnnualEngagement = (member: Member) => {
     if (!selectedActivityId || !activeActivity) return { rate: 0, present: 0, total: 0 };
+    const isCulte = isCulteActivity(selectedActivityId, activeActivity.name);
     const elapsedDates = filterElapsedDateKeys(allYearDates);
     const validDates = elapsedDates.filter(d => !member.dateEntree || d >= member.dateEntree);
     const nonCancelledDates = validDates.filter(d => !activeActivity.cancelledDates?.includes(d));
     const totalPossible = nonCancelledDates.length;
-    const totalPresent = nonCancelledDates.filter(d => member.attendance[selectedActivityId]?.[d]).length;
+    const totalPresent = nonCancelledDates.filter(d => {
+      const val = member.attendance[selectedActivityId]?.[d];
+      return isPresentialAttendance(val, isCulte);
+    }).length;
     const rate = totalPossible === 0 ? 0 : Math.round((totalPresent / totalPossible) * 100);
     return { rate, present: totalPresent, total: totalPossible };
   };
@@ -820,6 +830,7 @@ export default function ActivitiesPage() {
 
     activeActivitiesForPeriod.forEach(act => {
       activityStats[act.id] = { present: 0, total: 0 };
+      const isCulte = isCulteActivity(act.id, act.name);
       const dates = filterElapsedDateKeys(activityDates[act.id] || []);
       
       members.forEach(member => {
@@ -831,7 +842,8 @@ export default function ActivitiesPage() {
           
           totalPoints++;
           activityStats[act.id].total++;
-          if (member.attendance[act.id]?.[date]) {
+          const val = member.attendance[act.id]?.[date];
+          if (isPresentialAttendance(val, isCulte)) {
             presentPoints++;
             activityStats[act.id].present++;
           }
@@ -1685,7 +1697,8 @@ export default function ActivitiesPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="annual-table-container">
+                  <>
+                    <div className="annual-table-container">
                     <table className="annual-table">
                       <thead>
                         {/* Row 1: Months */}
@@ -1811,7 +1824,10 @@ export default function ActivitiesPage() {
                                 monthGrp.dates.map((date, dIdx) => {
                                   const isCancelled = activeActivity.cancelledDates?.includes(date);
                                   const isJoined = !m.dateEntree || date >= m.dateEntree;
-                                  const isPresent = m.attendance[selectedActivityId!]?.[date] || false;
+                                  const isCulte = isCulteActivity(selectedActivityId, activeActivity?.name);
+                                  const attVal = m.attendance[selectedActivityId!]?.[date];
+                                  const isPresent = isPresentialAttendance(attVal, isCulte);
+                                  const isOnline = isCulte && isOnlineAttendance(attVal);
                                   const isLastInMonth = dIdx === monthGrp.dates.length - 1;
                                   const isLastMonth = mIdx === datesByMonthForYear.length - 1;
 
@@ -1877,16 +1893,42 @@ export default function ActivitiesPage() {
                                             width: 18,
                                             height: 18,
                                             borderRadius: "50%",
-                                            border: isPresent ? "2px solid var(--green)" : "2px solid rgba(212, 175, 55, 0.3)",
-                                            background: isPresent ? "var(--green)" : "transparent",
+                                            border: isPresent
+                                              ? "2px solid var(--green)"
+                                              : isOnline
+                                                ? "2px solid rgba(80, 160, 240, 0.55)"
+                                                : "2px solid rgba(212, 175, 55, 0.3)",
+                                            background: isPresent
+                                              ? "var(--green)"
+                                              : isOnline
+                                                ? "rgba(80, 160, 240, 0.12)"
+                                                : "transparent",
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
                                             transition: "all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
                                           }}
+                                          title={
+                                            isPresent
+                                              ? (typeof attVal === "string"
+                                                  ? (attVal.includes("2") && attVal.includes("1")
+                                                      ? "Présent · Culte 1 & 2 (présentiel)"
+                                                      : attVal === "culte_2"
+                                                        ? "Présent · Culte 2 (présentiel)"
+                                                        : "Présent · Culte 1 (présentiel)")
+                                                  : "Présent (présentiel)")
+                                              : isOnline
+                                                ? "Culte en ligne (non comptabilisé en présentiel)"
+                                                : "Non pointé / Absent"
+                                          }
                                         >
                                           {isPresent && (
                                             <CheckCircle2 size={10} style={{ color: "var(--bg)", strokeWidth: 3 }} />
+                                          )}
+                                          {isOnline && (
+                                            <span style={{ fontSize: 9, color: "var(--blue, #60a5fa)", lineHeight: 1 }} aria-label="En ligne">
+                                              🌐
+                                            </span>
                                           )}
                                         </div>
                                       </div>
@@ -1900,6 +1942,52 @@ export default function ActivitiesPage() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Légende compacte et optimisée */}
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      fontSize: 10.5,
+                      color: "var(--muted)",
+                      padding: "4px 10px",
+                      background: "rgba(255, 255, 255, 0.02)",
+                      border: "1px solid rgba(212, 175, 55, 0.12)",
+                      borderRadius: 20,
+                      width: "fit-content",
+                      marginTop: -10
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }} title="Présentiel (Culte 1 et/ou 2)">
+                      <div style={{ width: 12, height: 12, borderRadius: "50%", background: "var(--green)", border: "1.5px solid var(--green)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <CheckCircle2 size={7} style={{ color: "var(--bg)", strokeWidth: 3 }} />
+                      </div>
+                      <span>Présentiel</span>
+                    </div>
+                    {isCulteActivity(selectedActivityId, activeActivity?.name) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }} title="Culte en ligne (non comptabilisé en présentiel)">
+                        <div style={{ width: 12, height: 12, borderRadius: "50%", background: "rgba(80, 160, 240, 0.15)", border: "1.5px solid rgba(80, 160, 240, 0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <span style={{ fontSize: 7, lineHeight: 1 }}>🌐</span>
+                        </div>
+                        <span>En ligne</span>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }} title="Non pointé ou absent">
+                      <div style={{ width: 12, height: 12, borderRadius: "50%", border: "1.5px solid rgba(212, 175, 55, 0.35)" }} />
+                      <span>Absent</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }} title="Non inscrit à cette date">
+                      <span style={{ opacity: 0.5 }}>–</span>
+                      <span>Non inscrit</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }} title="Séance annulée">
+                      <span style={{ color: "var(--red)", fontSize: 8 }}>❌</span>
+                      <span>Annulé</span>
+                    </div>
+                  </div>
+                  </>
                 )}
               </div>
             </div>
