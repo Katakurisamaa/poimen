@@ -674,12 +674,13 @@ html[data-theme] body .people-screen .people-card-section > div > .glass-compact
 
 
 /* Global Search Input Reset: prevent rogue inner borders/backgrounds */
-html[data-theme] body :is(.search, [class*="searchField"], [class*="searchRow"]) input {
+html[data-theme] body :is(.search, [class*="search"], [class*="Search"], [class*="searchField"], [class*="searchRow"]) input {
   border: 0 !important;
   border-radius: 0 !important;
   outline: none !important;
   box-shadow: none !important;
   background: transparent !important;
+  background-color: transparent !important;
 }
 
 

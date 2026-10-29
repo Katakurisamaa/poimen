@@ -16,9 +16,12 @@ export interface SoulCrItem {
   estRevenuCulte: CrStatus;
   groupeWhatsapp: CrStatus;
   pcnc: CrStatus;
+  douzePiliers?: CrStatus;
+  aps?: CrStatus;
   celluleMaison: string;
   crEnLigne?: CrStatus;
   commentaire: string;
+  excludedFields?: string[];
 }
 
 export interface GuestCrSource {
@@ -61,6 +64,23 @@ export interface GuestCrSource {
   commentaireSuivi?: string;
   commentaire_suivi?: string;
   commentaire?: string;
+  douzePiliers?: boolean | null;
+  douze_piliers?: boolean | null;
+  piliers12?: boolean | null;
+  termine12Piliers?: boolean | null;
+  termine_12_piliers?: boolean | null;
+  piliers1?: boolean | null;
+  piliers_1?: boolean | null;
+  piliers2?: boolean | null;
+  piliers_2?: boolean | null;
+  piliers3?: boolean | null;
+  piliers_3?: boolean | null;
+  piliers4?: boolean | null;
+  piliers_4?: boolean | null;
+  aps?: boolean | null;
+  is_aps?: boolean | null;
+  isAps?: boolean | null;
+  excludedFields?: string[];
 }
 
 export function formatCrDate(dateStr?: string): string {
@@ -127,6 +147,27 @@ export function guestToSoulCrItem(guest: GuestCrSource): SoulCrItem {
   const pcnc: CrStatus = pcncSources.length
     ? pcncSources.some(Boolean)
     : null;
+
+  const douzeSources = [
+    guest.douzePiliers,
+    guest.douze_piliers,
+    guest.piliers12,
+    guest.termine12Piliers,
+    guest.termine_12_piliers,
+    guest.piliers1,
+    guest.piliers_1,
+    guest.piliers2,
+    guest.piliers_2,
+    guest.piliers3,
+    guest.piliers_3,
+    guest.piliers4,
+    guest.piliers_4
+  ].filter((value): value is boolean => typeof value === "boolean");
+  const douzePiliers: CrStatus = douzeSources.length
+    ? douzeSources.some(Boolean)
+    : null;
+
+  const aps: CrStatus = nullableBoolean(guest.aps, guest.is_aps, guest.isAps);
   const integre = nullableBoolean(guest.integreCDM, guest.integre_cdm);
   const interet = nullableBoolean(guest.interetCDM, guest.interet_cdm);
   const fdd = guest.familleDisciple || guest.famille_disciple;
@@ -153,34 +194,67 @@ export function guestToSoulCrItem(guest: GuestCrSource): SoulCrItem {
     estRevenuCulte: nullableBoolean(guest.estRevenuCulte, guest.est_revenu_culte),
     groupeWhatsapp: nullableBoolean(guest.groupeWhatsapp, guest.groupe_whatsapp),
     pcnc,
+    douzePiliers,
+    aps,
     celluleMaison,
     crEnLigne: true,
-    commentaire: cleanCommentaire(rawComment)
+    commentaire: cleanCommentaire(rawComment),
+    excludedFields: guest.excludedFields || []
   };
 }
 
-export function formatSoulCrBlock(item: SoulCrItem, audience: CrAudience = "team"): string {
-  const appel = item.appelAbouti === false && item.appelNonAboutiRaison
-    ? `❌ (${item.appelNonAboutiRaison})`
-    : statusEmoji(item.appelAbouti);
+export function formatSoulCrBlock(
+  item: SoulCrItem,
+  audience: CrAudience = "team",
+  globalExcludedFields?: string[]
+): string {
+  const isExcluded = (field: string) =>
+    Boolean(
+      (item.excludedFields && item.excludedFields.includes(field)) ||
+      (globalExcludedFields && globalExcludedFields.includes(field))
+    );
 
-  const lines = [
-    `*${item.name}*`,
-    "",
-    `*Appel Abouti* : ${appel}`,
-    "",
-    `*Revient à l’église* : ${statusEmoji(item.revientEglise === undefined ? item.prevuRevenir : item.revientEglise)}`,
-    "",
-    `*Groupe WhatsApp* :  ${statusEmoji(item.groupeWhatsapp)}`,
-    "",
-    `*PCNC* :${statusEmoji(item.pcnc)}`,
-    "",
-    `*Cellule de maison*: ${item.celluleMaison.trim() || "À préciser"}`,
-    "",
-    `*CR en ligne* : ${statusEmoji(item.crEnLigne === undefined ? true : item.crEnLigne)}`
-  ];
+  const lines: string[] = [`*${item.name}*`];
 
-  if (audience === "team" && item.commentaire && item.commentaire.trim()) {
+  if (!isExcluded("appelAbouti")) {
+    const appel = item.appelAbouti === false && item.appelNonAboutiRaison
+      ? `❌ (${item.appelNonAboutiRaison})`
+      : statusEmoji(item.appelAbouti);
+    lines.push("", `*Appel Abouti* : ${appel}`);
+  }
+
+  if (!isExcluded("revientEglise")) {
+    lines.push(
+      "",
+      `*Revient à l’église* : ${statusEmoji(item.revientEglise === undefined ? item.prevuRevenir : item.revientEglise)}`
+    );
+  }
+
+  if (!isExcluded("groupeWhatsapp")) {
+    lines.push("", `*Groupe WhatsApp* :  ${statusEmoji(item.groupeWhatsapp)}`);
+  }
+
+  if (!isExcluded("pcnc")) {
+    lines.push("", `*PCNC* :${statusEmoji(item.pcnc)}`);
+  }
+
+  if (!isExcluded("douzePiliers")) {
+    lines.push("", `*12 piliers* : ${statusEmoji(item.douzePiliers)}`);
+  }
+
+  if (!isExcluded("aps")) {
+    lines.push("", `*APS* : ${statusEmoji(item.aps)}`);
+  }
+
+  if (!isExcluded("celluleMaison")) {
+    lines.push("", `*Cellule de maison*: ${item.celluleMaison.trim() || "À préciser"}`);
+  }
+
+  if (!isExcluded("crEnLigne")) {
+    lines.push("", `*CR en ligne* : ${statusEmoji(item.crEnLigne === undefined ? true : item.crEnLigne)}`);
+  }
+
+  if (audience === "team" && !isExcluded("commentaire") && item.commentaire && item.commentaire.trim()) {
     lines.push("", `*Commentaire* : ${item.commentaire.trim()}`);
   }
 
@@ -190,12 +264,13 @@ export function formatSoulCrBlock(item: SoulCrItem, audience: CrAudience = "team
 export function formatFullCrMessage(
   items: SoulCrItem[],
   dateStr?: string,
-  audience: CrAudience = "team"
+  audience: CrAudience = "team",
+  globalExcludedFields?: string[]
 ): string {
   if (!items || items.length === 0) return "";
   const effectiveDate = formatCrDate(dateStr || items[0]?.arrivalDate);
   const header = `*CR CALL CENTER DES INVITÉS DU _${effectiveDate}_*`;
-  const blocks = items.map(item => formatSoulCrBlock(item, audience)).join("\n\n");
+  const blocks = items.map(item => formatSoulCrBlock(item, audience, globalExcludedFields)).join("\n\n");
   return `${header}\n\n${blocks}\n\nBlessings 💎`;
 }
 

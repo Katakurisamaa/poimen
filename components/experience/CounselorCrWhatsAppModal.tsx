@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ArrowRight, Check, CheckCheck, ChevronLeft, ChevronRight, Copy, FileText, MessageCircle, Pencil, PhoneCall, PhoneMissed, Plus, Search, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCheck, ChevronLeft, ChevronRight, Copy, Eye, EyeOff, FileText, MessageCircle, Pencil, PhoneCall, PhoneMissed, Plus, RotateCcw, Search, SlidersHorizontal, Users, X } from "lucide-react";
 import { buildWhatsAppShareUrl, formatCrDate, formatFullCrMessage, guestToSoulCrItem, type CrAudience, type CrStatus, type GuestCrSource, type SoulCrItem } from "@/lib/cr-whatsapp";
 import CrMessagePreview from "./CrMessagePreview";
 import CrReportDatePicker, { dateKey } from "./CrReportDatePicker";
@@ -16,12 +16,39 @@ interface Props {
   defaultDate?: string;
 }
 type Step = 0 | 1 | 2;
-type StatusField = "appelAbouti" | "revientEglise" | "groupeWhatsapp" | "pcnc" | "crEnLigne";
+type StatusField = "appelAbouti" | "revientEglise" | "groupeWhatsapp" | "pcnc" | "douzePiliers" | "aps" | "crEnLigne";
 const EMPTY_GUESTS: GuestCrSource[] = [];
 const STATUS_FIELDS: Array<[StatusField, string]> = [
-  ["appelAbouti", "Appel abouti"], ["revientEglise", "Revient à l’église"],
-  ["groupeWhatsapp", "Groupe WhatsApp"], ["pcnc", "PCNC"], ["crEnLigne", "CR en ligne"]
+  ["appelAbouti", "Appel abouti"],
+  ["revientEglise", "Revient à l’église"],
+  ["groupeWhatsapp", "Groupe WhatsApp"],
+  ["pcnc", "PCNC"],
+  ["douzePiliers", "12 piliers"],
+  ["aps", "APS"],
+  ["crEnLigne", "CR en ligne"]
 ];
+
+export type ReportFieldKey =
+  | "appelAbouti"
+  | "revientEglise"
+  | "groupeWhatsapp"
+  | "pcnc"
+  | "douzePiliers"
+  | "aps"
+  | "celluleMaison"
+  | "crEnLigne";
+
+export const ALL_REPORT_FIELDS: Array<{ key: ReportFieldKey; label: string; short: string }> = [
+  { key: "appelAbouti", label: "Appel abouti", short: "Appel" },
+  { key: "revientEglise", label: "Revient à l’église", short: "Revient" },
+  { key: "groupeWhatsapp", label: "Groupe WhatsApp", short: "WhatsApp" },
+  { key: "pcnc", label: "PCNC", short: "PCNC" },
+  { key: "douzePiliers", label: "12 piliers", short: "12 piliers" },
+  { key: "aps", label: "APS", short: "APS" },
+  { key: "celluleMaison", label: "Cellule de maison", short: "Cellule" },
+  { key: "crEnLigne", label: "CR en ligne", short: "CR en ligne" }
+];
+
 const STEPS = ["Personnes", "Suivi", "Partager"];
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr");
 const statusLabel = (value?: CrStatus) => typeof value !== "boolean" ? "À préciser" : value ? "Oui" : "Non";
@@ -40,14 +67,54 @@ function Avatar({ name, small = false }: { name: string; small?: boolean }) {
   const tone = Array.from(name).reduce((sum, character) => sum + character.charCodeAt(0), 0) % 3;
   return <span className={small ? styles.avatarSmall : styles.avatar} data-tone={tone} aria-hidden="true">{initials(name)}</span>;
 }
-function StatusChoice({ label, name, value, onChange }: { label: string; name: string; value?: CrStatus; onChange: (value: CrStatus) => void }) {
+function StatusChoice({
+  label,
+  name,
+  value,
+  isExcluded = false,
+  onToggleExclude,
+  onChange
+}: {
+  label: string;
+  name: string;
+  value?: CrStatus;
+  isExcluded?: boolean;
+  onToggleExclude?: () => void;
+  onChange: (value: CrStatus) => void;
+}) {
   return (
-    <fieldset className={styles.statusChoice}>
-      <legend>{label}</legend>
-      <div className={styles.segmented}>
+    <fieldset className={styles.statusChoice} data-excluded={isExcluded}>
+      <legend>
+        <span className={styles.statusLabelText}>{label}</span>
+        {onToggleExclude && (
+          <button
+            type="button"
+            className={styles.fieldExcludeBtn}
+            onClick={onToggleExclude}
+            title={isExcluded ? `Ajouter « ${label} » au rapport` : `Ne pas ajouter « ${label} » au rapport`}
+            aria-label={isExcluded ? `Ajouter « ${label} » au rapport` : `Ne pas ajouter « ${label} » au rapport`}
+          >
+            {isExcluded ? (
+              <>
+                <EyeOff size={13} aria-hidden="true" />
+                <span className={styles.excludedBadge}>Non inclus</span>
+              </>
+            ) : (
+              <Eye size={13} aria-hidden="true" />
+            )}
+          </button>
+        )}
+      </legend>
+      <div className={styles.segmented} data-disabled={isExcluded}>
         {([{ value: true, label: "Oui" }, { value: false, label: "Non" }, { value: null, label: "À préciser" }] as const).map(option => (
           <label key={String(option.value)} data-checked={(value ?? null) === option.value}>
-            <input type="radio" name={name} checked={(value ?? null) === option.value} onChange={() => onChange(option.value)} />
+            <input
+              type="radio"
+              name={name}
+              disabled={isExcluded}
+              checked={(value ?? null) === option.value}
+              onChange={() => onChange(option.value)}
+            />
             <span>{option.label}</span>
           </label>
         ))}
@@ -86,6 +153,48 @@ function CrComposer({ onClose, initialGuest, counselorGuests = EMPTY_GUESTS, def
   const selectedItems = selectedIds.map(id => items[id]).filter(Boolean);
   const activeIndex = Math.max(0, selectedIds.indexOf(activeId));
   const active = selectedItems[activeIndex];
+  const activeExcluded = active?.excludedFields || [];
+
+  function toggleFieldForActive(fieldKey: string) {
+    if (!active) return;
+    const current = active.excludedFields || [];
+    const next = current.includes(fieldKey)
+      ? current.filter(k => k !== fieldKey)
+      : [...current, fieldKey];
+    patchActive({ excludedFields: next });
+  }
+
+  function resetFieldsForActive() {
+    if (!active) return;
+    patchActive({ excludedFields: [] });
+  }
+
+  function applyActiveExclusionsToAll() {
+    if (!active) return;
+    const current = active.excludedFields || [];
+    setItems(prev => {
+      const updated = { ...prev };
+      selectedIds.forEach(id => {
+        if (updated[id]) {
+          updated[id] = { ...updated[id], excludedFields: [...current] };
+        }
+      });
+      return updated;
+    });
+  }
+
+  function resetAllPeopleExclusions() {
+    setItems(prev => {
+      const updated = { ...prev };
+      selectedIds.forEach(id => {
+        if (updated[id]) {
+          updated[id] = { ...updated[id], excludedFields: [] };
+        }
+      });
+      return updated;
+    });
+  }
+
   const fullMessage = formatFullCrMessage(selectedItems, reportDate, audience);
   const visibleFeedback = feedback?.message === fullMessage ? feedback : null;
   const filtered = originals.filter(item => normalize(item.name).includes(normalize(query.trim())) &&
@@ -153,11 +262,36 @@ function CrComposer({ onClose, initialGuest, counselorGuests = EMPTY_GUESTS, def
     }
   }
   function togglePerson(id: string) {
-    updateSelection(selectedIds.includes(id) ? selectedIds.filter(selected => selected !== id) : [...selectedIds, id]);
+    if (selectedIds.includes(id)) {
+      updateSelection(selectedIds.filter(selected => selected !== id));
+    } else {
+      setItems(prev => ({
+        ...prev,
+        [id]: {
+          ...prev[id],
+          excludedFields: []
+        }
+      }));
+      updateSelection([...selectedIds, id]);
+    }
   }
   function toggleVisible() {
     const visibleIds = new Set(filtered.map(item => item.id));
-    updateSelection(allVisibleSelected ? selectedIds.filter(id => !visibleIds.has(id)) : Array.from(new Set([...selectedIds, ...visibleIds])));
+    if (allVisibleSelected) {
+      updateSelection(selectedIds.filter(id => !visibleIds.has(id)));
+    } else {
+      const next = Array.from(new Set([...selectedIds, ...visibleIds]));
+      setItems(prev => {
+        const updated = { ...prev };
+        visibleIds.forEach(id => {
+          if (!selectedIds.includes(id) && updated[id]) {
+            updated[id] = { ...updated[id], excludedFields: [] };
+          }
+        });
+        return updated;
+      });
+      updateSelection(next);
+    }
   }
   function patchActive(patch: Partial<SoulCrItem>) {
     if (!active) return;
@@ -207,7 +341,7 @@ function CrComposer({ onClose, initialGuest, counselorGuests = EMPTY_GUESTS, def
                 <div className={styles.sectionIntro}><span className={styles.kicker}>01 · LES PERSONNES</span><h2 ref={headingRef} tabIndex={-1}>Qui souhaitez-vous inclure ?</h2><p>Un suivi individuel ou plusieurs personnes dans le même message.</p></div>
                 {originals.length ? (
                   <>
-                    <div className={styles.search}><Search size={17} aria-hidden="true" /><label className={styles.srOnly} htmlFor="cr-search">Rechercher une personne</label><input id="cr-search" type="search" placeholder="Rechercher un prénom ou un nom…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" aria-label="Effacer la recherche" onClick={() => setQuery("")}><X size={15} /></button>}</div>
+                    <div className={styles.search}><Search size={18} aria-hidden="true" /><label className={styles.srOnly} htmlFor="cr-search">Rechercher une personne</label><input id="cr-search" type="text" role="searchbox" inputMode="search" autoCorrect="off" autoCapitalize="none" spellCheck={false} placeholder="Rechercher un prénom ou un nom…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" aria-label="Effacer la recherche" onClick={() => setQuery("")}><X size={15} /></button>}</div>
                     <div className={styles.filters} role="group" aria-label="Filtrer les personnes">
                       {([["all", "Toutes"], ["reached", "Appels aboutis"], ["pending", "À joindre"]] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}</button>)}
                     </div>
@@ -232,25 +366,205 @@ function CrComposer({ onClose, initialGuest, counselorGuests = EMPTY_GUESTS, def
             {step === 1 && active && (
               <>
                 <div className={styles.sectionIntro}><span className={styles.kicker}>02 · LE SUIVI</span><h2 ref={headingRef} tabIndex={-1}>L’essentiel est déjà là.</h2><p>Relisez le suivi. Ajustez seulement ce qui a changé.</p></div>
-                {selectedItems.length > 1 && <div className={styles.personTabs} role="group" aria-label="Choisir le suivi à relire">{selectedItems.map(item => <button key={item.id} type="button" aria-pressed={active.id === item.id} onClick={() => switchPerson(item.id)}><Avatar name={item.name} small /><span>{item.name}</span></button>)}</div>}
+
+                <div className={styles.fieldsBar}>
+                  <div className={styles.fieldsBarHeader}>
+                    <span className={styles.fieldsBarTitle}>
+                      <SlidersHorizontal size={13} aria-hidden="true" />
+                      <span>Champs pour {active.name} ({ALL_REPORT_FIELDS.length - activeExcluded.length}/{ALL_REPORT_FIELDS.length})</span>
+                    </span>
+                    <div className={styles.fieldsBarActions}>
+                      {activeExcluded.length > 0 && (
+                        <button
+                          type="button"
+                          className={styles.resetFieldsBtn}
+                          onClick={resetFieldsForActive}
+                          title="Réinitialiser pour cette personne"
+                        >
+                          <RotateCcw size={11} aria-hidden="true" />
+                          <span>Réinitialiser</span>
+                        </button>
+                      )}
+                      {activeExcluded.length > 0 && selectedItems.length > 1 && (
+                        <button
+                          type="button"
+                          className={styles.applyAllBtn}
+                          onClick={applyActiveExclusionsToAll}
+                          title="Appliquer ces choix à toutes les personnes du CR"
+                        >
+                          Appliquer à tous
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className={styles.fieldsChips} role="group" aria-label={`Champs du rapport pour ${active.name}`}>
+                    {ALL_REPORT_FIELDS.map(f => {
+                      const isIncluded = !activeExcluded.includes(f.key);
+                      return (
+                        <button
+                          key={f.key}
+                          type="button"
+                          aria-pressed={isIncluded}
+                          className={styles.fieldChip}
+                          onClick={() => toggleFieldForActive(f.key)}
+                          title={isIncluded ? `Cliquer pour retirer « ${f.label} » pour ${active.name}` : `Cliquer pour ajouter « ${f.label} » pour ${active.name}`}
+                        >
+                          {isIncluded ? <Check size={11} aria-hidden="true" /> : <EyeOff size={11} aria-hidden="true" />}
+                          <span>{f.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {selectedItems.length > 1 && (
+                  <div className={styles.personTabs} role="group" aria-label="Choisir le suivi à relire">
+                    {selectedItems.map(item => {
+                      const excludedCount = item.excludedFields?.length || 0;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          aria-pressed={active.id === item.id}
+                          onClick={() => switchPerson(item.id)}
+                        >
+                          <Avatar name={item.name} small />
+                          <span>{item.name}</span>
+                          {excludedCount > 0 && (
+                            <span
+                              className={styles.tabBadge}
+                              title={`${excludedCount} champ${excludedCount > 1 ? "s" : ""} retiré${excludedCount > 1 ? "s" : ""} du CR`}
+                            >
+                              <EyeOff size={10} aria-hidden="true" />
+                              <span>{ALL_REPORT_FIELDS.length - excludedCount}/{ALL_REPORT_FIELDS.length}</span>
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <article className={styles.personCard}>
                   <div className={styles.personCardHeader}><Avatar name={active.name} /><div><h3>{active.name}</h3><p>{adjusted ? "Ajusté pour ce compte-rendu" : "Informations de la fiche Poimén"}</p></div><button type="button" className={styles.editButton} aria-expanded={editing} onClick={() => setEditing(!editing)}>{editing ? <Check size={14} /> : <Pencil size={14} />}{editing ? "Terminer" : "Ajuster"}</button></div>
                   {editing ? (
                     <div className={styles.editor}>
-                      {STATUS_FIELDS.map(([key, label]) => <StatusChoice key={key} label={label} name={active.id + "-" + key} value={active[key]} onChange={value => patchActive({ [key]: value, ...(key === "revientEglise" ? { prevuRevenir: value } : {}) })} />)}
-                      {active.appelAbouti === false && <fieldset className={styles.quickChoices}><legend>Motif, si connu</legend>{["Ne décroche pas", "Faux numéro", "Pas de numéro"].map(reason => <button key={reason} type="button" aria-pressed={active.appelNonAboutiRaison === reason} onClick={() => patchActive({ appelNonAboutiRaison: active.appelNonAboutiRaison === reason ? "" : reason })}>{reason}</button>)}</fieldset>}
-                      <label className={styles.field}><span>Cellule de maison</span><input value={active.celluleMaison} onChange={event => patchActive({ celluleMaison: event.target.value })} placeholder="Nom de la cellule ou prochaine étape…" /></label>
-                      <div className={styles.quickChoices} role="group" aria-label="Réponses rapides pour la cellule">{["Intéressé(e) / à orienter", "Orientation en cours", "Intégré(e)"].map(value => <button key={value} type="button" onClick={() => patchActive({ celluleMaison: value })}>{value}</button>)}</div>
+                      {STATUS_FIELDS.map(([key, label]) => (
+                        <StatusChoice
+                          key={key}
+                          label={label}
+                          name={active.id + "-" + key}
+                          value={active[key]}
+                          isExcluded={activeExcluded.includes(key)}
+                          onToggleExclude={() => toggleFieldForActive(key)}
+                          onChange={value =>
+                            patchActive({
+                              [key]: value,
+                              ...(key === "revientEglise" ? { prevuRevenir: value } : {})
+                            })
+                          }
+                        />
+                      ))}
+                      {active.appelAbouti === false && !activeExcluded.includes("appelAbouti") && (
+                        <fieldset className={styles.quickChoices}>
+                          <legend>Motif, si connu</legend>
+                          {["Ne décroche pas", "Faux numéro", "Pas de numéro"].map(reason => (
+                            <button
+                              key={reason}
+                              type="button"
+                              aria-pressed={active.appelNonAboutiRaison === reason}
+                              onClick={() =>
+                                patchActive({
+                                  appelNonAboutiRaison: active.appelNonAboutiRaison === reason ? "" : reason
+                                })
+                              }
+                            >
+                              {reason}
+                            </button>
+                          ))}
+                        </fieldset>
+                      )}
+                      <div className={styles.fieldWrapper} data-excluded={activeExcluded.includes("celluleMaison")}>
+                        <label className={styles.field}>
+                          <span>
+                            <span>Cellule de maison</span>
+                            <button
+                              type="button"
+                              className={styles.fieldExcludeBtn}
+                              onClick={() => toggleFieldForActive("celluleMaison")}
+                              title={
+                                activeExcluded.includes("celluleMaison")
+                                  ? "Ajouter « Cellule de maison » au rapport"
+                                  : "Ne pas ajouter « Cellule de maison » au rapport"
+                              }
+                            >
+                              {activeExcluded.includes("celluleMaison") ? (
+                                <>
+                                  <EyeOff size={13} aria-hidden="true" />
+                                  <span className={styles.excludedBadge}>Non inclus</span>
+                                </>
+                              ) : (
+                                <Eye size={13} aria-hidden="true" />
+                              )}
+                            </button>
+                          </span>
+                          <input
+                            value={active.celluleMaison}
+                            disabled={activeExcluded.includes("celluleMaison")}
+                            onChange={event => patchActive({ celluleMaison: event.target.value })}
+                            placeholder="Nom de la cellule ou prochaine étape…"
+                          />
+                        </label>
+                        {!activeExcluded.includes("celluleMaison") && (
+                          <div className={styles.quickChoices} role="group" aria-label="Réponses rapides pour la cellule">
+                            {["Intéressé(e) / à orienter", "Orientation en cours", "Intégré(e)"].map(value => (
+                              <button key={value} type="button" onClick={() => patchActive({ celluleMaison: value })}>
+                                {value}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <label className={styles.field}><span>Note pour l’équipe <small>facultatif</small></span><textarea rows={3} value={active.commentaire} onChange={event => patchActive({ commentaire: event.target.value })} placeholder="Un point utile ou la prochaine action…" /><small>Incluse seulement dans la version « Avec les notes ».</small></label>
                     </div>
                   ) : (
                     <>
-                      <div className={styles.callSummary} data-status={active.appelAbouti === true ? "yes" : active.appelAbouti === false ? "no" : "unknown"}>
+                      <div className={styles.callSummary} data-status={activeExcluded.includes("appelAbouti") ? "excluded" : active.appelAbouti === true ? "yes" : active.appelAbouti === false ? "no" : "unknown"}>
                         {active.appelAbouti === false ? <PhoneMissed size={19} aria-hidden="true" /> : <PhoneCall size={19} aria-hidden="true" />}
-                        <div><strong>{active.appelAbouti === true ? "L’appel a abouti" : active.appelAbouti === false ? "Appel non abouti" : "Appel à préciser"}</strong><span>{active.appelAbouti === false && active.appelNonAboutiRaison ? active.appelNonAboutiRaison : active.arrivalDate ? "Accueil du " + formatCrDate(active.arrivalDate) : "Suivi prérempli depuis la fiche"}</span></div>
+                        <div>
+                          <strong>{activeExcluded.includes("appelAbouti") ? "Appel : Non inclus au rapport" : active.appelAbouti === true ? "L’appel a abouti" : active.appelAbouti === false ? "Appel non abouti" : "Appel à préciser"}</strong>
+                          <span>{activeExcluded.includes("appelAbouti") ? "Ce champ ne sera pas mentionné dans le message WhatsApp" : active.appelAbouti === false && active.appelNonAboutiRaison ? active.appelNonAboutiRaison : active.arrivalDate ? "Accueil du " + formatCrDate(active.arrivalDate) : "Suivi prérempli depuis la fiche"}</span>
+                        </div>
                       </div>
-                      <dl className={styles.facts}>{STATUS_FIELDS.slice(1).map(([key, label]) => <div key={key}><dt>{label}</dt><dd data-value={String(active[key])}>{active[key] === true && <Check size={12} aria-hidden="true" />}{statusLabel(active[key])}</dd></div>)}</dl>
-                      <div className={styles.cellSummary}><span>Cellule de maison</span><strong>{active.celluleMaison || "À préciser"}</strong></div>
+                      <dl className={styles.facts}>
+                        {STATUS_FIELDS.slice(1).map(([key, label]) => {
+                          const isExcluded = activeExcluded.includes(key);
+                          return (
+                            <div key={key} data-excluded={isExcluded}>
+                              <dt>
+                                <span>{label}</span>
+                                {isExcluded && <span className={styles.excludedDot}>Non inclus</span>}
+                              </dt>
+                              <dd data-value={isExcluded ? "excluded" : String(active[key])}>
+                                {isExcluded ? (
+                                  <span className={styles.mutedExcluded}>Masqué du CR</span>
+                                ) : (
+                                  <>
+                                    {active[key] === true && <Check size={12} aria-hidden="true" />}
+                                    {statusLabel(active[key])}
+                                  </>
+                                )}
+                              </dd>
+                            </div>
+                          );
+                        })}
+                      </dl>
+                      <div className={styles.cellSummary} data-excluded={activeExcluded.includes("celluleMaison")}>
+                        <span>
+                          Cellule de maison
+                          {activeExcluded.includes("celluleMaison") && <small className={styles.excludedDot}>Non inclus</small>}
+                        </span>
+                        <strong>{activeExcluded.includes("celluleMaison") ? "Masqué du rapport" : active.celluleMaison || "À préciser"}</strong>
+                      </div>
                       <div className={styles.noteSummary}><span>Note pour l’équipe</span>{active.commentaire ? <p>{active.commentaire}</p> : <button type="button" onClick={() => setEditing(true)}><Plus size={14} aria-hidden="true" /> Ajouter une note</button>}</div>
                     </>
                   )}
@@ -267,6 +581,35 @@ function CrComposer({ onClose, initialGuest, counselorGuests = EMPTY_GUESTS, def
                   <button type="button" aria-pressed={audience === "group"} onClick={() => setAudience("group")}><span className={styles.formatTop}><MessageCircle size={19} aria-hidden="true" /><span className={styles.radioMark}>{audience === "group" && <span />}</span></span><strong>L’essentiel</strong><span>Le suivi, sans les notes.</span><small>Pour votre groupe WhatsApp</small></button>
                   <button type="button" aria-pressed={audience === "team"} onClick={() => setAudience("team")}><span className={styles.formatTop}><FileText size={19} aria-hidden="true" /><span className={styles.radioMark}>{audience === "team" && <span />}</span></span><strong>Avec les notes</strong><span>Le suivi et les commentaires.</span><small>Pour l’équipe de suivi</small></button>
                 </div>
+                {(() => {
+                  const peopleWithExclusions = selectedItems.filter(
+                    item => item.excludedFields && item.excludedFields.length > 0
+                  );
+                  if (!peopleWithExclusions.length) return null;
+                  return (
+                    <div className={styles.excludedNotice}>
+                      <div className={styles.excludedNoticeHeader}>
+                        <EyeOff size={15} aria-hidden="true" />
+                        <span>
+                          {peopleWithExclusions.length === 1 ? (
+                            <>
+                              Champs retirés pour <strong>{peopleWithExclusions[0].name}</strong> (
+                              {peopleWithExclusions[0].excludedFields?.map(k => ALL_REPORT_FIELDS.find(f => f.key === k)?.short || k).join(", ")}
+                              )
+                            </>
+                          ) : (
+                            <>
+                              <strong>{peopleWithExclusions.length} personnes</strong> ont des champs retirés de leur rapport
+                            </>
+                          )}
+                        </span>
+                        <button type="button" onClick={resetAllPeopleExclusions}>
+                          Tout inclure
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <CrReportDatePicker value={reportDate} onChange={value => { setReportDate(value); setDateEdited(true); }} />
                 {arrivalDates.length > 1 && <p className={styles.dateNotice}>Ces personnes ont été accueillies à des dates différentes. Le titre du CR indiquera le {formatCrDate(reportDate)} ; ajustez cette date si nécessaire.</p>}
                 <p className={styles.shareExplanation}>Dans WhatsApp, choisissez la conversation puis appuyez sur Envoyer.</p>
