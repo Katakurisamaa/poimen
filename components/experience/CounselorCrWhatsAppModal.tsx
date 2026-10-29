@@ -80,6 +80,7 @@ function CrComposer({ onClose, initialGuest, counselorGuests = EMPTY_GUESTS, def
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const formPaneRef = useRef<HTMLDivElement>(null);
   const manualCopyRef = useRef<HTMLTextAreaElement>(null);
 
   const selectedItems = selectedIds.map(id => items[id]).filter(Boolean);
@@ -113,6 +114,7 @@ function CrComposer({ onClose, initialGuest, counselorGuests = EMPTY_GUESTS, def
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
     workspaceRef.current?.scrollTo({ top: 0 });
+    formPaneRef.current?.scrollTo({ top: 0 });
   }, [step]);
 
   useEffect(() => {
@@ -199,7 +201,7 @@ function CrComposer({ onClose, initialGuest, counselorGuests = EMPTY_GUESTS, def
           <span className={styles.prefilled}><FileText size={13} aria-hidden="true" /> Prérempli pour vous</span>
         </nav>
         <div ref={workspaceRef} className={styles.workspace} data-step={step}>
-          <div className={styles.formPane}>
+          <div ref={formPaneRef} className={styles.formPane}>
             {step === 0 && (
               <>
                 <div className={styles.sectionIntro}><span className={styles.kicker}>01 · LES PERSONNES</span><h2 ref={headingRef} tabIndex={-1}>Qui souhaitez-vous inclure ?</h2><p>Un suivi individuel ou plusieurs personnes dans le même message.</p></div>

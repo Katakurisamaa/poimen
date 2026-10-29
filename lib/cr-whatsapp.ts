@@ -82,11 +82,6 @@ function nullableBoolean(...values: Array<boolean | null | undefined>): CrStatus
   return typeof value === "boolean" ? value : null;
 }
 
-function statusText(value?: CrStatus): string {
-  if (typeof value !== "boolean") return "À préciser";
-  return value ? "✅ Oui" : "❌ Non";
-}
-
 function statusEmoji(value?: CrStatus): string {
   if (value === true) return "✅";
   if (value === false) return "❌";
@@ -174,7 +169,7 @@ export function formatSoulCrBlock(item: SoulCrItem, audience: CrAudience = "team
     "",
     `*Appel Abouti* : ${appel}`,
     "",
-    `*Revient à l’église* : ${statusEmoji(item.revientEglise ?? item.prevuRevenir)}`,
+    `*Revient à l’église* : ${statusEmoji(item.revientEglise === undefined ? item.prevuRevenir : item.revientEglise)}`,
     "",
     `*Groupe WhatsApp* :  ${statusEmoji(item.groupeWhatsapp)}`,
     "",

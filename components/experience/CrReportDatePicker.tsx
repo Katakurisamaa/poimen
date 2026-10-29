@@ -30,9 +30,12 @@ export default function CrReportDatePicker({ value, onChange }: { value: string;
   const today = dateKey(new Date());
 
   useEffect(() => {
-    if (!open || view !== "days") return;
+    if (!open) return;
     const frame = requestAnimationFrame(() => {
-      calendarRef.current?.querySelector<HTMLButtonElement>('[data-date="' + dateKey(cursor) + '"]')?.focus();
+      const selector = view === "days"
+        ? '[data-date="' + dateKey(cursor) + '"]'
+        : '[data-calendar-choice][aria-pressed="true"]';
+      calendarRef.current?.querySelector<HTMLButtonElement>(selector)?.focus();
     });
     return () => cancelAnimationFrame(frame);
   }, [open, cursor, view]);
@@ -65,7 +68,9 @@ export default function CrReportDatePicker({ value, onChange }: { value: string;
   }
 
   return (
-    <div className={styles.datePicker}>
+    <div className={styles.datePicker} onKeyDown={event => {
+      if (open && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
+    }}>
       <button ref={triggerRef} type="button" className={styles.dateTrigger} aria-label="Changer la date du compte-rendu" aria-expanded={open} aria-controls={id} onClick={() => {
         if (open) close();
         else { setCursor(parseDate(value)); setView("days"); setOpen(true); }
@@ -75,9 +80,7 @@ export default function CrReportDatePicker({ value, onChange }: { value: string;
         <ChevronDown size={16} aria-hidden="true" />
       </button>
       {open && (
-        <div id={id} ref={calendarRef} className={styles.calendar} role="region" aria-label="Calendrier du compte-rendu" onKeyDown={event => {
-          if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
-        }}>
+        <div id={id} ref={calendarRef} className={styles.calendar} role="region" aria-label="Calendrier du compte-rendu">
           <div className={styles.calendarToolbar}>
             <button type="button" className={styles.iconButton} onClick={() => move(-1)} aria-label={view === "days" ? "Mois précédent" : "Années précédentes"}><ChevronLeft size={17} /></button>
             <div className={styles.calendarHeading}>
@@ -100,7 +103,7 @@ export default function CrReportDatePicker({ value, onChange }: { value: string;
           ) : (
             <div className={styles.calendarChoices}>
               {(view === "months" ? MONTHS : Array.from({ length: 12 }, (_, index) => firstYear + index)).map((label, index) => (
-                <button key={label} type="button" aria-pressed={view === "months" ? index === month : label === year} onClick={() => {
+                <button key={label} type="button" data-calendar-choice aria-pressed={view === "months" ? index === month : label === year} onClick={() => {
                   setCursor(view === "months" ? new Date(year, index, 1) : new Date(Number(label), month, 1));
                   setView(view === "months" ? "days" : "months");
                 }}>{label}</button>

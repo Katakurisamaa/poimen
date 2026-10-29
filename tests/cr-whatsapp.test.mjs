@@ -55,3 +55,29 @@ test('buildWhatsAppShareUrl generates valid wa.me link', () => {
   const url = buildWhatsAppShareUrl('Hello *World*');
   assert.ok(url.startsWith('https://api.whatsapp.com/send?text=Hello%20*World*'));
 });
+
+test('group version excludes notes while team version keeps them', () => {
+  const item = guestToSoulCrItem({ id: '1', firstName: 'Sarah', commentaireSuivi: 'À rappeler jeudi' });
+  const group = formatFullCrMessage([item], '2026-10-25', 'group');
+  const team = formatFullCrMessage([item], '2026-10-25', 'team');
+  assert.ok(!group.includes('À rappeler jeudi'));
+  assert.ok(!group.includes('*Commentaire*'));
+  assert.ok(team.includes('*Commentaire* : À rappeler jeudi'));
+  assert.equal(team.replace('\n\n*Commentaire* : À rappeler jeudi', ''), group);
+  assert.equal(new URL(buildWhatsAppShareUrl(team)).searchParams.get('text'), team);
+});
+
+test('explicit unknown statuses remain unknown in the message', () => {
+  const item = guestToSoulCrItem({ id: '1', prevuRevenir: true });
+  item.revientEglise = null;
+  item.crEnLigne = null;
+  const block = formatSoulCrBlock(item);
+  assert.ok(block.includes('*Revient à l’église* : À préciser'));
+  assert.ok(block.includes('*CR en ligne* : À préciser'));
+});
+
+test('interest in training alone is not participation in PCNC', () => {
+  assert.equal(guestToSoulCrItem({ id: '1', interetFormation: true }).pcnc, null);
+  assert.equal(guestToSoulCrItem({ id: '1', interetFormation: true, p101: false }).pcnc, false);
+  assert.equal(guestToSoulCrItem({ id: '1', p101: true }).pcnc, true);
+});
